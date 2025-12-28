@@ -7,6 +7,7 @@ import { ImageComparisonModal } from './components/ImageComparisonModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { Header } from './components/Header';
 import { GalleryModal } from './components/GalleryModal';
+import { SavedPromptsDropdown } from './components/SavedPromptsDropdown';
 import { slugify } from './utils/stringUtils.ts';
 import { saveToGallery, createThumbnail } from './utils/galleryDB';
 import JSZip from 'jszip';
@@ -408,7 +409,13 @@ const App: React.FC = () => {
       <section className="space-y-1">
         <header className="flex items-center justify-between px-1">
           <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Prompt</label>
-          <span className="text-[8px] font-bold text-monstera-400 uppercase tracking-widest">↵ to run</span>
+          <div className="flex items-center gap-2">
+            <SavedPromptsDropdown
+              onSelectPrompt={(prompt) => setState(p => ({ ...p, prompt }))}
+              currentPrompt={state.prompt}
+            />
+            <span className="text-[8px] font-bold text-monstera-400 uppercase tracking-widest">↵ to run</span>
+          </div>
         </header>
         <textarea
           ref={isMobileView ? mobilePromptRef : promptRef}

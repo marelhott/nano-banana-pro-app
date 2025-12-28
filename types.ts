@@ -26,6 +26,14 @@ export interface SourceImage {
   file: File;
 }
 
+export interface SavedPrompt {
+  id: string;
+  name: string;
+  prompt: string;
+  category?: string;
+  timestamp: number;
+}
+
 export interface AppState {
   sourceImages: SourceImage[];
   generatedImages: GeneratedImage[];
