@@ -211,8 +211,9 @@ const App: React.FC = () => {
         const imageData = imagesToGenerate[i];
 
         // Přidat zpoždění mezi požadavky (kromě prvního)
+        // Pro Nano Banana Pro používáme 2s pauzu kvůli rate limitingu
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 800));
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
         try {
