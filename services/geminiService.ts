@@ -75,7 +75,7 @@ export const editImageWithGemini = async (
     }
 
     // Logování před odesláním requestu
-    const modelName = 'gemini-exp-1206';
+    const modelName = 'gemini-3-pro-image-preview';
     console.log('Sending request to Gemini:', {
       model: modelName,
       numberOfImages: images.length,
