@@ -23,8 +23,19 @@ export const editImageWithGemini = async (
   useGrounding: boolean = false
 ): Promise<GenerateImageResult> => {
   try {
+    // Get API key from AI Studio environment or environment variable
+    // @ts-ignore
+    const apiKey = typeof window !== 'undefined' && window.aistudio?.getSelectedApiKey
+      // @ts-ignore
+      ? await window.aistudio.getSelectedApiKey()
+      : process.env.API_KEY || process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      throw new Error("API_KEY_NOT_FOUND");
+    }
+
     // Create instance inside function to use the most up-to-date API key
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     const parts: any[] = [];
 
     // Add all image parts
@@ -71,6 +82,19 @@ export const editImageWithGemini = async (
       config: config,
     });
 
+    // Detailní logování odpovědi pro debugging
+    console.log('Gemini API Response:', {
+      hasCandidates: !!response.candidates,
+      candidatesLength: response.candidates?.length,
+      firstCandidate: response.candidates?.[0],
+      promptFeedback: response.promptFeedback,
+    });
+
+    // Kontrola, zda je odpověď blokovaná
+    if (response.promptFeedback?.blockReason) {
+      throw new Error(`Request blocked: ${response.promptFeedback.blockReason}`);
+    }
+
     const generatedPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
     const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
 
@@ -81,7 +105,10 @@ export const editImageWithGemini = async (
         groundingMetadata
       };
     } else {
-      throw new Error("No image data returned from the model.");
+      // Detailnější chybová hláška
+      const finishReason = response.candidates?.[0]?.finishReason;
+      console.error('No image data in response. Finish reason:', finishReason);
+      throw new Error(`No image data returned from the model. Reason: ${finishReason || 'unknown'}`);
     }
   } catch (error: any) {
     console.error("Gemini API Error:", error);
