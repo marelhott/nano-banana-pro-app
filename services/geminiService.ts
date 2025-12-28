@@ -75,7 +75,8 @@ export const editImageWithGemini = async (
     }
 
     // Logování před odesláním requestu
-    const modelName = 'gemini-3-pro-image-preview';
+    // Nano Banana Pro je interni nazev, ale API pouziva gemini-2.0-flash-exp pro image generation
+    const modelName = 'gemini-2.0-flash-exp';
     console.log('Sending request to Gemini:', {
       model: modelName,
       numberOfImages: images.length,
