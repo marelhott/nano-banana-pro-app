@@ -6,7 +6,9 @@ import { AppState, GeneratedImage, SourceImage } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { Header } from './components/Header';
+import { GalleryModal } from './components/GalleryModal';
 import { slugify } from './utils/stringUtils.ts';
+import { saveToGallery, createThumbnail } from './utils/galleryDB';
 import JSZip from 'jszip';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
@@ -32,6 +34,7 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -205,6 +208,22 @@ const App: React.FC = () => {
             img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
           ),
         }));
+
+        // Automaticky uložit do galerie
+        try {
+          const thumbnail = await createThumbnail(result.imageBase64);
+          await saveToGallery({
+            id: imageData.id,
+            url: result.imageBase64,
+            prompt: state.prompt,
+            timestamp: Date.now(),
+            resolution: state.resolution,
+            aspectRatio: state.aspectRatio,
+            thumbnail,
+          });
+        } catch (err) {
+          console.error('Failed to save to gallery:', err);
+        }
       } catch (err: any) {
         if (err.message === "API_KEY_NOT_FOUND") {
           setHasApiKey(false);
@@ -285,6 +304,22 @@ const App: React.FC = () => {
         delete newPrompts[imageId];
         return newPrompts;
       });
+
+      // Uložit upravenou verzi do galerie
+      try {
+        const thumbnail = await createThumbnail(result.imageBase64);
+        await saveToGallery({
+          id: imageId,
+          url: result.imageBase64,
+          prompt: editPrompt,
+          timestamp: Date.now(),
+          resolution: image.resolution,
+          aspectRatio: image.aspectRatio,
+          thumbnail,
+        });
+      } catch (err) {
+        console.error('Failed to save edited image to gallery:', err);
+      }
     } catch (err: any) {
       console.error('Edit error:', err);
       setState(prev => ({
@@ -502,7 +537,14 @@ const App: React.FC = () => {
           >
             {state.prompt || "Enter a prompt..."}
           </div>
-          <button 
+          <button
+             onClick={() => setIsGalleryOpen(true)}
+             className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
+             title="Gallery"
+          >
+             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          </button>
+          <button
              onClick={() => setIsMobileMenuOpen(true)}
              className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
              title="Settings"
@@ -554,6 +596,15 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-4 hidden lg:flex">
+              <button
+                onClick={() => setIsGalleryOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-monstera-400 hover:bg-monstera-500 text-ink font-black text-[9px] uppercase tracking-widest rounded-md border-2 border-ink shadow-lg transition-all active:scale-95"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Gallery
+              </button>
               {state.generatedImages.length > 0 && (
                 <button 
                   onClick={async () => {
@@ -750,7 +801,7 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <ImageComparisonModal 
+      <ImageComparisonModal
         isOpen={!!selectedImage}
         onClose={() => setSelectedImage(null)}
         generatedImage={selectedImage?.url || null}
@@ -764,6 +815,11 @@ const App: React.FC = () => {
         onPrev={handlePrevImage}
         hasNext={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) < state.generatedImages.length - 1 : false}
         hasPrev={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) > 0 : false}
+      />
+
+      <GalleryModal
+        isOpen={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
       />
     </div>
   );
