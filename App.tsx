@@ -44,9 +44,21 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // @ts-ignore
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      setHasApiKey(hasKey);
+      try {
+        // @ts-ignore
+        if (typeof window !== 'undefined' && window.aistudio?.hasSelectedApiKey) {
+          // @ts-ignore
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(hasKey);
+        } else {
+          // Running locally, assume API key is in environment
+          setHasApiKey(true);
+        }
+      } catch (err) {
+        console.error('Failed to check API key:', err);
+        // Assume true to allow local development
+        setHasApiKey(true);
+      }
     };
     checkKey();
 

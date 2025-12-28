@@ -74,8 +74,20 @@ export const editImageWithGemini = async (
       config.imageConfig = imageConfig;
     }
 
+    // Logování před odesláním requestu
+    const modelName = 'gemini-2.0-flash-exp';
+    console.log('Sending request to Gemini:', {
+      model: modelName,
+      numberOfImages: images.length,
+      promptLength: prompt.length,
+      resolution,
+      aspectRatio,
+      config,
+      firstImageSize: images[0]?.data?.length || 0,
+    });
+
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
+      model: modelName,
       contents: {
         parts: parts,
       },
@@ -88,11 +100,20 @@ export const editImageWithGemini = async (
       candidatesLength: response.candidates?.length,
       firstCandidate: response.candidates?.[0],
       promptFeedback: response.promptFeedback,
+      fullResponse: response,
     });
 
     // Kontrola, zda je odpověď blokovaná
     if (response.promptFeedback?.blockReason) {
-      throw new Error(`Request blocked: ${response.promptFeedback.blockReason}`);
+      const blockReasonDetail = response.promptFeedback.blockReasonMessage ||
+                                JSON.stringify(response.promptFeedback);
+      console.error('Request blocked:', {
+        blockReason: response.promptFeedback.blockReason,
+        blockReasonMessage: response.promptFeedback.blockReasonMessage,
+        safetyRatings: response.promptFeedback.safetyRatings,
+        fullPromptFeedback: response.promptFeedback,
+      });
+      throw new Error(`Request blocked: ${response.promptFeedback.blockReason}. Details: ${blockReasonDetail}`);
     }
 
     const generatedPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
