@@ -28,6 +28,7 @@ export interface AppState {
   useGrounding: boolean;
   styleCode: string; // Stored as string to allow empty input state
   randomizeEachTime: boolean;
+  numberOfImages: number; // Number of images to generate at once (1-5)
 }
 
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/heic' | 'image/heif';

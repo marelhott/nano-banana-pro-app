@@ -24,8 +24,9 @@ const App: React.FC = () => {
     resolution: '2K', // Default to 2K
     error: null,
     useGrounding: false,
-    styleCode: '', 
-    randomizeEachTime: false, 
+    styleCode: '',
+    randomizeEachTime: false,
+    numberOfImages: 1, // Default to 1 image
   });
   
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
@@ -176,66 +177,74 @@ const App: React.FC = () => {
   }, [handleImagesSelected]);
 
   const handleGenerate = async () => {
-    setIsMobileMenuOpen(false); 
+    setIsMobileMenuOpen(false);
     if (!state.prompt.trim()) return;
 
-    let finalPrompt = state.prompt;
-    let currentCode = state.styleCode;
+    // Vytvořit pole s požadovaným počtem obrázků
+    const imagesToGenerate = Array.from({ length: state.numberOfImages }, (_, index) => {
+      let currentCode = state.styleCode;
 
-    if (state.randomizeEachTime) {
-      currentCode = Math.floor(Math.random() * 1000000000).toString();
-      setState(prev => ({ ...prev, styleCode: currentCode }));
-    }
-
-    if (currentCode) {
-      const numericCode = parseInt(currentCode, 10);
-      if (!isNaN(numericCode)) {
-        finalPrompt += ` . ${getStyleDescription(numericCode)}`;
+      // Pokud randomizujeme každý obrázek, generujeme nový seed pro každý
+      if (state.randomizeEachTime) {
+        currentCode = Math.floor(Math.random() * 1000000000).toString();
       }
-    }
 
-    const newId = Date.now().toString();
-    const newImage: GeneratedImage = {
-      id: newId,
-      prompt: state.prompt,
-      timestamp: Date.now(),
-      status: 'loading',
-      resolution: state.resolution,
-      aspectRatio: state.aspectRatio,
-      styleCode: currentCode ? parseInt(currentCode, 10) : undefined
-    };
+      let finalPrompt = state.prompt;
+      if (currentCode) {
+        const numericCode = parseInt(currentCode, 10);
+        if (!isNaN(numericCode)) {
+          finalPrompt += ` . ${getStyleDescription(numericCode)}`;
+        }
+      }
 
+      const newId = `${Date.now()}-${index}`;
+      return {
+        id: newId,
+        prompt: state.prompt,
+        timestamp: Date.now() + index,
+        status: 'loading' as const,
+        resolution: state.resolution,
+        aspectRatio: state.aspectRatio,
+        styleCode: currentCode ? parseInt(currentCode, 10) : undefined,
+        finalPrompt,
+      };
+    });
+
+    // Přidat všechny loading obrázky do state
     setState(prev => ({
       ...prev,
-      generatedImages: [newImage, ...prev.generatedImages],
+      generatedImages: [...imagesToGenerate.map(({ finalPrompt, ...img }) => img), ...prev.generatedImages],
     }));
 
-    try {
-      const result = await editImageWithGemini(
-        state.sourceImages.map(i => ({ data: i.url, mimeType: i.file.type })),
-        finalPrompt,
-        state.resolution,
-        state.aspectRatio,
-        state.useGrounding
-      );
+    // Generovat všechny obrázky paralelně
+    imagesToGenerate.forEach(async (imageData) => {
+      try {
+        const result = await editImageWithGemini(
+          state.sourceImages.map(i => ({ data: i.url, mimeType: i.file.type })),
+          imageData.finalPrompt,
+          state.resolution,
+          state.aspectRatio,
+          state.useGrounding
+        );
 
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img => 
-          img.id === newId ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
-        ),
-      }));
-    } catch (err: any) {
-      if (err.message === "API_KEY_NOT_FOUND") {
-        setHasApiKey(false);
+        setState(prev => ({
+          ...prev,
+          generatedImages: prev.generatedImages.map(img =>
+            img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
+          ),
+        }));
+      } catch (err: any) {
+        if (err.message === "API_KEY_NOT_FOUND") {
+          setHasApiKey(false);
+        }
+        setState(prev => ({
+          ...prev,
+          generatedImages: prev.generatedImages.map(img =>
+            img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
+          ),
+        }));
       }
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img => 
-          img.id === newId ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
-        ),
-      }));
-    }
+    });
   };
 
   const handleRepopulate = (image: GeneratedImage) => {
@@ -375,6 +384,21 @@ const App: React.FC = () => {
                   {RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest px-1">Počet obrázků</label>
+            <div className="flex items-center gap-1.5 bg-monstera-50 p-1.5 rounded-md border border-monstera-200 shadow-sm">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setState(p => ({ ...p, numberOfImages: n }))}
+                  className={`flex-1 h-8 rounded-md font-black text-[11px] transition-all flex items-center justify-center ${state.numberOfImages === n ? 'bg-white text-ink shadow-sm border border-monstera-300' : 'text-monstera-600 hover:text-ink hover:bg-white/50'}`}
+                >
+                  {n}
+                </button>
+              ))}
             </div>
           </div>
 
