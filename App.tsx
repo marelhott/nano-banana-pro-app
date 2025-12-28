@@ -211,52 +211,76 @@ const App: React.FC = () => {
         const imageData = imagesToGenerate[i];
 
         // Přidat zpoždění mezi požadavky (kromě prvního)
-        // Pro Nano Banana Pro používáme 2s pauzu kvůli rate limitingu
+        // Pro Nano Banana Pro používáme 5s pauzu kvůli striktnímu rate limitingu
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 5000));
         }
 
-        try {
-          const result = await editImageWithGemini(
-            state.sourceImages.map(img => ({ data: img.url, mimeType: img.file.type })),
-            state.prompt,
-            state.resolution,
-            state.aspectRatio,
-            false
-          );
+        // Retry logika pro 429 errory s exponential backoff
+        let retryCount = 0;
+        const maxRetries = 3;
+        let success = false;
 
-          setState(prev => ({
-            ...prev,
-            generatedImages: prev.generatedImages.map(img =>
-              img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
-            ),
-          }));
-
-          // Automaticky uložit do galerie
+        while (retryCount <= maxRetries && !success) {
           try {
-            const thumbnail = await createThumbnail(result.imageBase64);
-            await saveToGallery({
-              id: imageData.id,
-              url: result.imageBase64,
-              prompt: state.prompt,
-              timestamp: Date.now(),
-              resolution: state.resolution,
-              aspectRatio: state.aspectRatio,
-              thumbnail,
-            });
-          } catch (err) {
-            console.error('Failed to save to gallery:', err);
+            const result = await editImageWithGemini(
+              state.sourceImages.map(img => ({ data: img.url, mimeType: img.file.type })),
+              state.prompt,
+              state.resolution,
+              state.aspectRatio,
+              false
+            );
+
+            setState(prev => ({
+              ...prev,
+              generatedImages: prev.generatedImages.map(img =>
+                img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
+              ),
+            }));
+
+            // Automaticky uložit do galerie
+            try {
+              const thumbnail = await createThumbnail(result.imageBase64);
+              await saveToGallery({
+                id: imageData.id,
+                url: result.imageBase64,
+                prompt: state.prompt,
+                timestamp: Date.now(),
+                resolution: state.resolution,
+                aspectRatio: state.aspectRatio,
+                thumbnail,
+              });
+            } catch (err) {
+              console.error('Failed to save to gallery:', err);
+            }
+
+            success = true; // Úspěch, pokračuj na další obrázek
+          } catch (err: any) {
+            const is429 = err.message?.includes('429') ||
+                         err.message?.includes('TooManyRequests') ||
+                         err.message?.includes('RESOURCE_EXHAUSTED') ||
+                         err.message?.includes('Request blocked');
+
+            if (is429 && retryCount < maxRetries) {
+              retryCount++;
+              // Exponential backoff: 5s, 10s, 20s
+              const waitTime = 5000 * Math.pow(2, retryCount - 1);
+              console.log(`Rate limit hit for image ${i + 1}, waiting ${waitTime/1000}s before retry ${retryCount}/${maxRetries}`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            } else {
+              // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
+              if (err.message === "API_KEY_NOT_FOUND") {
+                setHasApiKey(false);
+              }
+              setState(prev => ({
+                ...prev,
+                generatedImages: prev.generatedImages.map(img =>
+                  img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
+                ),
+              }));
+              break; // Přeruš retry loop
+            }
           }
-        } catch (err: any) {
-          if (err.message === "API_KEY_NOT_FOUND") {
-            setHasApiKey(false);
-          }
-          setState(prev => ({
-            ...prev,
-            generatedImages: prev.generatedImages.map(img =>
-              img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
-            ),
-          }));
         }
       }
     };
