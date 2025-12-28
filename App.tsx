@@ -6,8 +6,6 @@ import { AppState, GeneratedImage, SourceImage } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { Header } from './components/Header';
-import { StyleSeedHelpModal } from './components/StyleSeedHelpModal';
-import { getStyleDescription } from './utils/styleGenerator.ts';
 import { slugify } from './utils/stringUtils.ts';
 import JSZip from 'jszip';
 
@@ -23,9 +21,6 @@ const App: React.FC = () => {
     aspectRatio: 'Original',
     resolution: '2K', // Default to 2K
     error: null,
-    useGrounding: false,
-    styleCode: '',
-    randomizeEachTime: false,
     numberOfImages: 1, // Default to 1 image
   });
   
@@ -34,10 +29,9 @@ const App: React.FC = () => {
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  const [showStyleDetails, setShowStyleDetails] = useState(false);
-  const [showSeedHelp, setShowSeedHelp] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
   
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -119,11 +113,6 @@ const App: React.FC = () => {
     };
   }, [resize, stopResizing]);
 
-  const stylePreview = useMemo(() => {
-    const code = parseInt(state.styleCode, 10);
-    return isNaN(code) ? null : getStyleDescription(code);
-  }, [state.styleCode]);
-
   const getLoadingAspectRatio = useCallback((ratio: string | undefined): React.CSSProperties => {
     if (!ratio || ratio === 'Original') return { aspectRatio: '1 / 1' };
     const [w, h] = ratio.split(':');
@@ -182,21 +171,6 @@ const App: React.FC = () => {
 
     // Vytvořit pole s požadovaným počtem obrázků
     const imagesToGenerate = Array.from({ length: state.numberOfImages }, (_, index) => {
-      let currentCode = state.styleCode;
-
-      // Pokud randomizujeme každý obrázek, generujeme nový seed pro každý
-      if (state.randomizeEachTime) {
-        currentCode = Math.floor(Math.random() * 1000000000).toString();
-      }
-
-      let finalPrompt = state.prompt;
-      if (currentCode) {
-        const numericCode = parseInt(currentCode, 10);
-        if (!isNaN(numericCode)) {
-          finalPrompt += ` . ${getStyleDescription(numericCode)}`;
-        }
-      }
-
       const newId = `${Date.now()}-${index}`;
       return {
         id: newId,
@@ -205,15 +179,13 @@ const App: React.FC = () => {
         status: 'loading' as const,
         resolution: state.resolution,
         aspectRatio: state.aspectRatio,
-        styleCode: currentCode ? parseInt(currentCode, 10) : undefined,
-        finalPrompt,
       };
     });
 
     // Přidat všechny loading obrázky do state
     setState(prev => ({
       ...prev,
-      generatedImages: [...imagesToGenerate.map(({ finalPrompt, ...img }) => img), ...prev.generatedImages],
+      generatedImages: [...imagesToGenerate, ...prev.generatedImages],
     }));
 
     // Generovat všechny obrázky paralelně
@@ -221,10 +193,10 @@ const App: React.FC = () => {
       try {
         const result = await editImageWithGemini(
           state.sourceImages.map(i => ({ data: i.url, mimeType: i.file.type })),
-          imageData.finalPrompt,
+          state.prompt,
           state.resolution,
           state.aspectRatio,
-          state.useGrounding
+          false
         );
 
         setState(prev => ({
@@ -253,13 +225,95 @@ const App: React.FC = () => {
       prompt: image.prompt,
       aspectRatio: image.aspectRatio || 'Original',
       resolution: image.resolution || '2K',
-      styleCode: image.styleCode ? image.styleCode.toString() : '',
-      useGrounding: !!image.groundingMetadata,
     }));
     // If mobile, open the menu so user sees the repopulated settings
     if (isMobile) {
       setIsMobileMenuOpen(true);
     }
+  };
+
+  const handleEditImage = async (imageId: string) => {
+    const editPrompt = editPrompts[imageId];
+    if (!editPrompt || !editPrompt.trim()) return;
+
+    const image = state.generatedImages.find(img => img.id === imageId);
+    if (!image || !image.url) return;
+
+    // Nastavit loading stav
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img =>
+        img.id === imageId ? { ...img, isEditing: true } : img
+      ),
+    }));
+
+    try {
+      // Použít aktuální obrázek jako source image pro editaci
+      const result = await editImageWithGemini(
+        [{ data: image.url, mimeType: 'image/jpeg' }],
+        editPrompt,
+        image.resolution,
+        image.aspectRatio,
+        false
+      );
+
+      // Uložit starou verzi a aktualizovat obrázek
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img => {
+          if (img.id === imageId) {
+            const newVersions = [
+              ...(img.versions || []),
+              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp }
+            ];
+            return {
+              ...img,
+              url: result.imageBase64,
+              prompt: editPrompt,
+              timestamp: Date.now(),
+              versions: newVersions,
+              isEditing: false,
+            };
+          }
+          return img;
+        }),
+      }));
+
+      // Vymazat edit prompt
+      setEditPrompts(prev => {
+        const newPrompts = { ...prev };
+        delete newPrompts[imageId];
+        return newPrompts;
+      });
+    } catch (err: any) {
+      console.error('Edit error:', err);
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img =>
+          img.id === imageId ? { ...img, isEditing: false, error: err instanceof Error ? err.message : 'Edit failed' } : img
+        ),
+      }));
+    }
+  };
+
+  const handleUndoEdit = (imageId: string) => {
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img => {
+        if (img.id === imageId && img.versions && img.versions.length > 0) {
+          const versions = [...img.versions];
+          const previousVersion = versions.pop()!;
+          return {
+            ...img,
+            url: previousVersion.url,
+            prompt: previousVersion.prompt,
+            timestamp: previousVersion.timestamp,
+            versions,
+          };
+        }
+        return img;
+      }),
+    }));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -401,89 +455,6 @@ const App: React.FC = () => {
               ))}
             </div>
           </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 px-1">
-              <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest">Style Seed</label>
-              <button 
-                onClick={() => setShowSeedHelp(true)}
-                className="text-monstera-400 hover:text-monstera-600 transition-colors"
-                title="What is this?"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </button>
-            </div>
-            
-            <div className="relative">
-              <input
-                type="text"
-                value={state.styleCode}
-                disabled={state.randomizeEachTime}
-                onChange={(e) => setState(p => ({ ...p, styleCode: e.target.value.replace(/\D/g, '') }))}
-                className={`w-full bg-white border border-monstera-200 text-xs font-mono font-bold rounded-md pl-3 pr-8 py-1.5 outline-none focus:border-monstera-400 shadow-sm transition-all ${state.randomizeEachTime ? 'bg-monstera-50 text-monstera-400 select-none' : ''}`}
-                placeholder={state.randomizeEachTime ? "Randomizing each run..." : "Optional Seed"}
-              />
-              {!state.randomizeEachTime && (
-                <button
-                  onClick={() => setState(p => ({ ...p, styleCode: Math.floor(Math.random() * 1000000000).toString() }))}
-                  className="absolute right-1 top-1 text-monstera-400 hover:text-monstera-600 p-1 hover:bg-monstera-50 rounded transition-all"
-                  title="Generate random seed"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                </button>
-              )}
-            </div>
-
-            {stylePreview && !state.randomizeEachTime && (
-              <div className="pb-1">
-                <button 
-                  onClick={() => setShowStyleDetails(!showStyleDetails)}
-                  className="flex items-center gap-1 text-[8px] font-bold text-monstera-400 hover:text-monstera-600 uppercase tracking-wider transition-colors select-none"
-                >
-                  <span>{showStyleDetails ? 'Hide' : 'Show'} Style Prompt</span>
-                  <svg className={`w-2.5 h-2.5 transition-transform duration-200 ${showStyleDetails ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
-                </button>
-                {showStyleDetails && (
-                  <div className="mt-1.5 p-2 bg-monstera-50 border border-monstera-100 rounded text-[9px] font-medium leading-relaxed text-monstera-700 animate-fadeIn">
-                    {stylePreview}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <label className="flex items-center gap-2.5 cursor-pointer group px-1 select-none">
-              <div className="relative">
-                <input 
-                  type="checkbox" 
-                  checked={state.randomizeEachTime}
-                  onChange={(e) => setState(p => ({ ...p, randomizeEachTime: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className="w-7 h-3.5 bg-monstera-200 rounded-full peer-checked:bg-monstera-400 transition-colors"></div>
-                <div className="absolute left-0.5 top-0.5 w-2.5 h-2.5 bg-white rounded-full transition-transform peer-checked:translate-x-3 shadow-sm"></div>
-              </div>
-              <span className={`text-[9px] font-bold uppercase tracking-wide transition-colors ${state.randomizeEachTime ? 'text-ink' : 'text-monstera-600 group-hover:text-ink'}`}>New seed every run</span>
-            </label>
-
-            <div className="border-t border-monstera-200 mt-2 pt-2">
-              <label className="flex items-center gap-2.5 cursor-pointer group px-1">
-                <div className="relative">
-                  <input 
-                    type="checkbox" 
-                    checked={state.useGrounding}
-                    onChange={(e) => setState(p => ({ ...p, useGrounding: e.target.checked }))}
-                    className="sr-only peer"
-                  />
-                  <div className="w-7 h-3.5 bg-monstera-200 rounded-full peer-checked:bg-monstera-400 transition-colors"></div>
-                  <div className="absolute left-0.5 top-0.5 w-2.5 h-2.5 bg-white rounded-full transition-transform peer-checked:translate-x-3 shadow-sm"></div>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-black uppercase tracking-wide text-monstera-800 group-hover:text-ink transition-colors">Search Grounding</span>
-                  <span className="text-[7px] font-bold text-monstera-400 uppercase tracking-widest leading-none">Slower generation</span>
-                </div>
-              </label>
-            </div>
-          </div>
         </div>
       </section>
     </div>
@@ -596,18 +567,13 @@ const App: React.FC = () => {
                       const res = await fetch(img.url!);
                       const blob = await res.blob();
                       const slug = slugify(img.prompt);
-                      const stylePart = img.styleCode ? `-${img.styleCode}` : '';
-                      const baseFilename = `${img.id}${stylePart}${slug ? '-' + slug : ''}`;
+                      const baseFilename = `${img.id}${slug ? '-' + slug : ''}`;
                       folder!.file(`${baseFilename}.jpg`, blob);
-
-                      const styleDesc = (img.styleCode !== undefined && img.styleCode !== null) ? getStyleDescription(img.styleCode) : null;
 
                       const metadata = [
                         `Prompt: ${img.prompt}`,
-                        styleDesc ? `Style Prompt: ${styleDesc}` : '',
                         `Resolution: ${img.resolution || 'N/A'}`,
                         `Aspect Ratio: ${img.aspectRatio || 'N/A'}`,
-                        `Style Seed: ${img.styleCode ?? 'None'}`,
                         `Timestamp: ${new Date(img.timestamp).toLocaleString()}`,
                         `ID: ${img.id}`,
                         img.groundingMetadata ? `Grounding Metadata: ${JSON.stringify(img.groundingMetadata, null, 2)}` : ''
@@ -705,10 +671,10 @@ const App: React.FC = () => {
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                         </button>
                         {image.url && (
-                          <a 
-                            href={image.url} 
-                            download={`${image.id}${image.styleCode ? '-' + image.styleCode : ''}${slugify(image.prompt) ? '-' + slugify(image.prompt) : ''}.jpg`} 
-                            className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200" 
+                          <a
+                            href={image.url}
+                            download={`${image.id}${slugify(image.prompt) ? '-' + slugify(image.prompt) : ''}.jpg`}
+                            className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200"
                             title="Download"
                             onClick={(e) => e.stopPropagation()}
                           >
@@ -721,7 +687,7 @@ const App: React.FC = () => {
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {image.groundingMetadata.groundingChunks.map((chunk: any, i: number) => (
                           chunk.web?.uri && (
-                            <a 
+                            <a
                               key={i}
                               href={chunk.web.uri}
                               target="_blank"
@@ -734,6 +700,46 @@ const App: React.FC = () => {
                             </a>
                           )
                         ))}
+                      </div>
+                    )}
+
+                    {image.status === 'success' && image.url && (
+                      <div className="mt-3 pt-3 border-t border-monstera-100 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <textarea
+                            value={editPrompts[image.id] || ''}
+                            onChange={(e) => setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleEditImage(image.id);
+                              }
+                            }}
+                            placeholder="Upravit obrázek..."
+                            disabled={image.isEditing}
+                            className="flex-1 text-[10px] font-medium bg-monstera-50 border border-monstera-200 rounded-md px-2 py-1.5 outline-none focus:border-monstera-400 resize-none transition-all disabled:opacity-50"
+                            rows={1}
+                          />
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleEditImage(image.id); }}
+                            disabled={!editPrompts[image.id]?.trim() || image.isEditing}
+                            className="px-3 py-1.5 bg-monstera-400 hover:bg-monstera-500 text-ink font-bold text-[9px] uppercase tracking-wider rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-ink shadow-sm"
+                            title="Upravit"
+                          >
+                            {image.isEditing ? '...' : '✓'}
+                          </button>
+                          {image.versions && image.versions.length > 0 && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleUndoEdit(image.id); }}
+                              disabled={image.isEditing}
+                              className="px-3 py-1.5 bg-white hover:bg-monstera-100 text-monstera-600 hover:text-ink font-bold text-[9px] uppercase tracking-wider rounded-md transition-all border border-monstera-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={`Vrátit zpět (${image.versions.length} verzí)`}
+                            >
+                              ↶
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -753,15 +759,12 @@ const App: React.FC = () => {
         timestamp={selectedImage?.timestamp || 0}
         resolution={selectedImage?.resolution}
         aspectRatio={selectedImage?.aspectRatio}
-        styleCode={selectedImage?.styleCode}
         groundingMetadata={selectedImage?.groundingMetadata}
         onNext={handleNextImage}
         onPrev={handlePrevImage}
         hasNext={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) < state.generatedImages.length - 1 : false}
         hasPrev={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) > 0 : false}
       />
-      
-      {showSeedHelp && <StyleSeedHelpModal onClose={() => setShowSeedHelp(false)} />}
     </div>
   );
 };
