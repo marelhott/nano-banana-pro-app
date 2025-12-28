@@ -23,19 +23,8 @@ export const editImageWithGemini = async (
   useGrounding: boolean = false
 ): Promise<GenerateImageResult> => {
   try {
-    // Get API key from AI Studio environment or environment variable
-    // @ts-ignore
-    const apiKey = typeof window !== 'undefined' && window.aistudio?.getSelectedApiKey
-      // @ts-ignore
-      ? await window.aistudio.getSelectedApiKey()
-      : process.env.API_KEY || process.env.GEMINI_API_KEY;
-
-    if (!apiKey) {
-      throw new Error("API_KEY_NOT_FOUND");
-    }
-
     // Create instance inside function to use the most up-to-date API key
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const parts: any[] = [];
 
     // Add all image parts
@@ -74,48 +63,13 @@ export const editImageWithGemini = async (
       config.imageConfig = imageConfig;
     }
 
-    // Logování před odesláním requestu
-    // Nano Banana Pro je interni nazev, ale API pouziva gemini-2.0-flash-exp pro image generation
-    const modelName = 'gemini-2.0-flash-exp';
-    console.log('Sending request to Gemini:', {
-      model: modelName,
-      numberOfImages: images.length,
-      promptLength: prompt.length,
-      resolution,
-      aspectRatio,
-      config,
-      firstImageSize: images[0]?.data?.length || 0,
-    });
-
     const response = await ai.models.generateContent({
-      model: modelName,
+      model: 'gemini-3-pro-image-preview',
       contents: {
         parts: parts,
       },
       config: config,
     });
-
-    // Detailní logování odpovědi pro debugging
-    console.log('Gemini API Response:', {
-      hasCandidates: !!response.candidates,
-      candidatesLength: response.candidates?.length,
-      firstCandidate: response.candidates?.[0],
-      promptFeedback: response.promptFeedback,
-      fullResponse: response,
-    });
-
-    // Kontrola, zda je odpověď blokovaná
-    if (response.promptFeedback?.blockReason) {
-      const blockReasonDetail = response.promptFeedback.blockReasonMessage ||
-                                JSON.stringify(response.promptFeedback);
-      console.error('Request blocked:', {
-        blockReason: response.promptFeedback.blockReason,
-        blockReasonMessage: response.promptFeedback.blockReasonMessage,
-        safetyRatings: response.promptFeedback.safetyRatings,
-        fullPromptFeedback: response.promptFeedback,
-      });
-      throw new Error(`Request blocked: ${response.promptFeedback.blockReason}. Details: ${blockReasonDetail}`);
-    }
 
     const generatedPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
     const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
@@ -127,10 +81,7 @@ export const editImageWithGemini = async (
         groundingMetadata
       };
     } else {
-      // Detailnější chybová hláška
-      const finishReason = response.candidates?.[0]?.finishReason;
-      console.error('No image data in response. Finish reason:', finishReason);
-      throw new Error(`No image data returned from the model. Reason: ${finishReason || 'unknown'}`);
+      throw new Error("No image data returned from the model.");
     }
   } catch (error: any) {
     console.error("Gemini API Error:", error);
