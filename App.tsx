@@ -192,51 +192,63 @@ const App: React.FC = () => {
       generatedImages: [...imagesToGenerate, ...prev.generatedImages],
     }));
 
-    // Generovat všechny obrázky paralelně
-    imagesToGenerate.forEach(async (imageData) => {
-      try {
-        const result = await editImageWithGemini(
-          state.sourceImages.map(i => ({ data: i.url, mimeType: i.file.type })),
-          state.prompt,
-          state.resolution,
-          state.aspectRatio,
-          false
-        );
+    // Generovat obrázky sekvenčně s malým zpožděním mezi požadavky
+    // aby nedošlo k rate limitingu API
+    const generateSequentially = async () => {
+      for (let i = 0; i < imagesToGenerate.length; i++) {
+        const imageData = imagesToGenerate[i];
 
-        setState(prev => ({
-          ...prev,
-          generatedImages: prev.generatedImages.map(img =>
-            img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
-          ),
-        }));
+        // Přidat zpoždění mezi požadavky (kromě prvního)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 800));
+        }
 
-        // Automaticky uložit do galerie
         try {
-          const thumbnail = await createThumbnail(result.imageBase64);
-          await saveToGallery({
-            id: imageData.id,
-            url: result.imageBase64,
-            prompt: state.prompt,
-            timestamp: Date.now(),
-            resolution: state.resolution,
-            aspectRatio: state.aspectRatio,
-            thumbnail,
-          });
-        } catch (err) {
-          console.error('Failed to save to gallery:', err);
+          const result = await editImageWithGemini(
+            state.sourceImages.map(img => ({ data: img.url, mimeType: img.file.type })),
+            state.prompt,
+            state.resolution,
+            state.aspectRatio,
+            false
+          );
+
+          setState(prev => ({
+            ...prev,
+            generatedImages: prev.generatedImages.map(img =>
+              img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
+            ),
+          }));
+
+          // Automaticky uložit do galerie
+          try {
+            const thumbnail = await createThumbnail(result.imageBase64);
+            await saveToGallery({
+              id: imageData.id,
+              url: result.imageBase64,
+              prompt: state.prompt,
+              timestamp: Date.now(),
+              resolution: state.resolution,
+              aspectRatio: state.aspectRatio,
+              thumbnail,
+            });
+          } catch (err) {
+            console.error('Failed to save to gallery:', err);
+          }
+        } catch (err: any) {
+          if (err.message === "API_KEY_NOT_FOUND") {
+            setHasApiKey(false);
+          }
+          setState(prev => ({
+            ...prev,
+            generatedImages: prev.generatedImages.map(img =>
+              img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
+            ),
+          }));
         }
-      } catch (err: any) {
-        if (err.message === "API_KEY_NOT_FOUND") {
-          setHasApiKey(false);
-        }
-        setState(prev => ({
-          ...prev,
-          generatedImages: prev.generatedImages.map(img =>
-            img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
-          ),
-        }));
       }
-    });
+    };
+
+    generateSequentially();
   };
 
   const handleRepopulate = (image: GeneratedImage) => {
