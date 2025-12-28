@@ -44,14 +44,12 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
   };
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setIsOpen(true)}
-      onMouseLeave={() => { setIsOpen(false); setIsAdding(false); }}
-    >
+    <div className="relative z-10">
       {/* Tlačítko */}
       <button
-        className="p-2 bg-monstera-50 hover:bg-monstera-100 border border-monstera-200 rounded-md transition-all group"
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        className="p-2 bg-monstera-50 hover:bg-monstera-100 border border-monstera-200 rounded-md transition-all group relative z-10"
         title="Uložené prompty"
         type="button"
       >
@@ -63,7 +61,9 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
       {/* Dropdown */}
       {isOpen && (
         <div
-          className="absolute top-full left-0 mt-2 w-80 bg-white border-2 border-monstera-300 rounded-lg shadow-2xl z-50 overflow-hidden animate-fadeIn"
+          className="absolute top-full right-0 mt-2 w-80 bg-white border-2 border-monstera-300 rounded-lg shadow-2xl z-[100] overflow-hidden animate-fadeIn"
+          onMouseEnter={() => setIsOpen(true)}
+          onMouseLeave={() => { setIsOpen(false); setIsAdding(false); }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
