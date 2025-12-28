@@ -486,13 +486,6 @@ const App: React.FC = () => {
           </div>
         </div>
       </section>
-
-      <div className="pt-4 pb-2 flex items-center justify-center gap-1 text-[9px] font-bold text-monstera-400 uppercase tracking-widest opacity-80 hover:opacity-100 transition-opacity">
-          <span className="opacity-50">Made by</span>
-          <a href="https://fofr.ai" target="_blank" rel="noopener noreferrer" className="hover:text-monstera-600 transition-colors">fofr</a>
-          <span className="opacity-30 mx-1">•</span>
-          <a href="https://x.com/fofrAI" target="_blank" rel="noopener noreferrer" className="hover:text-monstera-600 transition-colors">@fofrAI</a>
-      </div>
     </div>
   );
 
@@ -588,23 +581,8 @@ const App: React.FC = () => {
                 <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-ink">Gallery</h2>
               </div>
             </div>
-            
-            <div className="flex flex-wrap items-center gap-4 hidden lg:flex">
-              <div className="flex items-center gap-1.5 bg-monstera-50 p-1 rounded-md border border-monstera-200 shadow-sm">
-                <span className="text-[8px] font-black uppercase opacity-40 px-2">Grid</span>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <button 
-                      key={n} 
-                      onClick={() => setGridCols(n)} 
-                      className={`w-7 h-7 rounded-md font-black text-[10px] transition-all flex items-center justify-center ${gridCols === n ? 'bg-white text-ink shadow-sm border border-monstera-200' : 'text-monstera-600 hover:text-ink hover:bg-white/50'}`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
+            <div className="flex flex-wrap items-center gap-4 hidden lg:flex">
               {state.generatedImages.length > 0 && (
                 <button 
                   onClick={async () => {
@@ -668,12 +646,6 @@ const App: React.FC = () => {
               </div>
               <div className="text-center space-y-2">
                 <span className="text-lg font-bold text-ink block">No images generated yet</span>
-              </div>
-              <div className="pt-4 flex items-center justify-center gap-1 text-[9px] font-bold text-monstera-400 uppercase tracking-widest opacity-80 hover:opacity-100 transition-opacity">
-                  <span className="opacity-50">Made by</span>
-                  <a href="https://fofr.ai" target="_blank" rel="noopener noreferrer" className="hover:text-monstera-600 transition-colors">fofr</a>
-                  <span className="opacity-30 mx-1">•</span>
-                  <a href="https://x.com/fofrAI" target="_blank" rel="noopener noreferrer" className="hover:text-monstera-600 transition-colors">@fofrAI</a>
               </div>
             </div>
           ) : (
