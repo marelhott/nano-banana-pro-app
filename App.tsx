@@ -22,7 +22,7 @@ const App: React.FC = () => {
     generatedImages: [],
     prompt: '',
     aspectRatio: 'Original',
-    resolution: '2K', // Default to 2K
+    resolution: '1K', // Default to 1K
     error: null,
     numberOfImages: 1, // Default to 1 image
   });
