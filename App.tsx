@@ -42,6 +42,8 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
+  const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -259,6 +261,147 @@ const App: React.FC = () => {
     // If mobile, open the menu so user sees the repopulated settings
     if (isMobile) {
       setIsMobileMenuOpen(true);
+    }
+  };
+
+  const handleDeleteImage = (imageId: string) => {
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.filter(img => img.id !== imageId),
+    }));
+    // Clean up inline edit state and expanded state
+    setInlineEditStates(prev => {
+      const newState = { ...prev };
+      delete newState[imageId];
+      return newState;
+    });
+    if (expandedImageId === imageId) {
+      setExpandedImageId(null);
+    }
+  };
+
+  const toggleInlineEdit = (image: GeneratedImage) => {
+    if (expandedImageId === image.id) {
+      setExpandedImageId(null);
+    } else {
+      setExpandedImageId(image.id);
+      // Initialize inline edit state if not exists
+      if (!inlineEditStates[image.id]) {
+        setInlineEditStates(prev => ({
+          ...prev,
+          [image.id]: {
+            prompt: image.prompt,
+            referenceImages: []
+          }
+        }));
+      }
+    }
+  };
+
+  const updateInlineEditPrompt = (imageId: string, prompt: string) => {
+    setInlineEditStates(prev => ({
+      ...prev,
+      [imageId]: {
+        ...prev[imageId],
+        prompt
+      }
+    }));
+  };
+
+  const addInlineReferenceImages = (imageId: string, files: File[]) => {
+    const remainingSlots = MAX_IMAGES - (inlineEditStates[imageId]?.referenceImages?.length || 0);
+    if (remainingSlots <= 0) return;
+
+    files.slice(0, remainingSlots).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result && typeof e.target.result === 'string') {
+          const newImage: SourceImage = {
+            id: Math.random().toString(36).substr(2, 9),
+            url: e.target.result,
+            file: file
+          };
+          setInlineEditStates(prev => ({
+            ...prev,
+            [imageId]: {
+              ...prev[imageId],
+              referenceImages: [...(prev[imageId]?.referenceImages || []), newImage]
+            }
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeInlineReferenceImage = (imageId: string, refImageId: string) => {
+    setInlineEditStates(prev => ({
+      ...prev,
+      [imageId]: {
+        ...prev[imageId],
+        referenceImages: prev[imageId].referenceImages.filter(img => img.id !== refImageId)
+      }
+    }));
+  };
+
+  const handleInlineRegenerate = async (image: GeneratedImage) => {
+    const editState = inlineEditStates[image.id];
+    if (!editState || !editState.prompt.trim()) return;
+
+    let finalPrompt = editState.prompt;
+    const currentCode = state.styleCode;
+
+    if (currentCode) {
+      const numericCode = parseInt(currentCode, 10);
+      if (!isNaN(numericCode)) {
+        finalPrompt += ` . ${getStyleDescription(numericCode)}`;
+      }
+    }
+
+    const newId = Date.now().toString();
+    const newImage: GeneratedImage = {
+      id: newId,
+      prompt: editState.prompt,
+      timestamp: Date.now(),
+      status: 'loading',
+      resolution: image.resolution || state.resolution,
+      aspectRatio: image.aspectRatio || state.aspectRatio,
+      styleCode: currentCode ? parseInt(currentCode, 10) : image.styleCode
+    };
+
+    setState(prev => ({
+      ...prev,
+      generatedImages: [newImage, ...prev.generatedImages],
+    }));
+
+    // Close the inline edit panel
+    setExpandedImageId(null);
+
+    try {
+      const result = await editImageWithGemini(
+        editState.referenceImages.map(i => ({ data: i.url, mimeType: i.file.type })),
+        finalPrompt,
+        image.resolution || state.resolution,
+        image.aspectRatio || state.aspectRatio,
+        image.groundingMetadata ? true : state.useGrounding
+      );
+
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img =>
+          img.id === newId ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
+        ),
+      }));
+    } catch (err: any) {
+      if (err.message === "API_KEY_NOT_FOUND") {
+        setHasApiKey(false);
+      }
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img =>
+          img.id === newId ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
+        ),
+      }));
     }
   };
 
@@ -721,38 +864,54 @@ const App: React.FC = () => {
                         {image.prompt}
                       </p>
                       <div className="flex gap-1 shrink-0">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(image.prompt); }} 
-                          className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200" 
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(image.prompt); }}
+                          className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200"
                           title="Copy Prompt"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
                         </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleRepopulate(image); }} 
-                          className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200" 
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRepopulate(image); }}
+                          className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200"
                           title="Use Settings"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                         </button>
                         {image.url && (
-                          <a 
-                            href={image.url} 
-                            download={`${image.id}${image.styleCode ? '-' + image.styleCode : ''}${slugify(image.prompt) ? '-' + slugify(image.prompt) : ''}.jpg`} 
-                            className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200" 
+                          <a
+                            href={image.url}
+                            download={`${image.id}${image.styleCode ? '-' + image.styleCode : ''}${slugify(image.prompt) ? '-' + slugify(image.prompt) : ''}.jpg`}
+                            className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200"
                             title="Download"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                           </a>
                         )}
+                        {image.status === 'success' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleInlineEdit(image); }}
+                            className={`p-2 transition-all border rounded-md ${expandedImageId === image.id ? 'text-ink bg-monstera-100 border-monstera-300' : 'text-monstera-400 hover:text-ink hover:bg-monstera-100 border-transparent hover:border-monstera-200'}`}
+                            title="Edit & Refine"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteImage(image.id); }}
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all border border-transparent hover:border-red-200"
+                          title="Delete Image"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
                       </div>
                     </div>
                     {image.groundingMetadata?.groundingChunks && (
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {image.groundingMetadata.groundingChunks.map((chunk: any, i: number) => (
                           chunk.web?.uri && (
-                            <a 
+                            <a
                               key={i}
                               href={chunk.web.uri}
                               target="_blank"
@@ -768,6 +927,54 @@ const App: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {expandedImageId === image.id && inlineEditStates[image.id] && (
+                    <div className="border-t border-monstera-200 bg-monstera-50/30 p-3 space-y-3 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-monstera-800 uppercase tracking-widest px-1">Refine Prompt</label>
+                        <textarea
+                          value={inlineEditStates[image.id].prompt}
+                          onChange={(e) => updateInlineEditPrompt(image.id, e.target.value)}
+                          placeholder="Enter a new prompt to refine this image..."
+                          className="w-full min-h-[80px] bg-white border border-monstera-200 rounded-md p-2.5 text-[12px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-sm"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-monstera-800 uppercase tracking-widest px-1">Reference Images</label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {inlineEditStates[image.id].referenceImages.map((img) => (
+                            <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-white shadow-sm">
+                              <img src={img.url} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-ink/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                                <button
+                                  onClick={() => removeInlineReferenceImage(image.id, img.id)}
+                                  className="bg-white text-ink p-1 rounded-md shadow-xl"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          {inlineEditStates[image.id].referenceImages.length < MAX_IMAGES && (
+                            <ImageUpload
+                              onImagesSelected={(files) => addInlineReferenceImages(image.id, files)}
+                              compact={true}
+                              remainingSlots={MAX_IMAGES - inlineEditStates[image.id].referenceImages.length}
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleInlineRegenerate(image)}
+                        disabled={!inlineEditStates[image.id].prompt.trim()}
+                        className="w-full py-2.5 px-4 bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink font-[900] text-[11px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[3px_3px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale"
+                      >
+                        Regenerate
+                      </button>
+                    </div>
+                  )}
                 </article>
               ))}
             </div>
