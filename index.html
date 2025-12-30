@@ -114,6 +114,23 @@
         backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.6);
       }
+
+      /* Force high-quality image rendering */
+      img {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: high-quality;
+        -ms-interpolation-mode: bicubic;
+        /* Prevent browser downsampling */
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        -webkit-font-smoothing: subpixel-antialiased;
+      }
+
+      /* Gallery thumbnails - force full quality */
+      article img {
+        will-change: auto;
+        transform: translateZ(0);
+      }
     </style>
   <script type="importmap">
 {
