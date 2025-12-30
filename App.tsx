@@ -690,13 +690,12 @@ const App: React.FC = () => {
                       </div>
                     ) : (
                       image.url && (
-                        <div className={`w-full ${gridCols === 1 ? '' : 'h-full'} p-2 flex items-center justify-center`}>
-                          <img 
-                            src={image.url} 
-                            className={gridCols === 1 ? "w-full h-auto rounded-sm" : "max-w-full max-h-full object-contain"} 
-                            loading="lazy" 
-                          />
-                        </div>
+                        <img
+                          src={image.url}
+                          className={gridCols === 1 ? "w-full h-auto" : "w-full h-full object-cover"}
+                          loading="lazy"
+                          style={{ imageRendering: 'high-quality' }}
+                        />
                       )
                     )}
                     
