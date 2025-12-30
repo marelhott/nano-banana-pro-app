@@ -766,12 +766,20 @@ const App: React.FC = () => {
                       </div>
                     ) : (
                       image.url && (
-                        <div className={`w-full ${gridCols === 1 ? '' : 'h-full'} p-2 flex items-center justify-center`}>
-                          <img 
-                            src={image.url} 
-                            className={gridCols === 1 ? "w-full h-auto rounded-sm" : "max-w-full max-h-full object-contain"} 
-                            loading="lazy" 
+                        <div className={`w-full ${gridCols === 1 ? '' : 'h-full'} p-2 flex items-center justify-center relative`}>
+                          <img
+                            src={image.url}
+                            className={`${gridCols === 1 ? "w-full h-auto rounded-sm" : "max-w-full max-h-full object-contain"} transition-all duration-500 ${image.isEditing ? 'blur-sm scale-105' : 'blur-0 scale-100'}`}
+                            loading="lazy"
                           />
+                          {image.isEditing && (
+                            <>
+                              <div className="absolute inset-0 bg-white/20 pointer-events-none" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-[10px] font-black text-monstera-600 uppercase tracking-widest animate-pulse bg-white/90 px-3 py-1.5 rounded-md shadow-lg">● Editing...</span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       )
                     )}
@@ -877,6 +885,14 @@ const App: React.FC = () => {
                             </button>
                           )}
                         </div>
+                        {image.isEditing && (
+                          <div className="relative w-full h-1 bg-monstera-100 rounded-full overflow-hidden animate-fadeIn">
+                            <div className="absolute inset-0 bg-gradient-to-r from-monstera-400 via-monstera-500 to-monstera-400 animate-pulse" style={{
+                              animation: 'shimmer 2s ease-in-out infinite',
+                              backgroundSize: '200% 100%'
+                            }} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
