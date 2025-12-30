@@ -13,7 +13,11 @@ import { saveToGallery, createThumbnail } from './utils/galleryDB';
 import JSZip from 'jszip';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
-const RESOLUTIONS = ['1K', '2K', '4K'];
+const RESOLUTIONS = [
+  { value: '1K', label: '1K (~1024px)' },
+  { value: '2K', label: '2K (~2048px)' },
+  { value: '4K', label: '4K (~4096px)' }
+];
 const MAX_IMAGES = 14;
 
 const App: React.FC = () => {
@@ -36,6 +40,7 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -185,6 +190,8 @@ const App: React.FC = () => {
     setIsMobileMenuOpen(false);
     if (!state.prompt.trim()) return;
 
+    setIsGenerating(true);
+
     // Vytvořit pole s požadovaným počtem obrázků
     const imagesToGenerate = Array.from({ length: state.numberOfImages }, (_, index) => {
       const newId = `${Date.now()}-${index}`;
@@ -285,7 +292,11 @@ const App: React.FC = () => {
       }
     };
 
-    generateSequentially();
+    try {
+      await generateSequentially();
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleRepopulate = (image: GeneratedImage) => {
@@ -477,13 +488,24 @@ const App: React.FC = () => {
       </section>
 
       <section className="space-y-1.5">
-        <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest px-1 block">References</label>
+        <div className="flex items-center justify-between px-1">
+          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">References</label>
+          {isGenerating && (
+            <span className="text-[8px] font-black text-monstera-500 uppercase tracking-widest animate-pulse">● Generating...</span>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-1.5">
           {state.sourceImages.map((img) => (
             <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
-              <img src={img.url} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-ink/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
-                <button 
+              <img
+                src={img.url}
+                className={`w-full h-full object-cover transition-all duration-500 ${isGenerating ? 'blur-sm scale-105' : 'blur-0 scale-100'}`}
+              />
+              {isGenerating && (
+                <div className="absolute inset-0 bg-white/20 pointer-events-none" />
+              )}
+              <div className={`absolute inset-0 bg-ink/60 transition-all flex items-center justify-center ${isGenerating ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'}`}>
+                <button
                   onClick={() => setState(p => ({ ...p, sourceImages: p.sourceImages.filter(i => i.id !== img.id) }))}
                   className="bg-white text-ink p-1.5 rounded-md shadow-xl"
                 >
@@ -496,6 +518,14 @@ const App: React.FC = () => {
             <ImageUpload onImagesSelected={handleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.sourceImages.length} />
           )}
         </div>
+        {isGenerating && (
+          <div className="relative w-full h-1 bg-monstera-100 rounded-full overflow-hidden animate-fadeIn">
+            <div className="absolute inset-0 bg-gradient-to-r from-monstera-400 via-monstera-500 to-monstera-400 animate-pulse" style={{
+              animation: 'shimmer 2s ease-in-out infinite',
+              backgroundSize: '200% 100%'
+            }} />
+          </div>
+        )}
       </section>
 
       <section className="bg-white border border-monstera-200 rounded-md shadow-md overflow-hidden">
@@ -526,7 +556,7 @@ const App: React.FC = () => {
                   onChange={(e) => setState(p => ({ ...p, resolution: e.target.value }))}
                   className="w-full bg-white border border-monstera-200 text-[11px] font-bold rounded-md px-2.5 py-1.5 outline-none cursor-pointer hover:border-monstera-300 appearance-none shadow-sm"
                 >
-                  {RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  {RESOLUTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
             </div>
