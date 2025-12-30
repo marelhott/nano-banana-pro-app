@@ -693,8 +693,8 @@ const App: React.FC = () => {
                         <img
                           src={image.url}
                           className={gridCols === 1 ? "w-full h-auto" : "w-full h-full object-cover"}
-                          loading="lazy"
-                          style={{ imageRendering: 'high-quality' }}
+                          decoding="sync"
+                          style={{ imageRendering: '-webkit-optimize-contrast' }}
                         />
                       )
                     )}
