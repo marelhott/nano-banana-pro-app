@@ -332,7 +332,12 @@ const App: React.FC = () => {
       </section>
 
       <section className="space-y-1.5">
-        <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest px-1 block">References</label>
+        <div className="flex items-center justify-between px-1">
+          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">References</label>
+          {isGenerating && (
+            <span className="text-[8px] font-black text-monstera-500 uppercase tracking-widest animate-pulse">● Generating...</span>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-1.5">
           {state.sourceImages.map((img) => (
             <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
