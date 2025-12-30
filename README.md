@@ -14,7 +14,28 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
 
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+
+2. Create `.env.local` from the example template:
+   ```bash
+   cp .env.local.example .env.local
+   ```
+
+3. Set your Gemini API key in `.env.local`:
+   - Get your API key from: https://aistudio.google.com/apikey
+   - Open `.env.local` and replace `your_api_key_here` with your actual API key
+
+4. Run the app:
+   ```bash
+   npm run dev
+   ```
+
+## Deploy to Netlify
+
+1. Push your code to GitHub
+2. Connect your repository to Netlify
+3. Set environment variable in Netlify dashboard:
+   - `GEMINI_API_KEY` = your Gemini API key
+4. Deploy!

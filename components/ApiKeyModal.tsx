@@ -23,13 +23,13 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onKeySelected }) => {
         {/* Header */}
         <div className="w-full bg-monstera-50 border-b border-monstera-200 px-4 py-3 flex items-center gap-2">
            <span className="text-base">🍌</span>
-           <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Nano Banana Pro</span>
+           <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Mulen nano</span>
         </div>
 
         {/* Content */}
         <div className="p-6 space-y-4 text-base font-medium text-ink leading-relaxed">
           <p>
-            To run Nano Banana Pro, you must select an API key from a paid GCP project.
+            To run Mulen nano, you must select an API key from a paid GCP project.
           </p>
           <p>
             <a
