@@ -1,29 +1,46 @@
 [build]
-  command = "npm run build"
+  command = "npm ci && npm run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
 
-# Deploy all branches starting with 'claude/'
-[context.branch-deploy]
-  command = "npm run build"
-
-# Production deploy settings
+# Production deploy from main branch
 [context.production]
-  command = "npm run build"
+  command = "npm ci && npm run build"
   publish = "dist"
 
-# Headers for better performance
+# Branch deploys (for testing)
+[context.branch-deploy]
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+# SPA redirect - ensure all routes work
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
+
+# Security headers
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
-# Cache static assets
+# Cache static assets aggressively
 [[headers]]
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# Don't cache HTML
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
