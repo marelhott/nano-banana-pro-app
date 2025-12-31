@@ -495,39 +495,76 @@ const App: React.FC = () => {
     const editState = inlineEditStates[image.id];
     if (!editState || !editState.prompt.trim()) return;
 
-    const newId = Date.now().toString();
-    const newImage: GeneratedImage = {
-      id: newId,
-      prompt: editState.prompt,
-      timestamp: Date.now(),
-      status: 'loading',
-      resolution: image.resolution || state.resolution,
-      aspectRatio: image.aspectRatio || state.aspectRatio,
-    };
-
+    // Nastavit editing stav - upravujeme STÁVAJÍCÍ obrázek, ne vytváříme nový
     setState(prev => ({
       ...prev,
-      generatedImages: [newImage, ...prev.generatedImages],
+      generatedImages: prev.generatedImages.map(img =>
+        img.id === image.id ? { ...img, isEditing: true } : img
+      ),
     }));
 
     // Close the inline edit panel
     setExpandedImageId(null);
 
     try {
+      // Použít reference images + aktuální obrázek jako source pro editaci
+      const sourceImages = editState.referenceImages.length > 0
+        ? editState.referenceImages.map(i => ({ data: i.url, mimeType: i.file.type }))
+        : image.url ? [{ data: image.url, mimeType: 'image/jpeg' }] : [];
+
       const result = await editImageWithGemini(
-        editState.referenceImages.map(i => ({ data: i.url, mimeType: i.file.type })),
+        sourceImages,
         editState.prompt,
         image.resolution || state.resolution,
         image.aspectRatio || state.aspectRatio,
         false
       );
 
+      // Uložit starou verzi a aktualizovat STÁVAJÍCÍ obrázek
       setState(prev => ({
         ...prev,
-        generatedImages: prev.generatedImages.map(img =>
-          img.id === newId ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
-        ),
+        generatedImages: prev.generatedImages.map(img => {
+          if (img.id === image.id) {
+            const newVersions = [
+              ...(img.versions || []),
+              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp }
+            ];
+            return {
+              ...img,
+              url: result.imageBase64,
+              prompt: editState.prompt,
+              timestamp: Date.now(),
+              versions: newVersions,
+              isEditing: false,
+              groundingMetadata: result.groundingMetadata,
+            };
+          }
+          return img;
+        }),
       }));
+
+      // Uložit upravenou verzi do galerie
+      try {
+        const thumbnail = await createThumbnail(result.imageBase64);
+        await saveToGallery({
+          id: image.id,
+          url: result.imageBase64,
+          prompt: editState.prompt,
+          timestamp: Date.now(),
+          resolution: image.resolution || state.resolution,
+          aspectRatio: image.aspectRatio || state.aspectRatio,
+          thumbnail,
+        });
+      } catch (err) {
+        console.error('Failed to save edited image to gallery:', err);
+      }
+
+      // Vyčistit inline edit state
+      setInlineEditStates(prev => {
+        const newState = { ...prev };
+        delete newState[image.id];
+        return newState;
+      });
     } catch (err: any) {
       if (err.message === "API_KEY_NOT_FOUND") {
         setHasApiKey(false);
@@ -535,7 +572,7 @@ const App: React.FC = () => {
       setState(prev => ({
         ...prev,
         generatedImages: prev.generatedImages.map(img =>
-          img.id === newId ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
+          img.id === image.id ? { ...img, isEditing: false, error: err instanceof Error ? err.message : 'Edit failed' } : img
         ),
       }));
     }
