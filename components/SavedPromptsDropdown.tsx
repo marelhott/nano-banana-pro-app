@@ -63,7 +63,8 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
       {/* Dropdown */}
       {isOpen && (
         <div
-          className="absolute top-full right-0 w-80 bg-white border-2 border-monstera-300 rounded-lg shadow-2xl z-[100] overflow-hidden animate-fadeIn"
+          className="absolute top-full left-auto right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border-2 border-monstera-300 rounded-lg shadow-2xl z-[100] overflow-hidden animate-fadeIn"
+          style={{ transform: 'translateX(calc(-100% + 2.75rem))' }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
