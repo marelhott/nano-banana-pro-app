@@ -1,23 +1,19 @@
-name: Auto Deploy to Netlify
+name: Build and Deploy
 
 on:
   push:
     branches:
-      - 'claude/**'
+      - main
 
 jobs:
-  auto-merge:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,16 +25,3 @@ jobs:
 
       - name: Build project
         run: npm run build
-
-      - name: Auto-merge to main
-        if: success()
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-
-          CURRENT_BRANCH="${GITHUB_REF#refs/heads/}"
-
-          git fetch origin main
-          git checkout main
-          git merge --no-ff "$CURRENT_BRANCH" -m "Auto-merge: $CURRENT_BRANCH"
-          git push origin main
