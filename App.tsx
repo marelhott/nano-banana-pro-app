@@ -41,8 +41,8 @@ const App: React.FC = () => {
   const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
+  const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
   
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -326,10 +326,18 @@ const App: React.FC = () => {
       ),
     }));
 
+    // Zavřít reference upload po zahájení editace
+    setShowReferenceUpload(prev => ({ ...prev, [imageId]: false }));
+
     try {
-      // Použít aktuální obrázek jako source image pro editaci
+      // Použít reference images (pokud jsou) + aktuální obrázek jako source pro editaci
+      const editState = inlineEditStates[imageId];
+      const sourceImages = editState?.referenceImages?.length > 0
+        ? editState.referenceImages.map(i => ({ data: i.url, mimeType: i.file.type }))
+        : [{ data: image.url, mimeType: 'image/jpeg' }];
+
       const result = await editImageWithGemini(
-        [{ data: image.url, mimeType: 'image/jpeg' }],
+        sourceImages,
         editPrompt,
         image.resolution,
         image.aspectRatio,
@@ -416,43 +424,17 @@ const App: React.FC = () => {
       ...prev,
       generatedImages: prev.generatedImages.filter(img => img.id !== imageId),
     }));
-    // Clean up inline edit state and expanded state
+    // Clean up edit states
     setInlineEditStates(prev => {
       const newState = { ...prev };
       delete newState[imageId];
       return newState;
     });
-    if (expandedImageId === imageId) {
-      setExpandedImageId(null);
-    }
-  };
-
-  const toggleInlineEdit = (image: GeneratedImage) => {
-    if (expandedImageId === image.id) {
-      setExpandedImageId(null);
-    } else {
-      setExpandedImageId(image.id);
-      // Initialize inline edit state if not exists
-      if (!inlineEditStates[image.id]) {
-        setInlineEditStates(prev => ({
-          ...prev,
-          [image.id]: {
-            prompt: image.prompt,
-            referenceImages: []
-          }
-        }));
-      }
-    }
-  };
-
-  const updateInlineEditPrompt = (imageId: string, prompt: string) => {
-    setInlineEditStates(prev => ({
-      ...prev,
-      [imageId]: {
-        ...prev[imageId],
-        prompt
-      }
-    }));
+    setShowReferenceUpload(prev => {
+      const newState = { ...prev };
+      delete newState[imageId];
+      return newState;
+    });
   };
 
   const addInlineReferenceImages = (imageId: string, files: File[]) => {
@@ -489,93 +471,6 @@ const App: React.FC = () => {
         referenceImages: prev[imageId].referenceImages.filter(img => img.id !== refImageId)
       }
     }));
-  };
-
-  const handleInlineRegenerate = async (image: GeneratedImage) => {
-    const editState = inlineEditStates[image.id];
-    if (!editState || !editState.prompt.trim()) return;
-
-    // Nastavit editing stav - upravujeme STÁVAJÍCÍ obrázek, ne vytváříme nový
-    setState(prev => ({
-      ...prev,
-      generatedImages: prev.generatedImages.map(img =>
-        img.id === image.id ? { ...img, isEditing: true } : img
-      ),
-    }));
-
-    // Close the inline edit panel
-    setExpandedImageId(null);
-
-    try {
-      // Použít reference images + aktuální obrázek jako source pro editaci
-      const sourceImages = editState.referenceImages.length > 0
-        ? editState.referenceImages.map(i => ({ data: i.url, mimeType: i.file.type }))
-        : image.url ? [{ data: image.url, mimeType: 'image/jpeg' }] : [];
-
-      const result = await editImageWithGemini(
-        sourceImages,
-        editState.prompt,
-        image.resolution || state.resolution,
-        image.aspectRatio || state.aspectRatio,
-        false
-      );
-
-      // Uložit starou verzi a aktualizovat STÁVAJÍCÍ obrázek
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img => {
-          if (img.id === image.id) {
-            const newVersions = [
-              ...(img.versions || []),
-              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp }
-            ];
-            return {
-              ...img,
-              url: result.imageBase64,
-              prompt: editState.prompt,
-              timestamp: Date.now(),
-              versions: newVersions,
-              isEditing: false,
-              groundingMetadata: result.groundingMetadata,
-            };
-          }
-          return img;
-        }),
-      }));
-
-      // Uložit upravenou verzi do galerie
-      try {
-        const thumbnail = await createThumbnail(result.imageBase64);
-        await saveToGallery({
-          id: image.id,
-          url: result.imageBase64,
-          prompt: editState.prompt,
-          timestamp: Date.now(),
-          resolution: image.resolution || state.resolution,
-          aspectRatio: image.aspectRatio || state.aspectRatio,
-          thumbnail,
-        });
-      } catch (err) {
-        console.error('Failed to save edited image to gallery:', err);
-      }
-
-      // Vyčistit inline edit state
-      setInlineEditStates(prev => {
-        const newState = { ...prev };
-        delete newState[image.id];
-        return newState;
-      });
-    } catch (err: any) {
-      if (err.message === "API_KEY_NOT_FOUND") {
-        setHasApiKey(false);
-      }
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img =>
-          img.id === image.id ? { ...img, isEditing: false, error: err instanceof Error ? err.message : 'Edit failed' } : img
-        ),
-      }));
-    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -992,15 +887,6 @@ const App: React.FC = () => {
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                           </a>
                         )}
-                        {image.status === 'success' && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleInlineEdit(image); }}
-                            className={`p-2 transition-all border rounded-md ${expandedImageId === image.id ? 'text-ink bg-monstera-100 border-monstera-300' : 'text-monstera-400 hover:text-ink hover:bg-monstera-100 border-transparent hover:border-monstera-200'}`}
-                            title="Edit & Refine"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                          </button>
-                        )}
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteImage(image.id); }}
                           className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all border border-transparent hover:border-red-200"
@@ -1031,104 +917,145 @@ const App: React.FC = () => {
                     )}
 
                     {image.status === 'success' && image.url && (
-                      <div className="mt-3 pt-3 border-t border-monstera-100 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <textarea
-                            value={editPrompts[image.id] || ''}
-                            onChange={(e) => setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }))}
-                            onKeyDown={(e) => {
-                              e.stopPropagation();
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleEditImage(image.id);
-                              }
-                            }}
-                            placeholder="Upravit obrázek..."
-                            disabled={image.isEditing}
-                            className="flex-1 text-[10px] font-medium bg-monstera-50 border border-monstera-200 rounded-md px-2 py-1.5 outline-none focus:border-monstera-400 resize-none transition-all disabled:opacity-50"
-                            rows={1}
-                          />
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleEditImage(image.id); }}
-                            disabled={!editPrompts[image.id]?.trim() || image.isEditing}
-                            className="px-3 py-1.5 bg-monstera-400 hover:bg-monstera-500 text-ink font-bold text-[9px] uppercase tracking-wider rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-ink shadow-sm"
-                            title="Upravit"
-                          >
-                            {image.isEditing ? '...' : '✓'}
-                          </button>
-                          {image.versions && image.versions.length > 0 && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleUndoEdit(image.id); }}
-                              disabled={image.isEditing}
-                              className="px-3 py-1.5 bg-white hover:bg-monstera-100 text-monstera-600 hover:text-ink font-bold text-[9px] uppercase tracking-wider rounded-md transition-all border border-monstera-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={`Vrátit zpět (${image.versions.length} verzí)`}
-                            >
-                              ↶
-                            </button>
+                      <div className="mt-3 pt-3 border-t border-monstera-100 space-y-2.5">
+                        {/* Edit Prompt Section */}
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 space-y-1.5">
+                              <div className="flex items-center justify-between px-1">
+                                <label className="text-[9px] font-black text-monstera-700 uppercase tracking-wider flex items-center gap-1.5">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  Edit Prompt
+                                </label>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowReferenceUpload(prev => ({ ...prev, [image.id]: !prev[image.id] }));
+                                    if (!inlineEditStates[image.id]) {
+                                      setInlineEditStates(prev => ({
+                                        ...prev,
+                                        [image.id]: { prompt: editPrompts[image.id] || '', referenceImages: [] }
+                                      }));
+                                    }
+                                  }}
+                                  className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${
+                                    showReferenceUpload[image.id]
+                                      ? 'bg-monstera-400 text-ink border border-ink'
+                                      : 'bg-monstera-100 text-monstera-600 hover:bg-monstera-200 border border-monstera-200'
+                                  }`}
+                                  title="Add reference images"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  {showReferenceUpload[image.id] ? 'Images' : '+ Images'}
+                                </button>
+                              </div>
+                              <textarea
+                                value={editPrompts[image.id] || ''}
+                                onChange={(e) => {
+                                  setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }));
+                                  if (inlineEditStates[image.id]) {
+                                    setInlineEditStates(prev => ({
+                                      ...prev,
+                                      [image.id]: { ...prev[image.id], prompt: e.target.value }
+                                    }));
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  e.stopPropagation();
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleEditImage(image.id);
+                                  }
+                                }}
+                                placeholder="Describe how to modify this image... (⏎ to apply)"
+                                disabled={image.isEditing}
+                                className="w-full min-h-[60px] text-[11px] font-medium bg-white border-2 border-monstera-200 rounded-lg px-3 py-2 outline-none focus:border-monstera-400 focus:ring-2 focus:ring-monstera-200 resize-none transition-all disabled:opacity-50 disabled:bg-monstera-50 leading-relaxed placeholder-monstera-300"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1.5 pt-6">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleEditImage(image.id); }}
+                                disabled={!editPrompts[image.id]?.trim() || image.isEditing}
+                                className="p-2.5 bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-monstera-400 hover:to-monstera-500 text-ink rounded-lg transition-all disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale border-2 border-ink shadow-md hover:shadow-lg active:scale-95"
+                                title="Apply edit (Enter)"
+                              >
+                                {image.isEditing ? (
+                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                ) : (
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </button>
+                              {image.versions && image.versions.length > 0 && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleUndoEdit(image.id); }}
+                                  disabled={image.isEditing}
+                                  className="p-2.5 bg-white hover:bg-monstera-100 text-monstera-600 hover:text-ink rounded-lg transition-all border-2 border-monstera-300 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm hover:shadow-md active:scale-95"
+                                  title={`Undo (${image.versions.length} version${image.versions.length > 1 ? 's' : ''})`}
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Reference Images Upload Section */}
+                          {showReferenceUpload[image.id] && (
+                            <div className="space-y-1.5 animate-fadeIn">
+                              <label className="text-[8px] font-black text-monstera-600 uppercase tracking-wider px-1">Reference Images (Optional)</label>
+                              <div className="grid grid-cols-4 gap-2 p-2 bg-monstera-50/50 rounded-lg border border-monstera-200">
+                                {inlineEditStates[image.id]?.referenceImages?.map((img) => (
+                                  <div key={img.id} className="relative group aspect-square rounded-lg overflow-hidden border-2 border-monstera-300 bg-white shadow-sm hover:shadow-md transition-all">
+                                    <img src={img.url} className="w-full h-full object-cover" alt="Reference" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end justify-center pb-2">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); removeInlineReferenceImage(image.id, img.id); }}
+                                        className="bg-white text-red-600 hover:bg-red-600 hover:text-white p-1.5 rounded-md shadow-xl transition-all transform hover:scale-110"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                                {(!inlineEditStates[image.id]?.referenceImages || inlineEditStates[image.id].referenceImages.length < MAX_IMAGES) && (
+                                  <ImageUpload
+                                    onImagesSelected={(files) => addInlineReferenceImages(image.id, files)}
+                                    compact={true}
+                                    remainingSlots={MAX_IMAGES - (inlineEditStates[image.id]?.referenceImages?.length || 0)}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Progress Bar */}
+                          {image.isEditing && (
+                            <div className="relative w-full h-2 bg-monstera-100 rounded-full overflow-hidden shadow-inner animate-fadeIn">
+                              <div
+                                className="absolute inset-0 bg-gradient-to-r from-monstera-400 via-monstera-500 to-monstera-400"
+                                style={{
+                                  animation: 'shimmer 2s ease-in-out infinite',
+                                  backgroundSize: '200% 100%'
+                                }}
+                              />
+                            </div>
                           )}
                         </div>
-                        {image.isEditing && (
-                          <div className="relative w-full h-1.5 bg-monstera-100 rounded-full overflow-hidden animate-fadeIn">
-                            <div
-                              className="absolute inset-0 bg-gradient-to-r from-monstera-400 via-monstera-500 to-monstera-400 animate-pulse"
-                              style={{
-                                animation: 'shimmer 2s ease-in-out infinite',
-                                backgroundSize: '200% 100%'
-                              }}
-                            />
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
-
-                  {expandedImageId === image.id && inlineEditStates[image.id] && (
-                    <div className="border-t border-monstera-200 bg-monstera-50/30 p-3 space-y-3 animate-fadeIn" onClick={(e) => e.stopPropagation()}>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-monstera-800 uppercase tracking-widest px-1">Refine Prompt</label>
-                        <textarea
-                          value={inlineEditStates[image.id].prompt}
-                          onChange={(e) => updateInlineEditPrompt(image.id, e.target.value)}
-                          placeholder="Enter a new prompt to refine this image..."
-                          className="w-full min-h-[80px] bg-white border border-monstera-200 rounded-md p-2.5 text-[12px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-sm"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-monstera-800 uppercase tracking-widest px-1">Reference Images</label>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {inlineEditStates[image.id].referenceImages.map((img) => (
-                            <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-white shadow-sm">
-                              <img src={img.url} className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-ink/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
-                                <button
-                                  onClick={() => removeInlineReferenceImage(image.id, img.id)}
-                                  className="bg-white text-ink p-1 rounded-md shadow-xl"
-                                >
-                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                          {inlineEditStates[image.id].referenceImages.length < MAX_IMAGES && (
-                            <ImageUpload
-                              onImagesSelected={(files) => addInlineReferenceImages(image.id, files)}
-                              compact={true}
-                              remainingSlots={MAX_IMAGES - inlineEditStates[image.id].referenceImages.length}
-                            />
-                          )}
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => handleInlineRegenerate(image)}
-                        disabled={!inlineEditStates[image.id].prompt.trim()}
-                        className="w-full py-2.5 px-4 bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink font-[900] text-[11px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[3px_3px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale"
-                      >
-                        Regenerate
-                      </button>
-                    </div>
-                  )}
                 </article>
               ))}
             </div>
