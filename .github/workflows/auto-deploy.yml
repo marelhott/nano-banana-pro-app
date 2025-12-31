@@ -1,4 +1,4 @@
-name: Auto Deploy to Netlify
+name: Auto Deploy to Main
 
 on:
   push:
@@ -38,7 +38,15 @@ jobs:
 
           CURRENT_BRANCH="${GITHUB_REF#refs/heads/}"
 
-          git fetch origin main
-          git checkout main
+          # Create main if it doesn't exist
+          if ! git ls-remote --heads origin main | grep -q main; then
+            git checkout -b main
+            git push -u origin main
+          else
+            git fetch origin main
+            git checkout main
+            git pull origin main
+          fi
+
           git merge --no-ff "$CURRENT_BRANCH" -m "Auto-merge: $CURRENT_BRANCH"
           git push origin main
