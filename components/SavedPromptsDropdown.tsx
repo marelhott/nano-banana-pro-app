@@ -50,7 +50,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
       const rect = buttonRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.bottom + 8,
-        left: rect.left - 320 + rect.width // 320px je šířka dropdownu (w-80)
+        left: rect.right + 8 // Dropdown doprava od tlačítka
       });
     }
   };
