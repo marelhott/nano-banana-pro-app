@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getAllImages, deleteImage, clearGallery, GalleryImage } from '../utils/galleryDB';
+import { exportAllData, importData } from '../utils/dataBackup';
 
 interface GalleryModalProps {
   isOpen: boolean;
@@ -10,6 +11,8 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notification, setNotification] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -53,6 +56,44 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
     }
   };
 
+  const handleExport = async () => {
+    try {
+      await exportAllData();
+      showNotification('✅ Data úspěšně exportována');
+    } catch (error) {
+      console.error('Export failed:', error);
+      showNotification('❌ Export selhal');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const result = await importData(file);
+      await loadImages();
+      showNotification(`✅ Importováno: ${result.prompts} promptů, ${result.images} obrázků`);
+    } catch (error) {
+      console.error('Import failed:', error);
+      showNotification('❌ Import selhal - zkontrolujte formát souboru');
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const showNotification = (message: string) => {
+    setNotification(message);
+    setTimeout(() => setNotification(null), 4000);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -66,6 +107,30 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
             <span className="text-sm font-bold text-monstera-400">({images.length} obrázků)</span>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleImportClick}
+              className="px-4 py-2 bg-monstera-50 hover:bg-monstera-100 text-monstera-700 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-monstera-300"
+              title="Importovat zálohu"
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import
+              </div>
+            </button>
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 bg-monstera-400 hover:bg-monstera-500 text-ink font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-ink"
+              title="Exportovat všechna data"
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export
+              </div>
+            </button>
             {images.length > 0 && (
               <button
                 onClick={handleClearAll}
@@ -203,6 +268,22 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleImportFile}
+        style={{ display: 'none' }}
+      />
+
+      {/* Notification */}
+      {notification && (
+        <div className="fixed top-4 right-4 z-[70] bg-white border-2 border-monstera-400 rounded-lg shadow-2xl px-6 py-4 animate-fadeIn">
+          <p className="text-sm font-bold text-ink">{notification}</p>
         </div>
       )}
     </div>
