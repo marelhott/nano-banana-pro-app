@@ -645,14 +645,14 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen overflow-hidden bg-white text-ink font-sans selection:bg-monstera-200">
       
-      <div 
+      <div
         ref={sidebarRef}
         style={{ width: `${sidebarWidth}px` }}
-        className="hidden lg:flex shrink-0 border-r border-monstera-200 bg-paper flex-col z-20 h-full relative shadow-sm"
+        className="hidden lg:flex shrink-0 border-r border-monstera-200 bg-paper flex-col z-20 h-full relative shadow-sm overflow-visible"
       >
         <Header />
         
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+        <div className="flex-1 overflow-y-auto overflow-x-visible custom-scrollbar p-4">
           {renderSidebarControls(false)}
         </div>
 
