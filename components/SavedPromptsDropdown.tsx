@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SavedPrompt } from '../types';
 import { getSavedPrompts, addSavedPrompt, deleteSavedPrompt } from '../utils/savedPrompts';
 
@@ -12,6 +12,8 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
   const [isOpen, setIsOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     loadPrompts();
@@ -43,14 +45,30 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
     loadPrompts();
   };
 
+  const updateDropdownPosition = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8,
+        left: rect.left - 320 + rect.width // 320px je šířka dropdownu (w-80)
+      });
+    }
+  };
+
+  const handleOpen = () => {
+    updateDropdownPosition();
+    setIsOpen(true);
+  };
+
   return (
     <div
       className="relative z-10"
-      onMouseEnter={() => setIsOpen(true)}
+      onMouseEnter={handleOpen}
       onMouseLeave={() => { setIsOpen(false); setIsAdding(false); }}
     >
       {/* Tlačítko */}
       <button
+        ref={buttonRef}
         className="p-2 bg-monstera-50 hover:bg-monstera-100 border border-monstera-200 rounded-md transition-all group relative z-10"
         title="Uložené prompty"
         type="button"
@@ -63,8 +81,11 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
       {/* Dropdown */}
       {isOpen && (
         <div
-          className="absolute top-full left-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border-2 border-monstera-300 rounded-lg shadow-2xl z-[100] overflow-hidden animate-fadeIn"
-          style={{ transform: 'translateX(calc(-100% + 2.5rem))' }}
+          className="fixed w-80 max-w-[calc(100vw-2rem)] bg-white border-2 border-monstera-300 rounded-lg shadow-2xl z-[100] overflow-hidden animate-fadeIn"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
