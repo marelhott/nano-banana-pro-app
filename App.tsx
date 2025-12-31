@@ -895,15 +895,24 @@ const App: React.FC = () => {
                       </div>
                     ) : (
                       image.url && (
-                        <img
-                          src={image.url}
-                          className={gridCols === 1 ? "w-full h-auto" : "w-full h-full object-cover"}
-                          decoding="sync"
-                          style={{ imageRendering: '-webkit-optimize-contrast' }}
-                        />
+                        <>
+                          <img
+                            src={image.url}
+                            className={`${gridCols === 1 ? "w-full h-auto" : "w-full h-full object-cover"} ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
+                            decoding="sync"
+                            style={{ imageRendering: '-webkit-optimize-contrast' }}
+                          />
+                          {image.isEditing && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-white/20 pointer-events-none">
+                              <div className="bg-white/90 backdrop-blur-sm px-6 py-3 rounded-lg shadow-2xl border-2 border-monstera-400">
+                                <span className="text-[11px] font-black text-monstera-700 uppercase tracking-widest animate-pulse">● Editing...</span>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )
                     )}
-                    
+
                     {image.status === 'error' && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                         <div className="w-10 h-10 bg-red-500 text-white rounded-md flex items-center justify-center mb-4 shadow-lg">
@@ -1021,6 +1030,17 @@ const App: React.FC = () => {
                             </button>
                           )}
                         </div>
+                        {image.isEditing && (
+                          <div className="relative w-full h-1.5 bg-monstera-100 rounded-full overflow-hidden animate-fadeIn">
+                            <div
+                              className="absolute inset-0 bg-gradient-to-r from-monstera-400 via-monstera-500 to-monstera-400 animate-pulse"
+                              style={{
+                                animation: 'shimmer 2s ease-in-out infinite',
+                                backgroundSize: '200% 100%'
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
