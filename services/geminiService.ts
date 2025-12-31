@@ -25,6 +25,11 @@ export const editImageWithGemini = async (
   try {
     // Create instance inside function to use the most up-to-date API key
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    // Debug: Log API key prefix to verify which key is being used
+    const keyPrefix = process.env.API_KEY?.substring(0, 10) || 'undefined';
+    console.log('Using API key starting with:', keyPrefix);
+
     const parts: any[] = [];
 
     // Add all image parts
@@ -45,6 +50,25 @@ export const editImageWithGemini = async (
 
     const config: any = {
       responseModalities: [Modality.IMAGE],
+      // Nastavení safety filters na méně restriktivní úroveň
+      safetySettings: [
+        {
+          category: 'HARM_CATEGORY_HATE_SPEECH',
+          threshold: 'BLOCK_ONLY_HIGH'
+        },
+        {
+          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        },
+        {
+          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        },
+        {
+          category: 'HARM_CATEGORY_HARASSMENT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        }
+      ]
     };
 
     if (useGrounding) {
@@ -63,12 +87,26 @@ export const editImageWithGemini = async (
       config.imageConfig = imageConfig;
     }
 
+    const modelName = 'gemini-3-pro-image-preview';
+    console.log('Requesting model:', modelName, 'with config:', config);
+
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
+      model: modelName,
       contents: {
         parts: parts,
       },
       config: config,
+    });
+
+    // Debug: Log response metadata
+    console.log('API Response metadata:', {
+      modelUsed: modelName,
+      hasCandidates: !!response.candidates,
+      candidateCount: response.candidates?.length,
+      finishReason: response.candidates?.[0]?.finishReason,
+      safetyRatings: response.candidates?.[0]?.safetyRatings,
+      citationMetadata: response.candidates?.[0]?.citationMetadata,
+      usageMetadata: response.usageMetadata,
     });
 
     const generatedPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
@@ -76,6 +114,9 @@ export const editImageWithGemini = async (
 
     if (generatedPart && generatedPart.inlineData && generatedPart.inlineData.data) {
       const imageBytes = generatedPart.inlineData.data;
+      const imageSizeKB = Math.round(imageBytes.length * 0.75 / 1024); // Approximate KB from base64
+      console.log(`Generated image size: ~${imageSizeKB} KB`);
+
       return {
         imageBase64: `data:image/jpeg;base64,${imageBytes}`,
         groundingMetadata

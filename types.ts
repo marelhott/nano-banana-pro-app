@@ -1,4 +1,10 @@
 
+export interface ImageVersion {
+  url: string;
+  prompt: string;
+  timestamp: number;
+}
+
 export interface GeneratedImage {
   id: string;
   url?: string;
@@ -10,12 +16,22 @@ export interface GeneratedImage {
   resolution?: string;
   aspectRatio?: string;
   styleCode?: number;
+  versions?: ImageVersion[]; // Historie předchozích verzí
+  isEditing?: boolean; // Je obrázek právě upravován?
 }
 
 export interface SourceImage {
   id: string;
   url: string;
   file: File;
+}
+
+export interface SavedPrompt {
+  id: string;
+  name: string;
+  prompt: string;
+  category?: string;
+  timestamp: number;
 }
 
 export interface AppState {
@@ -25,9 +41,7 @@ export interface AppState {
   aspectRatio: string; // 'Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'
   resolution: string; // '1k', '2k', '4k'
   error: string | null; // For global/upload errors
-  useGrounding: boolean;
-  styleCode: string; // Stored as string to allow empty input state
-  randomizeEachTime: boolean;
+  numberOfImages: number; // Number of images to generate at once (1-5)
 }
 
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/heic' | 'image/heif';

@@ -1,5 +1,5 @@
 {
-  "name": "nano-banana-pro-explorer",
+  "name": "mulen-nano",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,7 +12,7 @@
     "@google/genai": "^1.29.0",
     "react-dom": "^19.2.0",
     "react": "^19.2.0",
-    "jszip": "latest"
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

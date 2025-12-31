@@ -6,9 +6,10 @@ import { AppState, GeneratedImage, SourceImage } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { Header } from './components/Header';
-import { StyleSeedHelpModal } from './components/StyleSeedHelpModal';
-import { getStyleDescription } from './utils/styleGenerator.ts';
+import { GalleryModal } from './components/GalleryModal';
+import { SavedPromptsDropdown } from './components/SavedPromptsDropdown';
 import { slugify } from './utils/stringUtils.ts';
+import { saveToGallery, createThumbnail } from './utils/galleryDB';
 import JSZip from 'jszip';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
@@ -25,11 +26,9 @@ const App: React.FC = () => {
     generatedImages: [],
     prompt: '',
     aspectRatio: 'Original',
-    resolution: '2K', // Default to 2K
+    resolution: '1K', // Default to 1K
     error: null,
-    useGrounding: false,
-    styleCode: '', 
-    randomizeEachTime: false, 
+    numberOfImages: 1, // Default to 1 image
   });
   
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
@@ -37,10 +36,10 @@ const App: React.FC = () => {
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
-  const [showStyleDetails, setShowStyleDetails] = useState(false);
-  const [showSeedHelp, setShowSeedHelp] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedImageId, setExpandedImageId] = useState<string | null>(null);
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
@@ -52,9 +51,21 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // @ts-ignore
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      setHasApiKey(hasKey);
+      try {
+        // @ts-ignore
+        if (typeof window !== 'undefined' && window.aistudio?.hasSelectedApiKey) {
+          // @ts-ignore
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(hasKey);
+        } else {
+          // Running locally, assume API key is in environment
+          setHasApiKey(true);
+        }
+      } catch (err) {
+        console.error('Failed to check API key:', err);
+        // Assume true to allow local development
+        setHasApiKey(true);
+      }
     };
     checkKey();
 
@@ -125,11 +136,6 @@ const App: React.FC = () => {
     };
   }, [resize, stopResizing]);
 
-  const stylePreview = useMemo(() => {
-    const code = parseInt(state.styleCode, 10);
-    return isNaN(code) ? null : getStyleDescription(code);
-  }, [state.styleCode]);
-
   const getLoadingAspectRatio = useCallback((ratio: string | undefined): React.CSSProperties => {
     if (!ratio || ratio === 'Original') return { aspectRatio: '1 / 1' };
     const [w, h] = ratio.split(':');
@@ -188,65 +194,108 @@ const App: React.FC = () => {
 
     setIsGenerating(true);
 
-    let finalPrompt = state.prompt;
-    let currentCode = state.styleCode;
+    // Vytvořit pole s požadovaným počtem obrázků
+    const imagesToGenerate = Array.from({ length: state.numberOfImages }, (_, index) => {
+      const newId = `${Date.now()}-${index}`;
+      return {
+        id: newId,
+        prompt: state.prompt,
+        timestamp: Date.now() + index,
+        status: 'loading' as const,
+        resolution: state.resolution,
+        aspectRatio: state.aspectRatio,
+      };
+    });
 
-    if (state.randomizeEachTime) {
-      currentCode = Math.floor(Math.random() * 1000000000).toString();
-      setState(prev => ({ ...prev, styleCode: currentCode }));
-    }
-
-    if (currentCode) {
-      const numericCode = parseInt(currentCode, 10);
-      if (!isNaN(numericCode)) {
-        finalPrompt += ` . ${getStyleDescription(numericCode)}`;
-      }
-    }
-
-    const newId = Date.now().toString();
-    const newImage: GeneratedImage = {
-      id: newId,
-      prompt: state.prompt,
-      timestamp: Date.now(),
-      status: 'loading',
-      resolution: state.resolution,
-      aspectRatio: state.aspectRatio,
-      styleCode: currentCode ? parseInt(currentCode, 10) : undefined
-    };
-
+    // Přidat všechny loading obrázky do state
     setState(prev => ({
       ...prev,
-      generatedImages: [newImage, ...prev.generatedImages],
+      generatedImages: [...imagesToGenerate, ...prev.generatedImages],
     }));
 
-    try {
-      const result = await editImageWithGemini(
-        state.sourceImages.map(i => ({ data: i.url, mimeType: i.file.type })),
-        finalPrompt,
-        state.resolution,
-        state.aspectRatio,
-        state.useGrounding
-      );
+    // Generovat obrázky sekvenčně s malým zpožděním mezi požadavky
+    // aby nedošlo k rate limitingu API
+    const generateSequentially = async () => {
+      for (let i = 0; i < imagesToGenerate.length; i++) {
+        const imageData = imagesToGenerate[i];
 
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img =>
-          img.id === newId ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
-        ),
-      }));
-    } catch (err: any) {
-      if (err.message === "API_KEY_NOT_FOUND") {
-        setHasApiKey(false);
+        // Přidat zpoždění mezi požadavky (kromě prvního)
+        // Pro Nano Banana Pro používáme 5s pauzu kvůli striktnímu rate limitingu
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+
+        // Retry logika pro 429 errory s exponential backoff
+        let retryCount = 0;
+        const maxRetries = 3;
+        let success = false;
+
+        while (retryCount <= maxRetries && !success) {
+          try {
+            const result = await editImageWithGemini(
+              state.sourceImages.map(img => ({ data: img.url, mimeType: img.file.type })),
+              state.prompt,
+              state.resolution,
+              state.aspectRatio,
+              false
+            );
+
+            setState(prev => ({
+              ...prev,
+              generatedImages: prev.generatedImages.map(img =>
+                img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
+              ),
+            }));
+
+            // Automaticky uložit do galerie
+            try {
+              const thumbnail = await createThumbnail(result.imageBase64);
+              await saveToGallery({
+                id: imageData.id,
+                url: result.imageBase64,
+                prompt: state.prompt,
+                timestamp: Date.now(),
+                resolution: state.resolution,
+                aspectRatio: state.aspectRatio,
+                thumbnail,
+              });
+            } catch (err) {
+              console.error('Failed to save to gallery:', err);
+            }
+
+            success = true; // Úspěch, pokračuj na další obrázek
+          } catch (err: any) {
+            const is429 = err.message?.includes('429') ||
+                         err.message?.includes('TooManyRequests') ||
+                         err.message?.includes('RESOURCE_EXHAUSTED') ||
+                         err.message?.includes('Request blocked');
+
+            if (is429 && retryCount < maxRetries) {
+              retryCount++;
+              // Exponential backoff: 5s, 10s, 20s
+              const waitTime = 5000 * Math.pow(2, retryCount - 1);
+              console.log(`Rate limit hit for image ${i + 1}, waiting ${waitTime/1000}s before retry ${retryCount}/${maxRetries}`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            } else {
+              // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
+              if (err.message === "API_KEY_NOT_FOUND") {
+                setHasApiKey(false);
+              }
+              setState(prev => ({
+                ...prev,
+                generatedImages: prev.generatedImages.map(img =>
+                  img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
+                ),
+              }));
+              break; // Přeruš retry loop
+            }
+          }
+        }
       }
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img =>
-          img.id === newId ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
-        ),
-      }));
-    } finally {
       setIsGenerating(false);
-    }
+    };
+
+    generateSequentially();
   };
 
   const handleRepopulate = (image: GeneratedImage) => {
@@ -255,13 +304,111 @@ const App: React.FC = () => {
       prompt: image.prompt,
       aspectRatio: image.aspectRatio || 'Original',
       resolution: image.resolution || '2K',
-      styleCode: image.styleCode ? image.styleCode.toString() : '',
-      useGrounding: !!image.groundingMetadata,
     }));
     // If mobile, open the menu so user sees the repopulated settings
     if (isMobile) {
       setIsMobileMenuOpen(true);
     }
+  };
+
+  const handleEditImage = async (imageId: string) => {
+    const editPrompt = editPrompts[imageId];
+    if (!editPrompt || !editPrompt.trim()) return;
+
+    const image = state.generatedImages.find(img => img.id === imageId);
+    if (!image || !image.url) return;
+
+    // Nastavit loading stav
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img =>
+        img.id === imageId ? { ...img, isEditing: true } : img
+      ),
+    }));
+
+    try {
+      // Použít aktuální obrázek jako source image pro editaci
+      const result = await editImageWithGemini(
+        [{ data: image.url, mimeType: 'image/jpeg' }],
+        editPrompt,
+        image.resolution,
+        image.aspectRatio,
+        false
+      );
+
+      // Uložit starou verzi a aktualizovat obrázek
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img => {
+          if (img.id === imageId) {
+            const newVersions = [
+              ...(img.versions || []),
+              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp }
+            ];
+            return {
+              ...img,
+              url: result.imageBase64,
+              prompt: editPrompt,
+              timestamp: Date.now(),
+              versions: newVersions,
+              isEditing: false,
+            };
+          }
+          return img;
+        }),
+      }));
+
+      // Vymazat edit prompt
+      setEditPrompts(prev => {
+        const newPrompts = { ...prev };
+        delete newPrompts[imageId];
+        return newPrompts;
+      });
+
+      // Uložit upravenou verzi do galerie
+      try {
+        const thumbnail = await createThumbnail(result.imageBase64);
+        await saveToGallery({
+          id: imageId,
+          url: result.imageBase64,
+          prompt: editPrompt,
+          timestamp: Date.now(),
+          resolution: image.resolution,
+          aspectRatio: image.aspectRatio,
+          thumbnail,
+        });
+      } catch (err) {
+        console.error('Failed to save edited image to gallery:', err);
+      }
+    } catch (err: any) {
+      console.error('Edit error:', err);
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img =>
+          img.id === imageId ? { ...img, isEditing: false, error: err instanceof Error ? err.message : 'Edit failed' } : img
+        ),
+      }));
+    }
+  };
+
+  const handleUndoEdit = (imageId: string) => {
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img => {
+        if (img.id === imageId && img.versions && img.versions.length > 0) {
+          const versions = [...img.versions];
+          const previousVersion = versions.pop()!;
+          return {
+            ...img,
+            url: previousVersion.url,
+            prompt: previousVersion.prompt,
+            timestamp: previousVersion.timestamp,
+            versions,
+          };
+        }
+        return img;
+      }),
+    }));
   };
 
   const handleDeleteImage = (imageId: string) => {
@@ -348,16 +495,6 @@ const App: React.FC = () => {
     const editState = inlineEditStates[image.id];
     if (!editState || !editState.prompt.trim()) return;
 
-    let finalPrompt = editState.prompt;
-    const currentCode = state.styleCode;
-
-    if (currentCode) {
-      const numericCode = parseInt(currentCode, 10);
-      if (!isNaN(numericCode)) {
-        finalPrompt += ` . ${getStyleDescription(numericCode)}`;
-      }
-    }
-
     const newId = Date.now().toString();
     const newImage: GeneratedImage = {
       id: newId,
@@ -366,7 +503,6 @@ const App: React.FC = () => {
       status: 'loading',
       resolution: image.resolution || state.resolution,
       aspectRatio: image.aspectRatio || state.aspectRatio,
-      styleCode: currentCode ? parseInt(currentCode, 10) : image.styleCode
     };
 
     setState(prev => ({
@@ -380,10 +516,10 @@ const App: React.FC = () => {
     try {
       const result = await editImageWithGemini(
         editState.referenceImages.map(i => ({ data: i.url, mimeType: i.file.type })),
-        finalPrompt,
+        editState.prompt,
         image.resolution || state.resolution,
         image.aspectRatio || state.aspectRatio,
-        image.groundingMetadata ? true : state.useGrounding
+        false
       );
 
       setState(prev => ({
@@ -462,7 +598,13 @@ const App: React.FC = () => {
       <section className="space-y-1">
         <header className="flex items-center justify-between px-1">
           <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Prompt</label>
-          <span className="text-[8px] font-bold text-monstera-400 uppercase tracking-widest">↵ to run</span>
+          <div className="flex items-center gap-2">
+            <SavedPromptsDropdown
+              onSelectPrompt={(prompt) => setState(p => ({ ...p, prompt }))}
+              currentPrompt={state.prompt}
+            />
+            <span className="text-[8px] font-bold text-monstera-400 uppercase tracking-widest">↵ to run</span>
+          </div>
         </header>
         <textarea
           ref={isMobileView ? mobilePromptRef : promptRef}
@@ -549,97 +691,22 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 px-1">
-              <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest">Style Seed</label>
-              <button 
-                onClick={() => setShowSeedHelp(true)}
-                className="text-monstera-400 hover:text-monstera-600 transition-colors"
-                title="What is this?"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </button>
-            </div>
-            
-            <div className="relative">
-              <input
-                type="text"
-                value={state.styleCode}
-                disabled={state.randomizeEachTime}
-                onChange={(e) => setState(p => ({ ...p, styleCode: e.target.value.replace(/\D/g, '') }))}
-                className={`w-full bg-white border border-monstera-200 text-xs font-mono font-bold rounded-md pl-3 pr-8 py-1.5 outline-none focus:border-monstera-400 shadow-sm transition-all ${state.randomizeEachTime ? 'bg-monstera-50 text-monstera-400 select-none' : ''}`}
-                placeholder={state.randomizeEachTime ? "Randomizing each run..." : "Optional Seed"}
-              />
-              {!state.randomizeEachTime && (
+          <div className="space-y-1.5">
+            <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest px-1">Počet obrázků</label>
+            <div className="flex items-center gap-1.5 bg-monstera-50 p-1.5 rounded-md border border-monstera-200 shadow-sm">
+              {[1, 2, 3, 4, 5].map(n => (
                 <button
-                  onClick={() => setState(p => ({ ...p, styleCode: Math.floor(Math.random() * 1000000000).toString() }))}
-                  className="absolute right-1 top-1 text-monstera-400 hover:text-monstera-600 p-1 hover:bg-monstera-50 rounded transition-all"
-                  title="Generate random seed"
+                  key={n}
+                  onClick={() => setState(p => ({ ...p, numberOfImages: n }))}
+                  className={`flex-1 h-8 rounded-md font-black text-[11px] transition-all flex items-center justify-center ${state.numberOfImages === n ? 'bg-white text-ink shadow-sm border border-monstera-300' : 'text-monstera-600 hover:text-ink hover:bg-white/50'}`}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  {n}
                 </button>
-              )}
-            </div>
-
-            {stylePreview && !state.randomizeEachTime && (
-              <div className="pb-1">
-                <button 
-                  onClick={() => setShowStyleDetails(!showStyleDetails)}
-                  className="flex items-center gap-1 text-[8px] font-bold text-monstera-400 hover:text-monstera-600 uppercase tracking-wider transition-colors select-none"
-                >
-                  <span>{showStyleDetails ? 'Hide' : 'Show'} Style Prompt</span>
-                  <svg className={`w-2.5 h-2.5 transition-transform duration-200 ${showStyleDetails ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
-                </button>
-                {showStyleDetails && (
-                  <div className="mt-1.5 p-2 bg-monstera-50 border border-monstera-100 rounded text-[9px] font-medium leading-relaxed text-monstera-700 animate-fadeIn">
-                    {stylePreview}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <label className="flex items-center gap-2.5 cursor-pointer group px-1 select-none">
-              <div className="relative">
-                <input 
-                  type="checkbox" 
-                  checked={state.randomizeEachTime}
-                  onChange={(e) => setState(p => ({ ...p, randomizeEachTime: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className="w-7 h-3.5 bg-monstera-200 rounded-full peer-checked:bg-monstera-400 transition-colors"></div>
-                <div className="absolute left-0.5 top-0.5 w-2.5 h-2.5 bg-white rounded-full transition-transform peer-checked:translate-x-3 shadow-sm"></div>
-              </div>
-              <span className={`text-[9px] font-bold uppercase tracking-wide transition-colors ${state.randomizeEachTime ? 'text-ink' : 'text-monstera-600 group-hover:text-ink'}`}>New seed every run</span>
-            </label>
-
-            <div className="border-t border-monstera-200 mt-2 pt-2">
-              <label className="flex items-center gap-2.5 cursor-pointer group px-1">
-                <div className="relative">
-                  <input 
-                    type="checkbox" 
-                    checked={state.useGrounding}
-                    onChange={(e) => setState(p => ({ ...p, useGrounding: e.target.checked }))}
-                    className="sr-only peer"
-                  />
-                  <div className="w-7 h-3.5 bg-monstera-200 rounded-full peer-checked:bg-monstera-400 transition-colors"></div>
-                  <div className="absolute left-0.5 top-0.5 w-2.5 h-2.5 bg-white rounded-full transition-transform peer-checked:translate-x-3 shadow-sm"></div>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-black uppercase tracking-wide text-monstera-800 group-hover:text-ink transition-colors">Search Grounding</span>
-                  <span className="text-[7px] font-bold text-monstera-400 uppercase tracking-widest leading-none">Slower generation</span>
-                </div>
-              </label>
+              ))}
             </div>
           </div>
         </div>
       </section>
-
-      <div className="pt-4 pb-2 flex items-center justify-center gap-1 text-[9px] font-bold text-monstera-400 uppercase tracking-widest opacity-80 hover:opacity-100 transition-opacity">
-          <span className="opacity-50">Made by</span>
-          <a href="https://fofr.ai" target="_blank" rel="noopener noreferrer" className="hover:text-monstera-600 transition-colors">fofr</a>
-          <span className="opacity-30 mx-1">•</span>
-          <a href="https://x.com/fofrAI" target="_blank" rel="noopener noreferrer" className="hover:text-monstera-600 transition-colors">@fofrAI</a>
-      </div>
     </div>
   );
 
@@ -685,7 +752,14 @@ const App: React.FC = () => {
           >
             {state.prompt || "Enter a prompt..."}
           </div>
-          <button 
+          <button
+             onClick={() => setIsGalleryOpen(true)}
+             className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
+             title="Gallery"
+          >
+             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          </button>
+          <button
              onClick={() => setIsMobileMenuOpen(true)}
              className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
              title="Settings"
@@ -735,23 +809,17 @@ const App: React.FC = () => {
                 <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-ink">Gallery</h2>
               </div>
             </div>
-            
-            <div className="flex flex-wrap items-center gap-4 hidden lg:flex">
-              <div className="flex items-center gap-1.5 bg-monstera-50 p-1 rounded-md border border-monstera-200 shadow-sm">
-                <span className="text-[8px] font-black uppercase opacity-40 px-2">Grid</span>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <button 
-                      key={n} 
-                      onClick={() => setGridCols(n)} 
-                      className={`w-7 h-7 rounded-md font-black text-[10px] transition-all flex items-center justify-center ${gridCols === n ? 'bg-white text-ink shadow-sm border border-monstera-200' : 'text-monstera-600 hover:text-ink hover:bg-white/50'}`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
+            <div className="flex flex-wrap items-center gap-4 hidden lg:flex">
+              <button
+                onClick={() => setIsGalleryOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-monstera-400 hover:bg-monstera-500 text-ink font-black text-[9px] uppercase tracking-widest rounded-md border-2 border-ink shadow-lg transition-all active:scale-95"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Gallery
+              </button>
               {state.generatedImages.length > 0 && (
                 <button 
                   onClick={async () => {
@@ -765,18 +833,13 @@ const App: React.FC = () => {
                       const res = await fetch(img.url!);
                       const blob = await res.blob();
                       const slug = slugify(img.prompt);
-                      const stylePart = img.styleCode ? `-${img.styleCode}` : '';
-                      const baseFilename = `${img.id}${stylePart}${slug ? '-' + slug : ''}`;
+                      const baseFilename = `${img.id}${slug ? '-' + slug : ''}`;
                       folder!.file(`${baseFilename}.jpg`, blob);
-
-                      const styleDesc = (img.styleCode !== undefined && img.styleCode !== null) ? getStyleDescription(img.styleCode) : null;
 
                       const metadata = [
                         `Prompt: ${img.prompt}`,
-                        styleDesc ? `Style Prompt: ${styleDesc}` : '',
                         `Resolution: ${img.resolution || 'N/A'}`,
                         `Aspect Ratio: ${img.aspectRatio || 'N/A'}`,
-                        `Style Seed: ${img.styleCode ?? 'None'}`,
                         `Timestamp: ${new Date(img.timestamp).toLocaleString()}`,
                         `ID: ${img.id}`,
                         img.groundingMetadata ? `Grounding Metadata: ${JSON.stringify(img.groundingMetadata, null, 2)}` : ''
@@ -815,12 +878,6 @@ const App: React.FC = () => {
               </div>
               <div className="text-center space-y-2">
                 <span className="text-lg font-bold text-ink block">No images generated yet</span>
-              </div>
-              <div className="pt-4 flex items-center justify-center gap-1 text-[9px] font-bold text-monstera-400 uppercase tracking-widest opacity-80 hover:opacity-100 transition-opacity">
-                  <span className="opacity-50">Made by</span>
-                  <a href="https://fofr.ai" target="_blank" rel="noopener noreferrer" className="hover:text-monstera-600 transition-colors">fofr</a>
-                  <span className="opacity-30 mx-1">•</span>
-                  <a href="https://x.com/fofrAI" target="_blank" rel="noopener noreferrer" className="hover:text-monstera-600 transition-colors">@fofrAI</a>
               </div>
             </div>
           ) : (
@@ -881,7 +938,7 @@ const App: React.FC = () => {
                         {image.url && (
                           <a
                             href={image.url}
-                            download={`${image.id}${image.styleCode ? '-' + image.styleCode : ''}${slugify(image.prompt) ? '-' + slugify(image.prompt) : ''}.jpg`}
+                            download={`${image.id}${slugify(image.prompt) ? '-' + slugify(image.prompt) : ''}.jpg`}
                             className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200"
                             title="Download"
                             onClick={(e) => e.stopPropagation()}
@@ -924,6 +981,46 @@ const App: React.FC = () => {
                             </a>
                           )
                         ))}
+                      </div>
+                    )}
+
+                    {image.status === 'success' && image.url && (
+                      <div className="mt-3 pt-3 border-t border-monstera-100 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <textarea
+                            value={editPrompts[image.id] || ''}
+                            onChange={(e) => setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleEditImage(image.id);
+                              }
+                            }}
+                            placeholder="Upravit obrázek..."
+                            disabled={image.isEditing}
+                            className="flex-1 text-[10px] font-medium bg-monstera-50 border border-monstera-200 rounded-md px-2 py-1.5 outline-none focus:border-monstera-400 resize-none transition-all disabled:opacity-50"
+                            rows={1}
+                          />
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleEditImage(image.id); }}
+                            disabled={!editPrompts[image.id]?.trim() || image.isEditing}
+                            className="px-3 py-1.5 bg-monstera-400 hover:bg-monstera-500 text-ink font-bold text-[9px] uppercase tracking-wider rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-ink shadow-sm"
+                            title="Upravit"
+                          >
+                            {image.isEditing ? '...' : '✓'}
+                          </button>
+                          {image.versions && image.versions.length > 0 && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleUndoEdit(image.id); }}
+                              disabled={image.isEditing}
+                              className="px-3 py-1.5 bg-white hover:bg-monstera-100 text-monstera-600 hover:text-ink font-bold text-[9px] uppercase tracking-wider rounded-md transition-all border border-monstera-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={`Vrátit zpět (${image.versions.length} verzí)`}
+                            >
+                              ↶
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -982,7 +1079,7 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <ImageComparisonModal 
+      <ImageComparisonModal
         isOpen={!!selectedImage}
         onClose={() => setSelectedImage(null)}
         generatedImage={selectedImage?.url || null}
@@ -991,15 +1088,17 @@ const App: React.FC = () => {
         timestamp={selectedImage?.timestamp || 0}
         resolution={selectedImage?.resolution}
         aspectRatio={selectedImage?.aspectRatio}
-        styleCode={selectedImage?.styleCode}
         groundingMetadata={selectedImage?.groundingMetadata}
         onNext={handleNextImage}
         onPrev={handlePrevImage}
         hasNext={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) < state.generatedImages.length - 1 : false}
         hasPrev={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) > 0 : false}
       />
-      
-      {showSeedHelp && <StyleSeedHelpModal onClose={() => setShowSeedHelp(false)} />}
+
+      <GalleryModal
+        isOpen={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
+      />
     </div>
   );
 };
