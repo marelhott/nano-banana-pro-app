@@ -13,7 +13,8 @@ export interface GenerateImageResult {
 
 /**
  * Edits or transforms images based on a text prompt using Gemini.
- * Supports multiple reference images.
+ * DŮLEŽITÉ: První obrázek v poli images je obrázek k editaci.
+ * Další obrázky (pokud jsou) slouží jako reference/kontext/inspirace pro úpravu.
  */
 export const editImageWithGemini = async (
   images: ImageInput[],
