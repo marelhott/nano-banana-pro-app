@@ -330,11 +330,14 @@ const App: React.FC = () => {
     setShowReferenceUpload(prev => ({ ...prev, [imageId]: false }));
 
     try {
-      // Použít reference images (pokud jsou) + aktuální obrázek jako source pro editaci
+      // DŮLEŽITÉ: První obrázek = obrázek k editaci, další obrázky = reference pro inspiraci
       const editState = inlineEditStates[imageId];
-      const sourceImages = editState?.referenceImages?.length > 0
-        ? editState.referenceImages.map(i => ({ data: i.url, mimeType: i.file.type }))
-        : [{ data: image.url, mimeType: 'image/jpeg' }];
+      const sourceImages = [
+        // Původní vygenerovaný obrázek - VŽDY první (je to obrázek, který má být editován)
+        { data: image.url, mimeType: 'image/jpeg' },
+        // Referenční obrázky - jako kontext/inspirace pro úpravu
+        ...(editState?.referenceImages || []).map(i => ({ data: i.url, mimeType: i.file.type }))
+      ];
 
       const result = await editImageWithGemini(
         sourceImages,
