@@ -23,6 +23,8 @@ const MAX_IMAGES = 14;
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
     sourceImages: [],
+    styleImages: [],
+    promptImages: [],
     generatedImages: [],
     prompt: '',
     aspectRatio: 'Original',
@@ -166,6 +168,54 @@ const App: React.FC = () => {
       reader.readAsDataURL(file);
     });
   }, [state.sourceImages]);
+
+  const handleStyleImagesSelected = useCallback((files: File[]) => {
+    const remainingSlots = MAX_IMAGES - state.styleImages.length;
+    if (remainingSlots <= 0) return;
+
+    files.slice(0, remainingSlots).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result && typeof e.target.result === 'string') {
+          const newImage: SourceImage = {
+            id: Math.random().toString(36).substr(2, 9),
+            url: e.target.result,
+            file: file
+          };
+          setState(prev => ({
+            ...prev,
+            styleImages: [...prev.styleImages, newImage],
+            error: null,
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }, [state.styleImages]);
+
+  const handlePromptImagesSelected = useCallback((files: File[]) => {
+    const remainingSlots = MAX_IMAGES - state.promptImages.length;
+    if (remainingSlots <= 0) return;
+
+    files.slice(0, remainingSlots).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result && typeof e.target.result === 'string') {
+          const newImage: SourceImage = {
+            id: Math.random().toString(36).substr(2, 9),
+            url: e.target.result,
+            file: file
+          };
+          setState(prev => ({
+            ...prev,
+            promptImages: [...prev.promptImages, newImage],
+            error: null,
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }, [state.promptImages]);
 
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -553,9 +603,9 @@ const App: React.FC = () => {
 
       <section className="space-y-1.5">
         <div className="flex items-center justify-between px-1">
-          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">References</label>
+          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Referenční obrázky</label>
           {isGenerating && (
-            <span className="text-[8px] font-black text-monstera-500 uppercase tracking-widest animate-pulse">● Generating...</span>
+            <span className="text-[8px] font-black text-monstera-500 uppercase tracking-widest animate-pulse">● Generuji...</span>
           )}
         </div>
         <div className="grid grid-cols-2 gap-1.5">
@@ -592,37 +642,77 @@ const App: React.FC = () => {
         )}
       </section>
 
+      <section className="space-y-1.5">
+        <div className="flex items-center justify-between px-1">
+          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Stylové obrázky</label>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {state.styleImages.map((img) => (
+            <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
+              <img
+                src={img.url}
+                className="w-full h-full object-cover transition-all duration-500"
+              />
+              <div className="absolute inset-0 bg-ink/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <button
+                  onClick={() => setState(p => ({ ...p, styleImages: p.styleImages.filter(i => i.id !== img.id) }))}
+                  className="bg-white text-ink p-1.5 rounded-md shadow-xl"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+          ))}
+          {state.styleImages.length < MAX_IMAGES && (
+            <ImageUpload onImagesSelected={handleStyleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.styleImages.length} />
+          )}
+        </div>
+      </section>
+
+      <section className="space-y-1.5">
+        <div className="flex items-center justify-between px-1">
+          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Prompt obrázky</label>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {state.promptImages.map((img) => (
+            <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
+              <img
+                src={img.url}
+                className="w-full h-full object-cover transition-all duration-500"
+              />
+              <div className="absolute inset-0 bg-ink/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <button
+                  onClick={() => setState(p => ({ ...p, promptImages: p.promptImages.filter(i => i.id !== img.id) }))}
+                  className="bg-white text-ink p-1.5 rounded-md shadow-xl"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+          ))}
+          {state.promptImages.length < MAX_IMAGES && (
+            <ImageUpload onImagesSelected={handlePromptImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.promptImages.length} />
+          )}
+        </div>
+      </section>
+
       <section className="bg-white border border-monstera-200 rounded-md shadow-md overflow-hidden">
         <div className="bg-monstera-50 border-b border-monstera-200 px-3 py-2 flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5 text-monstera-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-            <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Generation Settings</span>
+            <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Nastavení generování</span>
         </div>
         
         <div className="p-3.5 space-y-3">
-          <div className="grid grid-cols-1 gap-3">
-            <div className="space-y-1">
-              <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest px-1">Aspect ratio</label>
-              <div className="relative">
-                <select
-                  value={state.aspectRatio}
-                  onChange={(e) => setState(p => ({ ...p, aspectRatio: e.target.value }))}
-                  className="w-full bg-white border border-monstera-200 text-[11px] font-bold rounded-md px-2.5 py-1.5 outline-none cursor-pointer hover:border-monstera-300 appearance-none shadow-sm"
-                >
-                  {ASPECT_RATIOS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest px-1">Resolution</label>
-              <div className="relative">
-                <select
-                  value={state.resolution}
-                  onChange={(e) => setState(p => ({ ...p, resolution: e.target.value }))}
-                  className="w-full bg-white border border-monstera-200 text-[11px] font-bold rounded-md px-2.5 py-1.5 outline-none cursor-pointer hover:border-monstera-300 appearance-none shadow-sm"
-                >
-                  {RESOLUTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-              </div>
+          <div className="space-y-1">
+            <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest px-1">Rozlišení</label>
+            <div className="relative">
+              <select
+                value={state.resolution}
+                onChange={(e) => setState(p => ({ ...p, resolution: e.target.value }))}
+                className="w-full bg-white border border-monstera-200 text-[11px] font-bold rounded-md px-2.5 py-1.5 outline-none cursor-pointer hover:border-monstera-300 appearance-none shadow-sm"
+              >
+                {RESOLUTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
             </div>
           </div>
 
@@ -665,7 +755,7 @@ const App: React.FC = () => {
             disabled={!state.prompt.trim()}
             className="w-full py-3 px-6 bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale"
           >
-            Generate
+            Generovat
           </button>
         </div>
       </div>
@@ -681,23 +771,23 @@ const App: React.FC = () => {
         </div>
 
         <div className="lg:hidden sticky top-0 z-40 bg-white/95 backdrop-blur border-y border-monstera-200 shadow-sm p-3 flex gap-3 items-center transition-all">
-          <div 
+          <div
             className="flex-1 bg-monstera-50 border border-monstera-200 rounded-md px-3 py-2 text-xs font-medium text-ink truncate cursor-text hover:bg-white hover:border-monstera-300 transition-colors"
             onClick={() => setIsMobileMenuOpen(true)}
           >
-            {state.prompt || "Enter a prompt..."}
+            {state.prompt || "Zadejte prompt..."}
           </div>
           <button
              onClick={() => setIsGalleryOpen(true)}
              className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
-             title="Gallery"
+             title="Galerie"
           >
              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           </button>
           <button
              onClick={() => setIsMobileMenuOpen(true)}
              className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
-             title="Settings"
+             title="Nastavení"
           >
              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
           </button>
@@ -706,14 +796,14 @@ const App: React.FC = () => {
              disabled={!state.prompt.trim()}
              className="bg-monstera-400 font-black text-[10px] uppercase tracking-widest px-4 py-2.5 rounded-md border border-ink shadow-[2px_2px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-50 disabled:grayscale"
           >
-             Go
+             Generovat
           </button>
         </div>
 
         {isMobileMenuOpen && (
           <div className="lg:hidden fixed inset-0 z-50 bg-paper flex flex-col animate-fadeIn">
              <div className="flex items-center justify-between p-4 border-b border-monstera-200 bg-white">
-                <span className="font-black uppercase tracking-widest text-xs text-ink">Configuration</span>
+                <span className="font-black uppercase tracking-widest text-xs text-ink">Konfigurace</span>
                 <button 
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="p-2 text-monstera-600 hover:text-ink bg-white border border-monstera-200 rounded-md"
@@ -730,7 +820,7 @@ const App: React.FC = () => {
                   disabled={!state.prompt.trim()}
                   className="w-full py-3.5 px-6 bg-monstera-400 text-ink font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[4px_4px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:grayscale"
                 >
-                  Generate
+                  Generovat
                 </button>
              </div>
           </div>
@@ -741,7 +831,7 @@ const App: React.FC = () => {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-4 bg-ink rounded-full"></div>
-                <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-ink">Gallery</h2>
+                <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-ink">Galerie</h2>
               </div>
             </div>
 
@@ -753,7 +843,7 @@ const App: React.FC = () => {
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                Gallery
+                Galerie
               </button>
               {state.generatedImages.length > 0 && (
                 <button 
@@ -800,7 +890,7 @@ const App: React.FC = () => {
                   ) : (
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   )}
-                  {downloadingAll ? 'Packing...' : 'Export All'}
+                  {downloadingAll ? 'Balím...' : 'Exportovat vše'}
                 </button>
               )}
             </div>
@@ -812,7 +902,7 @@ const App: React.FC = () => {
                 <span className="text-3xl">🍌</span>
               </div>
               <div className="text-center space-y-2">
-                <span className="text-lg font-bold text-ink block">No images generated yet</span>
+                <span className="text-lg font-bold text-ink block">Zatím žádné vygenerované obrázky</span>
               </div>
             </div>
           ) : (
@@ -840,7 +930,7 @@ const App: React.FC = () => {
                           {image.isEditing && (
                             <div className="absolute inset-0 flex items-center justify-center bg-white/20 pointer-events-none">
                               <div className="bg-white/90 backdrop-blur-sm px-6 py-3 rounded-lg shadow-2xl border-2 border-monstera-400">
-                                <span className="text-[11px] font-black text-monstera-700 uppercase tracking-widest animate-pulse">● Editing...</span>
+                                <span className="text-[11px] font-black text-monstera-700 uppercase tracking-widest animate-pulse">● Upravuji...</span>
                               </div>
                             </div>
                           )}
@@ -853,7 +943,7 @@ const App: React.FC = () => {
                         <div className="w-10 h-10 bg-red-500 text-white rounded-md flex items-center justify-center mb-4 shadow-lg">
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                         </div>
-                        <h4 className="text-red-700 font-[900] uppercase text-[9px] mb-2 tracking-[0.2em]">Error</h4>
+                        <h4 className="text-red-700 font-[900] uppercase text-[9px] mb-2 tracking-[0.2em]">Chyba</h4>
                         <p className="text-[8px] font-bold text-red-500 leading-relaxed max-w-[150px]">{image.error}</p>
                       </div>
                     )}
@@ -868,14 +958,14 @@ const App: React.FC = () => {
                         <button
                           onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(image.prompt); }}
                           className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200"
-                          title="Copy Prompt"
+                          title="Kopírovat prompt"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleRepopulate(image); }}
                           className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200"
-                          title="Use Settings"
+                          title="Použít nastavení"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                         </button>
@@ -884,7 +974,7 @@ const App: React.FC = () => {
                             href={image.url}
                             download={`${image.id}${slugify(image.prompt) ? '-' + slugify(image.prompt) : ''}.jpg`}
                             className="p-2 text-monstera-400 hover:text-ink hover:bg-monstera-100 rounded-md transition-all border border-transparent hover:border-monstera-200"
-                            title="Download"
+                            title="Stáhnout"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -893,7 +983,7 @@ const App: React.FC = () => {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteImage(image.id); }}
                           className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all border border-transparent hover:border-red-200"
-                          title="Delete Image"
+                          title="Smazat obrázek"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
@@ -930,7 +1020,7 @@ const App: React.FC = () => {
                                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
-                                  Edit Prompt
+                                  Upravit prompt
                                 </label>
                                 <button
                                   onClick={(e) => {
@@ -948,12 +1038,12 @@ const App: React.FC = () => {
                                       ? 'bg-monstera-400 text-ink border border-ink'
                                       : 'bg-monstera-100 text-monstera-600 hover:bg-monstera-200 border border-monstera-200'
                                   }`}
-                                  title="Add reference images"
+                                  title="Přidat referenční obrázky"
                                 >
                                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                   </svg>
-                                  {showReferenceUpload[image.id] ? 'Images' : '+ Images'}
+                                  {showReferenceUpload[image.id] ? 'Obrázky' : '+ Obrázky'}
                                 </button>
                               </div>
                               <textarea
@@ -974,7 +1064,7 @@ const App: React.FC = () => {
                                     handleEditImage(image.id);
                                   }
                                 }}
-                                placeholder="Describe how to modify this image... (⏎ to apply)"
+                                placeholder="Popište, jak upravit tento obrázek... (⏎ pro aplikaci)"
                                 disabled={image.isEditing}
                                 className="w-full min-h-[60px] text-[11px] font-medium bg-white border-2 border-monstera-200 rounded-lg px-3 py-2 outline-none focus:border-monstera-400 focus:ring-2 focus:ring-monstera-200 resize-none transition-all disabled:opacity-50 disabled:bg-monstera-50 leading-relaxed placeholder-monstera-300"
                               />
@@ -984,7 +1074,7 @@ const App: React.FC = () => {
                                 onClick={(e) => { e.stopPropagation(); handleEditImage(image.id); }}
                                 disabled={!editPrompts[image.id]?.trim() || image.isEditing}
                                 className="p-2.5 bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-monstera-400 hover:to-monstera-500 text-ink rounded-lg transition-all disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale border-2 border-ink shadow-md hover:shadow-lg active:scale-95"
-                                title="Apply edit (Enter)"
+                                title="Aplikovat úpravu (Enter)"
                               >
                                 {image.isEditing ? (
                                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -1002,7 +1092,7 @@ const App: React.FC = () => {
                                   onClick={(e) => { e.stopPropagation(); handleUndoEdit(image.id); }}
                                   disabled={image.isEditing}
                                   className="p-2.5 bg-white hover:bg-monstera-100 text-monstera-600 hover:text-ink rounded-lg transition-all border-2 border-monstera-300 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm hover:shadow-md active:scale-95"
-                                  title={`Undo (${image.versions.length} version${image.versions.length > 1 ? 's' : ''})`}
+                                  title={`Vrátit zpět (${image.versions.length} verze)`}
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -1015,7 +1105,7 @@ const App: React.FC = () => {
                           {/* Reference Images Upload Section */}
                           {showReferenceUpload[image.id] && (
                             <div className="space-y-1.5 animate-fadeIn">
-                              <label className="text-[8px] font-black text-monstera-600 uppercase tracking-wider px-1">Reference Images (Optional)</label>
+                              <label className="text-[8px] font-black text-monstera-600 uppercase tracking-wider px-1">Referenční obrázky (volitelné)</label>
                               <div className="grid grid-cols-4 gap-2 p-2 bg-monstera-50/50 rounded-lg border border-monstera-200">
                                 {inlineEditStates[image.id]?.referenceImages?.map((img) => (
                                   <div key={img.id} className="relative group aspect-square rounded-lg overflow-hidden border-2 border-monstera-300 bg-white shadow-sm hover:shadow-md transition-all">
