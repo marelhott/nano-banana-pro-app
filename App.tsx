@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ImageUpload } from './components/ImageUpload';
+import { ImageLibrary } from './components/ImageLibrary';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { editImageWithGemini } from './services/geminiService';
 import { AppState, GeneratedImage, SourceImage } from './types';
@@ -10,6 +11,7 @@ import { GalleryModal } from './components/GalleryModal';
 import { SavedPromptsDropdown } from './components/SavedPromptsDropdown';
 import { slugify } from './utils/stringUtils.ts';
 import { saveToGallery, createThumbnail } from './utils/galleryDB';
+import { ImageDatabase } from './utils/imageDatabase';
 import JSZip from 'jszip';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
@@ -45,7 +47,9 @@ const App: React.FC = () => {
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
   const [isGenerateClicked, setIsGenerateClicked] = useState(false);
-  
+  const [referenceImageSource, setReferenceImageSource] = useState<'computer' | 'database'>('computer');
+  const [styleImageSource, setStyleImageSource] = useState<'computer' | 'database'>('computer');
+
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -151,11 +155,12 @@ const App: React.FC = () => {
 
     files.slice(0, remainingSlots).forEach(file => {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         if (e.target?.result && typeof e.target.result === 'string') {
+          const dataUrl = e.target.result;
           const newImage: SourceImage = {
             id: Math.random().toString(36).substr(2, 9),
-            url: e.target.result,
+            url: dataUrl,
             file: file
           };
           setState(prev => ({
@@ -163,6 +168,13 @@ const App: React.FC = () => {
             sourceImages: [...prev.sourceImages, newImage],
             error: null,
           }));
+
+          // Uložit do databáze
+          try {
+            await ImageDatabase.add(file, dataUrl, 'reference');
+          } catch (error) {
+            console.error('Failed to save image to database:', error);
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -175,11 +187,12 @@ const App: React.FC = () => {
 
     files.slice(0, remainingSlots).forEach(file => {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         if (e.target?.result && typeof e.target.result === 'string') {
+          const dataUrl = e.target.result;
           const newImage: SourceImage = {
             id: Math.random().toString(36).substr(2, 9),
-            url: e.target.result,
+            url: dataUrl,
             file: file
           };
           setState(prev => ({
@@ -187,11 +200,60 @@ const App: React.FC = () => {
             styleImages: [...prev.styleImages, newImage],
             error: null,
           }));
+
+          // Uložit do databáze
+          try {
+            await ImageDatabase.add(file, dataUrl, 'style');
+          } catch (error) {
+            console.error('Failed to save image to database:', error);
+          }
         }
       };
       reader.readAsDataURL(file);
     });
   }, [state.styleImages]);
+
+  const handleDatabaseImagesSelected = useCallback((images: { url: string; fileName: string; fileType: string }[]) => {
+    images.forEach(async ({ url, fileName, fileType }) => {
+      // Konvertuj data URL na File objekt
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const file = new File([blob], fileName, { type: fileType });
+
+      const newImage: SourceImage = {
+        id: Math.random().toString(36).substr(2, 9),
+        url: url,
+        file: file
+      };
+
+      setState(prev => ({
+        ...prev,
+        sourceImages: [...prev.sourceImages, newImage],
+        error: null,
+      }));
+    });
+  }, []);
+
+  const handleDatabaseStyleImagesSelected = useCallback((images: { url: string; fileName: string; fileType: string }[]) => {
+    images.forEach(async ({ url, fileName, fileType }) => {
+      // Konvertuj data URL na File objekt
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const file = new File([blob], fileName, { type: fileType });
+
+      const newImage: SourceImage = {
+        id: Math.random().toString(36).substr(2, 9),
+        url: url,
+        file: file
+      };
+
+      setState(prev => ({
+        ...prev,
+        styleImages: [...prev.styleImages, newImage],
+        error: null,
+      }));
+    });
+  }, []);
 
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -614,37 +676,72 @@ const App: React.FC = () => {
             <span className="text-[8px] font-black text-monstera-500 uppercase tracking-widest animate-pulse">● Generuji...</span>
           )}
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {state.sourceImages.map((img) => (
-            <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
-              <img
-                src={img.url}
-                className={`w-full h-full object-cover transition-all duration-500 ${isGenerating ? 'blur-sm scale-105' : 'blur-0 scale-100'}`}
-              />
-              {isGenerating && (
-                <div className="absolute inset-0 bg-white/20 pointer-events-none" />
-              )}
-              <div className={`absolute inset-0 bg-ink/60 transition-all flex items-center justify-center ${isGenerating ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'}`}>
-                <button
-                  onClick={() => setState(p => ({ ...p, sourceImages: p.sourceImages.filter(i => i.id !== img.id) }))}
-                  className="bg-white text-ink p-1.5 rounded-md shadow-xl"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            </div>
-          ))}
-          {state.sourceImages.length < MAX_IMAGES && (
-            <ImageUpload onImagesSelected={handleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.sourceImages.length} />
-          )}
+
+        {/* Záložky pro výběr zdroje */}
+        <div className="flex gap-1 bg-monstera-50 p-1 rounded-md border border-monstera-200">
+          <button
+            onClick={() => setReferenceImageSource('computer')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${
+              referenceImageSource === 'computer'
+                ? 'bg-white text-ink shadow-sm border border-monstera-300'
+                : 'text-monstera-500 hover:text-ink'
+            }`}
+          >
+            Počítač
+          </button>
+          <button
+            onClick={() => setReferenceImageSource('database')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${
+              referenceImageSource === 'database'
+                ? 'bg-white text-ink shadow-sm border border-monstera-300'
+                : 'text-monstera-500 hover:text-ink'
+            }`}
+          >
+            Databáze
+          </button>
         </div>
-        {isGenerating && (
-          <div className="relative w-full h-1 bg-monstera-100 rounded-full overflow-hidden animate-fadeIn">
-            <div className="absolute inset-0 bg-gradient-to-r from-monstera-400 via-monstera-500 to-monstera-400 animate-pulse" style={{
-              animation: 'shimmer 2s ease-in-out infinite',
-              backgroundSize: '200% 100%'
-            }} />
-          </div>
+
+        {referenceImageSource === 'computer' ? (
+          <>
+            <div className="grid grid-cols-3 gap-1.5">
+              {state.sourceImages.map((img) => (
+                <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
+                  <img
+                    src={img.url}
+                    className={`w-full h-full object-cover transition-all duration-500 ${isGenerating ? 'blur-sm scale-105' : 'blur-0 scale-100'}`}
+                  />
+                  {isGenerating && (
+                    <div className="absolute inset-0 bg-white/20 pointer-events-none" />
+                  )}
+                  <div className={`absolute inset-0 bg-ink/60 transition-all flex items-center justify-center ${isGenerating ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <button
+                      onClick={() => setState(p => ({ ...p, sourceImages: p.sourceImages.filter(i => i.id !== img.id) }))}
+                      className="bg-white text-ink p-1.5 rounded-md shadow-xl"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {state.sourceImages.length < MAX_IMAGES && (
+                <ImageUpload onImagesSelected={handleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.sourceImages.length} />
+              )}
+            </div>
+            {isGenerating && (
+              <div className="relative w-full h-1 bg-monstera-100 rounded-full overflow-hidden animate-fadeIn">
+                <div className="absolute inset-0 bg-gradient-to-r from-monstera-400 via-monstera-500 to-monstera-400 animate-pulse" style={{
+                  animation: 'shimmer 2s ease-in-out infinite',
+                  backgroundSize: '200% 100%'
+                }} />
+              </div>
+            )}
+          </>
+        ) : (
+          <ImageLibrary
+            category="reference"
+            onImagesSelected={handleDatabaseImagesSelected}
+            remainingSlots={MAX_IMAGES - state.sourceImages.length}
+          />
         )}
       </section>
 
@@ -669,27 +766,60 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {state.styleImages.map((img) => (
-            <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
-              <img
-                src={img.url}
-                className="w-full h-full object-cover transition-all duration-500"
-              />
-              <div className="absolute inset-0 bg-ink/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                <button
-                  onClick={() => setState(p => ({ ...p, styleImages: p.styleImages.filter(i => i.id !== img.id) }))}
-                  className="bg-white text-ink p-1.5 rounded-md shadow-xl"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            </div>
-          ))}
-          {state.styleImages.length < MAX_IMAGES && (
-            <ImageUpload onImagesSelected={handleStyleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.styleImages.length} />
-          )}
+
+        {/* Záložky pro výběr zdroje */}
+        <div className="flex gap-1 bg-monstera-50 p-1 rounded-md border border-monstera-200">
+          <button
+            onClick={() => setStyleImageSource('computer')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${
+              styleImageSource === 'computer'
+                ? 'bg-white text-ink shadow-sm border border-monstera-300'
+                : 'text-monstera-500 hover:text-ink'
+            }`}
+          >
+            Počítač
+          </button>
+          <button
+            onClick={() => setStyleImageSource('database')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${
+              styleImageSource === 'database'
+                ? 'bg-white text-ink shadow-sm border border-monstera-300'
+                : 'text-monstera-500 hover:text-ink'
+            }`}
+          >
+            Databáze
+          </button>
         </div>
+
+        {styleImageSource === 'computer' ? (
+          <div className="grid grid-cols-3 gap-1.5">
+            {state.styleImages.map((img) => (
+              <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
+                <img
+                  src={img.url}
+                  className="w-full h-full object-cover transition-all duration-500"
+                />
+                <div className="absolute inset-0 bg-ink/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <button
+                    onClick={() => setState(p => ({ ...p, styleImages: p.styleImages.filter(i => i.id !== img.id) }))}
+                    className="bg-white text-ink p-1.5 rounded-md shadow-xl"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+            {state.styleImages.length < MAX_IMAGES && (
+              <ImageUpload onImagesSelected={handleStyleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.styleImages.length} />
+            )}
+          </div>
+        ) : (
+          <ImageLibrary
+            category="style"
+            onImagesSelected={handleDatabaseStyleImagesSelected}
+            remainingSlots={MAX_IMAGES - state.styleImages.length}
+          />
+        )}
       </section>
 
       <section className="bg-white border border-monstera-200 rounded-md shadow-md overflow-hidden">
