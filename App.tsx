@@ -896,7 +896,7 @@ const App: React.FC = () => {
               {state.generatedImages.map((image) => (
                 <article key={image.id} className="group flex flex-col bg-white border border-monstera-200 rounded-md overflow-hidden shadow-sm hover:shadow-lg transition-all animate-fadeIn">
                   <div
-                    className="relative bg-monstera-50 cursor-zoom-in"
+                    className={`relative bg-monstera-50 cursor-zoom-in ${image.status !== 'success' ? 'aspect-square' : ''}`}
                     style={gridCols === 1 && image.status !== 'success' ? getLoadingAspectRatio(image.aspectRatio) : undefined}
                     onClick={() => setSelectedImage(image)}
                   >
