@@ -44,6 +44,7 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
+  const [isGenerateClicked, setIsGenerateClicked] = useState(false);
   
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -217,6 +218,7 @@ const App: React.FC = () => {
     setIsMobileMenuOpen(false);
     if (!state.prompt.trim()) return;
 
+    setIsGenerateClicked(true);
     setIsGenerating(true);
 
     // Vytvořit pole s požadovaným počtem obrázků
@@ -569,6 +571,21 @@ const App: React.FC = () => {
 
   const renderSidebarControls = (isMobileView: boolean = false) => (
     <div className="space-y-5">
+      {/* Tlačítko Generovat */}
+      <div className="pt-2">
+        <button
+          onClick={handleGenerate}
+          disabled={!state.prompt.trim()}
+          className={`w-full py-3 px-6 font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale ${
+            isGenerateClicked
+              ? 'bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white'
+              : 'bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink'
+          }`}
+        >
+          Generovat
+        </button>
+      </div>
+
       <section className="space-y-1">
         <header className="flex items-center justify-between px-1">
           <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Prompt</label>
@@ -586,7 +603,7 @@ const App: React.FC = () => {
           onChange={(e) => setState(p => ({ ...p, prompt: e.target.value }))}
           onKeyDown={handleKeyDown}
           placeholder=""
-          className="w-full min-h-[96px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
+          className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
         />
       </section>
 
@@ -597,7 +614,7 @@ const App: React.FC = () => {
             <span className="text-[8px] font-black text-monstera-500 uppercase tracking-widest animate-pulse">● Generuji...</span>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           {state.sourceImages.map((img) => (
             <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
               <img
@@ -652,7 +669,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           {state.styleImages.map((img) => (
             <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
               <img
@@ -726,16 +743,6 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
           {renderSidebarControls(false)}
-        </div>
-
-        <div className="p-4 border-t border-monstera-200 bg-paper/80 backdrop-blur-xl">
-          <button
-            onClick={handleGenerate}
-            disabled={!state.prompt.trim()}
-            className="w-full py-3 px-6 bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale"
-          >
-            Generovat
-          </button>
         </div>
       </div>
 
