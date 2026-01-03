@@ -35,9 +35,8 @@ export interface SavedPrompt {
 }
 
 export interface AppState {
-  sourceImages: SourceImage[];
-  styleImages: SourceImage[]; // Stylové obrázky
-  promptImages: SourceImage[]; // Prompt obrázky
+  sourceImages: SourceImage[]; // Referenční obrázky - hlavní obsah k úpravě
+  styleImages: SourceImage[]; // Stylové obrázky - reference pro styl
   generatedImages: GeneratedImage[];
   prompt: string;
   aspectRatio: string; // 'Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'
