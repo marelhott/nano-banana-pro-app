@@ -24,7 +24,6 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
     sourceImages: [],
     styleImages: [],
-    promptImages: [],
     generatedImages: [],
     prompt: '',
     aspectRatio: 'Original',
@@ -193,30 +192,6 @@ const App: React.FC = () => {
     });
   }, [state.styleImages]);
 
-  const handlePromptImagesSelected = useCallback((files: File[]) => {
-    const remainingSlots = MAX_IMAGES - state.promptImages.length;
-    if (remainingSlots <= 0) return;
-
-    files.slice(0, remainingSlots).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result && typeof e.target.result === 'string') {
-          const newImage: SourceImage = {
-            id: Math.random().toString(36).substr(2, 9),
-            url: e.target.result,
-            file: file
-          };
-          setState(prev => ({
-            ...prev,
-            promptImages: [...prev.promptImages, newImage],
-            error: null,
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-  }, [state.promptImages]);
-
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -282,9 +257,23 @@ const App: React.FC = () => {
 
         while (retryCount <= maxRetries && !success) {
           try {
+            // Sestavit pole obrázků - referenční první, pak stylové
+            const allImages = [
+              ...state.sourceImages.map(img => ({ data: img.url, mimeType: img.file.type })),
+              ...state.styleImages.map(img => ({ data: img.url, mimeType: img.file.type }))
+            ];
+
+            // Vytvořit prompt s informací o stylu, pokud jsou stylové obrázky
+            let enhancedPrompt = state.prompt;
+            if (state.styleImages.length > 0) {
+              const styleImageCount = state.styleImages.length;
+              const referenceImageCount = state.sourceImages.length;
+              enhancedPrompt = `${state.prompt}\n\n[Technická instrukce: První ${referenceImageCount} obrázek${referenceImageCount > 1 ? 'y' : ''} ${referenceImageCount > 1 ? 'jsou' : 'je'} referenční obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu referenčního obsahu.]`;
+            }
+
             const result = await editImageWithGemini(
-              state.sourceImages.map(img => ({ data: img.url, mimeType: img.file.type })),
-              state.prompt,
+              allImages,
+              enhancedPrompt,
               state.resolution,
               state.aspectRatio,
               false
@@ -642,9 +631,26 @@ const App: React.FC = () => {
         )}
       </section>
 
+      {/* Oddělovač mezi referenčními a stylovými obrázky */}
+      <div className="relative flex items-center py-4">
+        <div className="flex-grow border-t border-monstera-200"></div>
+        <span className="flex-shrink mx-3 text-[8px] font-bold text-monstera-400 uppercase tracking-widest">Stylová reference</span>
+        <div className="flex-grow border-t border-monstera-200"></div>
+      </div>
+
       <section className="space-y-1.5">
         <div className="flex items-center justify-between px-1">
-          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Stylové obrázky</label>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Stylové obrázky</label>
+            <div className="group relative">
+              <svg className="w-3 h-3 text-monstera-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="invisible group-hover:visible absolute left-0 top-5 z-50 w-56 p-2 bg-ink text-white text-[9px] rounded-md shadow-xl">
+                Tyto obrázky definují vizuální styl pro generování. AI použije jejich estetiku a umělecký přístup.
+              </div>
+            </div>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           {state.styleImages.map((img) => (
@@ -665,33 +671,6 @@ const App: React.FC = () => {
           ))}
           {state.styleImages.length < MAX_IMAGES && (
             <ImageUpload onImagesSelected={handleStyleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.styleImages.length} />
-          )}
-        </div>
-      </section>
-
-      <section className="space-y-1.5">
-        <div className="flex items-center justify-between px-1">
-          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Prompt obrázky</label>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          {state.promptImages.map((img) => (
-            <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
-              <img
-                src={img.url}
-                className="w-full h-full object-cover transition-all duration-500"
-              />
-              <div className="absolute inset-0 bg-ink/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                <button
-                  onClick={() => setState(p => ({ ...p, promptImages: p.promptImages.filter(i => i.id !== img.id) }))}
-                  className="bg-white text-ink p-1.5 rounded-md shadow-xl"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            </div>
-          ))}
-          {state.promptImages.length < MAX_IMAGES && (
-            <ImageUpload onImagesSelected={handlePromptImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.promptImages.length} />
           )}
         </div>
       </section>
