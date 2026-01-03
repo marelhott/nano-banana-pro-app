@@ -582,7 +582,7 @@ const App: React.FC = () => {
               : 'bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink'
           }`}
         >
-          Generovat
+          {isGenerating ? 'Generuji' : 'Generovat'}
         </button>
       </div>
 
