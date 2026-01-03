@@ -895,8 +895,8 @@ const App: React.FC = () => {
             <div className="grid gap-4 md:gap-6" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
               {state.generatedImages.map((image) => (
                 <article key={image.id} className="group flex flex-col bg-white border border-monstera-200 rounded-md overflow-hidden shadow-sm hover:shadow-lg transition-all animate-fadeIn">
-                  <div 
-                    className={`relative bg-monstera-50 cursor-zoom-in ${gridCols === 1 ? '' : 'aspect-square'}`} 
+                  <div
+                    className="relative bg-monstera-50 cursor-zoom-in"
                     style={gridCols === 1 && image.status !== 'success' ? getLoadingAspectRatio(image.aspectRatio) : undefined}
                     onClick={() => setSelectedImage(image)}
                   >
@@ -909,7 +909,7 @@ const App: React.FC = () => {
                         <>
                           <img
                             src={image.url}
-                            className={`${gridCols === 1 ? "w-full h-auto" : "w-full h-full object-cover"} ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
+                            className={`w-full h-auto ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
                             decoding="sync"
                             style={{ imageRendering: '-webkit-optimize-contrast' }}
                           />
