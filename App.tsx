@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ImageUpload } from './components/ImageUpload';
 import { ImageLibrary } from './components/ImageLibrary';
 import { LoadingSpinner } from './components/LoadingSpinner';
-import { editImageWithGemini } from './services/geminiService';
+import { editImageWithGemini, enhancePromptWithAI } from './services/geminiService';
 import { AppState, GeneratedImage, SourceImage } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
@@ -13,6 +13,15 @@ import { slugify } from './utils/stringUtils.ts';
 import { saveToGallery, createThumbnail } from './utils/galleryDB';
 import { ImageDatabase } from './utils/imageDatabase';
 import JSZip from 'jszip';
+import { ApiUsagePanel } from './components/ApiUsagePanel';
+import { CollectionsModal } from './components/CollectionsModal';
+import { PromptTemplatesModal } from './components/PromptTemplatesModal';
+import { PromptRemixModal } from './components/PromptRemixModal';
+import { LoadingProgress } from './components/LoadingProgress';
+import { QuickActionsMenu, QuickAction } from './components/QuickActionsMenu';
+import { ApiUsageTracker } from './utils/apiUsageTracking';
+import { PromptHistory } from './utils/promptHistory';
+import { detectLanguage, enhancePromptQuality, getPromptSuggestion } from './utils/languageSupport';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -49,6 +58,22 @@ const App: React.FC = () => {
   const [isGenerateClicked, setIsGenerateClicked] = useState(false);
   const [referenceImageSource, setReferenceImageSource] = useState<'computer' | 'database'>('computer');
   const [styleImageSource, setStyleImageSource] = useState<'computer' | 'database'>('computer');
+
+  // Nové state pro featury
+  const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  const [isRemixModalOpen, setIsRemixModalOpen] = useState(false);
+  const [promptHistory] = useState(() => new PromptHistory());
+  const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
+  const [quickActionsMenu, setQuickActionsMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    imageId: string | null;
+  }>({ isOpen: false, position: { x: 0, y: 0 }, imageId: null });
+  const [generationProgress, setGenerationProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
 
   const isResizingRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -276,12 +301,70 @@ const App: React.FC = () => {
     return () => window.removeEventListener('paste', handlePaste);
   }, [handleImagesSelected]);
 
+  const handleEnhancePrompt = async () => {
+    if (!state.prompt.trim() || isEnhancingPrompt) return;
+
+    setIsEnhancingPrompt(true);
+    try {
+      const enhanced = await enhancePromptWithAI(state.prompt);
+      setState(prev => ({ ...prev, prompt: enhanced }));
+      promptHistory.add(enhanced);
+    } catch (error) {
+      console.error('Prompt enhancement failed:', error);
+    } finally {
+      setIsEnhancingPrompt(false);
+    }
+  };
+
+  const handleUndoPrompt = () => {
+    const previous = promptHistory.undo();
+    if (previous !== null) {
+      setState(prev => ({ ...prev, prompt: previous }));
+    }
+  };
+
+  const handleRedoPrompt = () => {
+    const next = promptHistory.redo();
+    if (next !== null) {
+      setState(prev => ({ ...prev, prompt: next }));
+    }
+  };
+
+  const handleGenerateVariations = async (baseImage: GeneratedImage) => {
+    if (!baseImage.url) return;
+
+    // Generovat 3 variace se stejným promptem ale jiným style seedem
+    const numberOfVariations = 3;
+
+    setState(prev => ({
+      ...prev,
+      prompt: baseImage.prompt,
+      resolution: baseImage.resolution || '2K',
+      aspectRatio: baseImage.aspectRatio || 'Original',
+      numberOfImages: numberOfVariations,
+    }));
+
+    // Automaticky spustit generování
+    setTimeout(() => handleGenerate(), 100);
+  };
+
   const handleGenerate = async () => {
     setIsMobileMenuOpen(false);
     if (!state.prompt.trim()) return;
 
+    // Přidat prompt do historie
+    promptHistory.add(state.prompt);
+
+    // Detekce jazyka a quality enhancement
+    const language = detectLanguage(state.prompt);
+    const suggestion = getPromptSuggestion(state.prompt, language);
+    if (suggestion) {
+      console.log(suggestion);
+    }
+
     setIsGenerateClicked(true);
     setIsGenerating(true);
+    setGenerationProgress({ current: 0, total: state.numberOfImages });
 
     // Vytvořit pole s požadovaným počtem obrázků
     const imagesToGenerate = Array.from({ length: state.numberOfImages }, (_, index) => {
@@ -366,6 +449,12 @@ const App: React.FC = () => {
               console.error('Failed to save to gallery:', err);
             }
 
+            // Trackovat API usage
+            ApiUsageTracker.trackImageGeneration(state.resolution, 1);
+
+            // Aktualizovat progress
+            setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
+
             success = true; // Úspěch, pokračuj na další obrázek
           } catch (err: any) {
             const is429 = err.message?.includes('429') ||
@@ -396,6 +485,7 @@ const App: React.FC = () => {
         }
       }
       setIsGenerating(false);
+      setGenerationProgress(null);
     };
 
     generateSequentially();
@@ -543,6 +633,64 @@ const App: React.FC = () => {
     });
   };
 
+  const handleImageContextMenu = (e: React.MouseEvent, imageId: string) => {
+    e.preventDefault();
+    setQuickActionsMenu({
+      isOpen: true,
+      position: { x: e.clientX, y: e.clientY },
+      imageId,
+    });
+  };
+
+  const getQuickActionsForImage = (imageId: string): QuickAction[] => {
+    const image = state.generatedImages.find(img => img.id === imageId);
+    if (!image || !image.url) return [];
+
+    return [
+      {
+        label: 'Stáhnout',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+        onClick: () => {
+          const link = document.createElement('a');
+          link.href = image.url!;
+          link.download = `${image.id}-${slugify(image.prompt)}.jpg`;
+          link.click();
+        },
+      },
+      {
+        label: 'Kopírovat do schránky',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>,
+        onClick: async () => {
+          try {
+            const response = await fetch(image.url!);
+            const blob = await response.blob();
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+          } catch (error) {
+            console.error('Failed to copy image:', error);
+          }
+        },
+      },
+      {
+        label: 'Regenerovat',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
+        onClick: () => handleRepopulate(image),
+      },
+      {
+        label: 'Generovat variace',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
+        onClick: () => handleGenerateVariations(image),
+      },
+      {
+        label: 'Smazat',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+        onClick: () => handleDeleteImage(imageId),
+        dangerous: true,
+      },
+    ];
+  };
+
   const addInlineReferenceImages = (imageId: string, files: File[]) => {
     const remainingSlots = MAX_IMAGES - (inlineEditStates[imageId]?.referenceImages?.length || 0);
     if (remainingSlots <= 0) return;
@@ -652,6 +800,25 @@ const App: React.FC = () => {
         <header className="flex items-center justify-between px-1">
           <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Prompt</label>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsTemplatesModalOpen(true)}
+              className="px-2 py-1 text-[8px] font-black uppercase tracking-widest bg-monstera-100 hover:bg-monstera-200 text-monstera-700 rounded transition-all"
+              title="Šablony"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setIsRemixModalOpen(true)}
+              className="px-2 py-1 text-[8px] font-black uppercase tracking-widest bg-monstera-100 hover:bg-monstera-200 text-monstera-700 rounded transition-all"
+              title="Remix"
+              disabled={promptHistory.getAll().length === 0}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+            </button>
             <SavedPromptsDropdown
               onSelectPrompt={(prompt) => setState(p => ({ ...p, prompt }))}
               currentPrompt={state.prompt}
@@ -667,6 +834,34 @@ const App: React.FC = () => {
           placeholder=""
           className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
         />
+
+        {/* Prompt actions */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleEnhancePrompt}
+            disabled={!state.prompt.trim() || isEnhancingPrompt}
+            className="flex-1 px-2 py-1.5 text-[9px] font-black uppercase tracking-widest bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white rounded transition-all disabled:opacity-50 disabled:grayscale"
+            title="AI vylepší váš prompt"
+          >
+            {isEnhancingPrompt ? 'Vylepšuji...' : '✨ Vylepšit AI'}
+          </button>
+          <button
+            onClick={handleUndoPrompt}
+            disabled={!promptHistory.canUndo()}
+            className="px-2 py-1.5 text-[9px] font-black uppercase bg-monstera-100 hover:bg-monstera-200 text-monstera-700 rounded transition-all disabled:opacity-30"
+            title="Zpět"
+          >
+            ↶
+          </button>
+          <button
+            onClick={handleRedoPrompt}
+            disabled={!promptHistory.canRedo()}
+            className="px-2 py-1.5 text-[9px] font-black uppercase bg-monstera-100 hover:bg-monstera-200 text-monstera-700 rounded transition-all disabled:opacity-30"
+            title="Vpřed"
+          >
+            ↷
+          </button>
+        </div>
       </section>
 
       <section className="space-y-1.5">
@@ -858,6 +1053,20 @@ const App: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* API Usage Panel */}
+      <ApiUsagePanel compact={true} />
+
+      {/* Collections Button */}
+      <button
+        onClick={() => setIsCollectionsModalOpen(true)}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-br from-monstera-100 to-monstera-200 hover:from-monstera-200 hover:to-monstera-300 text-ink font-black text-[10px] uppercase tracking-widest rounded-md border border-monstera-300 transition-all"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+        Kolekce
+      </button>
     </div>
   );
 
@@ -1024,7 +1233,11 @@ const App: React.FC = () => {
           ) : (
             <div className="grid gap-4 md:gap-6" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
               {state.generatedImages.map((image) => (
-                <article key={image.id} className="group flex flex-col bg-white border border-monstera-200 rounded-md overflow-hidden shadow-sm hover:shadow-lg transition-all animate-fadeIn">
+                <article
+                  key={image.id}
+                  className="group flex flex-col bg-white border border-monstera-200 rounded-md overflow-hidden shadow-sm hover:shadow-lg transition-all animate-fadeIn"
+                  onContextMenu={(e) => image.status === 'success' && handleImageContextMenu(e, image.id)}
+                >
                   <div
                     className={`relative bg-monstera-50 cursor-zoom-in ${image.status !== 'success' ? 'aspect-square' : ''}`}
                     style={gridCols === 1 && image.status !== 'success' ? getLoadingAspectRatio(image.aspectRatio) : undefined}
@@ -1292,6 +1505,44 @@ const App: React.FC = () => {
         isOpen={isGalleryOpen}
         onClose={() => setIsGalleryOpen(false)}
       />
+
+      <CollectionsModal
+        isOpen={isCollectionsModalOpen}
+        onClose={() => setIsCollectionsModalOpen(false)}
+      />
+
+      <PromptTemplatesModal
+        isOpen={isTemplatesModalOpen}
+        onClose={() => setIsTemplatesModalOpen(false)}
+        onSelectTemplate={(template) => {
+          setState(prev => ({ ...prev, prompt: template }));
+          promptHistory.add(template);
+        }}
+      />
+
+      <PromptRemixModal
+        isOpen={isRemixModalOpen}
+        onClose={() => setIsRemixModalOpen(false)}
+        recentPrompts={promptHistory.getAll().slice(-10)}
+        onUseRemix={(remix) => {
+          setState(prev => ({ ...prev, prompt: remix }));
+          promptHistory.add(remix);
+        }}
+      />
+
+      <QuickActionsMenu
+        isOpen={quickActionsMenu.isOpen}
+        onClose={() => setQuickActionsMenu(prev => ({ ...prev, isOpen: false }))}
+        position={quickActionsMenu.position}
+        actions={quickActionsMenu.imageId ? getQuickActionsForImage(quickActionsMenu.imageId) : []}
+      />
+
+      {generationProgress && (
+        <LoadingProgress
+          current={generationProgress.current}
+          total={generationProgress.total}
+        />
+      )}
     </div>
   );
 };
