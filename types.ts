@@ -18,6 +18,8 @@ export interface GeneratedImage {
   styleCode?: number;
   versions?: ImageVersion[]; // Historie předchozích verzí
   isEditing?: boolean; // Je obrázek právě upravován?
+  selected?: boolean; // Pro batch operations
+  collectionIds?: string[]; // ID kolekcí, do kterých patří
 }
 
 export interface SourceImage {

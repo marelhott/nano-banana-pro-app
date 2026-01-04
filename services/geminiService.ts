@@ -12,6 +12,49 @@ export interface GenerateImageResult {
 }
 
 /**
+ * Vylepšit prompt pomocí AI
+ * Vezme krátký prompt a rozšíří ho o detaily
+ */
+export const enhancePromptWithAI = async (shortPrompt: string): Promise<string> => {
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    const enhancementInstruction = `You are a professional prompt engineer. Take the following short image generation prompt and expand it into a detailed, vivid description that will produce better AI-generated images.
+
+Add specific details about:
+- Visual style and aesthetics
+- Lighting and atmosphere
+- Colors and textures
+- Composition and perspective
+- Quality descriptors (highly detailed, professional, etc.)
+
+Keep the core idea but make it more descriptive and specific. Return ONLY the enhanced prompt, nothing else.
+
+Short prompt: "${shortPrompt}"
+
+Enhanced prompt:`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: {
+        parts: [{ text: enhancementInstruction }],
+      },
+    });
+
+    const enhancedPrompt = response.text?.trim() || shortPrompt;
+
+    console.log('Original prompt:', shortPrompt);
+    console.log('Enhanced prompt:', enhancedPrompt);
+
+    return enhancedPrompt;
+  } catch (error: any) {
+    console.error('Prompt enhancement error:', error);
+    // V případě chyby vrátit původní prompt
+    return shortPrompt;
+  }
+};
+
+/**
  * Edits or transforms images based on a text prompt using Gemini.
  * DŮLEŽITÉ: První obrázek v poli images je obrázek k editaci.
  * Další obrázky (pokud jsou) slouží jako reference/kontext/inspirace pro úpravu.

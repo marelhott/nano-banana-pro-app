@@ -13,6 +13,8 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -94,6 +96,78 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
     setTimeout(() => setNotification(null), 4000);
   };
 
+  const toggleSelection = (id: string) => {
+    const newSelectedIds = new Set(selectedIds);
+    if (newSelectedIds.has(id)) {
+      newSelectedIds.delete(id);
+    } else {
+      newSelectedIds.add(id);
+    }
+    setSelectedIds(newSelectedIds);
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(images.map(img => img.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Opravdu chcete smazat ${selectedIds.size} vybraných obrázků?`)) return;
+
+    try {
+      for (const id of Array.from(selectedIds)) {
+        await deleteImage(id);
+      }
+      await loadImages();
+      setSelectedIds(new Set());
+      setIsSelectionMode(false);
+      showNotification(`✅ Smazáno ${selectedIds.size} obrázků`);
+    } catch (error) {
+      console.error('Batch delete failed:', error);
+      showNotification('❌ Hromadné mazání selhalo');
+    }
+  };
+
+  const handleBatchExport = async () => {
+    if (selectedIds.size === 0) return;
+
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      const selectedImages = images.filter(img => selectedIds.has(img.id));
+
+      for (const image of selectedImages) {
+        const response = await fetch(image.url);
+        const blob = await response.blob();
+        zip.file(`${image.id}.jpg`, blob);
+
+        // Přidat metadata
+        const metadata = [
+          `Prompt: ${image.prompt}`,
+          `Timestamp: ${new Date(image.timestamp).toISOString()}`,
+          `Resolution: ${image.resolution || 'N/A'}`,
+          `Aspect Ratio: ${image.aspectRatio || 'N/A'}`,
+        ].join('\n');
+        zip.file(`${image.id}.txt`, metadata);
+      }
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(content);
+      link.download = `nano-banana-batch-${Date.now()}.zip`;
+      link.click();
+
+      showNotification(`✅ Exportováno ${selectedIds.size} obrázků`);
+    } catch (error) {
+      console.error('Batch export failed:', error);
+      showNotification('❌ Export selhal');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -104,9 +178,25 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
           <div className="flex items-center gap-3">
             <div className="w-2 h-8 bg-monstera-400 rounded-full"></div>
             <h2 className="text-xl font-black uppercase tracking-wider text-ink">Galerie</h2>
-            <span className="text-sm font-bold text-monstera-400">({images.length} obrázků)</span>
+            <span className="text-sm font-bold text-monstera-400">
+              ({images.length} obrázků{isSelectionMode && selectedIds.size > 0 ? ` • ${selectedIds.size} vybráno` : ''})
+            </span>
           </div>
           <div className="flex items-center gap-2">
+            {!isSelectionMode ? (
+              <>
+                <button
+                  onClick={() => setIsSelectionMode(true)}
+                  className="px-4 py-2 bg-monstera-50 hover:bg-monstera-100 text-monstera-700 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-monstera-300"
+                  title="Vybrat více obrázků"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    Vybrat
+                  </div>
+                </button>
             <button
               onClick={handleImportClick}
               className="px-4 py-2 bg-monstera-50 hover:bg-monstera-100 text-monstera-700 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-monstera-300"
@@ -131,22 +221,69 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
                 Export
               </div>
             </button>
-            {images.length > 0 && (
+              {images.length > 0 && (
+                <button
+                  onClick={handleClearAll}
+                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-red-200"
+                >
+                  Smazat vše
+                </button>
+              )}
               <button
-                onClick={handleClearAll}
-                className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-red-200"
+                onClick={onClose}
+                className="p-2 hover:bg-monstera-100 rounded-md transition-all"
               >
-                Smazat vše
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
+            </>
+            ) : (
+              <>
+                <button
+                  onClick={selectAll}
+                  className="px-3 py-2 bg-monstera-50 hover:bg-monstera-100 text-monstera-700 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-monstera-300"
+                >
+                  Vybrat vše
+                </button>
+                <button
+                  onClick={deselectAll}
+                  className="px-3 py-2 bg-monstera-50 hover:bg-monstera-100 text-monstera-700 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-monstera-300"
+                >
+                  Zrušit výběr
+                </button>
+                {selectedIds.size > 0 && (
+                  <>
+                    <button
+                      onClick={handleBatchExport}
+                      className="px-4 py-2 bg-monstera-400 hover:bg-monstera-500 text-ink font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-ink"
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Export ({selectedIds.size})
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleBatchDelete}
+                      className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-red-200"
+                    >
+                      Smazat ({selectedIds.size})
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setIsSelectionMode(false);
+                    setSelectedIds(new Set());
+                  }}
+                  className="px-4 py-2 bg-white hover:bg-monstera-50 text-monstera-700 font-bold text-xs uppercase tracking-wider rounded-md transition-all border border-monstera-300"
+                >
+                  Hotovo
+                </button>
+              </>
             )}
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-monstera-100 rounded-md transition-all"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
         </div>
 
@@ -172,12 +309,23 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
                 <div
                   key={image.id}
                   className="group relative aspect-square bg-monstera-50 rounded-md overflow-hidden border border-monstera-200 hover:border-monstera-400 transition-all cursor-pointer shadow-sm hover:shadow-lg"
-                  onClick={() => setSelectedImage(image)}
+                  onClick={() => isSelectionMode ? toggleSelection(image.id) : setSelectedImage(image)}
                 >
+                  {isSelectionMode && (
+                    <div className="absolute top-2 left-2 z-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(image.id)}
+                        onChange={() => toggleSelection(image.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 rounded border-2 border-white cursor-pointer"
+                      />
+                    </div>
+                  )}
                   <img
                     src={image.thumbnail || image.url}
                     alt={image.prompt}
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full object-cover ${isSelectionMode && selectedIds.has(image.id) ? 'opacity-60' : ''}`}
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity">
