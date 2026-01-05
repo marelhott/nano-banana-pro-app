@@ -54,7 +54,7 @@ const App: React.FC = () => {
   const [gridCols, setGridCols] = useState<number>(3);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
-  const [rightPanelWidth, setRightPanelWidth] = useState(320);
+  const [rightPanelWidth, setRightPanelWidth] = useState(280);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -120,15 +120,25 @@ const App: React.FC = () => {
     
     const handleResize = () => {
       const width = window.innerWidth;
-      const mobile = width < 1024; 
+      const mobile = width < 1024;
       setIsMobile(mobile);
-      
+
       if (width < 640) {
         setGridCols(1);
       } else if (width < 1024) {
-        setGridCols(2); 
+        setGridCols(2);
       } else {
         setGridCols(prev => prev < 3 ? 3 : prev);
+      }
+
+      // Zajistit že pravý panel se vejde na obrazovku
+      // Levý panel (320px) + hlavní obsah (min 500px) + pravý panel
+      // Na menších obrazovkách (<1024px) je levý panel skrytý
+      if (!mobile) {
+        const leftPanelWidth = 320; // Výchozí šířka levého panelu
+        const minMainWidth = 500; // Minimální šířka pro hlavní obsah
+        const maxRightWidth = Math.max(280, width - leftPanelWidth - minMainWidth);
+        setRightPanelWidth(prev => Math.min(prev, maxRightWidth));
       }
     };
     
@@ -1654,7 +1664,7 @@ const App: React.FC = () => {
 
       <div
         ref={rightPanelRef}
-        style={{ width: `${rightPanelWidth}px` }}
+        style={{ width: `${rightPanelWidth}px`, maxWidth: '100vw' }}
         className="hidden lg:flex shrink-0 h-full relative"
       >
         <ImageGalleryPanel />
