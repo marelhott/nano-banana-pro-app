@@ -897,6 +897,22 @@ const App: React.FC = () => {
         </button>
       </div>
 
+      {/* Počet obrázků - úzký proužek */}
+      <div className="space-y-1">
+        <label className="text-[8px] text-monstera-600 font-bold uppercase tracking-widest px-1">Počet obrázků</label>
+        <div className="flex items-center gap-1 bg-monstera-50 p-1 rounded-md border border-monstera-200">
+          {[1, 2, 3, 4, 5].map(n => (
+            <button
+              key={n}
+              onClick={() => setState(p => ({ ...p, numberOfImages: n }))}
+              className={`flex-1 h-6 rounded font-bold text-[10px] transition-all flex items-center justify-center ${state.numberOfImages === n ? 'bg-white text-ink shadow-sm border border-monstera-300' : 'text-monstera-500 hover:text-ink hover:bg-white/50'}`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <section className="space-y-1">
         <header className="flex items-center justify-between px-1">
           <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Prompt</label>
@@ -1157,7 +1173,7 @@ const App: React.FC = () => {
             <svg className="w-3.5 h-3.5 text-monstera-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
             <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Nastavení generování</span>
         </div>
-        
+
         <div className="p-3.5 space-y-3">
           <div className="space-y-1">
             <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest px-1">Rozlišení</label>
@@ -1169,21 +1185,6 @@ const App: React.FC = () => {
               >
                 {RESOLUTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest px-1">Počet obrázků</label>
-            <div className="flex items-center gap-1.5 bg-monstera-50 p-1.5 rounded-md border border-monstera-200 shadow-sm">
-              {[1, 2, 3, 4, 5].map(n => (
-                <button
-                  key={n}
-                  onClick={() => setState(p => ({ ...p, numberOfImages: n }))}
-                  className={`flex-1 h-8 rounded-md font-black text-[11px] transition-all flex items-center justify-center ${state.numberOfImages === n ? 'bg-white text-ink shadow-sm border border-monstera-300' : 'text-monstera-600 hover:text-ink hover:bg-white/50'}`}
-                >
-                  {n}
-                </button>
-              ))}
             </div>
           </div>
         </div>
