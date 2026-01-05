@@ -1,8 +1,11 @@
-// Utilita pro správu databáze obrázků v localStorage
+// Utilita pro správu databáze obrázků v Supabase
+
+import { supabase, getCurrentUserId } from './supabaseClient';
+import { uploadImage, getPublicUrl, deleteImage as deleteStorageImage, dataUrlToBlob } from './supabaseStorage';
 
 export interface StoredImage {
   id: string;
-  url: string; // base64 data URL
+  url: string; // Public URL z Supabase Storage
   fileName: string;
   fileType: string;
   fileSize: number;
@@ -10,92 +13,231 @@ export interface StoredImage {
   category: 'reference' | 'style'; // typ obrázku
 }
 
-const DB_KEY = 'nano-banana-image-database';
-const MAX_DB_SIZE = 50; // maximální počet obrázků v databázi
+// Cache pro rychlejší načítání
+let cachedImages: StoredImage[] | null = null;
 
 export class ImageDatabase {
   // Získat všechny obrázky z databáze
-  static getAll(): StoredImage[] {
+  static async getAll(): Promise<StoredImage[]> {
+    const userId = getCurrentUserId();
+    if (!userId) return [];
+
     try {
-      const data = localStorage.getItem(DB_KEY);
-      if (!data) return [];
-      return JSON.parse(data) as StoredImage[];
+      const { data, error } = await supabase
+        .from('saved_images')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      cachedImages = data.map(row => ({
+        id: row.id,
+        url: getPublicUrl(row.storage_path),
+        fileName: row.file_name,
+        fileType: 'image/jpeg', // Default
+        fileSize: row.file_size || 0,
+        timestamp: new Date(row.created_at).getTime(),
+        category: row.category as 'reference' | 'style'
+      }));
+
+      return cachedImages;
     } catch (error) {
       console.error('Error reading image database:', error);
       return [];
     }
   }
 
-  // Získat obrázky podle kategorie
+  // Získat obrázky podle kategorie (synchronní - použije cache)
   static getByCategory(category: 'reference' | 'style'): StoredImage[] {
-    return this.getAll().filter(img => img.category === category);
+    if (!cachedImages) return [];
+    return cachedImages.filter(img => img.category === category);
+  }
+
+  // Asynchronní verze - načte z databáze
+  static async getByCategoryAsync(category: 'reference' | 'style'): Promise<StoredImage[]> {
+    const all = await this.getAll();
+    return all.filter(img => img.category === category);
   }
 
   // Přidat obrázek do databáze
   static async add(file: File, dataUrl: string, category: 'reference' | 'style'): Promise<StoredImage> {
-    const images = this.getAll();
-
-    // Pokud je databáze plná, odstraň nejstarší obrázek
-    if (images.length >= MAX_DB_SIZE) {
-      images.sort((a, b) => a.timestamp - b.timestamp);
-      images.shift(); // odstraň nejstarší
+    const userId = getCurrentUserId();
+    if (!userId) {
+      throw new Error('Uživatel není přihlášen');
     }
 
-    const newImage: StoredImage = {
-      id: Math.random().toString(36).substr(2, 9) + Date.now(),
-      url: dataUrl,
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size,
-      timestamp: Date.now(),
-      category
-    };
-
-    images.push(newImage);
-
     try {
-      localStorage.setItem(DB_KEY, JSON.stringify(images));
+      // 1. Upload do storage
+      const blob = await dataUrlToBlob(dataUrl);
+      const storagePath = await uploadImage(blob, 'saved');
+
+      // 2. Uložit metadata do DB
+      const { data, error } = await supabase
+        .from('saved_images')
+        .insert({
+          user_id: userId,
+          file_name: file.name,
+          storage_path: storagePath,
+          category: category,
+          file_size: file.size
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newImage: StoredImage = {
+        id: data.id,
+        url: getPublicUrl(storagePath),
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        timestamp: new Date(data.created_at).getTime(),
+        category
+      };
+
+      // Invalidovat cache
+      cachedImages = null;
+
       return newImage;
     } catch (error) {
-      // Pokud je localStorage plný, zkus odstranit víc obrázků
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-        // Odstraň 10 nejstarších obrázků a zkus znovu
-        images.sort((a, b) => a.timestamp - b.timestamp);
-        const reduced = images.slice(10);
-        reduced.push(newImage);
-        localStorage.setItem(DB_KEY, JSON.stringify(reduced));
-        return newImage;
-      }
+      console.error('Error adding image:', error);
       throw error;
     }
   }
 
   // Odstranit obrázek z databáze
-  static remove(id: string): void {
-    const images = this.getAll().filter(img => img.id !== id);
-    localStorage.setItem(DB_KEY, JSON.stringify(images));
+  static async remove(id: string): Promise<void> {
+    try {
+      // 1. Najít storage path
+      const { data } = await supabase
+        .from('saved_images')
+        .select('storage_path')
+        .eq('id', id)
+        .single();
+
+      if (data) {
+        // 2. Smazat ze storage
+        await deleteStorageImage(data.storage_path);
+
+        // 3. Smazat z DB
+        await supabase
+          .from('saved_images')
+          .delete()
+          .eq('id', id);
+
+        // Invalidovat cache
+        cachedImages = null;
+      }
+    } catch (error) {
+      console.error('Error removing image:', error);
+      throw error;
+    }
   }
 
   // Vymazat všechny obrázky
-  static clear(): void {
-    localStorage.removeItem(DB_KEY);
+  static async clear(): Promise<void> {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+
+    try {
+      // Smazat všechny obrázky uživatele
+      const { data } = await supabase
+        .from('saved_images')
+        .select('storage_path')
+        .eq('user_id', userId);
+
+      if (data) {
+        // Smazat ze storage
+        for (const row of data) {
+          await deleteStorageImage(row.storage_path);
+        }
+      }
+
+      // Smazat z DB
+      await supabase
+        .from('saved_images')
+        .delete()
+        .eq('user_id', userId);
+
+      // Invalidovat cache
+      cachedImages = null;
+    } catch (error) {
+      console.error('Error clearing database:', error);
+      throw error;
+    }
   }
 
   // Vymazat obrázky podle kategorie
-  static clearByCategory(category: 'reference' | 'style'): void {
-    const images = this.getAll().filter(img => img.category !== category);
-    localStorage.setItem(DB_KEY, JSON.stringify(images));
+  static async clearByCategory(category: 'reference' | 'style'): Promise<void> {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+
+    try {
+      const { data } = await supabase
+        .from('saved_images')
+        .select('storage_path')
+        .eq('user_id', userId)
+        .eq('category', category);
+
+      if (data) {
+        for (const row of data) {
+          await deleteStorageImage(row.storage_path);
+        }
+      }
+
+      await supabase
+        .from('saved_images')
+        .delete()
+        .eq('user_id', userId)
+        .eq('category', category);
+
+      // Invalidovat cache
+      cachedImages = null;
+    } catch (error) {
+      console.error('Error clearing category:', error);
+      throw error;
+    }
   }
 
-  // Získat velikost databáze v MB
-  static getSize(): number {
-    const data = localStorage.getItem(DB_KEY);
-    if (!data) return 0;
-    return new Blob([data]).size / (1024 * 1024); // MB
+  // Získat velikost databáze v MB (aproximace)
+  static async getSize(): Promise<number> {
+    const userId = getCurrentUserId();
+    if (!userId) return 0;
+
+    try {
+      const { data } = await supabase
+        .from('saved_images')
+        .select('file_size')
+        .eq('user_id', userId);
+
+      if (!data) return 0;
+
+      const totalBytes = data.reduce((sum, row) => sum + (row.file_size || 0), 0);
+      return totalBytes / (1024 * 1024); // MB
+    } catch (error) {
+      console.error('Error getting size:', error);
+      return 0;
+    }
   }
 
   // Získat počet obrázků
-  static getCount(): number {
-    return this.getAll().length;
+  static async getCount(): Promise<number> {
+    const userId = getCurrentUserId();
+    if (!userId) return 0;
+
+    try {
+      const { count, error } = await supabase
+        .from('saved_images')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      console.error('Error getting count:', error);
+      return 0;
+    }
   }
 }
