@@ -1252,7 +1252,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white text-ink font-sans selection:bg-monstera-200">
+    <div className="flex h-screen overflow-hidden overflow-x-clip bg-white text-ink font-sans selection:bg-monstera-200">
 
       <div
         ref={sidebarRef}
@@ -1664,8 +1664,12 @@ const App: React.FC = () => {
 
       <div
         ref={rightPanelRef}
-        style={{ width: `${rightPanelWidth}px`, maxWidth: '100vw' }}
-        className="hidden lg:flex shrink-0 h-full relative"
+        style={{
+          width: `${rightPanelWidth}px`,
+          minWidth: '280px',
+          maxWidth: 'calc(100vw - 320px)' // Nikdy nepřesáhnout viewport (minus levý panel)
+        }}
+        className="hidden lg:flex shrink-0 h-full relative ml-auto"
       >
         <ImageGalleryPanel />
       </div>
