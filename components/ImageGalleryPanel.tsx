@@ -23,12 +23,12 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
   const loadImages = async () => {
     setLoading(true);
     try {
-      // Načíst uložené obrázky z localStorage
-      const saved = ImageDatabase.getAll();
+      // Načíst uložené obrázky z Supabase
+      const saved = await ImageDatabase.getAll();
       saved.sort((a, b) => b.timestamp - a.timestamp);
       setSavedImages(saved);
 
-      // Načíst vygenerované obrázky z IndexedDB
+      // Načíst vygenerované obrázky z Supabase
       const generated = await getAllImages();
       setGeneratedImages(generated);
     } catch (error) {
@@ -81,11 +81,16 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
     }
   };
 
-  const handleDeleteSaved = (id: string, e: React.MouseEvent) => {
+  const handleDeleteSaved = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Opravdu chcete tento obrázek odstranit?')) {
-      ImageDatabase.remove(id);
-      loadImages();
+      try {
+        await ImageDatabase.remove(id);
+        await loadImages();
+      } catch (error) {
+        console.error('Error deleting image:', error);
+        alert('Chyba při mazání obrázku');
+      }
     }
   };
 

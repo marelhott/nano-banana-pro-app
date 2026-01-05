@@ -1,98 +1,145 @@
-// IndexedDB utilita pro ukládání obrázků do galerie
+// Supabase utilita pro ukládání vygenerovaných obrázků do galerie
 
-const DB_NAME = 'NanoBananaGallery';
-const DB_VERSION = 1;
-const STORE_NAME = 'images';
+import { supabase, getCurrentUserId } from './supabaseClient';
+import { uploadImage, getPublicUrl, deleteImage as deleteStorageImage, dataUrlToBlob } from './supabaseStorage';
 
 export interface GalleryImage {
   id: string;
-  url: string; // base64 data URL
+  url: string; // Public URL z Supabase Storage
   prompt: string;
   timestamp: number;
   resolution?: string;
   aspectRatio?: string;
-  thumbnail?: string; // menší verze pro grid
+  thumbnail?: string; // URL thumbnailů z Storage
 }
 
-// Otevřít databázi
-const openDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('timestamp', 'timestamp', { unique: false });
-      }
-    };
-  });
-};
-
 // Uložit obrázek do galerie
-export const saveToGallery = async (image: GalleryImage): Promise<void> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(image);
+export const saveToGallery = async (image: Omit<GalleryImage, 'id' | 'timestamp'>): Promise<void> => {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('Uživatel není přihlášen');
+  }
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    // 1. Upload hlavního obrázku
+    const imageBlob = await dataUrlToBlob(image.url);
+    const storagePath = await uploadImage(imageBlob, 'generated');
+
+    // 2. Upload thumbnai (pokud existuje)
+    let thumbnailPath: string | undefined;
+    if (image.thumbnail) {
+      const thumbnailBlob = await dataUrlToBlob(image.thumbnail);
+      thumbnailPath = await uploadImage(thumbnailBlob, 'generated');
+    }
+
+    // 3. Uložit metadata do DB
+    const { error } = await supabase
+      .from('generated_images')
+      .insert({
+        user_id: userId,
+        prompt: image.prompt,
+        storage_path: storagePath,
+        thumbnail_path: thumbnailPath,
+        resolution: image.resolution,
+        aspect_ratio: image.aspectRatio
+      });
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error saving to gallery:', error);
+    throw error;
+  }
 };
 
 // Získat všechny obrázky z galerie
 export const getAllImages = async (): Promise<GalleryImage[]> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const index = store.index('timestamp');
-    const request = index.openCursor(null, 'prev'); // Nejnovější první
+  const userId = getCurrentUserId();
+  if (!userId) return [];
 
-    const images: GalleryImage[] = [];
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest).result;
-      if (cursor) {
-        images.push(cursor.value);
-        cursor.continue();
-      } else {
-        resolve(images);
-      }
-    };
+  try {
+    const { data, error } = await supabase
+      .from('generated_images')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-    request.onerror = () => reject(request.error);
-  });
+    if (error) throw error;
+
+    return data.map(row => ({
+      id: row.id,
+      url: getPublicUrl(row.storage_path),
+      prompt: row.prompt,
+      timestamp: new Date(row.created_at).getTime(),
+      resolution: row.resolution,
+      aspectRatio: row.aspect_ratio,
+      thumbnail: row.thumbnail_path ? getPublicUrl(row.thumbnail_path) : undefined
+    }));
+  } catch (error) {
+    console.error('Error loading gallery:', error);
+    return [];
+  }
 };
 
 // Smazat obrázek z galerie
 export const deleteImage = async (id: string): Promise<void> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(id);
+  try {
+    // 1. Najít storage paths
+    const { data } = await supabase
+      .from('generated_images')
+      .select('storage_path, thumbnail_path')
+      .eq('id', id)
+      .single();
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+    if (data) {
+      // 2. Smazat ze storage
+      await deleteStorageImage(data.storage_path);
+      if (data.thumbnail_path) {
+        await deleteStorageImage(data.thumbnail_path);
+      }
+
+      // 3. Smazat z DB
+      await supabase
+        .from('generated_images')
+        .delete()
+        .eq('id', id);
+    }
+  } catch (error) {
+    console.error('Error deleting image:', error);
+    throw error;
+  }
 };
 
 // Vymazat celou galerii
 export const clearGallery = async (): Promise<void> => {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.clear();
+  const userId = getCurrentUserId();
+  if (!userId) return;
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    // 1. Získat všechny storage paths
+    const { data } = await supabase
+      .from('generated_images')
+      .select('storage_path, thumbnail_path')
+      .eq('user_id', userId);
+
+    if (data) {
+      // 2. Smazat všechny obrázky ze storage
+      for (const row of data) {
+        await deleteStorageImage(row.storage_path);
+        if (row.thumbnail_path) {
+          await deleteStorageImage(row.thumbnail_path);
+        }
+      }
+    }
+
+    // 3. Smazat z DB
+    await supabase
+      .from('generated_images')
+      .delete()
+      .eq('user_id', userId);
+  } catch (error) {
+    console.error('Error clearing gallery:', error);
+    throw error;
+  }
 };
 
 // Vytvořit thumbnail z plného obrázku
