@@ -1701,7 +1701,7 @@ const App: React.FC = () => {
         style={{
           width: `${rightPanelWidth}px`,
           minWidth: '280px',
-          maxWidth: 'calc(100vw - 320px)' // Nikdy nepřesáhnout viewport (minus levý panel)
+          maxWidth: 'min(500px, calc(100vw - 360px))' // NIKDY větší než viewport - 360px (rezerva)
         }}
         className="hidden lg:flex shrink-0 h-full relative ml-auto"
       >
