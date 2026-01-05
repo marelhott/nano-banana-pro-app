@@ -1697,6 +1697,9 @@ const App: React.FC = () => {
         <ImageGalleryPanel />
       </div>
 
+      {/* Spacer to ensure right panel is fully visible */}
+      <div className="hidden lg:block shrink-0 w-5 h-full" />
+
       <ImageComparisonModal
         isOpen={!!selectedImage}
         onClose={() => setSelectedImage(null)}
