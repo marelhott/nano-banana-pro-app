@@ -1688,12 +1688,13 @@ const App: React.FC = () => {
       <div
         ref={rightPanelRef}
         style={{
-          width: `${rightPanelWidth}px`,
+          flexBasis: `${rightPanelWidth}px`,
           minWidth: '280px',
-          maxWidth: '100%',
-          boxSizing: 'border-box'
+          maxWidth: '500px',
+          flexShrink: 1,
+          flexGrow: 0
         }}
-        className="hidden lg:flex shrink-0 h-full flex-col"
+        className="hidden lg:flex h-full flex-col"
       >
         <ImageGalleryPanel />
       </div>
