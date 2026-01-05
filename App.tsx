@@ -163,6 +163,31 @@ const App: React.FC = () => {
     adjust(mobilePromptRef);
   }, [state.prompt, isMobileMenuOpen]);
 
+  // KRITICKÁ OCHRANA: Hlídej že pravý panel NIKDY nevytéká mimo viewport
+  useEffect(() => {
+    const enforceMaxWidth = () => {
+      if (rightPanelRef.current && !isMobile) {
+        const viewportWidth = window.innerWidth;
+        const leftPanelWidth = 320;
+        const minMainWidth = 400;
+        const maxAllowed = viewportWidth - leftPanelWidth - minMainWidth;
+
+        // Pokud je panel příliš široký, OKAMŽITĚ ho zmenši
+        if (rightPanelWidth > maxAllowed) {
+          console.warn(`Panel overflow detected! ${rightPanelWidth}px > ${maxAllowed}px. Fixing...`);
+          setRightPanelWidth(Math.max(280, maxAllowed));
+        }
+      }
+    };
+
+    // Kontroluj při každé změně rightPanelWidth
+    enforceMaxWidth();
+
+    // Kontroluj i při resize okna
+    window.addEventListener('resize', enforceMaxWidth);
+    return () => window.removeEventListener('resize', enforceMaxWidth);
+  }, [rightPanelWidth, isMobile]);
+
   const handleKeySelected = () => {
     setHasApiKey(true);
   };
