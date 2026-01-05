@@ -1680,10 +1680,10 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Right panel - FIXED 280px width, NO resize */}
+      {/* Right panel - flexible width 280-500px */}
       <div
-        className="hidden lg:flex shrink-0 h-full flex-col"
-        style={{ width: '280px' }}
+        className="hidden lg:flex h-full flex-col"
+        style={{ width: '280px', minWidth: '280px', maxWidth: '500px' }}
       >
         <ImageGalleryPanel />
       </div>
