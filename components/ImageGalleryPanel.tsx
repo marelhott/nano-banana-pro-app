@@ -239,9 +239,9 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
   };
 
   return (
-    <div className="h-full flex flex-col bg-paper border-l border-monstera-200">
+    <div className="h-full flex flex-col bg-paper border-l border-monstera-200 w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-monstera-200 bg-white flex-wrap gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-monstera-200 bg-white flex-wrap gap-2 min-w-0">
         <div className="flex items-center gap-2 flex-shrink-0">
           <div className="w-1.5 h-6 bg-monstera-400 rounded-full"></div>
           <h3 className="text-[11px] font-black uppercase tracking-wider text-ink whitespace-nowrap">Knihovna obrázků</h3>
@@ -266,11 +266,10 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
       <div className="flex gap-2 px-4 pt-4 pb-2 bg-white border-b border-monstera-200">
         <button
           onClick={() => setActiveTab('saved')}
-          className={`flex-1 px-4 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-md transition-all ${
-            activeTab === 'saved'
-              ? 'bg-monstera-400 text-ink shadow-md border-2 border-ink'
-              : 'bg-monstera-50 text-monstera-600 hover:bg-monstera-100 border-2 border-monstera-200'
-          }`}
+          className={`flex-1 px-4 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-md transition-all ${activeTab === 'saved'
+            ? 'bg-monstera-400 text-ink shadow-md border-2 border-ink'
+            : 'bg-monstera-50 text-monstera-600 hover:bg-monstera-100 border-2 border-monstera-200'
+            }`}
         >
           <div className="flex items-center justify-center gap-2">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -286,11 +285,10 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
         </button>
         <button
           onClick={() => setActiveTab('generated')}
-          className={`flex-1 px-4 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-md transition-all ${
-            activeTab === 'generated'
-              ? 'bg-monstera-400 text-ink shadow-md border-2 border-ink'
-              : 'bg-monstera-50 text-monstera-600 hover:bg-monstera-100 border-2 border-monstera-200'
-          }`}
+          className={`flex-1 px-4 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-md transition-all ${activeTab === 'generated'
+            ? 'bg-monstera-400 text-ink shadow-md border-2 border-ink'
+            : 'bg-monstera-50 text-monstera-600 hover:bg-monstera-100 border-2 border-monstera-200'
+            }`}
         >
           <div className="flex items-center justify-center gap-2">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
