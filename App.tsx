@@ -1280,8 +1280,8 @@ const App: React.FC = () => {
 
       <div
         ref={sidebarRef}
-        style={{ width: `${sidebarWidth}px` }}
-        className="hidden lg:flex shrink-0 border-r border-monstera-200 bg-paper flex-col z-20 h-full relative shadow-sm"
+        style={{ width: `${sidebarWidth}px`, minWidth: '280px', maxWidth: '400px' }}
+        className="hidden lg:flex border-r border-monstera-200 bg-paper flex-col z-20 h-full relative shadow-sm"
       >
         <Header />
 
