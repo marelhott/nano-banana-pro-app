@@ -1276,7 +1276,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white text-ink font-sans selection:bg-monstera-200 relative">
+    <div className="flex h-screen overflow-hidden bg-white text-ink font-sans selection:bg-monstera-200">
 
       <div
         ref={sidebarRef}
@@ -1690,9 +1690,9 @@ const App: React.FC = () => {
         style={{
           width: `${rightPanelWidth}px`,
           minWidth: '280px',
-          maxWidth: '500px'
+          maxWidth: 'min(500px, calc(100vw - 720px))'
         }}
-        className="hidden lg:block absolute right-0 top-0 bottom-0 h-full"
+        className="hidden lg:flex shrink-0 h-full flex-col"
       >
         <ImageGalleryPanel />
       </div>
