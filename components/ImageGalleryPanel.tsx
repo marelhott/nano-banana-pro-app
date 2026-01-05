@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getAllImages, GalleryImage } from '../utils/galleryDB';
+import { getAllImages, deleteImage, GalleryImage } from '../utils/galleryDB';
 import { ImageDatabase, StoredImage } from '../utils/imageDatabase';
 
 interface ImageGalleryPanelProps {
@@ -89,6 +89,19 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
         await loadImages();
       } catch (error) {
         console.error('Error deleting image:', error);
+        alert('Chyba při mazání obrázku');
+      }
+    }
+  };
+
+  const handleDeleteGenerated = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Opravdu chcete tento vygenerovaný obrázek odstranit?')) {
+      try {
+        await deleteImage(id);
+        await loadImages();
+      } catch (error) {
+        console.error('Error deleting generated image:', error);
         alert('Chyba při mazání obrázku');
       }
     }
@@ -193,13 +206,24 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="absolute bottom-0 left-0 right-0 p-2">
-                <p className="text-white text-[9px] font-bold line-clamp-2 mb-1" title={image.prompt}>
+              <div className="absolute bottom-0 left-0 right-0 p-2 space-y-1">
+                <p className="text-white text-[9px] font-bold line-clamp-2" title={image.prompt}>
                   {image.prompt}
                 </p>
-                <span className="text-white/60 text-[8px] font-bold">
-                  {new Date(image.timestamp).toLocaleDateString('cs-CZ')}
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60 text-[8px] font-bold">
+                    {new Date(image.timestamp).toLocaleDateString('cs-CZ')}
+                  </span>
+                  <button
+                    onClick={(e) => handleDeleteGenerated(image.id, e)}
+                    className="p-1 bg-red-500 hover:bg-red-600 text-white rounded transition-all"
+                    title="Smazat"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
             {/* Drag indicator */}
