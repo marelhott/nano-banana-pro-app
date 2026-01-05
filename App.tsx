@@ -12,6 +12,7 @@ import { SavedPromptsDropdown } from './components/SavedPromptsDropdown';
 import { slugify } from './utils/stringUtils.ts';
 import { saveToGallery, createThumbnail } from './utils/galleryDB';
 import { ImageDatabase } from './utils/imageDatabase';
+import { urlToDataUrl } from './utils/supabaseStorage';
 import JSZip from 'jszip';
 import { ApiUsagePanel } from './components/ApiUsagePanel';
 import { CollectionsModal } from './components/CollectionsModal';
@@ -511,10 +512,20 @@ const App: React.FC = () => {
         while (retryCount <= maxRetries && !success) {
           try {
             // Sestavit pole obrázků - referenční první, pak stylové
-            const allImages = [
-              ...state.sourceImages.map(img => ({ data: img.url, mimeType: img.file.type })),
-              ...state.styleImages.map(img => ({ data: img.url, mimeType: img.file.type }))
-            ];
+            // Konvertovat všechny URL na base64 data URL pro Gemini API
+            const sourceImagesData = await Promise.all(
+              state.sourceImages.map(async img => ({
+                data: await urlToDataUrl(img.url),
+                mimeType: img.file.type
+              }))
+            );
+            const styleImagesData = await Promise.all(
+              state.styleImages.map(async img => ({
+                data: await urlToDataUrl(img.url),
+                mimeType: img.file.type
+              }))
+            );
+            const allImages = [...sourceImagesData, ...styleImagesData];
 
             // Vytvořit prompt s informací o stylu, pokud jsou stylové obrázky
             let enhancedPrompt = state.prompt;
@@ -631,11 +642,21 @@ const App: React.FC = () => {
     try {
       // DŮLEŽITÉ: První obrázek = obrázek k editaci, další obrázky = reference pro inspiraci
       const editState = inlineEditStates[imageId];
+
+      // Konvertovat všechny URL na base64 data URL pro Gemini API
+      const baseImageData = await urlToDataUrl(image.url);
+      const referenceImagesData = await Promise.all(
+        (editState?.referenceImages || []).map(async i => ({
+          data: await urlToDataUrl(i.url),
+          mimeType: i.file.type
+        }))
+      );
+
       const sourceImages = [
         // Původní vygenerovaný obrázek - VŽDY první (je to obrázek, který má být editován)
-        { data: image.url, mimeType: 'image/jpeg' },
+        { data: baseImageData, mimeType: 'image/jpeg' },
         // Referenční obrázky - jako kontext/inspirace pro úpravu
-        ...(editState?.referenceImages || []).map(i => ({ data: i.url, mimeType: i.file.type }))
+        ...referenceImagesData
       ];
 
       const result = await editImageWithGemini(

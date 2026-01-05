@@ -73,6 +73,40 @@ export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
 }
 
 /**
+ * Konvertovat libovolnou URL (HTTP nebo data URL) na base64 data URL
+ * Pro Gemini API který vyžaduje inline base64 data
+ */
+export async function urlToDataUrl(url: string): Promise<string> {
+  // Pokud už je to data URL, vrátit rovnou
+  if (url.startsWith('data:')) {
+    return url;
+  }
+
+  try {
+    // Stáhnout obrázek z HTTP URL
+    const response = await fetch(url);
+    const blob = await response.blob();
+
+    // Převést na base64
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Failed to convert to data URL'));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Error converting URL to data URL:', error);
+    throw new Error(`Nepodařilo se převést URL na data URL: ${error}`);
+  }
+}
+
+/**
  * Vytvořit thumbnail z obrázku
  */
 export async function createThumbnail(dataUrl: string, maxSize: number = 400): Promise<Blob> {
