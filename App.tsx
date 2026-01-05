@@ -131,14 +131,18 @@ const App: React.FC = () => {
         setGridCols(prev => prev < 3 ? 3 : prev);
       }
 
-      // Zajistit že pravý panel se vejde na obrazovku
-      // Levý panel (320px) + hlavní obsah (min 500px) + pravý panel
+      // KRITICKÁ RESTRIKCE: Zajistit že pravý panel se NIKDY nevytéká mimo viewport
       // Na menších obrazovkách (<1024px) je levý panel skrytý
       if (!mobile) {
         const leftPanelWidth = 320; // Výchozí šířka levého panelu
-        const minMainWidth = 500; // Minimální šířka pro hlavní obsah
-        const maxRightWidth = Math.max(280, width - leftPanelWidth - minMainWidth);
-        setRightPanelWidth(prev => Math.min(prev, maxRightWidth));
+        const minMainWidth = 400; // Minimální šířka pro hlavní obsah
+        const maxAllowedWidth = width - leftPanelWidth - minMainWidth;
+
+        // Pokud je aktuální šířka větší než povolená, zmenšit ji
+        setRightPanelWidth(prev => {
+          const newWidth = Math.max(280, Math.min(prev, maxAllowedWidth));
+          return newWidth;
+        });
       }
     };
     
@@ -186,7 +190,12 @@ const App: React.FC = () => {
     if (isResizingRightRef.current) {
       const windowWidth = window.innerWidth;
       const rightWidth = windowWidth - e.clientX;
-      setRightPanelWidth(Math.max(280, Math.min(500, rightWidth)));
+
+      // KRITICKÁ RESTRIKCE: Panel NEMŮŽE být širší než viewport mínus levý panel (320px) mínus min prostor pro main (400px)
+      const maxAllowedWidth = windowWidth - 320 - 400;
+
+      // Nastavit šířku s tvrdým limitem
+      setRightPanelWidth(Math.max(280, Math.min(Math.min(500, maxAllowedWidth), rightWidth)));
     }
   }, []);
 
