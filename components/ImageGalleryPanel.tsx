@@ -239,7 +239,7 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
   };
 
   return (
-    <div className="h-full flex flex-col bg-paper border-l border-monstera-200 w-full overflow-x-hidden">
+    <div className="h-full flex flex-col bg-paper border-l border-monstera-200 w-full overflow-x-hidden" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-monstera-200 bg-white flex-wrap gap-2 min-w-0">
         <div className="flex items-center gap-2 flex-shrink-0">

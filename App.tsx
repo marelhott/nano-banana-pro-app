@@ -1690,7 +1690,8 @@ const App: React.FC = () => {
         style={{
           width: `${rightPanelWidth}px`,
           minWidth: '280px',
-          maxWidth: 'min(500px, calc(100vw - 720px))'
+          maxWidth: '100%',
+          boxSizing: 'border-box'
         }}
         className="hidden lg:flex shrink-0 h-full flex-col"
       >
