@@ -14,16 +14,24 @@ export const ImageLibrary: React.FC<ImageLibraryProps> = ({
 }) => {
   const [images, setImages] = useState<StoredImage[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadImages();
   }, [category]);
 
-  const loadImages = () => {
-    const allImages = ImageDatabase.getByCategory(category);
-    // Seřaď od nejnovějších
-    allImages.sort((a, b) => b.timestamp - a.timestamp);
-    setImages(allImages);
+  const loadImages = async () => {
+    setIsLoading(true);
+    try {
+      const allImages = await ImageDatabase.getByCategoryAsync(category);
+      // Seřaď od nejnovějších
+      allImages.sort((a, b) => b.timestamp - a.timestamp);
+      setImages(allImages);
+    } catch (error) {
+      console.error('Error loading images:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const toggleSelection = (image: StoredImage) => {
@@ -53,15 +61,31 @@ export const ImageLibrary: React.FC<ImageLibraryProps> = ({
     }
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Opravdu chcete tento obrázek odstranit z databáze?')) {
-      ImageDatabase.remove(id);
-      loadImages();
-      selectedIds.delete(id);
-      setSelectedIds(new Set(selectedIds));
+      try {
+        await ImageDatabase.remove(id);
+        await loadImages();
+        selectedIds.delete(id);
+        setSelectedIds(new Set(selectedIds));
+      } catch (error) {
+        console.error('Error deleting image:', error);
+        alert('Chyba při mazání obrázku');
+      }
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+        <div className="w-8 h-8 border-2 border-monstera-300 border-t-monstera-500 rounded-full animate-spin mb-4"></div>
+        <p className="text-[10px] font-bold text-monstera-400 uppercase tracking-widest">
+          Načítání obrázků...
+        </p>
+      </div>
+    );
+  }
 
   if (images.length === 0) {
     return (

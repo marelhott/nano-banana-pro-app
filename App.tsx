@@ -23,6 +23,7 @@ import { ApiUsageTracker } from './utils/apiUsageTracking';
 import { PromptHistory } from './utils/promptHistory';
 import { detectLanguage, enhancePromptQuality, getPromptSuggestion } from './utils/languageSupport';
 import { ImageGalleryPanel } from './components/ImageGalleryPanel';
+import { PinAuth } from './components/PinAuth';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -33,6 +34,10 @@ const RESOLUTIONS = [
 const MAX_IMAGES = 14;
 
 const App: React.FC = () => {
+  // PIN Autentizace state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+
   const [state, setState] = useState<AppState>({
     sourceImages: [],
     styleImages: [],
@@ -43,7 +48,7 @@ const App: React.FC = () => {
     error: null,
     numberOfImages: 1, // Default to 1 image
   });
-  
+
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [gridCols, setGridCols] = useState<number>(3);
   const [downloadingAll, setDownloadingAll] = useState(false);
@@ -1205,6 +1210,19 @@ const App: React.FC = () => {
       </button>
     </div>
   );
+
+  // Handle PIN authentication
+  const handleAuth = (userId: string) => {
+    setAuthUserId(userId);
+    setIsAuthenticated(true);
+    // Pre-load data from Supabase
+    ImageDatabase.getAll();
+  };
+
+  // Show PIN auth screen if not authenticated
+  if (!isAuthenticated) {
+    return <PinAuth onAuth={handleAuth} />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-white text-ink font-sans selection:bg-monstera-200">
