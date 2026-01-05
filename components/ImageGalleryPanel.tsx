@@ -266,18 +266,18 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
       <div className="flex gap-2 px-4 pt-4 pb-2 bg-white border-b border-monstera-200">
         <button
           onClick={() => setActiveTab('saved')}
-          className={`flex-1 px-4 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-md transition-all ${activeTab === 'saved'
+          className={`flex-1 min-w-0 px-3 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-md transition-all ${activeTab === 'saved'
             ? 'bg-monstera-400 text-ink shadow-md border-2 border-ink'
             : 'bg-monstera-50 text-monstera-600 hover:bg-monstera-100 border-2 border-monstera-200'
             }`}
         >
-          <div className="flex items-center justify-center gap-2">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex items-center justify-center gap-2 overflow-hidden">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
             </svg>
-            Uložené
+            <span className="truncate">Uložené</span>
             {savedImages.length > 0 && (
-              <span className="ml-1 text-[8px] bg-white/30 px-1.5 py-0.5 rounded-full">
+              <span className="ml-1 text-[8px] bg-white/30 px-1.5 py-0.5 rounded-full shrink-0">
                 {savedImages.length}
               </span>
             )}
@@ -285,18 +285,18 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
         </button>
         <button
           onClick={() => setActiveTab('generated')}
-          className={`flex-1 px-4 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-md transition-all ${activeTab === 'generated'
+          className={`flex-1 min-w-0 px-3 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-md transition-all ${activeTab === 'generated'
             ? 'bg-monstera-400 text-ink shadow-md border-2 border-ink'
             : 'bg-monstera-50 text-monstera-600 hover:bg-monstera-100 border-2 border-monstera-200'
             }`}
         >
-          <div className="flex items-center justify-center gap-2">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex items-center justify-center gap-2 overflow-hidden">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
-            Vygenerované
+            <span className="truncate">AI</span>
             {generatedImages.length > 0 && (
-              <span className="ml-1 text-[8px] bg-white/30 px-1.5 py-0.5 rounded-full">
+              <span className="ml-1 text-[8px] bg-white/30 px-1.5 py-0.5 rounded-full shrink-0">
                 {generatedImages.length}
               </span>
             )}
