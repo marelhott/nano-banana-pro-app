@@ -96,7 +96,7 @@ export const clearGallery = async (): Promise<void> => {
 };
 
 // Vytvořit thumbnail z plného obrázku
-export const createThumbnail = (dataUrl: string, maxSize: number = 200): Promise<string> => {
+export const createThumbnail = (dataUrl: string, maxSize: number = 400): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -119,8 +119,14 @@ export const createThumbnail = (dataUrl: string, maxSize: number = 200): Promise
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
+      if (ctx) {
+        // Zapnout antialiasing pro lepší kvalitu
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+      }
+      // Zvýšit kvalitu JPEG komprese z 0.7 na 0.85
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
     };
     img.src = dataUrl;
   });
