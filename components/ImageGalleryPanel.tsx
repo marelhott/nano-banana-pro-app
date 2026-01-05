@@ -212,18 +212,18 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
   return (
     <div className="h-full flex flex-col bg-paper border-l border-monstera-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-monstera-200 bg-white">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-monstera-200 bg-white flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <div className="w-1.5 h-6 bg-monstera-400 rounded-full"></div>
-          <h3 className="text-[11px] font-black uppercase tracking-wider text-ink">Knihovna obrázků</h3>
+          <h3 className="text-[11px] font-black uppercase tracking-wider text-ink whitespace-nowrap">Knihovna obrázků</h3>
         </div>
         {activeTab === 'saved' && (
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 bg-monstera-400 hover:bg-monstera-500 text-ink font-black text-[9px] uppercase tracking-widest rounded-md transition-all border border-ink shadow-sm"
+            className="px-3 py-1.5 bg-monstera-400 hover:bg-monstera-500 text-ink font-black text-[9px] uppercase tracking-widest rounded-md transition-all border border-ink shadow-sm flex-shrink-0"
             title="Nahrát obrázky"
           >
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
               </svg>
