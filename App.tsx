@@ -22,6 +22,7 @@ import { QuickActionsMenu, QuickAction } from './components/QuickActionsMenu';
 import { ApiUsageTracker } from './utils/apiUsageTracking';
 import { PromptHistory } from './utils/promptHistory';
 import { detectLanguage, enhancePromptQuality, getPromptSuggestion } from './utils/languageSupport';
+import { ImageGalleryPanel } from './components/ImageGalleryPanel';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -47,6 +48,7 @@ const App: React.FC = () => {
   const [gridCols, setGridCols] = useState<number>(3);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [rightPanelWidth, setRightPanelWidth] = useState(320);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -58,6 +60,7 @@ const App: React.FC = () => {
   const [isGenerateClicked, setIsGenerateClicked] = useState(false);
   const [referenceImageSource, setReferenceImageSource] = useState<'computer' | 'database'>('computer');
   const [styleImageSource, setStyleImageSource] = useState<'computer' | 'database'>('computer');
+  const [dragOverTarget, setDragOverTarget] = useState<'reference' | 'style' | null>(null);
 
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
@@ -76,7 +79,9 @@ const App: React.FC = () => {
   } | null>(null);
 
   const isResizingRef = useRef(false);
+  const isResizingRightRef = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const mobilePromptRef = useRef<HTMLTextAreaElement>(null);
 
@@ -147,14 +152,25 @@ const App: React.FC = () => {
     document.body.style.cursor = 'col-resize';
   }, []);
 
+  const startResizingRight = useCallback(() => {
+    isResizingRightRef.current = true;
+    document.body.style.cursor = 'col-resize';
+  }, []);
+
   const stopResizing = useCallback(() => {
     isResizingRef.current = false;
+    isResizingRightRef.current = false;
     document.body.style.cursor = '';
   }, []);
 
   const resize = useCallback((e: MouseEvent) => {
     if (isResizingRef.current) {
       setSidebarWidth(Math.max(280, Math.min(500, e.clientX)));
+    }
+    if (isResizingRightRef.current) {
+      const windowWidth = window.innerWidth;
+      const rightWidth = windowWidth - e.clientX;
+      setRightPanelWidth(Math.max(280, Math.min(500, rightWidth)));
     }
   }, []);
 
@@ -278,6 +294,91 @@ const App: React.FC = () => {
         error: null,
       }));
     });
+  }, []);
+
+  // Drag & Drop handlery pro pravý panel
+  const handleDragOverReference = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget('reference');
+  }, []);
+
+  const handleDragOverStyle = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget('style');
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget(null);
+  }, []);
+
+  const handleDropReference = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget(null);
+
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (data) {
+        const imageData = JSON.parse(data);
+        const { url, fileName, fileType } = imageData;
+
+        // Konvertuj data URL na File objekt
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], fileName, { type: fileType });
+
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: url,
+          file: file
+        };
+
+        setState(prev => ({
+          ...prev,
+          sourceImages: [...prev.sourceImages, newImage],
+          error: null,
+        }));
+      }
+    } catch (error) {
+      console.error('Drop failed:', error);
+    }
+  }, []);
+
+  const handleDropStyle = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget(null);
+
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (data) {
+        const imageData = JSON.parse(data);
+        const { url, fileName, fileType } = imageData;
+
+        // Konvertuj data URL na File objekt
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], fileName, { type: fileType });
+
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: url,
+          file: file
+        };
+
+        setState(prev => ({
+          ...prev,
+          styleImages: [...prev.styleImages, newImage],
+          error: null,
+        }));
+      }
+    } catch (error) {
+      console.error('Drop failed:', error);
+    }
   }, []);
 
   useEffect(() => {
@@ -898,7 +999,16 @@ const App: React.FC = () => {
 
         {referenceImageSource === 'computer' ? (
           <>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div
+              className={`grid grid-cols-3 gap-1.5 p-2 rounded-md transition-all ${
+                dragOverTarget === 'reference'
+                  ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
+                  : 'border-2 border-transparent'
+              }`}
+              onDragOver={handleDragOverReference}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDropReference}
+            >
               {state.sourceImages.map((img) => (
                 <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
                   <img
@@ -920,6 +1030,14 @@ const App: React.FC = () => {
               ))}
               {state.sourceImages.length < MAX_IMAGES && (
                 <ImageUpload onImagesSelected={handleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.sourceImages.length} />
+              )}
+              {dragOverTarget === 'reference' && state.sourceImages.length === 0 && (
+                <div className="col-span-3 flex flex-col items-center justify-center py-8 text-center">
+                  <svg className="w-12 h-12 text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                  </svg>
+                  <p className="text-sm font-bold text-monstera-600">Přetáhněte sem obrázek</p>
+                </div>
               )}
             </div>
             {isGenerating && (
@@ -987,7 +1105,16 @@ const App: React.FC = () => {
         </div>
 
         {styleImageSource === 'computer' ? (
-          <div className="grid grid-cols-3 gap-1.5">
+          <div
+            className={`grid grid-cols-3 gap-1.5 p-2 rounded-md transition-all ${
+              dragOverTarget === 'style'
+                ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
+                : 'border-2 border-transparent'
+            }`}
+            onDragOver={handleDragOverStyle}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDropStyle}
+          >
             {state.styleImages.map((img) => (
               <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
                 <img
@@ -1006,6 +1133,14 @@ const App: React.FC = () => {
             ))}
             {state.styleImages.length < MAX_IMAGES && (
               <ImageUpload onImagesSelected={handleStyleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.styleImages.length} />
+            )}
+            {dragOverTarget === 'style' && state.styleImages.length === 0 && (
+              <div className="col-span-3 flex flex-col items-center justify-center py-8 text-center">
+                <svg className="w-12 h-12 text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+                <p className="text-sm font-bold text-monstera-600">Přetáhněte sem obrázek</p>
+              </div>
             )}
           </div>
         ) : (
@@ -1072,7 +1207,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-white text-ink font-sans selection:bg-monstera-200">
-      
+
       <div
         ref={sidebarRef}
         style={{ width: `${sidebarWidth}px` }}
@@ -1085,12 +1220,12 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div 
+      <div
         className="w-1 bg-transparent hover:bg-monstera-300/60 transition-colors z-30 hidden lg:block cursor-col-resize active:bg-monstera-300 h-full"
         onMouseDown={startResizing}
       />
 
-      <main className="flex-1 h-full overflow-y-auto custom-scrollbar bg-white relative flex flex-col">
+      <main className="flex-1 h-full overflow-y-auto custom-scrollbar bg-white relative flex flex-col min-w-0">
         <div className="lg:hidden">
           <Header />
         </div>
@@ -1484,6 +1619,19 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+
+      <div
+        className="w-1 bg-transparent hover:bg-monstera-300/60 transition-colors z-30 hidden lg:block cursor-col-resize active:bg-monstera-300 h-full"
+        onMouseDown={startResizingRight}
+      />
+
+      <div
+        ref={rightPanelRef}
+        style={{ width: `${rightPanelWidth}px` }}
+        className="hidden lg:flex shrink-0 h-full relative"
+      >
+        <ImageGalleryPanel />
+      </div>
 
       <ImageComparisonModal
         isOpen={!!selectedImage}
