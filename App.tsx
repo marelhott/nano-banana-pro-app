@@ -117,7 +117,7 @@ const App: React.FC = () => {
     if (urlPrompt) {
       setState(prev => ({ ...prev, prompt: urlPrompt }));
     }
-    
+
     const handleResize = () => {
       const width = window.innerWidth;
       const mobile = width < 1024;
@@ -131,21 +131,21 @@ const App: React.FC = () => {
         setGridCols(prev => prev < 3 ? 3 : prev);
       }
 
-      // KRITICKÁ RESTRIKCE: Zajistit že pravý panel se NIKDY nevytéká mimo viewport
-      // Na menších obrazovkách (<1024px) je levý panel skrytý
+      // Zajistit že pravý panel se vejde do viewportu
+      // Layout: [levý panel 320px] [resize 1px] [main flex-1] [resize 1px] [pravý panel]
       if (!mobile) {
-        const leftPanelWidth = 320; // Výchozí šířka levého panelu
-        const minMainWidth = 400; // Minimální šířka pro hlavní obsah
-        const maxAllowedWidth = width - leftPanelWidth - minMainWidth;
+        const leftPanelWidth = sidebarWidth || 320;
+        const resizeHandles = 2; // 2x 1px pro resize handles
+        const minMainWidth = 400;
+        const maxAllowedWidth = width - leftPanelWidth - resizeHandles - minMainWidth;
 
-        // Pokud je aktuální šířka větší než povolená, zmenšit ji
         setRightPanelWidth(prev => {
           const newWidth = Math.max(280, Math.min(prev, maxAllowedWidth));
           return newWidth;
         });
       }
     };
-    
+
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -163,30 +163,26 @@ const App: React.FC = () => {
     adjust(mobilePromptRef);
   }, [state.prompt, isMobileMenuOpen]);
 
-  // KRITICKÁ OCHRANA: Hlídej že pravý panel NIKDY nevytéká mimo viewport
+  // Ochrana: Zajisti že pravý panel zůstane viditelný
   useEffect(() => {
     const enforceMaxWidth = () => {
       if (rightPanelRef.current && !isMobile) {
         const viewportWidth = window.innerWidth;
-        const leftPanelWidth = 320;
+        const leftPanelWidth = sidebarWidth || 320;
+        const resizeHandles = 2;
         const minMainWidth = 400;
-        const maxAllowed = viewportWidth - leftPanelWidth - minMainWidth;
+        const maxAllowed = viewportWidth - leftPanelWidth - resizeHandles - minMainWidth;
 
-        // Pokud je panel příliš široký, OKAMŽITĚ ho zmenši
         if (rightPanelWidth > maxAllowed) {
-          console.warn(`Panel overflow detected! ${rightPanelWidth}px > ${maxAllowed}px. Fixing...`);
           setRightPanelWidth(Math.max(280, maxAllowed));
         }
       }
     };
 
-    // Kontroluj při každé změně rightPanelWidth
     enforceMaxWidth();
-
-    // Kontroluj i při resize okna
     window.addEventListener('resize', enforceMaxWidth);
     return () => window.removeEventListener('resize', enforceMaxWidth);
-  }, [rightPanelWidth, isMobile]);
+  }, [rightPanelWidth, isMobile, sidebarWidth]);
 
   const handleKeySelected = () => {
     setHasApiKey(true);
@@ -210,19 +206,20 @@ const App: React.FC = () => {
 
   const resize = useCallback((e: MouseEvent) => {
     if (isResizingRef.current) {
-      setSidebarWidth(Math.max(280, Math.min(500, e.clientX)));
+      const newWidth = Math.max(280, Math.min(500, e.clientX));
+      setSidebarWidth(newWidth);
     }
     if (isResizingRightRef.current) {
       const windowWidth = window.innerWidth;
       const rightWidth = windowWidth - e.clientX;
+      const leftPanelWidth = sidebarWidth || 320;
+      const resizeHandles = 2;
+      const minMainWidth = 400;
+      const maxAllowedWidth = windowWidth - leftPanelWidth - resizeHandles - minMainWidth;
 
-      // KRITICKÁ RESTRIKCE: Panel NEMŮŽE být širší než viewport mínus levý panel (320px) mínus min prostor pro main (400px)
-      const maxAllowedWidth = windowWidth - 320 - 400;
-
-      // Nastavit šířku s tvrdým limitem
-      setRightPanelWidth(Math.max(280, Math.min(Math.min(500, maxAllowedWidth), rightWidth)));
+      setRightPanelWidth(Math.max(280, Math.min(maxAllowedWidth, rightWidth)));
     }
-  }, []);
+  }, [sidebarWidth]);
 
   useEffect(() => {
     window.addEventListener('mousemove', resize);
@@ -435,7 +432,7 @@ const App: React.FC = () => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
-      
+
       const files: File[] = [];
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.indexOf("image") !== -1) {
@@ -617,15 +614,15 @@ const App: React.FC = () => {
             success = true; // Úspěch, pokračuj na další obrázek
           } catch (err: any) {
             const is429 = err.message?.includes('429') ||
-                         err.message?.includes('TooManyRequests') ||
-                         err.message?.includes('RESOURCE_EXHAUSTED') ||
-                         err.message?.includes('Request blocked');
+              err.message?.includes('TooManyRequests') ||
+              err.message?.includes('RESOURCE_EXHAUSTED') ||
+              err.message?.includes('Request blocked');
 
             if (is429 && retryCount < maxRetries) {
               retryCount++;
               // Exponential backoff: 5s, 10s, 20s
               const waitTime = 5000 * Math.pow(2, retryCount - 1);
-              console.log(`Rate limit hit for image ${i + 1}, waiting ${waitTime/1000}s before retry ${retryCount}/${maxRetries}`);
+              console.log(`Rate limit hit for image ${i + 1}, waiting ${waitTime / 1000}s before retry ${retryCount}/${maxRetries}`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
             } else {
               // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
@@ -920,7 +917,7 @@ const App: React.FC = () => {
   const getDomainFromUrl = (url: string, title?: string) => {
     try {
       const parsedUrl = new URL(url);
-      
+
       // Attempt to extract from Vertex AI Search proxy if it's there
       if (parsedUrl.hostname.includes('vertexaisearch.cloud.google.com')) {
         const urlParam = parsedUrl.searchParams.get('url');
@@ -953,11 +950,10 @@ const App: React.FC = () => {
         <button
           onClick={handleGenerate}
           disabled={!state.prompt.trim()}
-          className={`w-full py-3 px-6 font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale ${
-            isGenerateClicked
-              ? 'bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white'
-              : 'bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink'
-          }`}
+          className={`w-full py-3 px-6 font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale ${isGenerateClicked
+            ? 'bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white'
+            : 'bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink'
+            }`}
         >
           {isGenerating ? 'Generuji' : 'Generovat'}
         </button>
@@ -1059,21 +1055,19 @@ const App: React.FC = () => {
         <div className="flex gap-1 bg-monstera-50 p-1 rounded-md border border-monstera-200">
           <button
             onClick={() => setReferenceImageSource('computer')}
-            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${
-              referenceImageSource === 'computer'
-                ? 'bg-white text-ink shadow-sm border border-monstera-300'
-                : 'text-monstera-500 hover:text-ink'
-            }`}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${referenceImageSource === 'computer'
+              ? 'bg-white text-ink shadow-sm border border-monstera-300'
+              : 'text-monstera-500 hover:text-ink'
+              }`}
           >
             Počítač
           </button>
           <button
             onClick={() => setReferenceImageSource('database')}
-            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${
-              referenceImageSource === 'database'
-                ? 'bg-white text-ink shadow-sm border border-monstera-300'
-                : 'text-monstera-500 hover:text-ink'
-            }`}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${referenceImageSource === 'database'
+              ? 'bg-white text-ink shadow-sm border border-monstera-300'
+              : 'text-monstera-500 hover:text-ink'
+              }`}
           >
             Databáze
           </button>
@@ -1082,11 +1076,10 @@ const App: React.FC = () => {
         {referenceImageSource === 'computer' ? (
           <>
             <div
-              className={`grid grid-cols-3 gap-1.5 p-2 rounded-md transition-all ${
-                dragOverTarget === 'reference'
-                  ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
-                  : 'border-2 border-transparent'
-              }`}
+              className={`grid grid-cols-3 gap-1.5 p-2 rounded-md transition-all ${dragOverTarget === 'reference'
+                ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
+                : 'border-2 border-transparent'
+                }`}
               onDragOver={handleDragOverReference}
               onDragLeave={handleDragLeave}
               onDrop={handleDropReference}
@@ -1166,21 +1159,19 @@ const App: React.FC = () => {
         <div className="flex gap-1 bg-monstera-50 p-1 rounded-md border border-monstera-200">
           <button
             onClick={() => setStyleImageSource('computer')}
-            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${
-              styleImageSource === 'computer'
-                ? 'bg-white text-ink shadow-sm border border-monstera-300'
-                : 'text-monstera-500 hover:text-ink'
-            }`}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${styleImageSource === 'computer'
+              ? 'bg-white text-ink shadow-sm border border-monstera-300'
+              : 'text-monstera-500 hover:text-ink'
+              }`}
           >
             Počítač
           </button>
           <button
             onClick={() => setStyleImageSource('database')}
-            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${
-              styleImageSource === 'database'
-                ? 'bg-white text-ink shadow-sm border border-monstera-300'
-                : 'text-monstera-500 hover:text-ink'
-            }`}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded transition-all ${styleImageSource === 'database'
+              ? 'bg-white text-ink shadow-sm border border-monstera-300'
+              : 'text-monstera-500 hover:text-ink'
+              }`}
           >
             Databáze
           </button>
@@ -1188,11 +1179,10 @@ const App: React.FC = () => {
 
         {styleImageSource === 'computer' ? (
           <div
-            className={`grid grid-cols-3 gap-1.5 p-2 rounded-md transition-all ${
-              dragOverTarget === 'style'
-                ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
-                : 'border-2 border-transparent'
-            }`}
+            className={`grid grid-cols-3 gap-1.5 p-2 rounded-md transition-all ${dragOverTarget === 'style'
+              ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
+              : 'border-2 border-transparent'
+              }`}
             onDragOver={handleDragOverStyle}
             onDragLeave={handleDragLeave}
             onDrop={handleDropStyle}
@@ -1236,8 +1226,8 @@ const App: React.FC = () => {
 
       <section className="bg-white border border-monstera-200 rounded-md shadow-md overflow-hidden">
         <div className="bg-monstera-50 border-b border-monstera-200 px-3 py-2 flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5 text-monstera-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-            <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Nastavení generování</span>
+          <svg className="w-3.5 h-3.5 text-monstera-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+          <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Nastavení generování</span>
         </div>
 
         <div className="p-3.5 space-y-3">
@@ -1286,7 +1276,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden overflow-x-clip bg-white text-ink font-sans selection:bg-monstera-200">
+    <div className="flex h-screen overflow-hidden bg-white text-ink font-sans selection:bg-monstera-200">
 
       <div
         ref={sidebarRef}
@@ -1318,51 +1308,51 @@ const App: React.FC = () => {
             {state.prompt || "Zadejte prompt..."}
           </div>
           <button
-             onClick={() => setIsGalleryOpen(true)}
-             className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
-             title="Galerie"
+            onClick={() => setIsGalleryOpen(true)}
+            className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
+            title="Galerie"
           >
-             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           </button>
           <button
-             onClick={() => setIsMobileMenuOpen(true)}
-             className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
-             title="Nastavení"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 bg-white rounded-md border border-monstera-200 text-monstera-600 hover:text-ink hover:border-monstera-400 transition-colors"
+            title="Nastavení"
           >
-             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
           </button>
           <button
-             onClick={handleGenerate}
-             disabled={!state.prompt.trim()}
-             className="bg-monstera-400 font-black text-[10px] uppercase tracking-widest px-4 py-2.5 rounded-md border border-ink shadow-[2px_2px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-50 disabled:grayscale"
+            onClick={handleGenerate}
+            disabled={!state.prompt.trim()}
+            className="bg-monstera-400 font-black text-[10px] uppercase tracking-widest px-4 py-2.5 rounded-md border border-ink shadow-[2px_2px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-50 disabled:grayscale"
           >
-             Generovat
+            Generovat
           </button>
         </div>
 
         {isMobileMenuOpen && (
           <div className="lg:hidden fixed inset-0 z-50 bg-paper flex flex-col animate-fadeIn">
-             <div className="flex items-center justify-between p-4 border-b border-monstera-200 bg-white">
-                <span className="font-black uppercase tracking-widest text-xs text-ink">Konfigurace</span>
-                <button 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="p-2 text-monstera-600 hover:text-ink bg-white border border-monstera-200 rounded-md"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-             </div>
-             <div className="flex-1 overflow-y-auto p-5 pb-20 custom-scrollbar">
-                {renderSidebarControls(true)}
-             </div>
-             <div className="p-5 border-t border-monstera-200 bg-paper absolute bottom-0 left-0 right-0">
-                <button
-                  onClick={handleGenerate}
-                  disabled={!state.prompt.trim()}
-                  className="w-full py-3.5 px-6 bg-monstera-400 text-ink font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[4px_4px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:grayscale"
-                >
-                  Generovat
-                </button>
-             </div>
+            <div className="flex items-center justify-between p-4 border-b border-monstera-200 bg-white">
+              <span className="font-black uppercase tracking-widest text-xs text-ink">Konfigurace</span>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 text-monstera-600 hover:text-ink bg-white border border-monstera-200 rounded-md"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 pb-20 custom-scrollbar">
+              {renderSidebarControls(true)}
+            </div>
+            <div className="p-5 border-t border-monstera-200 bg-paper absolute bottom-0 left-0 right-0">
+              <button
+                onClick={handleGenerate}
+                disabled={!state.prompt.trim()}
+                className="w-full py-3.5 px-6 bg-monstera-400 text-ink font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[4px_4px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:grayscale"
+              >
+                Generovat
+              </button>
+            </div>
           </div>
         )}
 
@@ -1377,7 +1367,7 @@ const App: React.FC = () => {
 
             <div className="flex flex-wrap items-center gap-4 hidden lg:flex">
               {state.generatedImages.length > 0 && (
-                <button 
+                <button
                   onClick={async () => {
                     const successImages = state.generatedImages.filter(img => img.status === 'success' && img.url);
                     if (successImages.length === 0) return;
@@ -1403,7 +1393,7 @@ const App: React.FC = () => {
 
                       folder!.file(`${baseFilename}.txt`, metadata);
                     }));
-                    const content = await zip.generateAsync({type:"blob"});
+                    const content = await zip.generateAsync({ type: "blob" });
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(content);
                     link.download = `${folderName}.zip`;
@@ -1483,7 +1473,7 @@ const App: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="px-3 py-2.5 flex flex-col gap-2 border-t border-monstera-200 bg-white">
                     <div className="flex items-center gap-3">
                       <p className="text-[11px] font-bold text-ink leading-snug line-clamp-1 flex-1" title={image.prompt}>
@@ -1568,11 +1558,10 @@ const App: React.FC = () => {
                                       }));
                                     }
                                   }}
-                                  className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${
-                                    showReferenceUpload[image.id]
-                                      ? 'bg-monstera-400 text-ink border border-ink'
-                                      : 'bg-monstera-100 text-monstera-600 hover:bg-monstera-200 border border-monstera-200'
-                                  }`}
+                                  className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${showReferenceUpload[image.id]
+                                    ? 'bg-monstera-400 text-ink border border-ink'
+                                    : 'bg-monstera-100 text-monstera-600 hover:bg-monstera-200 border border-monstera-200'
+                                    }`}
                                   title="Přidat referenční obrázky"
                                 >
                                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1701,9 +1690,9 @@ const App: React.FC = () => {
         style={{
           width: `${rightPanelWidth}px`,
           minWidth: '280px',
-          maxWidth: 'min(500px, calc(100vw - 360px))' // NIKDY větší než viewport - 360px (rezerva)
+          maxWidth: '500px'
         }}
-        className="hidden lg:flex shrink-0 h-full relative ml-auto"
+        className="hidden lg:flex shrink-0 h-full relative"
       >
         <ImageGalleryPanel />
       </div>
