@@ -554,10 +554,8 @@ const App: React.FC = () => {
             try {
               const thumbnail = await createThumbnail(result.imageBase64);
               await saveToGallery({
-                id: imageData.id,
                 url: result.imageBase64,
                 prompt: state.prompt,
-                timestamp: Date.now(),
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
                 thumbnail,
@@ -700,10 +698,8 @@ const App: React.FC = () => {
       try {
         const thumbnail = await createThumbnail(result.imageBase64);
         await saveToGallery({
-          id: imageId,
           url: result.imageBase64,
           prompt: editPrompt,
-          timestamp: Date.now(),
           resolution: image.resolution,
           aspectRatio: image.aspectRatio,
           thumbnail,
