@@ -1680,10 +1680,21 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Right panel - flexible width 280-500px */}
+      {/* Right panel resize handle */}
       <div
+        className="w-1 bg-transparent hover:bg-monstera-300/60 transition-colors z-30 hidden lg:block cursor-col-resize active:bg-monstera-300 h-full"
+        onMouseDown={startResizingRight}
+      />
+
+      {/* Right panel - resizable 280-500px */}
+      <div
+        ref={rightPanelRef}
+        style={{
+          width: `${rightPanelWidth}px`,
+          minWidth: '280px',
+          maxWidth: '500px'
+        }}
         className="hidden lg:flex h-full flex-col"
-        style={{ width: '280px', minWidth: '280px', maxWidth: '500px' }}
       >
         <ImageGalleryPanel />
       </div>
