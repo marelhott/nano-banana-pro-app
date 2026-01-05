@@ -1680,27 +1680,13 @@ const App: React.FC = () => {
         </div>
       </main>
 
+      {/* Right panel - FIXED 280px width, NO resize */}
       <div
-        className="w-1 bg-transparent hover:bg-monstera-300/60 transition-colors z-30 hidden lg:block cursor-col-resize active:bg-monstera-300 h-full"
-        onMouseDown={startResizingRight}
-      />
-
-      <div
-        ref={rightPanelRef}
-        style={{
-          flexBasis: `${rightPanelWidth}px`,
-          minWidth: '280px',
-          maxWidth: '500px',
-          flexShrink: 1,
-          flexGrow: 0
-        }}
-        className="hidden lg:flex h-full flex-col"
+        className="hidden lg:flex shrink-0 h-full flex-col"
+        style={{ width: '280px' }}
       >
         <ImageGalleryPanel />
       </div>
-
-      {/* Spacer to ensure right panel is fully visible */}
-      <div className="hidden lg:block shrink-0 w-5 h-full" />
 
       <ImageComparisonModal
         isOpen={!!selectedImage}
