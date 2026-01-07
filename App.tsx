@@ -591,7 +591,10 @@ const App: React.FC = () => {
               enhancedPrompt = `${state.prompt}\n\n[Technická instrukce: První ${referenceImageCount} obrázek${referenceImageCount > 1 ? 'y' : ''} ${referenceImageCount > 1 ? 'jsou' : 'je'} referenční obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu referenčního obsahu.]`;
             }
 
-            const result = await editImageWithGemini(
+            // Get selected AI provider
+            const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
+
+            const result = await provider.generateImage(
               allImages,
               enhancedPrompt,
               state.resolution,
