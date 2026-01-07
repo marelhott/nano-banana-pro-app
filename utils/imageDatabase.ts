@@ -262,7 +262,7 @@ export class SettingsDatabase {
         .from('user_settings')
         .upsert({
           user_id: userId,
-          provider_settings: settings,
+          settings: settings,  // Changed from provider_settings to settings
           updated_at: new Date().toISOString()
         });
 
@@ -284,7 +284,7 @@ export class SettingsDatabase {
     try {
       const { data, error } = await supabase
         .from('user_settings')
-        .select('provider_settings')
+        .select('settings')  // Changed from provider_settings to settings
         .eq('user_id', userId)
         .single();
 
@@ -292,9 +292,9 @@ export class SettingsDatabase {
         throw error;
       }
 
-      if (data?.provider_settings) {
+      if (data?.settings) {
         console.log('[Settings] Provider settings loaded from Supabase');
-        return data.provider_settings as ProviderSettings;
+        return data.settings as ProviderSettings;
       }
 
       return null;

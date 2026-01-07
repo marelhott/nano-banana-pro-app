@@ -1033,7 +1033,7 @@ const App: React.FC = () => {
         />
 
         {/* Output Type Toggle */}
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-4">
           <label className="text-[10px] font-bold text-monstera-600 uppercase tracking-wider">Output:</label>
           <div className="flex gap-1 bg-white border border-monstera-200 rounded p-0.5">
             <button
@@ -1092,7 +1092,7 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      <section className="space-y-1.5">
+      <section className="space-y-1.5 mt-4">
         <div className="flex items-center justify-between px-1">
           <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Referenční obrázky</label>
           {isGenerating && (
