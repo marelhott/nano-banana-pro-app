@@ -962,13 +962,13 @@ const App: React.FC = () => {
   }
 
   const renderSidebarControls = (isMobileView: boolean = false) => (
-    <div className="space-y-5">
+    <div className="space-y-2">
       {/* Tlačítko Generovat */}
-      <div className="pt-2">
+      <div className="pt-1">
         <button
           onClick={handleGenerate}
           disabled={!state.prompt.trim()}
-          className={`w-full py-3 px-6 font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale ${isGenerateClicked
+          className={`w-full py-2 px-4 font-[900] text-[12px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale ${isGenerateClicked
             ? 'bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white'
             : 'bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink'
             }`}
@@ -978,14 +978,14 @@ const App: React.FC = () => {
       </div>
 
       {/* Počet obrázků - úzký proužek */}
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         <label className="text-[8px] text-monstera-600 font-bold uppercase tracking-widest px-1">Počet obrázků</label>
-        <div className="flex items-center gap-1 bg-monstera-50 p-1 rounded-md border border-monstera-200">
+        <div className="flex items-center gap-0.5 bg-monstera-50 p-0.5 rounded-md border border-monstera-200">
           {[1, 2, 3, 4, 5].map(n => (
             <button
               key={n}
               onClick={() => setState(p => ({ ...p, numberOfImages: n }))}
-              className={`flex-1 h-6 rounded font-bold text-[10px] transition-all flex items-center justify-center ${state.numberOfImages === n ? 'bg-white text-ink shadow-sm border border-monstera-300' : 'text-monstera-500 hover:text-ink hover:bg-white/50'}`}
+              className={`flex-1 h-5 rounded font-bold text-[9px] transition-all flex items-center justify-center ${state.numberOfImages === n ? 'bg-white text-ink shadow-sm border border-monstera-300' : 'text-monstera-500 hover:text-ink hover:bg-white/50'}`}
             >
               {n}
             </button>
@@ -1102,7 +1102,7 @@ const App: React.FC = () => {
 
         <ImageUpload onImagesSelected={handleImagesSelected} compact={false} remainingSlots={MAX_IMAGES - state.sourceImages.length}>
           <div
-            className={`grid grid-cols-3 gap-1.5 p-2 rounded-md transition-all ${dragOverTarget === 'reference'
+            className={`grid grid-cols-4 gap-1 p-1 rounded-md transition-all ${dragOverTarget === 'reference'
               ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
               : 'border-2 border-transparent'
               }`}
@@ -1122,9 +1122,9 @@ const App: React.FC = () => {
                 <div className={`absolute inset-0 bg-ink/60 transition-all flex items-center justify-center ${isGenerating ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'}`}>
                   <button
                     onClick={() => setState(p => ({ ...p, sourceImages: p.sourceImages.filter(i => i.id !== img.id) }))}
-                    className="bg-white text-ink p-1.5 rounded-md shadow-xl"
+                    className="bg-white text-ink p-1 rounded-md shadow-xl"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
               </div>
@@ -1133,11 +1133,11 @@ const App: React.FC = () => {
               <ImageUpload onImagesSelected={handleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.sourceImages.length} />
             )}
             {dragOverTarget === 'reference' && state.sourceImages.length === 0 && (
-              <div className="col-span-3 flex flex-col items-center justify-center py-8 text-center">
-                <svg className="w-12 h-12 text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="col-span-4 flex flex-col items-center justify-center py-6 text-center">
+                <svg className="w-10 h-10 text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                 </svg>
-                <p className="text-sm font-bold text-monstera-600">Přetáhněte sem obrázek</p>
+                <p className="text-xs font-bold text-monstera-600">Přetáhněte sem obrázek</p>
               </div>
             )}
           </div>
@@ -1167,7 +1167,7 @@ const App: React.FC = () => {
         </div>
 
         <div
-          className={`grid grid-cols-3 gap-1.5 p-2 rounded-md transition-all ${dragOverTarget === 'style'
+          className={`grid grid-cols-4 gap-1 p-1 rounded-md transition-all ${dragOverTarget === 'style'
             ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
             : 'border-2 border-transparent'
             }`}
@@ -1184,9 +1184,9 @@ const App: React.FC = () => {
               <div className="absolute inset-0 bg-ink/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                 <button
                   onClick={() => setState(p => ({ ...p, styleImages: p.styleImages.filter(i => i.id !== img.id) }))}
-                  className="bg-white text-ink p-1.5 rounded-md shadow-xl"
+                  className="bg-white text-ink p-1 rounded-md shadow-xl"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             </div>
@@ -1195,37 +1195,17 @@ const App: React.FC = () => {
             <ImageUpload onImagesSelected={handleStyleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.styleImages.length} />
           )}
           {dragOverTarget === 'style' && state.styleImages.length === 0 && (
-            <div className="col-span-3 flex flex-col items-center justify-center py-8 text-center">
-              <svg className="w-12 h-12 text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="col-span-4 flex flex-col items-center justify-center py-6 text-center">
+              <svg className="w-10 h-10 text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
               </svg>
-              <p className="text-sm font-bold text-monstera-600">Přetáhněte sem obrázek</p>
+              <p className="text-xs font-bold text-monstera-600">Přetáhněte sem obrázek</p>
             </div>
           )}
         </div>
       </section>
 
-      <section className="bg-white border border-monstera-200 rounded-md shadow-md overflow-hidden">
-        <div className="bg-monstera-50 border-b border-monstera-200 px-3 py-2 flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5 text-monstera-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-          <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Nastavení generování</span>
-        </div>
 
-        <div className="p-3.5 space-y-3">
-          <div className="space-y-1">
-            <label className="text-[9px] text-monstera-800 font-black uppercase tracking-widest px-1">Rozlišení</label>
-            <div className="relative">
-              <select
-                value={state.resolution}
-                onChange={(e) => setState(p => ({ ...p, resolution: e.target.value }))}
-                className="w-full bg-white border border-monstera-200 text-[11px] font-bold rounded-md px-2.5 py-1.5 outline-none cursor-pointer hover:border-monstera-300 appearance-none shadow-sm"
-              >
-                {RESOLUTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* API Usage Panel */}
       <ApiUsagePanel compact={true} />
@@ -1274,7 +1254,7 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
           {/* Provider Selector */}
-          <div className="mb-6">
+          <div className="mb-2">
             <ProviderSelector
               selectedProvider={selectedProvider}
               onChange={setSelectedProvider}
