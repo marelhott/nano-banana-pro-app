@@ -32,6 +32,7 @@ import { ProviderFactory } from './services/providerFactory';
 import { SettingsDatabase } from './utils/imageDatabase';
 import { Toast, ToastType } from './components/Toast';
 import { enrichPromptWithJSON, formatJsonPromptForImage } from './utils/jsonPrompting';
+import { JsonPromptEditor, getEmptyJsonData, JsonPromptData } from './components/JsonPromptEditor';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -55,6 +56,8 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [outputType, setOutputType] = useState<'image' | 'video'>('image');
   const [useJsonMode, setUseJsonMode] = useState(false);
+  const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
+  const [jsonPromptData, setJsonPromptData] = useState<JsonPromptData>(getEmptyJsonData());
 
   const [state, setState] = useState<AppState>({
     sourceImages: [],
@@ -515,7 +518,13 @@ const App: React.FC = () => {
 
   const handleGenerate = async () => {
     setIsMobileMenuOpen(false);
-    if (!state.prompt.trim()) return;
+
+    // Validate prompt based on mode
+    if (promptMode === 'simple' && !state.prompt.trim()) return;
+    if (promptMode === 'advanced' && !jsonPromptData.subject.main.trim()) {
+      setToast({ message: 'Please fill at least the main subject in Advanced mode', type: 'error' });
+      return;
+    }
 
     // Přidat prompt do historie
     promptHistory.add(state.prompt);
@@ -585,9 +594,17 @@ const App: React.FC = () => {
             );
             const allImages = [...sourceImagesData, ...styleImagesData];
 
-            // JSON Mode enrichment (before style enhancements)
+            // Handle Advanced Mode: Serialize JSON data first
             let basePrompt = state.prompt;
-            if (useJsonMode) {
+
+            if (promptMode === 'advanced') {
+              // Serialize Advanced mode JSON data to structured prompt
+              const jsonString = JSON.stringify(jsonPromptData, null, 2);
+              basePrompt = formatJsonPromptForImage(jsonString);
+              console.log('[Advanced Mode] Serialized JSON to prompt:', basePrompt);
+            }
+            // JSON Mode enrichment (only for Simple mode)
+            else if (useJsonMode) {
               try {
                 console.log('[JSON Mode] Enriching prompt...');
                 const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
@@ -996,7 +1013,7 @@ const App: React.FC = () => {
       <div className="pt-1">
         <button
           onClick={handleGenerate}
-          disabled={!state.prompt.trim()}
+          disabled={promptMode === 'simple' ? !state.prompt.trim() : !jsonPromptData.subject.main.trim()}
           className={`w-full py-2 px-4 font-[900] text-[12px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale ${isGenerateClicked
             ? 'bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white'
             : 'bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink'
@@ -1052,14 +1069,47 @@ const App: React.FC = () => {
             <span className="text-[8px] font-bold text-monstera-400 uppercase tracking-widest">↵ to run</span>
           </div>
         </header>
-        <textarea
-          ref={isMobileView ? mobilePromptRef : promptRef}
-          value={state.prompt}
-          onChange={(e) => setState(p => ({ ...p, prompt: e.target.value }))}
-          onKeyDown={handleKeyDown}
-          placeholder=""
-          className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
-        />
+
+        {/* Mode Switcher */}
+        <div className="flex gap-1 mb-2">
+          <button
+            onClick={() => setPromptMode('simple')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded transition-all ${promptMode === 'simple'
+              ? 'bg-monstera-500 text-white shadow-sm'
+              : 'bg-monstera-50 text-monstera-700 hover:bg-monstera-100'
+              }`}
+          >
+            Simple Mode
+          </button>
+          <button
+            onClick={() => setPromptMode('advanced')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded transition-all ${promptMode === 'advanced'
+              ? 'bg-monstera-500 text-white shadow-sm'
+              : 'bg-monstera-50 text-monstera-700 hover:bg-monstera-100'
+              }`}
+          >
+            Advanced Mode
+          </button>
+        </div>
+
+        {/* Conditional Rendering: Simple Text or Advanced Editor */}
+        {promptMode === 'simple' ? (
+          <textarea
+            ref={isMobileView ? mobilePromptRef : promptRef}
+            value={state.prompt}
+            onChange={(e) => setState(p => ({ ...p, prompt: e.target.value }))}
+            onKeyDown={handleKeyDown}
+            placeholder=""
+            className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
+          />
+        ) : (
+          <div className="bg-white border border-monstera-200 rounded-md p-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+            <JsonPromptEditor
+              data={jsonPromptData}
+              onChange={setJsonPromptData}
+            />
+          </div>
+        )}
 
         {/* Output Type Toggle */}
         <div className="flex items-center gap-2 mb-4">
