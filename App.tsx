@@ -1304,9 +1304,17 @@ const App: React.FC = () => {
         style={{ width: `${sidebarWidth}px`, minWidth: '280px', maxWidth: '400px' }}
         className="hidden lg:flex border-r border-monstera-200 bg-paper flex-col z-20 h-full relative shadow-sm"
       >
-        <Header />
+        <Header onSettingsClick={() => setIsSettingsModalOpen(true)} />
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+          {/* Provider Selector */}
+          <div className="mb-6">
+            <ProviderSelector
+              selectedProvider={selectedProvider}
+              onChange={setSelectedProvider}
+              settings={providerSettings}
+            />
+          </div>
           {renderSidebarControls(false)}
         </div>
       </div>
@@ -1318,7 +1326,7 @@ const App: React.FC = () => {
 
       <main className="flex-1 h-full overflow-y-auto custom-scrollbar bg-white relative flex flex-col min-w-0">
         <div className="lg:hidden">
-          <Header />
+          <Header onSettingsClick={() => setIsSettingsModalOpen(true)} />
         </div>
 
         <div className="lg:hidden sticky top-0 z-40 bg-white/95 backdrop-blur border-y border-monstera-200 shadow-sm p-3 flex gap-3 items-center transition-all">
