@@ -1789,6 +1789,26 @@ const App: React.FC = () => {
           total={generationProgress.total}
         />
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        settings={providerSettings}
+        onSave={async (newSettings) => {
+          setProviderSettings(newSettings);
+          setToast({ message: 'Settings saved successfully!', type: 'success' });
+        }}
+      />
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };
