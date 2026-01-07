@@ -1068,7 +1068,7 @@ const App: React.FC = () => {
           <button
             onClick={handleEnhancePrompt}
             disabled={!state.prompt.trim() || isEnhancingPrompt}
-            className="flex-1 px-2 py-1.5 text-[9px] font-black uppercase tracking-widest bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white rounded transition-all disabled:opacity-50 disabled:grayscale"
+            className="flex-1 px-2 py-1.5 text-[9px] font-black uppercase tracking-widest bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white rounded transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center"
             title="AI vylepší váš prompt"
           >
             {isEnhancingPrompt ? 'Vylepšuji...' : '✨ Vylepšit prompt'}
