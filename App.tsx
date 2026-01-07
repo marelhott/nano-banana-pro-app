@@ -1071,7 +1071,7 @@ const App: React.FC = () => {
             className="flex-1 px-2 py-1.5 text-[9px] font-black uppercase tracking-widest bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white rounded transition-all disabled:opacity-50 disabled:grayscale"
             title="AI vylepší váš prompt"
           >
-            {isEnhancingPrompt ? 'Vylepšuji...' : '✨ Vylepšit AI'}
+            {isEnhancingPrompt ? 'Vylepšuji...' : '✨ Vylepšit prompt'}
           </button>
           <button
             onClick={handleUndoPrompt}
