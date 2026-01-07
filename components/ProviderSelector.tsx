@@ -7,6 +7,36 @@ interface ProviderSelectorProps {
     settings: ProviderSettings;
 }
 
+// Provider icon components
+const GeminiIcon = () => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+);
+
+const GrokIcon = () => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <circle cx="12" cy="12" r="10" strokeWidth={2} />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12M6 12h12" />
+    </svg>
+);
+
+const DalleIcon = () => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h.01M15 9h.01M9 15h6" />
+    </svg>
+);
+
+const getProviderIcon = (iconType: string) => {
+    switch (iconType) {
+        case 'gemini': return <GeminiIcon />;
+        case 'grok': return <GrokIcon />;
+        case 'dalle': return <DalleIcon />;
+        default: return null;
+    }
+};
+
 export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
     selectedProvider,
     onChange,
@@ -22,25 +52,25 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
 
     return (
         <div className="relative">
-            <label className="block text-xs font-black text-monstera-700 mb-2 uppercase tracking-widest">
+            <label className="block text-[10px] font-bold text-monstera-600 mb-1.5 uppercase tracking-wider">
                 AI Provider
             </label>
 
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full px-4 py-3 bg-white border-2 border-monstera-200 rounded-md hover:border-monstera-400 transition-colors flex items-center justify-between"
+                className="w-full px-3 py-2 bg-white border border-monstera-200 rounded text-left hover:border-monstera-300 transition-colors flex items-center justify-between group"
             >
-                <div className="flex items-center gap-3">
-                    <span className="text-2xl">{selectedMetadata.icon}</span>
-                    <div className="text-left">
-                        <div className="font-black text-sm text-ink">{selectedMetadata.name}</div>
-                        {!hasApiKey(selectedProvider) && (
-                            <div className="text-xs text-orange-600 font-bold">⚠️ No API key</div>
-                        )}
-                    </div>
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-monstera-600 shrink-0">
+                        {getProviderIcon(selectedMetadata.icon)}
+                    </span>
+                    <span className="font-medium text-xs text-ink truncate">{selectedMetadata.name}</span>
+                    {!hasApiKey(selectedProvider) && (
+                        <span className="text-[10px] text-orange-600 shrink-0">⚠</span>
+                    )}
                 </div>
                 <svg
-                    className={`w-5 h-5 text-monstera-600 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    className={`w-3.5 h-3.5 text-monstera-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -58,7 +88,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                     />
 
                     {/* Dropdown */}
-                    <div className="absolute z-40 top-full left-0 right-0 mt-2 bg-white border-2 border-monstera-200 rounded-lg shadow-xl overflow-hidden">
+                    <div className="absolute z-40 top-full left-0 right-0 mt-1 bg-white border border-monstera-200 rounded shadow-lg overflow-hidden">
                         {providers.map(provider => {
                             const metadata = PROVIDER_METADATA[provider];
                             const hasKey = hasApiKey(provider);
@@ -71,26 +101,32 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                                         onChange(provider);
                                         setIsOpen(false);
                                     }}
-                                    className={`w-full px-4 py-3 flex items-center justify-between hover:bg-monstera-50 transition-colors ${isSelected ? 'bg-monstera-100' : ''
+                                    className={`w-full px-3 py-2 flex items-center justify-between hover:bg-monstera-50 transition-colors text-left ${isSelected ? 'bg-monstera-50/50' : ''
                                         }`}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-2xl">{metadata.icon}</span>
-                                        <div className="text-left">
-                                            <div className="font-black text-sm text-ink">{metadata.name}</div>
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span className="text-monstera-600 shrink-0">
+                                            {getProviderIcon(metadata.icon)}
+                                        </span>
+                                        <div className="min-w-0">
+                                            <div className="font-medium text-xs text-ink truncate">{metadata.name}</div>
                                             {!metadata.supportsGrounding && (
-                                                <div className="text-[10px] text-monstera-500">No grounding</div>
+                                                <div className="text-[9px] text-monstera-500">No grounding</div>
                                             )}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5 shrink-0">
                                         {hasKey ? (
-                                            <span className="text-green-600 text-sm">✓</span>
+                                            <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                            </svg>
                                         ) : (
-                                            <span className="text-orange-600 text-sm">⚠️</span>
+                                            <svg className="w-3 h-3 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                            </svg>
                                         )}
                                         {isSelected && (
-                                            <div className="w-2 h-2 bg-monstera-500 rounded-full" />
+                                            <div className="w-1.5 h-1.5 bg-monstera-500 rounded-full" />
                                         )}
                                     </div>
                                 </button>

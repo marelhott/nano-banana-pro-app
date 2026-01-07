@@ -133,7 +133,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         return (
                             <div key={provider} className="border border-monstera-200 rounded-lg p-5 bg-monstera-50/30">
                                 <div className="flex items-center gap-3 mb-4">
-                                    <span className="text-3xl">{metadata.icon}</span>
+                                    <div className="w-8 h-8 bg-monstera-100 rounded flex items-center justify-center">
+                                        {metadata.icon === 'gemini' && (
+                                            <svg className="w-5 h-5 text-monstera-700" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                        )}
+                                        {metadata.icon === 'grok' && (
+                                            <svg className="w-5 h-5 text-monstera-700" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12M6 12h12" />
+                                            </svg>
+                                        )}
+                                        {metadata.icon === 'dalle' && (
+                                            <svg className="w-5 h-5 text-monstera-700" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h.01M15 9h.01M9 15h6" />
+                                            </svg>
+                                        )}
+                                    </div>
                                     <div className="flex-1">
                                         <h3 className="font-black text-sm text-ink uppercase tracking-wider">{metadata.name}</h3>
                                         {!metadata.supportsGrounding && (
