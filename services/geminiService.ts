@@ -88,6 +88,91 @@ Enhanced prompt:`;
     }
   }
 
+  /**
+   * Analyze image using Gemini Vision and extract JSON prompt structure
+   * Used for Reference Image Analysis (Phase 3)
+   */
+  async analyzeImageForJson(imageDataUrl: string): Promise<string> {
+    try {
+      const base64Data = imageDataUrl.split(',')[1];
+      const mimeType = imageDataUrl.split(';')[0].split(':')[1];
+
+      const systemInstruction = `You are an expert image analyst. Analyze this image and extract a detailed JSON structure describing it.
+
+Use this exact structure:
+{
+  "subject": {
+    "main": "primary subject description",
+    "details": ["detail 1", "detail 2"],
+    "pose_or_action": "what is happening"
+  },
+  "environment": {
+    "location": "setting",
+    "atmosphere": "mood",
+    "time_of_day": "lighting time"
+  },
+  "lighting": {
+    "type": "natural|studio|dramatic|ambient",
+    "direction": "light source direction",
+    "quality": "soft|hard|diffused",
+    "color_temperature": "warm|cool|neutral"
+  },
+  "camera": {
+    "angle": "eye_level|high_angle|low_angle|birds_eye",
+    "focal_length": "estimate in mm (24mm, 35mm, 50mm, 85mm, or 200mm)",
+    "depth_of_field": "shallow|deep",
+    "composition": "composition rule"
+  },
+  "aesthetic": {
+    "medium": "photograph|painting|illustration|3d_render",
+    "style": "artistic style",
+    "color_palette": "dominant colors",
+    "mood": "overall feeling"
+  },
+  "technical": {
+    "quality": "quality description",
+    "resolution_hint": "detail level"
+  }
+}
+
+Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no additional text.`;
+
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType
+              }
+            },
+            {
+              text: 'Analyze this image and provide a detailed JSON structure following the template provided.'
+            }
+          ]
+        },
+        config: {
+          systemInstruction: systemInstruction
+        }
+      });
+
+      let jsonText = response.text?.trim() || '';
+
+      // Clean markdown if present
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+      // Validate JSON
+      JSON.parse(jsonText);
+
+      console.log('[Gemini Vision] Analysis complete:', jsonText);
+      return jsonText;
+    } catch (error: any) {
+      console.error('[Gemini Vision] Analysis error:', error);
+      throw error;
+    }
+  }
+
   async generateImage(
     images: ImageInput[],
     prompt: string,

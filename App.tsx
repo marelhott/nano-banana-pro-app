@@ -58,6 +58,8 @@ const App: React.FC = () => {
   const [useJsonMode, setUseJsonMode] = useState(false);
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
   const [jsonPromptData, setJsonPromptData] = useState<JsonPromptData>(getEmptyJsonData());
+  const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const [state, setState] = useState<AppState>({
     sourceImages: [],
@@ -495,6 +497,45 @@ const App: React.FC = () => {
     const next = promptHistory.redo();
     if (next !== null) {
       setState(prev => ({ ...prev, prompt: next }));
+    }
+  };
+
+  const handleAnalyzeImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsAnalyzing(true);
+
+      // Convert to data URL
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const dataUrl = event.target?.result as string;
+
+          // Call Gemini Vision
+          const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
+          const jsonText = await (provider as any).analyzeImageForJson(dataUrl);
+
+          // Parse and fill editor
+          const parsedJson = JSON.parse(jsonText);
+          setJsonPromptData(parsedJson);
+
+          setToast({ message: 'Image analyzed! JSON editor auto-filled.', type: 'success' });
+          setShowAnalyzeModal(false);
+        } catch (error: any) {
+          console.error('[Analyze] Parse/analysis error:', error);
+          setToast({ message: 'Failed to analyze image. Try another image.', type: 'error' });
+        } finally {
+          setIsAnalyzing(false);
+        }
+      };
+
+      reader.readAsDataURL(file);
+    } catch (error: any) {
+      console.error('[Analyze] File read error:', error);
+      setToast({ message: 'Failed to read image file', type: 'error' });
+      setIsAnalyzing(false);
     }
   };
 
@@ -1103,11 +1144,24 @@ const App: React.FC = () => {
             className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
           />
         ) : (
-          <div className="bg-white border border-monstera-200 rounded-md p-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-            <JsonPromptEditor
-              data={jsonPromptData}
-              onChange={setJsonPromptData}
-            />
+          <div className="space-y-2">
+            {/* Analyze Image Button - Advanced Mode Only */}
+            <button
+              onClick={() => setShowAnalyzeModal(true)}
+              className="w-full px-3 py-2.5 text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded transition-all flex items-center justify-center gap-2 shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Analyze Reference Image
+            </button>
+
+            <div className="bg-white border border-monstera-200 rounded-md p-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+              <JsonPromptEditor
+                data={jsonPromptData}
+                onChange={setJsonPromptData}
+              />
+            </div>
           </div>
         )}
 
@@ -1849,6 +1903,53 @@ const App: React.FC = () => {
           setToast({ message: 'Settings saved successfully!', type: 'success' });
         }}
       />
+
+      {/* Analyze Image Modal - Phase 3 */}
+      {showAnalyzeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-bold mb-4 text-ink">Analyze Reference Image</h3>
+
+            <div className="border-2 border-dashed border-monstera-300 rounded-lg p-8 text-center bg-monstera-50/30">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAnalyzeImageSelect}
+                className="hidden"
+                id="analyze-upload"
+                disabled={isAnalyzing}
+              />
+              <label
+                htmlFor="analyze-upload"
+                className={`cursor-pointer block ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <svg className="w-12 h-12 mx-auto text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm font-bold text-ink">Click to upload image</p>
+                <p className="text-xs text-monstera-600 mt-1">Gemini Vision will extract style details</p>
+              </label>
+            </div>
+
+            {isAnalyzing && (
+              <div className="mt-4 text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-monstera-500"></div>
+                <p className="text-sm mt-2 text-monstera-700">Analyzing image with Gemini Vision...</p>
+              </div>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setShowAnalyzeModal(false)}
+                disabled={isAnalyzing}
+                className="flex-1 px-4 py-2 bg-monstera-100 hover:bg-monstera-200 text-ink rounded transition-all font-bold text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast && (
