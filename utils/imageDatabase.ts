@@ -241,3 +241,67 @@ export class ImageDatabase {
     }
   }
 }
+
+/**
+ * Provider Settings Management
+ */
+import { ProviderSettings } from '../services/aiProvider';
+
+export class SettingsDatabase {
+  /**
+   * Save provider settings to Supabase
+   */
+  static async saveProviderSettings(settings: ProviderSettings): Promise<void> {
+    const userId = getCurrentUserId();
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: userId,
+          provider_settings: settings,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      console.log('[Settings] Provider settings saved to Supabase');
+    } catch (error) {
+      console.error('[Settings] Error saving provider settings:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Load provider settings from Supabase
+   */
+  static async loadProviderSettings(): Promise<ProviderSettings | null> {
+    const userId = getCurrentUserId();
+    if (!userId) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('provider_settings')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // Not found error is OK
+        throw error;
+      }
+
+      if (data?.provider_settings) {
+        console.log('[Settings] Provider settings loaded from Supabase');
+        return data.provider_settings as ProviderSettings;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[Settings] Error loading provider settings:', error);
+      return null;
+    }
+  }
+}
+

@@ -25,6 +25,12 @@ import { PromptHistory } from './utils/promptHistory';
 import { detectLanguage, enhancePromptQuality, getPromptSuggestion } from './utils/languageSupport';
 import { ImageGalleryPanel } from './components/ImageGalleryPanel';
 import { PinAuth } from './components/PinAuth';
+import { SettingsModal } from './components/SettingsModal';
+import { ProviderSelector } from './components/ProviderSelector';
+import { AIProviderType, ProviderSettings } from './services/aiProvider';
+import { ProviderFactory } from './services/providerFactory';
+import { SettingsDatabase } from './utils/imageDatabase';
+import { Toast, ToastType } from './components/Toast';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -38,6 +44,15 @@ const App: React.FC = () => {
   // PIN Autentizace state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authUserId, setAuthUserId] = useState<string | null>(null);
+
+  // AI Provider state
+  const [selectedProvider, setSelectedProvider] = useState<AIProviderType>(AIProviderType.GEMINI);
+  const [providerSettings, setProviderSettings] = useState<ProviderSettings>({
+    [AIProviderType.GEMINI]: { apiKey: process.env.API_KEY || '', enabled: true }
+  });
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [outputType, setOutputType] = useState<'image' | 'video'>('image');
 
   const [state, setState] = useState<AppState>({
     sourceImages: [],
@@ -1263,11 +1278,17 @@ const App: React.FC = () => {
   );
 
   // Handle PIN authentication
-  const handleAuth = (userId: string) => {
+  const handleAuth = async (userId: string) => {
     setAuthUserId(userId);
     setIsAuthenticated(true);
     // Pre-load data from Supabase
     ImageDatabase.getAll();
+
+    // Load provider settings
+    const savedSettings = await SettingsDatabase.loadProviderSettings();
+    if (savedSettings) {
+      setProviderSettings(savedSettings);
+    }
   };
 
   // Show PIN auth screen if not authenticated

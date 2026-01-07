@@ -1,25 +1,35 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
-
-export interface ImageInput {
-  data: string; // base64 string with data URI prefix
-  mimeType: string;
-}
-
-export interface GenerateImageResult {
-  imageBase64: string;
-  groundingMetadata?: any;
-}
+import {
+  AIProvider,
+  AIProviderType,
+  ImageInput,
+  GenerateImageResult
+} from './aiProvider';
 
 /**
- * Vylepšit prompt pomocí AI
- * Vezme krátký prompt a rozšíří ho o detaily
+ * Gemini AI Provider Implementation
+ * Uses Google's Gemini API for image generation and editing
  */
-export const enhancePromptWithAI = async (shortPrompt: string): Promise<string> => {
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export class GeminiProvider implements AIProvider {
+  private apiKey: string;
+  private ai: GoogleGenAI;
 
-    const enhancementInstruction = `You are a professional prompt engineer. Take the following short image generation prompt and expand it into a detailed, vivid description that will produce better AI-generated images.
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+    this.ai = new GoogleGenAI({ apiKey: this.apiKey });
+  }
+
+  getName(): string {
+    return 'Gemini (Nano Banana Pro)';
+  }
+
+  getType(): AIProviderType {
+    return AIProviderType.GEMINI;
+  }
+
+  async enhancePrompt(shortPrompt: string): Promise<string> {
+    try {
+      const enhancementInstruction = `You are a professional prompt engineer. Take the following short image generation prompt and expand it into a detailed, vivid description that will produce better AI-generated images.
 
 Add specific details about:
 - Visual style and aesthetics
@@ -34,31 +44,148 @@ Short prompt: "${shortPrompt}"
 
 Enhanced prompt:`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: {
-        parts: [{ text: enhancementInstruction }],
-      },
-    });
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        contents: {
+          parts: [{ text: enhancementInstruction }],
+        },
+      });
 
-    const enhancedPrompt = response.text?.trim() || shortPrompt;
+      const enhancedPrompt = response.text?.trim() || shortPrompt;
 
-    console.log('Original prompt:', shortPrompt);
-    console.log('Enhanced prompt:', enhancedPrompt);
+      console.log('[Gemini] Original prompt:', shortPrompt);
+      console.log('[Gemini] Enhanced prompt:', enhancedPrompt);
 
-    return enhancedPrompt;
-  } catch (error: any) {
-    console.error('Prompt enhancement error:', error);
-    // V případě chyby vrátit původní prompt
-    return shortPrompt;
+      return enhancedPrompt;
+    } catch (error: any) {
+      console.error('[Gemini] Prompt enhancement error:', error);
+      return shortPrompt;
+    }
   }
+
+  async generateImage(
+    images: ImageInput[],
+    prompt: string,
+    resolution?: string,
+    aspectRatio?: string,
+    useGrounding: boolean = false
+  ): Promise<GenerateImageResult> {
+    try {
+      console.log('[Gemini] Generating image with API key:', this.apiKey.substring(0, 10) + '...');
+
+      const parts: any[] = [];
+
+      // Add all image parts
+      images.forEach((img) => {
+        const base64Data = img.data.split(',')[1];
+        parts.push({
+          inlineData: {
+            data: base64Data,
+            mimeType: img.mimeType,
+          },
+        });
+      });
+
+      // Add text prompt
+      parts.push({
+        text: prompt,
+      });
+
+      const config: any = {
+        responseModalities: [Modality.IMAGE],
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_HATE_SPEECH',
+            threshold: 'BLOCK_ONLY_HIGH'
+          },
+          {
+            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+            threshold: 'BLOCK_ONLY_HIGH'
+          },
+          {
+            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+            threshold: 'BLOCK_ONLY_HIGH'
+          },
+          {
+            category: 'HARM_CATEGORY_HARASSMENT',
+            threshold: 'BLOCK_ONLY_HIGH'
+          }
+        ]
+      };
+
+      if (useGrounding) {
+        config.tools = [{ googleSearch: {} }];
+      }
+
+      const imageConfig: any = {};
+      if (resolution) {
+        imageConfig.imageSize = resolution;
+      }
+      if (aspectRatio && aspectRatio !== 'Original') {
+        imageConfig.aspectRatio = aspectRatio;
+      }
+
+      if (Object.keys(imageConfig).length > 0) {
+        config.imageConfig = imageConfig;
+      }
+
+      const modelName = 'gemini-3-pro-image-preview';
+      console.log('[Gemini] Requesting model:', modelName, 'with config:', config);
+
+      const response = await this.ai.models.generateContent({
+        model: modelName,
+        contents: {
+          parts: parts,
+        },
+        config: config,
+      });
+
+      console.log('[Gemini] API Response metadata:', {
+        modelUsed: modelName,
+        hasCandidates: !!response.candidates,
+        candidateCount: response.candidates?.length,
+        finishReason: response.candidates?.[0]?.finishReason,
+        safetyRatings: response.candidates?.[0]?.safetyRatings,
+      });
+
+      const generatedPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+
+      if (generatedPart && generatedPart.inlineData && generatedPart.inlineData.data) {
+        const imageBytes = generatedPart.inlineData.data;
+        const imageSizeKB = Math.round(imageBytes.length * 0.75 / 1024);
+        console.log(`[Gemini] Generated image size: ~${imageSizeKB} KB`);
+
+        return {
+          imageBase64: `data:image/jpeg;base64,${imageBytes}`,
+          groundingMetadata
+        };
+      } else {
+        throw new Error("No image data returned from the model.");
+      }
+    } catch (error: any) {
+      console.error("[Gemini] API Error:", error);
+      if (error?.message?.includes("Requested entity was not found")) {
+        throw new Error("API_KEY_NOT_FOUND");
+      }
+      if (error instanceof Error) {
+        throw new Error(`Failed to generate image: ${error.message}`);
+      }
+      throw new Error("An unexpected error occurred while communicating with Gemini AI.");
+    }
+  }
+}
+
+// Legacy function - uses default provider or creates new one
+let defaultProvider: GeminiProvider | null = null;
+
+export const enhancePromptWithAI = async (shortPrompt: string): Promise<string> => {
+  if (!defaultProvider) {
+    defaultProvider = new GeminiProvider(process.env.API_KEY || '');
+  }
+  return defaultProvider.enhancePrompt(shortPrompt);
 };
 
-/**
- * Edits or transforms images based on a text prompt using Gemini.
- * DŮLEŽITÉ: První obrázek v poli images je obrázek k editaci.
- * Další obrázky (pokud jsou) slouží jako reference/kontext/inspirace pro úpravu.
- */
 export const editImageWithGemini = async (
   images: ImageInput[],
   prompt: string,
@@ -66,117 +193,8 @@ export const editImageWithGemini = async (
   aspectRatio?: string,
   useGrounding: boolean = false
 ): Promise<GenerateImageResult> => {
-  try {
-    // Create instance inside function to use the most up-to-date API key
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-    // Debug: Log API key prefix to verify which key is being used
-    const keyPrefix = process.env.API_KEY?.substring(0, 10) || 'undefined';
-    console.log('Using API key starting with:', keyPrefix);
-
-    const parts: any[] = [];
-
-    // Add all image parts
-    images.forEach((img) => {
-      const base64Data = img.data.split(',')[1];
-      parts.push({
-        inlineData: {
-          data: base64Data,
-          mimeType: img.mimeType,
-        },
-      });
-    });
-
-    // Add text prompt
-    parts.push({
-      text: prompt,
-    });
-
-    const config: any = {
-      responseModalities: [Modality.IMAGE],
-      // Nastavení safety filters na méně restriktivní úroveň
-      safetySettings: [
-        {
-          category: 'HARM_CATEGORY_HATE_SPEECH',
-          threshold: 'BLOCK_ONLY_HIGH'
-        },
-        {
-          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-          threshold: 'BLOCK_ONLY_HIGH'
-        },
-        {
-          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-          threshold: 'BLOCK_ONLY_HIGH'
-        },
-        {
-          category: 'HARM_CATEGORY_HARASSMENT',
-          threshold: 'BLOCK_ONLY_HIGH'
-        }
-      ]
-    };
-
-    if (useGrounding) {
-      config.tools = [{ googleSearch: {} }];
-    }
-
-    const imageConfig: any = {};
-    if (resolution) {
-      imageConfig.imageSize = resolution;
-    }
-    if (aspectRatio && aspectRatio !== 'Original') {
-      imageConfig.aspectRatio = aspectRatio;
-    }
-
-    if (Object.keys(imageConfig).length > 0) {
-      config.imageConfig = imageConfig;
-    }
-
-    const modelName = 'gemini-3-pro-image-preview';
-    console.log('Requesting model:', modelName, 'with config:', config);
-
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: {
-        parts: parts,
-      },
-      config: config,
-    });
-
-    // Debug: Log response metadata
-    console.log('API Response metadata:', {
-      modelUsed: modelName,
-      hasCandidates: !!response.candidates,
-      candidateCount: response.candidates?.length,
-      finishReason: response.candidates?.[0]?.finishReason,
-      safetyRatings: response.candidates?.[0]?.safetyRatings,
-      citationMetadata: response.candidates?.[0]?.citationMetadata,
-      usageMetadata: response.usageMetadata,
-    });
-
-    const generatedPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-    const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
-
-    if (generatedPart && generatedPart.inlineData && generatedPart.inlineData.data) {
-      const imageBytes = generatedPart.inlineData.data;
-      const imageSizeKB = Math.round(imageBytes.length * 0.75 / 1024); // Approximate KB from base64
-      console.log(`Generated image size: ~${imageSizeKB} KB`);
-
-      return {
-        imageBase64: `data:image/jpeg;base64,${imageBytes}`,
-        groundingMetadata
-      };
-    } else {
-      throw new Error("No image data returned from the model.");
-    }
-  } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    // Handle the specific error case for missing API key/project
-    if (error?.message?.includes("Requested entity was not found")) {
-      throw new Error("API_KEY_NOT_FOUND");
-    }
-    if (error instanceof Error) {
-      throw new Error(`Failed to generate image: ${error.message}`);
-    }
-    throw new Error("An unexpected error occurred while communicating with the AI.");
+  if (!defaultProvider) {
+    defaultProvider = new GeminiProvider(process.env.API_KEY || '');
   }
+  return defaultProvider.generateImage(images, prompt, resolution, aspectRatio, useGrounding);
 };
