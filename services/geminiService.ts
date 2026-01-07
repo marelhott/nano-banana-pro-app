@@ -63,6 +63,31 @@ Enhanced prompt:`;
     }
   }
 
+  /**
+   * Generate text using Gemini with optional system instruction
+   * Used for JSON prompt enrichment
+   */
+  async generateText(prompt: string, systemInstruction?: string): Promise<string> {
+    try {
+      const config: any = {
+        model: 'gemini-2.0-flash-exp',
+        contents: {
+          parts: [{ text: prompt }],
+        },
+      };
+
+      if (systemInstruction) {
+        config.systemInstruction = systemInstruction;
+      }
+
+      const response = await this.ai.models.generateContent(config);
+      return response.text?.trim() || '';
+    } catch (error: any) {
+      console.error('[Gemini] Text generation error:', error);
+      throw error;
+    }
+  }
+
   async generateImage(
     images: ImageInput[],
     prompt: string,

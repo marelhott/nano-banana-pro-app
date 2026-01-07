@@ -31,6 +31,7 @@ import { AIProviderType, ProviderSettings } from './services/aiProvider';
 import { ProviderFactory } from './services/providerFactory';
 import { SettingsDatabase } from './utils/imageDatabase';
 import { Toast, ToastType } from './components/Toast';
+import { enrichPromptWithJSON, formatJsonPromptForImage } from './utils/jsonPrompting';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -53,6 +54,7 @@ const App: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [outputType, setOutputType] = useState<'image' | 'video'>('image');
+  const [useJsonMode, setUseJsonMode] = useState(false);
 
   const [state, setState] = useState<AppState>({
     sourceImages: [],
@@ -583,12 +585,39 @@ const App: React.FC = () => {
             );
             const allImages = [...sourceImagesData, ...styleImagesData];
 
+            // JSON Mode enrichment (before style enhancements)
+            let basePrompt = state.prompt;
+            if (useJsonMode) {
+              try {
+                console.log('[JSON Mode] Enriching prompt...');
+                const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
+
+                // Use Gemini to generate JSON structure
+                const jsonPrompt = await enrichPromptWithJSON(
+                  state.prompt,
+                  async (prompt, systemInstruction) => {
+                    return await (provider as any).generateText(prompt, systemInstruction);
+                  }
+                );
+
+                console.log('[JSON Mode] Generated JSON:', jsonPrompt);
+
+                // Convert JSON to formatted prompt
+                basePrompt = formatJsonPromptForImage(jsonPrompt);
+                console.log('[JSON Mode] Formatted prompt:', basePrompt);
+              } catch (error) {
+                console.error('[JSON Mode] Enrichment failed, using original prompt:', error);
+                // Fallback to original prompt
+                basePrompt = state.prompt;
+              }
+            }
+
             // Vytvořit prompt s informací o stylu, pokud jsou stylové obrázky
-            let enhancedPrompt = state.prompt;
+            let enhancedPrompt = basePrompt;
             if (state.styleImages.length > 0) {
               const styleImageCount = state.styleImages.length;
               const referenceImageCount = state.sourceImages.length;
-              enhancedPrompt = `${state.prompt}\n\n[Technická instrukce: První ${referenceImageCount} obrázek${referenceImageCount > 1 ? 'y' : ''} ${referenceImageCount > 1 ? 'jsou' : 'je'} referenční obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu referenčního obsahu.]`;
+              enhancedPrompt = `${basePrompt}\n\n[Technická instrukce: První ${referenceImageCount} obrázek${referenceImageCount > 1 ? 'y' : ''} ${referenceImageCount > 1 ? 'jsou' : 'je'} referenční obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu referenčního obsahu.]`;
             }
 
             // Get selected AI provider
@@ -1061,6 +1090,33 @@ const App: React.FC = () => {
               Video
             </button>
           </div>
+        </div>
+
+        {/* JSON Mode Toggle */}
+        <div className="flex items-center justify-between mb-4 bg-monstera-50/50 border border-monstera-200 rounded-md px-3 py-2">
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-bold text-monstera-800 uppercase tracking-wider cursor-pointer" onClick={() => setUseJsonMode(!useJsonMode)}>
+              JSON Mode
+            </label>
+            <div className="group relative">
+              <svg className="w-3 h-3 text-monstera-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="invisible group-hover:visible absolute left-0 top-5 z-50 w-48 p-2 bg-ink text-white text-[9px] rounded-md shadow-xl">
+                Strukturovaný JSON prompt pro přesnější kontrolu generování
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setUseJsonMode(!useJsonMode)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useJsonMode ? 'bg-monstera-500' : 'bg-monstera-200'
+              }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${useJsonMode ? 'translate-x-6' : 'translate-x-1'
+                }`}
+            />
+          </button>
         </div>
 
         {/* Prompt actions */}
