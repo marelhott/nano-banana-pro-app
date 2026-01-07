@@ -8,7 +8,6 @@ import {
 /**
  * Grok AI Provider Implementation
  * Uses xAI's Grok API for image generation
- * Note: Grok API may have different capabilities than Gemini
  */
 export class GrokProvider implements AIProvider {
     private apiKey: string;
@@ -69,16 +68,43 @@ export class GrokProvider implements AIProvider {
         useGrounding: boolean = false
     ): Promise<GenerateImageResult> {
         try {
-            console.log('[Grok] Generating image with Grok API...');
+            console.log('[Grok] Generating image with grok-2-image-1212...');
 
-            // Note: Grok's image generation API may be different
-            // This is a placeholder implementation that needs to be updated
-            // based on actual Grok image generation API documentation
+            // Grok uses a text-to-image endpoint
+            const response = await fetch(`${this.baseUrl}/images/generations`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'grok-2-image-1212',
+                    prompt: prompt,
+                    n: 1, // Number of images (1-10 supported)
+                    response_format: 'b64_json' // Get base64 directly
+                })
+            });
 
-            // For now, we'll use Grok to enhance the prompt and indicate limitation
-            console.warn('[Grok] Direct image generation API not yet implemented. Using text completion only.');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('[Grok] API Error Response:', errorData);
+                throw new Error(`Grok API error: ${response.statusText}`);
+            }
 
-            throw new Error('Grok image generation is not yet available. Please use Gemini or ChatGPT for image generation.');
+            const data = await response.json();
+
+            // Grok returns image in b64_json format
+            const imageB64 = data.data?.[0]?.b64_json;
+
+            if (!imageB64) {
+                throw new Error('No image data returned from Grok API');
+            }
+
+            console.log('[Grok] Image generated successfully');
+
+            return {
+                imageBase64: `data:image/png;base64,${imageB64}`
+            };
         } catch (error: any) {
             console.error('[Grok] API Error:', error);
             if (error instanceof Error) {
