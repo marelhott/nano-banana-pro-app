@@ -3,7 +3,8 @@ import {
   AIProvider,
   AIProviderType,
   ImageInput,
-  GenerateImageResult
+  GenerateImageResult,
+  GenerateVideoResult
 } from './aiProvider';
 
 /**
@@ -170,6 +171,67 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
     } catch (error: any) {
       console.error('[Gemini Vision] Analysis error:', error);
       throw error;
+    }
+  }
+
+  async generateVideo(
+    images: ImageInput[],
+    prompt: string,
+    duration: number = 8
+  ): Promise<GenerateVideoResult> {
+    try {
+      console.log('[Gemini Veo] Generating video...');
+      console.log('[Gemini Veo] Prompt:', prompt, 'Duration:', duration, 'Images:', images.length);
+
+      const parts: any[] = [];
+
+      // Add images if provided (image-to-video mode)
+      if (images.length > 0) {
+        console.log('[Gemini Veo] Using image-to-video mode');
+        for (const image of images) {
+          const base64Data = image.data.split(',')[1];
+          parts.push({
+            inlineData: {
+              data: base64Data,
+              mimeType: image.mimeType
+            }
+          });
+        }
+      }
+
+      // Add text prompt
+      parts.push({ text: prompt });
+
+      // Call Veo API 
+      const response = await this.ai.models.generateContent({
+        model: 'veo-3.1-generate-preview',
+        contents: { parts },
+        config: {
+          videoDuration: `${duration}s` as any,
+          aspectRatio: '16:9' as any
+        }
+      });
+
+      console.log('[Gemini Veo] Response received');
+
+      // Extract video URL
+      const videoUrl = (response as any).videoUrl ||
+        (response as any).candidates?.[0]?.content?.parts?.[0]?.videoUrl;
+
+      if (!videoUrl) {
+        console.error('[Gemini Veo] No video URL in response');
+        throw new Error('No video URL returned from Veo API');
+      }
+
+      console.log('[Gemini Veo] Video generated:', videoUrl);
+
+      return {
+        videoUrl: videoUrl,
+        duration: duration
+      };
+    } catch (error: any) {
+      console.error('[Gemini Veo] Error:', error);
+      throw new Error(`Failed to generate video: ${error.message}`);
     }
   }
 

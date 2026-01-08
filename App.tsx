@@ -772,37 +772,84 @@ const App: React.FC = () => {
               enhancedPrompt = `${basePrompt}\n\n[Technická instrukce: První ${referenceImageCount} obrázek${referenceImageCount > 1 ? 'y' : ''} ${referenceImageCount > 1 ? 'jsou' : 'je'} referenční obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu referenčního obsahu.]`;
             }
 
+
             // Get selected AI provider
             const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
 
-            const result = await provider.generateImage(
-              allImages,
-              enhancedPrompt,
-              state.resolution,
-              state.aspectRatio,
-              false
-            );
+            // Check output type and call appropriate method
+            if (outputType === 'video') {
+              // Video generation
+              if (!provider.generateVideo) {
+                throw new Error('Selected provider does not support video generation. Please use Gemini.');
+              }
 
-            setState(prev => ({
-              ...prev,
-              generatedImages: prev.generatedImages.map(img =>
-                img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
-              ),
-            }));
+              console.log('[Video Generation] Starting video generation with', selectedProvider);
+              const videoResult = await provider.generateVideo(
+                allImages,
+                enhancedPrompt,
+                8 // 8 second duration
+              );
 
-            // Automaticky uložit do galerie
-            try {
-              const thumbnail = await createThumbnail(result.imageBase64);
-              await saveToGallery({
-                url: result.imageBase64,
-                prompt: state.prompt,
-                resolution: state.resolution,
-                aspectRatio: state.aspectRatio,
-                thumbnail,
-              });
-            } catch (err) {
-              console.error('Failed to save to gallery:', err);
-            }
+              setState(prev => ({
+                ...prev,
+                generatedImages: prev.generatedImages.map(img =>
+                  img.id === imageData.id
+                    ? {
+                      ...img,
+                      status: 'success',
+                      url: videoResult.videoUrl || '',
+                      isVideo: true,
+                      duration: videoResult.duration
+                    }
+                    : img
+                ),
+              }));
+
+              // Save video to gallery (as video type)
+              try {
+                await saveToGallery({
+                  url: videoResult.videoUrl || '',
+                  prompt: state.prompt,
+                  resolution: '720p',
+                  aspectRatio: '16:9',
+                  timestamp: Date.now(),
+                  isVideo: true
+                });
+              } catch (error) {
+                console.error('[Video] Failed to save to gallery:', error);
+              }
+            } else {
+              // Image generation (existing logic)
+              const result = await provider.generateImage(
+                allImages,
+                enhancedPrompt,
+                state.resolution,
+                state.aspectRatio,
+                false
+              );
+
+
+              setState(prev => ({
+                ...prev,
+                generatedImages: prev.generatedImages.map(img =>
+                  img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
+                ),
+              }));
+
+              // Automaticky uložit do galerie
+              try {
+                const thumbnail = await createThumbnail(result.imageBase64);
+                await saveToGallery({
+                  url: result.imageBase64,
+                  prompt: state.prompt,
+                  resolution: state.resolution,
+                  aspectRatio: state.aspectRatio,
+                  thumbnail,
+                });
+              } catch (err) {
+                console.error('Failed to save to gallery:', err);
+              }
+            } // Close else block for image generation
 
             // Trackovat API usage
             ApiUsageTracker.trackImageGeneration(state.resolution, 1);
