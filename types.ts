@@ -10,14 +10,25 @@ export interface GeneratedImage {
   url?: string;
   prompt: string;
   timestamp: number;
-  status: 'loading' | 'success' | 'error';
+  status: 'loading' | 'success' | 'error' | 'idle';
   error?: string;
   groundingMetadata?: any;
   resolution?: string;
   aspectRatio?: string;
   styleCode?: number;
-  versions?: ImageVersion[]; // Historie předchozích verzí
-  isEditing?: boolean; // Je obrázek právě upravován?
+  versions?: Array<{ url: string; prompt: string; timestamp: number }>;
+  isEditing?: boolean;
+  isVideo?: boolean;
+  duration?: number;
+
+  // Variant generation metadata
+  variantInfo?: {
+    isVariant: boolean;
+    variantNumber: number; // 1, 2, or 3
+    variant: string; // "Photorealistic", "Artistic", "Technical"
+    approach: string; // Detailed approach description
+    originalPrompt: string; // The simple prompt user entered
+  };
   selected?: boolean; // Pro batch operations
   collectionIds?: string[]; // ID kolekcí, do kterých patří
 }

@@ -28,22 +28,23 @@ export class GeminiProvider implements AIProvider {
     return AIProviderType.GEMINI;
   }
 
+
   async enhancePrompt(shortPrompt: string): Promise<string> {
     try {
-      const enhancementInstruction = `You are a professional prompt engineer. Take the following short image generation prompt and expand it into a detailed, vivid description that will produce better AI-generated images.
+      const enhancementInstruction = `Jsi profesionální prompt engineer. Vezmi následující krátký prompt pro generování obrázků a rozšiř ho do detailního, živého popisu, který vytvoří lepší AI-generované obrázky.
 
-Add specific details about:
-- Visual style and aesthetics
-- Lighting and atmosphere
-- Colors and textures
-- Composition and perspective
-- Quality descriptors (highly detailed, professional, etc.)
+Přidej konkrétní detaily o:
+- Vizuálním stylu a estetice
+- Osvětlení a atmosféře
+- Barvách a texturách
+- Kompozici a perspektivě
+- Deskriptorech kvality (vysoce detailní, profesionální, atd.)
 
-Keep the core idea but make it more descriptive and specific. Return ONLY the enhanced prompt, nothing else.
+Zachovej hlavní nápad, ale udělej ho popisnějším a konkrétnějším. Vrať POUZE vylepšený prompt v češtině, nic jiného.
 
-Short prompt: "${shortPrompt}"
+Krátký prompt: "${shortPrompt}"
 
-Enhanced prompt:`;
+Vylepšený prompt:`;
 
       const response = await this.ai.models.generateContent({
         model: 'gemini-2.0-flash-exp',
@@ -63,6 +64,169 @@ Enhanced prompt:`;
       return shortPrompt;
     }
   }
+
+  /**
+   * Generate 3 sophisticated prompt variants from a simple prompt
+   * Each variant uses a different approach while maintaining the same core content
+   */
+  async generate3PromptVariants(simplePrompt: string): Promise<Array<{ variant: string; approach: string; prompt: string }>> {
+    try {
+      const systemInstruction = `Jsi expert na vytváření AI promptů pro generování obrázků.
+
+Tvůj úkol: Vezmi jednoduchý prompt a vytvoř 3 RŮZNÉ sofistikované verze.
+
+## KRITICKÉ: FORMÁT VÝSTUPU
+Vypiš POUZE validní JSON pole s touto strukturou:
+[
+  {
+    "variant": "Fotorealistický",
+    "approach": "Profesionální fotografický styl",
+    "prompt": "detailní fotografický prompt v češtině..."
+  },
+  {
+    "variant": "Umělecký",
+    "approach": "Umělecké a kompoziční zaměření",  
+    "prompt": "umělecký prompt v češtině..."
+  },
+  {
+    "variant": "Technický",
+    "approach": "Technická kvalita a rendering",
+    "prompt": "technicky detailní prompt v češtině..."
+  }
+]
+
+## PRAVIDLA PRO VARIANTY
+
+Varianta 1 - FOTOREALISTICKÝ:
+- Přidej detaily fotoaparátu (ohnisková vzdálenost, clona, ISO)
+- Specifikuj osvětlení (zlatá hodina, studio, přirozené světlo)
+- Zahrň fotografická kompoziční pravidla
+- Přidej reference na kamery/filmy
+- Použij profesionální fotografickou terminologii
+- PROMPT PIŠ V ČEŠTINĚ
+
+Varianta 2 - UMĚLECKÝ:
+- Specifikuj umělecké médium (olejomalba, akvarel, konceptuální umění, ilustrace)
+- Definuj kompozici a rámování
+- Přidej náladu a atmosféru
+- Zahrň barevnou paletu a estetický styl
+- Reference na umělecké směry (impresionismus, surrealismus, atd.)
+- PROMPT PIŠ V ČEŠTINĚ
+
+Varianta 3 - TECHNICKÝ:
+- Zaměř se na kvalitu renderu (4K, 8K, vysoce detailní, ostrý zaostření)
+- Přidej technické specifikace
+- Zahrň popisovače úrovně detailů
+- Specifikuj náznaky renderovacího enginu (Unreal Engine, Octane, atd.)
+- Použij profesionální CGI/VFX terminologii
+- PROMPT PIŠ V ČEŠTINĚ
+
+## PRAVIDLA
+1. Všechny 3 varianty MUSÍ mít stejný hlavní obsah/předmět
+2. Každá varianta používá ODLIŠNÝ přístup
+3. Buď specifický a detailní (100-200 slov každý)
+4. Zachovej původní záměr
+5. VŠECHNY PROMPTY V ČEŠTINĚ
+6. ŽÁDNÁ vysvětlení, ŽÁDNÝ markdown, POUZE JSON pole
+
+## PŘÍKLAD
+
+Jednoduchý prompt: "kočka sedící na okenním parapetu"
+
+Výstup:
+[
+  {
+    "variant": "Fotorealistický",
+    "approach": "Profesionální fotografie",
+    "prompt": "Nadýchaná oranžová pruhovaná kočka graciézně sedící na dřevěném parapetu osvětleném sluncem, zachycená fotoaparátem Canon EOS R5 s objektivem 85mm f/1.4 vytvářejícím malou hloubku ostrosti při f/2.0. Měkké ranní sluneční světlo pronikající skrz krajkové záclony vytváří jemné obrysové osvětlení na kočičí srsti. Snímek z úrovně očí kočky, rozostřené pozadí pokojových rostlin. Profesionální fotografování domácích mazlíčků, teplá teplota barev 5500K, vysoce detailní textura srsti, fotorealistické, rozlišení 8K, oceněná kompozice."
+  },
+  {
+    "variant": "Umělecký",
+    "approach": "Impresionistický malířský styl",
+    "prompt": "Elegantní zrzavá kočka posazená na ošuntělém okenním parapetu, vykreslená v měkkém impresionistickém malířském stylu připomínajícím Pierra Bonnarda. Volné tahy štětcem zachycují skvrnitě rozptýlené sluneční světlo tančící po kočičí srsti. Teplá zlatá a jantarová barevná paleta s nádechem krémové a pálené sieny. Snová atmosféra s jemnými stíny, umělecká kompozice podle pravidla třetin. Olejomalba na plátně, romantická a klidná nálada, intimní domácí scéna, viditelné tahy štětcem, malířská kvalita."
+  },
+  {
+    "variant": "Technický",
+    "approach": "Vysoce věrný 3D render",
+    "prompt": "Fotorealistický 3D render oranžové pruhované kočky sedící na dřevěném okenním parapetu, vytvořený v Unreal Engine 5 s povoleným ray tracingem. Vysoce detailní simulace srsti s viditelnými jednotlivými chlupy pomocí XGen, fyzikálně přesné osvětlení pomocí HDRI environment mapy. Rozlišení 4K, ostření po celé ploše, subsurface scattering na uších prosvítlých světlem z okna. Hyperrealistické materiály na texturách dřevěných žil a látek, kvalita octane renderu, profesionální úroveň detailů archviz, path-traced globální osvětlení."
+  }
+]
+
+## CHECKLIST PŘED VÝSTUPEM
+✓ Všechny 3 varianty mají stejný hlavní předmět
+✓ Každá varianta používá odlišnou terminologii (foto/umění/tech)
+✓ Každý prompt je 100-200 slov
+✓ Výstup je validní JSON pole
+✓ Žádné markdown bloky kódu
+✓ Žádná vysvětlení
+✓ VŠECHNY PROMPTY V ČEŠTINĚ
+
+Uživatelův jednoduchý prompt: "${simplePrompt}"
+
+VYPIŠ POUZE JSON POLE:`;
+
+      console.log('[Gemini 3 Variants] Generating variants for:', simplePrompt);
+
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.0-flash-exp',
+        contents: {
+          parts: [{ text: systemInstruction }],
+        },
+        config: {
+          temperature: 0.7, // Balanced creativity
+          maxOutputTokens: 4096, // Enough for 3 detailed prompts
+        },
+      });
+
+      let jsonText = response.text?.trim() || '';
+
+      // Clean markdown if present
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+      console.log('[Gemini 3 Variants] Raw response:', jsonText.substring(0, 200) + '...');
+
+      // Parse JSON
+      const variants = JSON.parse(jsonText);
+
+      // Validate structure
+      if (!Array.isArray(variants) || variants.length !== 3) {
+        throw new Error('Invalid response: expected array of 3 variants');
+      }
+
+      for (const v of variants) {
+        if (!v.variant || !v.approach || !v.prompt) {
+          throw new Error('Invalid variant structure: missing required fields');
+        }
+      }
+
+      console.log('[Gemini 3 Variants] Successfully generated variants:', variants.map(v => v.variant).join(', '));
+
+      return variants;
+    } catch (error: any) {
+      console.error('[Gemini 3 Variants] Error:', error);
+
+      // Fallback: return simple variants in Czech
+      console.log('[Gemini 3 Variants] Using fallback variants (Czech)');
+      return [
+        {
+          variant: 'Fotorealistický',
+          approach: 'Profesionální fotografie',
+          prompt: `${simplePrompt}, profesionální fotografie, vysoce detailní, rozlišení 8K, fotorealistické`
+        },
+        {
+          variant: 'Umělecký',
+          approach: 'Umělecké ztvárnění',
+          prompt: `${simplePrompt}, umělecký malířský styl, živé barvy, krásná kompozice`
+        },
+        {
+          variant: 'Technický',
+          approach: 'Technická kvalita',
+          prompt: `${simplePrompt}, ultra detailní, rozlišení 4K, ostré zaostření, profesionální kvalita renderu`
+        }
+      ];
+    }
+  }
+
 
   /**
    * Generate text using Gemini with optional system instruction
@@ -207,9 +371,9 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         model: 'veo-3.1-generate-preview',
         contents: { parts },
         config: {
-          videoDuration: `${duration}s` as any,
-          aspectRatio: '16:9' as any
-        }
+          videoDuration: `${duration}s`,
+          aspectRatio: '16:9'
+        } as any
       });
 
       console.log('[Gemini Veo] Response received');

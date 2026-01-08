@@ -651,6 +651,147 @@ const App: React.FC = () => {
     setTimeout(() => handleGenerate(), 100);
   };
 
+  /**
+   * Generate 3 sophisticated prompt variants and create images for each
+   */
+  const handleGenerate3Variants = async () => {
+    if (!state.prompt.trim() || isGenerating) return;
+
+    setIsMobileMenuOpen(false);
+    setIsGenerating(true);
+    setGenerationProgress({ current: 0, total: 3 });
+
+    try {
+      // 1. Generate 3 prompt variants using AI
+      const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
+
+      console.log('[3 Variants] Generating variants for prompt:', state.prompt);
+      setToast({ message: '🎨 Generating 3 sophisticated variants...', type: 'info' });
+
+      const variants = await (provider as any).generate3PromptVariants(state.prompt);
+
+      console.log('[3 Variants] Received variants:', variants.map((v: any) => v.variant).join(', '));
+
+      // Prepare source images data if any
+      const sourceImagesData = await Promise.all(
+        state.sourceImages.map(async img => ({
+          data: await urlToDataUrl(img.url),
+          mimeType: img.file.type
+        }))
+      );
+
+      // 2. Generate image for each variant sequentially
+      for (let i = 0; i < variants.length; i++) {
+        const variant = variants[i];
+
+        console.log(`[3 Variants] Processing variant ${i + 1}/3: ${variant.variant}`);
+
+        // Add delay between requests (except first one)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+
+        // Create loading entry
+        const newId = `${Date.now()}-variant-${i}`;
+        setState(prev => ({
+          ...prev,
+          generatedImages: [{
+            id: newId,
+            prompt: variant.prompt,
+            timestamp: Date.now() + i,
+            status: 'loading' as const,
+            resolution: state.resolution,
+            aspectRatio: state.aspectRatio,
+            variantInfo: {
+              isVariant: true,
+              variantNumber: i + 1,
+              variant: variant.variant,
+              approach: variant.approach,
+              originalPrompt: state.prompt
+            }
+          }, ...prev.generatedImages]
+        }));
+
+        // Generate image with retry logic
+        let retryCount = 0;
+        const maxRetries = 3;
+        let success = false;
+
+        while (retryCount <= maxRetries && !success) {
+          try {
+            const result = await provider.generateImage(
+              sourceImagesData,
+              variant.prompt,
+              state.resolution,
+              state.aspectRatio,
+              false
+            );
+
+            setState(prev => ({
+              ...prev,
+              generatedImages: prev.generatedImages.map(img =>
+                img.id === newId
+                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata }
+                  : img
+              )
+            }));
+
+            // Save to gallery
+            try {
+              const thumbnail = await createThumbnail(result.imageBase64);
+              await saveToGallery({
+                url: result.imageBase64,
+                prompt: variant.prompt,
+                resolution: state.resolution,
+                aspectRatio: state.aspectRatio,
+                thumbnail
+              });
+            } catch (err) {
+              console.error(`[3 Variants] Failed to save variant ${i + 1} to gallery:`, err);
+            }
+
+            // Track API usage
+            ApiUsageTracker.trackImageGeneration(state.resolution, 1);
+
+            setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
+            success = true;
+          } catch (err: any) {
+            const is429 = err.message?.includes('429') ||
+              err.message?.includes('TooManyRequests') ||
+              err.message?.includes('RESOURCE_EXHAUSTED');
+
+            if (is429 && retryCount < maxRetries) {
+              retryCount++;
+              const waitTime = 5000 * Math.pow(2, retryCount - 1);
+              console.log(`[3 Variants] Rate limit for variant ${i + 1}, waiting ${waitTime / 1000}s (retry ${retryCount}/${maxRetries})`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            } else {
+              console.error(`[3 Variants] Failed to generate variant ${i + 1}:`, err);
+              setState(prev => ({
+                ...prev,
+                generatedImages: prev.generatedImages.map(img =>
+                  img.id === newId
+                    ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' }
+                    : img
+                )
+              }));
+              break;
+            }
+          }
+        }
+      }
+
+      setToast({ message: '✨ 3 variants generated successfully!', type: 'success' });
+    } catch (error: any) {
+      console.error('[3 Variants] Error:', error);
+      setToast({ message: `Failed to generate variants: ${error.message}`, type: 'error' });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(null);
+    }
+  };
+
+
   const handleGenerate = async () => {
     setIsMobileMenuOpen(false);
 
@@ -812,7 +953,6 @@ const App: React.FC = () => {
                   prompt: state.prompt,
                   resolution: '720p',
                   aspectRatio: '16:9',
-                  timestamp: Date.now(),
                   isVideo: true
                 });
               } catch (error) {
@@ -1202,6 +1342,21 @@ const App: React.FC = () => {
             }`}
         >
           {isGenerating ? 'Generuji' : 'Generovat'}
+        </button>
+      </div>
+
+      {/* Tlačítko Generate 3 Variants */}
+      <div className="pt-1">
+        <button
+          onClick={handleGenerate3Variants}
+          disabled={!state.prompt.trim() || isGenerating}
+          className="w-full py-2 px-4 font-[900] text-[11px] uppercase tracking-[0.15em] border-2 border-purple-600 rounded-md transition-all shadow-[4px_4px_0_rgba(147,51,234,0.5)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale bg-gradient-to-br from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white flex items-center justify-center gap-2"
+          title="Generate 3 sophisticated variants of your prompt"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
+          <span>{isGenerating ? 'Generuji varianty...' : '✨ 3 Varianty'}</span>
         </button>
       </div>
 
