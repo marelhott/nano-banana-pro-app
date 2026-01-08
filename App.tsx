@@ -1831,7 +1831,11 @@ const App: React.FC = () => {
         }}
         className="hidden lg:flex h-full flex-col"
       >
-        <ImageGalleryPanel />
+        <ImageGalleryPanel
+          onDragStart={(imageData, type) => {
+            console.log('[Drag] Started from gallery:', type, imageData);
+          }}
+        />
       </div>
 
       <ImageComparisonModal
