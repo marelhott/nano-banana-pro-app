@@ -11,6 +11,8 @@ export interface GalleryImage {
   resolution?: string;
   aspectRatio?: string;
   thumbnail?: string; // URL thumbnailů z Storage
+  isVideo?: boolean;   // Flag for video results
+  duration?: number;   // Video duration in seconds
 }
 
 // Uložit obrázek do galerie
