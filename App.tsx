@@ -389,13 +389,44 @@ const App: React.FC = () => {
     e.stopPropagation();
     setDragOverTarget(null);
 
-    try {
-      const data = e.dataTransfer.getData('application/json');
-      if (data) {
-        const imageData = JSON.parse(data);
-        const { url, fileName, fileType } = imageData;
+    console.log('[Drop Reference] Drop event received');
 
-        // Konvertuj data URL na File objekt
+    try {
+      // Try JSON first
+      let imageData = null;
+      const jsonData = e.dataTransfer.getData('application/json');
+
+      if (jsonData) {
+        console.log('[Drop Reference] Got JSON data:', jsonData);
+        imageData = JSON.parse(jsonData);
+      } else {
+        // Fallback to text/plain
+        const url = e.dataTransfer.getData('text/plain');
+        console.log('[Drop Reference] Got text/plain data:', url);
+        if (url) {
+          imageData = {
+            url: url,
+            fileName: 'dropped-image.jpg',
+            fileType: 'image/jpeg'
+          };
+        }
+      }
+
+      if (!imageData || !imageData.url) {
+        console.warn('[Drop Reference] No valid image data found');
+        return;
+      }
+
+      const { url, fileName, fileType } = imageData;
+
+      // Kontrola jestli už není v seznamu
+      if (state.sourceImages.some(img => img.url === url)) {
+        console.log('[Drop Reference] Image already in list');
+        return;
+      }
+
+      // Konvertuj URL na File objekt
+      try {
         const response = await fetch(url);
         const blob = await response.blob();
         const file = new File([blob], fileName, { type: fileType });
@@ -411,24 +442,71 @@ const App: React.FC = () => {
           sourceImages: [...prev.sourceImages, newImage],
           error: null,
         }));
+
+        console.log('[Drop Reference] Image added successfully');
+      } catch (fetchError) {
+        console.error('[Drop Reference] Failed to fetch image, using URL directly:', fetchError);
+        // Fallback - použij URL přímo bez File objektu
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: url,
+          file: new File([], fileName, { type: fileType }) // Dummy file
+        };
+
+        setState(prev => ({
+          ...prev,
+          sourceImages: [...prev.sourceImages, newImage],
+          error: null,
+        }));
       }
     } catch (error) {
-      console.error('Drop failed:', error);
+      console.error('[Drop Reference] Drop failed:', error);
     }
-  }, []);
+  }, [state.sourceImages]);
 
   const handleDropStyle = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverTarget(null);
 
-    try {
-      const data = e.dataTransfer.getData('application/json');
-      if (data) {
-        const imageData = JSON.parse(data);
-        const { url, fileName, fileType } = imageData;
+    console.log('[Drop Style] Drop event received');
 
-        // Konvertuj data URL na File objekt
+    try {
+      // Try JSON first
+      let imageData = null;
+      const jsonData = e.dataTransfer.getData('application/json');
+
+      if (jsonData) {
+        console.log('[Drop Style] Got JSON data:', jsonData);
+        imageData = JSON.parse(jsonData);
+      } else {
+        // Fallback to text/plain
+        const url = e.dataTransfer.getData('text/plain');
+        console.log('[Drop Style] Got text/plain data:', url);
+        if (url) {
+          imageData = {
+            url: url,
+            fileName: 'dropped-image.jpg',
+            fileType: 'image/jpeg'
+          };
+        }
+      }
+
+      if (!imageData || !imageData.url) {
+        console.warn('[Drop Style] No valid image data found');
+        return;
+      }
+
+      const { url, fileName, fileType } = imageData;
+
+      // Kontrola jestli už není v seznamu
+      if (state.styleImages.some(img => img.url === url)) {
+        console.log('[Drop Style] Image already in list');
+        return;
+      }
+
+      // Konvertuj URL na File objekt
+      try {
         const response = await fetch(url);
         const blob = await response.blob();
         const file = new File([blob], fileName, { type: fileType });
@@ -444,11 +522,27 @@ const App: React.FC = () => {
           styleImages: [...prev.styleImages, newImage],
           error: null,
         }));
+
+        console.log('[Drop Style] Image added successfully');
+      } catch (fetchError) {
+        console.error('[Drop Style] Failed to fetch image, using URL directly:', fetchError);
+        // Fallback - použij URL přímo bez File objektu
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: url,
+          file: new File([], fileName, { type: fileType }) // Dummy file
+        };
+
+        setState(prev => ({
+          ...prev,
+          styleImages: [...prev.styleImages, newImage],
+          error: null,
+        }));
       }
     } catch (error) {
-      console.error('Drop failed:', error);
+      console.error('[Drop Style] Drop failed:', error);
     }
-  }, []);
+  }, [state.styleImages]);
 
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
