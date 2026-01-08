@@ -1354,48 +1354,46 @@ const App: React.FC = () => {
           )}
         </div>
 
-        <ImageUpload onImagesSelected={handleImagesSelected} compact={false} remainingSlots={MAX_IMAGES - state.sourceImages.length}>
-          <div
-            className={`grid grid-cols-4 gap-1 p-1 rounded-md transition-all ${dragOverTarget === 'reference'
-              ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
-              : 'border-2 border-transparent'
-              }`}
-            onDragOver={handleDragOverReference}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDropReference}
-          >
-            {state.sourceImages.map((img) => (
-              <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
-                <img
-                  src={img.url}
-                  className={`w-full h-full object-cover transition-all duration-500 ${isGenerating ? 'blur-sm scale-105' : 'blur-0 scale-100'}`}
-                />
-                {isGenerating && (
-                  <div className="absolute inset-0 bg-white/20 pointer-events-none" />
-                )}
-                <div className={`absolute inset-0 bg-ink/60 transition-all flex items-center justify-center ${isGenerating ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'}`}>
-                  <button
-                    onClick={() => setState(p => ({ ...p, sourceImages: p.sourceImages.filter(i => i.id !== img.id) }))}
-                    className="bg-white text-ink p-1 rounded-md shadow-xl"
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
+        <div
+          className={`grid grid-cols-4 gap-1 p-1 rounded-md transition-all ${dragOverTarget === 'reference'
+            ? 'bg-monstera-100 border-2 border-dashed border-monstera-400 ring-2 ring-monstera-200'
+            : 'border-2 border-transparent'
+            }`}
+          onDragOver={handleDragOverReference}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDropReference}
+        >
+          {state.sourceImages.map((img) => (
+            <div key={img.id} className="relative group aspect-square rounded-md overflow-hidden border border-monstera-200 bg-monstera-50 shadow-sm transition-all hover:border-monstera-300">
+              <img
+                src={img.url}
+                className={`w-full h-full object-cover transition-all duration-500 ${isGenerating ? 'blur-sm scale-105' : 'blur-0 scale-100'}`}
+              />
+              {isGenerating && (
+                <div className="absolute inset-0 bg-white/20 pointer-events-none" />
+              )}
+              <div className={`absolute inset-0 bg-ink/60 transition-all flex items-center justify-center ${isGenerating ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'}`}>
+                <button
+                  onClick={() => setState(p => ({ ...p, sourceImages: p.sourceImages.filter(i => i.id !== img.id) }))}
+                  className="bg-white text-ink p-1 rounded-md shadow-xl"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
               </div>
-            ))}
-            {state.sourceImages.length < MAX_IMAGES && (
-              <ImageUpload onImagesSelected={handleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.sourceImages.length} />
-            )}
-            {dragOverTarget === 'reference' && state.sourceImages.length === 0 && (
-              <div className="col-span-4 flex flex-col items-center justify-center py-6 text-center">
-                <svg className="w-10 h-10 text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                </svg>
-                <p className="text-xs font-bold text-monstera-600">Přetáhněte sem obrázek</p>
-              </div>
-            )}
-          </div>
-        </ImageUpload>
+            </div>
+          ))}
+          {state.sourceImages.length < MAX_IMAGES && (
+            <ImageUpload onImagesSelected={handleImagesSelected} compact={true} remainingSlots={MAX_IMAGES - state.sourceImages.length} />
+          )}
+          {dragOverTarget === 'reference' && state.sourceImages.length === 0 && (
+            <div className="col-span-4 flex flex-col items-center justify-center py-6 text-center">
+              <svg className="w-10 h-10 text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              <p className="text-xs font-bold text-monstera-600">Přetáhněte sem obrázek</p>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* Oddělovač mezi referenčními a stylovými obrázky */}
