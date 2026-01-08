@@ -200,11 +200,30 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
             className="group relative aspect-square bg-monstera-50 rounded-md overflow-hidden border-2 border-monstera-200 hover:border-monstera-400 transition-all cursor-pointer shadow-sm hover:shadow-lg"
             title="Klikněte pro velké zobrazení nebo přetáhněte do pole nalevo"
           >
-            <img
-              src={image.url}
-              alt={image.prompt}
-              className="w-full h-full object-cover"
-            />
+            {image.isVideo ? (
+              <>
+                <video
+                  src={image.url}
+                  className="w-full h-full object-cover"
+                  muted
+                  loop
+                  playsInline
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                  <div className="bg-white/90 rounded-full p-3 shadow-lg">
+                    <svg className="w-6 h-6 text-monstera-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <img
+                src={image.url}
+                alt={image.prompt}
+                className="w-full h-full object-cover"
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="absolute bottom-0 left-0 right-0 p-2 space-y-1">
                 <p className="text-white text-[9px] font-bold line-clamp-2" title={image.prompt}>
