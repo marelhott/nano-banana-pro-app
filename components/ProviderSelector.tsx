@@ -53,7 +53,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
     return (
         <div className="relative">
             <label className="block text-[10px] font-bold text-monstera-600 mb-1.5 uppercase tracking-wider">
-                AI Provider
+                AI Poskytovatel
             </label>
 
             <button
@@ -111,7 +111,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                                         <div className="min-w-0">
                                             <div className="font-medium text-xs text-ink truncate">{metadata.name}</div>
                                             {!metadata.supportsGrounding && (
-                                                <div className="text-[9px] text-monstera-500">No grounding</div>
+                                                <div className="text-[9px] text-monstera-500">Grounding nedostupný</div>
                                             )}
                                         </div>
                                     </div>

@@ -111,7 +111,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
                         </div>
-                        <h2 className="text-lg font-black text-ink uppercase tracking-wider">AI Provider Settings</h2>
+                        <h2 className="text-lg font-black text-ink uppercase tracking-wider">Nastavení AI Poskytovatele</h2>
                     </div>
                     <button
                         onClick={onClose}
@@ -155,17 +155,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <div className="flex-1">
                                         <h3 className="font-black text-sm text-ink uppercase tracking-wider">{metadata.name}</h3>
                                         {!metadata.supportsGrounding && (
-                                            <p className="text-xs text-monstera-600 mt-1">Grounding not supported</p>
+                                            <p className="text-xs text-monstera-600 mt-1">Grounding není podporován</p>
                                         )}
                                     </div>
                                     {testResult === 'success' && (
                                         <div className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded">
-                                            ✓ Valid
+                                            ✓ Platný
                                         </div>
                                     )}
                                     {testResult === 'error' && (
                                         <div className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">
-                                            ✗ Invalid
+                                            ✗ Neplatný
                                         </div>
                                     )}
                                 </div>
@@ -173,21 +173,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <div className="space-y-3">
                                     <div>
                                         <label className="block text-xs font-bold text-monstera-700 mb-2 uppercase tracking-wider">
-                                            API Key
+                                            API Klíč
                                         </label>
                                         <div className="relative">
                                             <input
                                                 type={showKeys[provider] ? 'text' : 'password'}
                                                 value={config?.apiKey || ''}
                                                 onChange={(e) => handleApiKeyChange(provider, e.target.value)}
-                                                placeholder={`Enter ${metadata.name} API key...`}
+                                                placeholder={`Zadejte API klíč pro ${metadata.name}...`}
                                                 className="w-full px-4 py-2.5 border-2 border-monstera-200 rounded-md focus:border-monstera-400 focus:outline-none font-mono text-sm pr-24"
                                             />
                                             <button
                                                 onClick={() => toggleShowKey(provider)}
                                                 className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-monstera-600 hover:text-monstera-800 transition-colors"
                                             >
-                                                {showKeys[provider] ? 'Hide' : 'Show'}
+                                                {showKeys[provider] ? 'Skrýt' : 'Zobrazit'}
                                             </button>
                                         </div>
                                     </div>
@@ -197,7 +197,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         disabled={!config?.apiKey || testing === provider}
                                         className="w-full px-4 py-2 bg-monstera-400 hover:bg-monstera-500 disabled:bg-monstera-200 disabled:cursor-not-allowed text-ink font-black text-xs uppercase tracking-widest rounded-md transition-all border border-ink"
                                     >
-                                        {testing === provider ? 'Testing...' : 'Test Connection'}
+                                        {testing === provider ? 'Testuji...' : 'Otestovat připojení'}
                                     </button>
                                 </div>
                             </div>
@@ -211,13 +211,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onClick={onClose}
                         className="px-5 py-2.5 font-bold text-sm text-monstera-700 hover:bg-monstera-100 rounded-md transition-colors"
                     >
-                        Cancel
+                        Zrušit
                     </button>
                     <button
                         onClick={handleSave}
                         className="px-5 py-2.5 bg-monstera-500 hover:bg-monstera-600 text-white font-black text-sm uppercase tracking-wider rounded-md transition-all border border-ink shadow-md"
                     >
-                        Save Settings
+                        Uložit Nastavení
                     </button>
                 </div>
             </div>

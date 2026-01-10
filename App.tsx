@@ -1413,7 +1413,7 @@ const App: React.FC = () => {
 
       <section className="space-y-1">
         <header className="flex items-center justify-between px-1">
-          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Prompt</label>
+          <label className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Zadání (Prompt)</label>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsTemplatesModalOpen(true)}
@@ -1438,7 +1438,7 @@ const App: React.FC = () => {
               onSelectPrompt={(prompt) => setState(p => ({ ...p, prompt }))}
               currentPrompt={state.prompt}
             />
-            <span className="text-[8px] font-bold text-monstera-400 uppercase tracking-widest">↵ to run</span>
+            <span className="text-[8px] font-bold text-monstera-400 uppercase tracking-widest">↵ spustit</span>
           </div>
         </header>
 
@@ -1451,7 +1451,7 @@ const App: React.FC = () => {
               : 'bg-monstera-50 text-monstera-700 hover:bg-monstera-100'
               }`}
           >
-            Simple Mode
+            Jednoduchý Režim
           </button>
           <button
             onClick={() => setPromptMode('advanced')}
@@ -1460,7 +1460,7 @@ const App: React.FC = () => {
               : 'bg-monstera-50 text-monstera-700 hover:bg-monstera-100'
               }`}
           >
-            Interpretive Mode
+            Interpretační Režim
           </button>
         </div>
 
@@ -1471,8 +1471,8 @@ const App: React.FC = () => {
           onChange={(e) => setState(p => ({ ...p, prompt: e.target.value }))}
           onKeyDown={handleKeyDown}
           placeholder={promptMode === 'advanced'
-            ? "Describe your image naturally. Select a variant below to control the interpretation..."
-            : "Describe your image..."}
+            ? "Popište obrázek přirozeně. Vyberte variantu níže pro určení stylu interpretace..."
+            : "Popište obrázek..."}
           className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
         />
 
@@ -1489,12 +1489,12 @@ const App: React.FC = () => {
             <label
               htmlFor="json-upload"
               className="text-[10px] font-bold text-monstera-600 bg-monstera-50 border border-monstera-200 px-2 py-1.5 rounded cursor-pointer hover:bg-monstera-100 hover:border-monstera-300 transition-all flex items-center gap-1.5 shadow-sm"
-              title="Attach a JSON file to influence generation"
+              title="Připojit JSON soubor pro ovlivnění generování"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              {jsonContext ? 'Change JSON' : 'Attach JSON Context'}
+              {jsonContext ? 'Změnit JSON' : 'Připojit JSON Kontext'}
             </label>
 
             {jsonContext && (
@@ -1505,7 +1505,7 @@ const App: React.FC = () => {
                 <button
                   onClick={() => setJsonContext(null)}
                   className="text-blue-400 hover:text-blue-600 transition-colors"
-                  title="Remove JSON context"
+                  title="Odstranit JSON kontext"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1522,9 +1522,9 @@ const App: React.FC = () => {
             {/* Variant Selector */}
             <div className="grid grid-cols-3 gap-1.5">
               {[
-                { id: 'A', label: 'Variant A', sub: 'Authenticity', desc: 'Maximum Authenticity (Reality-First). Natural, imperfect, credible.' },
-                { id: 'B', label: 'Variant B', sub: 'Enhancement', desc: 'Maximum Enhancement (Idealized). Polished, cinematic, premium.' },
-                { id: 'C', label: 'Variant C', sub: 'Balanced', desc: 'Balanced Realism (Natural + Aesthetic). Neutral default.' },
+                { id: 'A', label: 'Varianta A', sub: 'Autenticita', desc: 'Maximální autenticita (Priorita reality). Přirozené, nedokonalé, věrohodné.' },
+                { id: 'B', label: 'Varianta B', sub: 'Vylepšení', desc: 'Maximální vylepšení (Idealizované). Vybroušené, filmové, prémiové.' },
+                { id: 'C', label: 'Varianta C', sub: 'Vyvážené', desc: 'Vyvážený realismus (Přirozené + Estetické). Neutrální výchozí.' },
               ].map((v) => (
                 <button
                   key={v.id}
@@ -1562,8 +1562,8 @@ const App: React.FC = () => {
                 <div className={`w-8 h-4 rounded-full peer-focus:outline-none transition-colors ${faceIdentityMode ? 'bg-amber-500' : 'bg-monstera-200'} peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all`}></div>
               </div>
               <div className="flex flex-col">
-                <span className={`text-[9px] font-black uppercase tracking-wider ${faceIdentityMode ? 'text-amber-800' : 'text-monstera-600'}`}>Face Identity Preservation</span>
-                <span className="text-[8px] text-monstera-500">Prioritize facial fidelity over aesthetics</span>
+                <span className={`text-[9px] font-black uppercase tracking-wider ${faceIdentityMode ? 'text-amber-800' : 'text-monstera-600'}`}>Zachování Identity Tváře</span>
+                <span className="text-[8px] text-monstera-500">Upřednostnit věrnost tváře před estetikou</span>
               </div>
             </label>
           </div>

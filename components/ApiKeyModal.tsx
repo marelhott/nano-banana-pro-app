@@ -19,17 +19,17 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onKeySelected }) => {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-ink/40 backdrop-blur-[2px] p-6 animate-fade">
       <div className="max-w-md w-full bg-white border border-monstera-200 rounded-md shadow-2xl flex flex-col items-start text-left relative overflow-hidden animate-fadeIn">
-        
+
         {/* Header */}
         <div className="w-full bg-monstera-50 border-b border-monstera-200 px-4 py-3 flex items-center gap-2">
-           <span className="text-base">🍌</span>
-           <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Mulen nano</span>
+          <span className="text-base">🍌</span>
+          <span className="text-[10px] font-black text-monstera-800 uppercase tracking-widest">Mulen nano</span>
         </div>
 
         {/* Content */}
         <div className="p-6 space-y-4 text-base font-medium text-ink leading-relaxed">
           <p>
-            To run Mulen nano, you must select an API key from a paid GCP project.
+            Pro spuštění Mulen nano musíte vybrat API klíč z placeného GCP projektu.
           </p>
           <p>
             <a
@@ -38,7 +38,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onKeySelected }) => {
               rel="noopener noreferrer"
               className="text-ink underline hover:text-monstera-500 transition-colors font-bold"
             >
-              Learn about billing
+              Informace o fakturaci
             </a>
           </p>
         </div>
@@ -49,7 +49,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onKeySelected }) => {
             onClick={handleOpenKeyPicker}
             className="w-full py-3 bg-ink hover:bg-monstera-900 text-white font-bold text-[10px] uppercase tracking-widest rounded-md transition-all shadow-sm active:scale-[0.98]"
           >
-            Select API Key
+            Vybrat API Klíč
           </button>
         </div>
 

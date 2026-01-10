@@ -295,7 +295,7 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
             </svg>
-            <span className="truncate">Save</span>
+            <span className="truncate">Uložené</span>
             {savedImages.length > 0 && (
               <span className="ml-1 text-[8px] bg-white/30 px-1.5 py-0.5 rounded-full shrink-0">
                 {savedImages.length}
@@ -314,7 +314,7 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
-            <span className="truncate">AI</span>
+            <span className="truncate">Vygenerované</span>
             {generatedImages.length > 0 && (
               <span className="ml-1 text-[8px] bg-white/30 px-1.5 py-0.5 rounded-full shrink-0">
                 {generatedImages.length}
