@@ -119,12 +119,20 @@ const App: React.FC = () => {
       // V simple mode: buď textový prompt, nebo prompt z referenčního obrázku
       const hasTextPrompt = state.prompt.trim().length > 0;
       const hasReferencePrompt = state.sourceImages.some(img => img.prompt && img.prompt.trim().length > 0);
+      const hasAnyReference = state.sourceImages.length > 0;
+
+      // Pro VIDEO režim: povolit i pokud jsou jen reference obrázky (image-to-video)
+      if (outputType === 'video') {
+        return hasTextPrompt || hasReferencePrompt || hasAnyReference;
+      }
+
+      // Pro IMAGE režim: vyžadovat prompt (textový nebo z reference)
       return hasTextPrompt || hasReferencePrompt;
     } else {
       // V advanced mode: kontrola JSON dat
       return jsonPromptData.subject.main.trim().length > 0;
     }
-  }, [promptMode, state.prompt, state.sourceImages, jsonPromptData.subject.main]);
+  }, [promptMode, state.prompt, state.sourceImages, jsonPromptData.subject.main, outputType]);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -900,6 +908,10 @@ const App: React.FC = () => {
               if (imageWithPrompt?.prompt) {
                 basePrompt = imageWithPrompt.prompt;
                 console.log('[Video Generation] Using prompt from reference image:', basePrompt);
+              } else if (outputType === 'video') {
+                // Pro video bez promptu použij výchozí instrukci pro image-to-video
+                basePrompt = 'Animate this image with smooth, natural motion';
+                console.log('[Video Generation] Using default image-to-video prompt:', basePrompt);
               }
             }
 
