@@ -54,7 +54,6 @@ const App: React.FC = () => {
   });
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const [outputType, setOutputType] = useState<'image' | 'video'>('image');
   const [useJsonMode, setUseJsonMode] = useState(false);
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
   const [jsonPromptData, setJsonPromptData] = useState<JsonPromptData>(getEmptyJsonData());
@@ -116,23 +115,14 @@ const App: React.FC = () => {
   // Vypočítat zda lze generovat (prompt vyplněn NEBO existuje referenční obrázek s promptem)
   const canGenerate = useMemo(() => {
     if (promptMode === 'simple') {
-      // V simple mode: buď textový prompt, nebo prompt z referenčního obrázku
       const hasTextPrompt = state.prompt.trim().length > 0;
       const hasReferencePrompt = state.sourceImages.some(img => img.prompt && img.prompt.trim().length > 0);
-      const hasAnyReference = state.sourceImages.length > 0;
-
-      // Pro VIDEO režim: povolit i pokud jsou jen reference obrázky (image-to-video)
-      if (outputType === 'video') {
-        return hasTextPrompt || hasReferencePrompt || hasAnyReference;
-      }
-
-      // Pro IMAGE režim: vyžadovat prompt (textový nebo z reference)
       return hasTextPrompt || hasReferencePrompt;
     } else {
       // V advanced mode: kontrola JSON dat
       return jsonPromptData.subject.main.trim().length > 0;
     }
-  }, [promptMode, state.prompt, state.sourceImages, jsonPromptData.subject.main, outputType]);
+  }, [promptMode, state.prompt, state.sourceImages, jsonPromptData.subject.main]);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -824,18 +814,9 @@ const App: React.FC = () => {
 
     // Validate prompt based on mode
     if (promptMode === 'simple') {
-      // Pro VIDEO režim: povolit pokud jsou jakékoli reference obrázky
-      if (outputType === 'video') {
-        if (!state.prompt.trim() && !hasReferencePrompt && !hasAnyReference) {
-          setToast({ message: 'Přetáhněte alespoň jeden obrázek pro generování videa', type: 'error' });
-          return;
-        }
-      } else {
-        // Pro IMAGE režim: vyžadovat prompt
-        if (!state.prompt.trim() && !hasReferencePrompt) {
-          setToast({ message: 'Vyplňte textový prompt nebo přetáhněte obrázek z galerie', type: 'error' });
-          return;
-        }
+      if (!state.prompt.trim() && !hasReferencePrompt) {
+        setToast({ message: 'Vyplňte textový prompt nebo přetáhněte obrázek z galerie', type: 'error' });
+        return;
       }
     }
     if (promptMode === 'advanced' && !jsonPromptData.subject.main.trim()) {
@@ -919,11 +900,7 @@ const App: React.FC = () => {
               const imageWithPrompt = state.sourceImages.find(img => img.prompt);
               if (imageWithPrompt?.prompt) {
                 basePrompt = imageWithPrompt.prompt;
-                console.log('[Video Generation] Using prompt from reference image:', basePrompt);
-              } else if (outputType === 'video') {
-                // Pro video bez promptu použij výchozí instrukci pro image-to-video
-                basePrompt = 'Animate this image with smooth, natural motion';
-                console.log('[Video Generation] Using default image-to-video prompt:', basePrompt);
+                console.log('[Generation] Using prompt from reference image:', basePrompt);
               }
             }
 
@@ -970,79 +947,36 @@ const App: React.FC = () => {
             // Get selected AI provider
             const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
 
-            // Check output type and call appropriate method
-            if (outputType === 'video') {
-              // Video generation
-              if (!provider.generateVideo) {
-                throw new Error('Selected provider does not support video generation. Please use Gemini.');
-              }
-
-              console.log('[Video Generation] Starting video generation with', selectedProvider);
-              const videoResult = await provider.generateVideo(
-                allImages,
-                enhancedPrompt,
-                8 // 8 second duration
-              );
-
-              setState(prev => ({
-                ...prev,
-                generatedImages: prev.generatedImages.map(img =>
-                  img.id === imageData.id
-                    ? {
-                      ...img,
-                      status: 'success',
-                      url: videoResult.videoUrl || '',
-                      isVideo: true,
-                      duration: videoResult.duration
-                    }
-                    : img
-                ),
-              }));
-
-              // Save video to gallery (as video type)
-              try {
-                await saveToGallery({
-                  url: videoResult.videoUrl || '',
-                  prompt: state.prompt,
-                  resolution: '720p',
-                  aspectRatio: '16:9',
-                  isVideo: true
-                });
-              } catch (error) {
-                console.error('[Video] Failed to save to gallery:', error);
-              }
-            } else {
-              // Image generation (existing logic)
-              const result = await provider.generateImage(
-                allImages,
-                enhancedPrompt,
-                state.resolution,
-                state.aspectRatio,
-                false
-              );
+            // Image generation
+            const result = await provider.generateImage(
+              allImages,
+              enhancedPrompt,
+              state.resolution,
+              state.aspectRatio,
+              false
+            );
 
 
-              setState(prev => ({
-                ...prev,
-                generatedImages: prev.generatedImages.map(img =>
-                  img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
-                ),
-              }));
+            setState(prev => ({
+              ...prev,
+              generatedImages: prev.generatedImages.map(img =>
+                img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
+              ),
+            }));
 
-              // Automaticky uložit do galerie
-              try {
-                const thumbnail = await createThumbnail(result.imageBase64);
-                await saveToGallery({
-                  url: result.imageBase64,
-                  prompt: state.prompt,
-                  resolution: state.resolution,
-                  aspectRatio: state.aspectRatio,
-                  thumbnail,
-                });
-              } catch (err) {
-                console.error('Failed to save to gallery:', err);
-              }
-            } // Close else block for image generation
+            // Automaticky uložit do galerie
+            try {
+              const thumbnail = await createThumbnail(result.imageBase64);
+              await saveToGallery({
+                url: result.imageBase64,
+                prompt: state.prompt,
+                resolution: state.resolution,
+                aspectRatio: state.aspectRatio,
+                thumbnail,
+              });
+            } catch (err) {
+              console.error('Failed to save to gallery:', err);
+            }
 
             // Trackovat API usage
             ApiUsageTracker.trackImageGeneration(state.resolution, 1);
@@ -1514,36 +1448,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Output Type Toggle */}
-        <div className="flex items-center gap-2 mb-4">
-          <label className="text-[10px] font-bold text-monstera-600 uppercase tracking-wider">Output:</label>
-          <div className="flex gap-1 bg-white border border-monstera-200 rounded p-0.5">
-            <button
-              onClick={() => setOutputType('image')}
-              className={`px-2 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-all ${outputType === 'image'
-                ? 'bg-monstera-400 text-ink shadow-sm'
-                : 'text-monstera-500 hover:text-ink hover:bg-monstera-50'
-                }`}
-            >
-              <svg className="w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Image
-            </button>
-            <button
-              onClick={() => setOutputType('video')}
-              className={`px-2 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-all ${outputType === 'video'
-                ? 'bg-monstera-400 text-ink shadow-sm'
-                : 'text-monstera-500 hover:text-ink hover:bg-monstera-50'
-                }`}
-            >
-              <svg className="w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              Video
-            </button>
-          </div>
-        </div>
 
         {/* JSON Mode Toggle */}
         <div className="flex items-center justify-between mb-4 bg-monstera-50/50 border border-monstera-200 rounded-md px-3 py-2">

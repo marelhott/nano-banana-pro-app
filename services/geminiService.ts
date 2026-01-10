@@ -3,8 +3,7 @@ import {
   AIProvider,
   AIProviderType,
   ImageInput,
-  GenerateImageResult,
-  GenerateVideoResult
+  GenerateImageResult
 } from './aiProvider';
 
 /**
