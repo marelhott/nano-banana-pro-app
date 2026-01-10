@@ -56,6 +56,7 @@ const App: React.FC = () => {
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
   const [advancedVariant, setAdvancedVariant] = useState<'A' | 'B' | 'C'>('C'); // Default: Balanced
   const [faceIdentityMode, setFaceIdentityMode] = useState(false);
+  const [jsonContext, setJsonContext] = useState<{ fileName: string; content: any } | null>(null);
   const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -601,6 +602,29 @@ const App: React.FC = () => {
     }
   };
 
+  const handleJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/json" && !file.name.endsWith('.json')) {
+      setToast({ message: 'Only JSON files are allowed', type: 'error' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = JSON.parse(e.target?.result as string);
+        setJsonContext({ fileName: file.name, content });
+        setToast({ message: 'JSON context attached successfully', type: 'success' });
+      } catch (err) {
+        console.error('JSON Parse Error:', err);
+        setToast({ message: 'Invalid JSON file content', type: 'error' });
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleGenerateVariations = async (baseImage: GeneratedImage) => {
     if (!baseImage.url) return;
 
@@ -903,6 +927,14 @@ const App: React.FC = () => {
                 basePrompt = imageWithPrompt.prompt;
                 console.log('[Generation] Using prompt from reference image:', basePrompt);
               }
+            }
+
+            // Append JSON context if present (High Priority Context)
+            if (jsonContext) {
+              basePrompt += `\n\n[DODATEČNÝ KONTEXT Z JSON SOUBORU (${jsonContext.fileName})]\n`;
+              basePrompt += JSON.stringify(jsonContext.content, null, 2);
+              basePrompt += `\n\n[INSTRUKCE K JSONU: Použij tato data jako dodatečný kontext, parametry nebo nastavení pro generování obrazu. Mají vysokou prioritu.]`;
+              console.log('[Generation] Appended JSON context to prompt');
             }
 
             // Apply Interpretive Mode Logic
@@ -1443,6 +1475,46 @@ const App: React.FC = () => {
             : "Describe your image..."}
           className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
         />
+
+        {/* JSON Context Upload (Available in both modes) */}
+        <div className="mt-2 mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              accept=".json"
+              id="json-upload"
+              className="hidden"
+              onChange={handleJsonUpload}
+            />
+            <label
+              htmlFor="json-upload"
+              className="text-[10px] font-bold text-monstera-600 bg-monstera-50 border border-monstera-200 px-2 py-1.5 rounded cursor-pointer hover:bg-monstera-100 hover:border-monstera-300 transition-all flex items-center gap-1.5 shadow-sm"
+              title="Attach a JSON file to influence generation"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {jsonContext ? 'Change JSON' : 'Attach JSON Context'}
+            </label>
+
+            {jsonContext && (
+              <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded border border-blue-100 animate-fadeIn">
+                <span className="text-[9px] text-blue-700 font-medium truncate max-w-[150px]">
+                  {jsonContext.fileName}
+                </span>
+                <button
+                  onClick={() => setJsonContext(null)}
+                  className="text-blue-400 hover:text-blue-600 transition-colors"
+                  title="Remove JSON context"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Advanced Mode: Interpretation Variants */}
         {promptMode === 'advanced' && (
