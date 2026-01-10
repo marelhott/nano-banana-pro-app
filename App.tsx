@@ -820,11 +820,23 @@ const App: React.FC = () => {
 
     // Kontrola zda existuje prompt z referenčních obrázků
     const hasReferencePrompt = state.sourceImages.some(img => img.prompt);
+    const hasAnyReference = state.sourceImages.length > 0;
 
     // Validate prompt based on mode
-    if (promptMode === 'simple' && !state.prompt.trim() && !hasReferencePrompt) {
-      setToast({ message: 'Vyplňte textový prompt nebo přetáhněte obrázek z galerie', type: 'error' });
-      return;
+    if (promptMode === 'simple') {
+      // Pro VIDEO režim: povolit pokud jsou jakékoli reference obrázky
+      if (outputType === 'video') {
+        if (!state.prompt.trim() && !hasReferencePrompt && !hasAnyReference) {
+          setToast({ message: 'Přetáhněte alespoň jeden obrázek pro generování videa', type: 'error' });
+          return;
+        }
+      } else {
+        // Pro IMAGE režim: vyžadovat prompt
+        if (!state.prompt.trim() && !hasReferencePrompt) {
+          setToast({ message: 'Vyplňte textový prompt nebo přetáhněte obrázek z galerie', type: 'error' });
+          return;
+        }
+      }
     }
     if (promptMode === 'advanced' && !jsonPromptData.subject.main.trim()) {
       setToast({ message: 'Please fill at least the main subject in Advanced mode', type: 'error' });
