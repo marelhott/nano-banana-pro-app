@@ -113,6 +113,19 @@ const App: React.FC = () => {
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const mobilePromptRef = useRef<HTMLTextAreaElement>(null);
 
+  // Vypočítat zda lze generovat (prompt vyplněn NEBO existuje referenční obrázek s promptem)
+  const canGenerate = useMemo(() => {
+    if (promptMode === 'simple') {
+      // V simple mode: buď textový prompt, nebo prompt z referenčního obrázku
+      const hasTextPrompt = state.prompt.trim().length > 0;
+      const hasReferencePrompt = state.sourceImages.some(img => img.prompt && img.prompt.trim().length > 0);
+      return hasTextPrompt || hasReferencePrompt;
+    } else {
+      // V advanced mode: kontrola JSON dat
+      return jsonPromptData.subject.main.trim().length > 0;
+    }
+  }, [promptMode, state.prompt, state.sourceImages, jsonPromptData.subject.main]);
+
   useEffect(() => {
     const checkKey = async () => {
       try {
@@ -417,7 +430,7 @@ const App: React.FC = () => {
         return;
       }
 
-      const { url, fileName, fileType } = imageData;
+      const { url, fileName, fileType, prompt } = imageData;
 
       // Kontrola jestli už není v seznamu
       if (state.sourceImages.some(img => img.url === url)) {
@@ -434,7 +447,8 @@ const App: React.FC = () => {
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
           url: url,
-          file: file
+          file: file,
+          prompt: prompt // Uložit prompt pokud existuje
         };
 
         setState(prev => ({
@@ -443,14 +457,15 @@ const App: React.FC = () => {
           error: null,
         }));
 
-        console.log('[Drop Reference] Image added successfully');
+        console.log('[Drop Reference] Image added successfully', prompt ? `with prompt: ${prompt}` : 'without prompt');
       } catch (fetchError) {
         console.error('[Drop Reference] Failed to fetch image, using URL directly:', fetchError);
         // Fallback - použij URL přímo bez File objektu
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
           url: url,
-          file: new File([], fileName, { type: fileType }) // Dummy file
+          file: new File([], fileName, { type: fileType }), // Dummy file
+          prompt: prompt // Uložit prompt pokud existuje
         };
 
         setState(prev => ({
@@ -795,8 +810,14 @@ const App: React.FC = () => {
   const handleGenerate = async () => {
     setIsMobileMenuOpen(false);
 
+    // Kontrola zda existuje prompt z referenčních obrázků
+    const hasReferencePrompt = state.sourceImages.some(img => img.prompt);
+
     // Validate prompt based on mode
-    if (promptMode === 'simple' && !state.prompt.trim()) return;
+    if (promptMode === 'simple' && !state.prompt.trim() && !hasReferencePrompt) {
+      setToast({ message: 'Vyplňte textový prompt nebo přetáhněte obrázek z galerie', type: 'error' });
+      return;
+    }
     if (promptMode === 'advanced' && !jsonPromptData.subject.main.trim()) {
       setToast({ message: 'Please fill at least the main subject in Advanced mode', type: 'error' });
       return;
@@ -873,6 +894,15 @@ const App: React.FC = () => {
             // Handle Advanced Mode: Serialize JSON data first
             let basePrompt = state.prompt;
 
+            // Pokud není vyplněn hlavní prompt, použij prompt z prvního referenčního obrázku
+            if (!basePrompt.trim() && state.sourceImages.length > 0) {
+              const imageWithPrompt = state.sourceImages.find(img => img.prompt);
+              if (imageWithPrompt?.prompt) {
+                basePrompt = imageWithPrompt.prompt;
+                console.log('[Video Generation] Using prompt from reference image:', basePrompt);
+              }
+            }
+
             if (promptMode === 'advanced') {
               // Serialize Advanced mode JSON data to structured prompt
               const jsonString = JSON.stringify(jsonPromptData, null, 2);
@@ -887,7 +917,7 @@ const App: React.FC = () => {
 
                 // Use Gemini to generate JSON structure
                 const jsonPrompt = await enrichPromptWithJSON(
-                  state.prompt,
+                  basePrompt.trim() || state.prompt, // Use basePrompt if available
                   async (prompt, systemInstruction) => {
                     return await (provider as any).generateText(prompt, systemInstruction);
                   }
@@ -900,8 +930,7 @@ const App: React.FC = () => {
                 console.log('[JSON Mode] Formatted prompt:', basePrompt);
               } catch (error) {
                 console.error('[JSON Mode] Enrichment failed, using original prompt:', error);
-                // Fallback to original prompt
-                basePrompt = state.prompt;
+                // Fallback to original prompt or reference prompt
               }
             }
 
@@ -1335,7 +1364,7 @@ const App: React.FC = () => {
       <div className="pt-1">
         <button
           onClick={handleGenerate}
-          disabled={promptMode === 'simple' ? !state.prompt.trim() : !jsonPromptData.subject.main.trim()}
+          disabled={!canGenerate}
           className={`w-full py-2 px-4 font-[900] text-[12px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[5px_5px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale ${isGenerateClicked
             ? 'bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white'
             : 'bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink'
@@ -1752,7 +1781,7 @@ const App: React.FC = () => {
           </button>
           <button
             onClick={handleGenerate}
-            disabled={!state.prompt.trim()}
+            disabled={!canGenerate}
             className="bg-monstera-400 font-black text-[10px] uppercase tracking-widest px-4 py-2.5 rounded-md border border-ink shadow-[2px_2px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-50 disabled:grayscale"
           >
             Generovat
@@ -1776,7 +1805,7 @@ const App: React.FC = () => {
             <div className="p-5 border-t border-monstera-200 bg-paper absolute bottom-0 left-0 right-0">
               <button
                 onClick={handleGenerate}
-                disabled={!state.prompt.trim()}
+                disabled={!canGenerate}
                 className="w-full py-3.5 px-6 bg-monstera-400 text-ink font-[900] text-[13px] uppercase tracking-[0.2em] border-2 border-ink rounded-md transition-all shadow-[4px_4px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 disabled:opacity-20 disabled:grayscale"
               >
                 Generovat

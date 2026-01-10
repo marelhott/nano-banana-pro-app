@@ -70,7 +70,8 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
     const imageData = {
       url: image.url,
       fileName: 'fileName' in image ? image.fileName : `${image.id}.jpg`,
-      fileType: 'fileType' in image ? image.fileType : 'image/jpeg'
+      fileType: 'fileType' in image ? image.fileType : 'image/jpeg',
+      prompt: 'prompt' in image ? image.prompt : undefined // Přidat prompt z vygenerovaných obrázků
     };
 
     e.dataTransfer.setData('application/json', JSON.stringify(imageData));

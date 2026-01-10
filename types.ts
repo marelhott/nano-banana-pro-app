@@ -37,6 +37,7 @@ export interface SourceImage {
   id: string;
   url: string;
   file: File;
+  prompt?: string; // Původní prompt z galerie, pokud existuje
 }
 
 export interface SavedPrompt {
