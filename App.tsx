@@ -31,6 +31,7 @@ import { AIProviderType, ProviderSettings } from './services/aiProvider';
 import { ProviderFactory } from './services/providerFactory';
 import { SettingsDatabase } from './utils/imageDatabase';
 import { Toast, ToastType } from './components/Toast';
+import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -53,6 +54,8 @@ const App: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
+  const [advancedVariant, setAdvancedVariant] = useState<'A' | 'B' | 'C'>('C'); // Default: Balanced
+  const [faceIdentityMode, setFaceIdentityMode] = useState(false);
   const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -902,6 +905,12 @@ const App: React.FC = () => {
               }
             }
 
+            // Apply Interpretive Mode Logic
+            if (promptMode === 'advanced') {
+              basePrompt = applyAdvancedInterpretation(basePrompt, advancedVariant, faceIdentityMode);
+              console.log('[Interpretive Mode] Applied variant:', advancedVariant);
+            }
+
             // Vytvořit prompt s informací o stylu, pokud jsou stylové obrázky
             let enhancedPrompt = basePrompt;
             if (state.styleImages.length > 0) {
@@ -1419,21 +1428,74 @@ const App: React.FC = () => {
               : 'bg-monstera-50 text-monstera-700 hover:bg-monstera-100'
               }`}
           >
-            Advanced Mode
+            Interpretive Mode
           </button>
         </div>
 
-        {/* Prompt textarea (same for both modes for now) */}
+        {/* Prompt textarea */}
         <textarea
           ref={isMobileView ? mobilePromptRef : promptRef}
           value={state.prompt}
           onChange={(e) => setState(p => ({ ...p, prompt: e.target.value }))}
           onKeyDown={handleKeyDown}
-          placeholder=""
+          placeholder={promptMode === 'advanced'
+            ? "Describe your image naturally. Select a variant below to control the interpretation..."
+            : "Describe your image..."}
           className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
         />
 
-        {/* TODO: Add Advanced Mode variant selector here (A/B/C) */}
+        {/* Advanced Mode: Interpretation Variants */}
+        {promptMode === 'advanced' && (
+          <div className="mt-2 space-y-2 animate-fadeIn">
+            {/* Variant Selector */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { id: 'A', label: 'Variant A', sub: 'Authenticity', desc: 'Maximum Authenticity (Reality-First). Natural, imperfect, credible.' },
+                { id: 'B', label: 'Variant B', sub: 'Enhancement', desc: 'Maximum Enhancement (Idealized). Polished, cinematic, premium.' },
+                { id: 'C', label: 'Variant C', sub: 'Balanced', desc: 'Balanced Realism (Natural + Aesthetic). Neutral default.' },
+              ].map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => setAdvancedVariant(v.id as any)}
+                  className={`flex flex-col items-center p-2 rounded-md border transition-all text-center group relative ${advancedVariant === v.id
+                    ? 'bg-monstera-50 border-monstera-500 ring-1 ring-monstera-500 ring-opacity-50'
+                    : 'bg-white border-monstera-200 hover:border-monstera-300 hover:bg-monstera-50/50'
+                    }`}
+                >
+                  <span className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${advancedVariant === v.id ? 'text-monstera-800' : 'text-monstera-600'
+                    }`}>{v.label}</span>
+                  <span className="text-[8px] text-monstera-500 font-medium">{v.sub}</span>
+
+                  {/* Tooltip */}
+                  <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-ink/90 backdrop-blur-sm text-white text-[9px] rounded-md shadow-xl z-50 pointer-events-none text-left leading-relaxed">
+                    {v.desc}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-ink/90"></div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Face Identity Toggle */}
+            <label className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-all ${faceIdentityMode
+              ? 'bg-amber-50 border-amber-300'
+              : 'bg-white border-monstera-200 hover:border-monstera-300'
+              }`}>
+              <div className="relative inline-flex items-center">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={faceIdentityMode}
+                  onChange={(e) => setFaceIdentityMode(e.target.checked)}
+                />
+                <div className={`w-8 h-4 rounded-full peer-focus:outline-none transition-colors ${faceIdentityMode ? 'bg-amber-500' : 'bg-monstera-200'} peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all`}></div>
+              </div>
+              <div className="flex flex-col">
+                <span className={`text-[9px] font-black uppercase tracking-wider ${faceIdentityMode ? 'text-amber-800' : 'text-monstera-600'}`}>Face Identity Preservation</span>
+                <span className="text-[8px] text-monstera-500">Prioritize facial fidelity over aesthetics</span>
+              </div>
+            </label>
+          </div>
+        )}
 
         {/* Prompt actions */}
         <div className="flex items-center gap-1.5">
