@@ -31,8 +31,6 @@ import { AIProviderType, ProviderSettings } from './services/aiProvider';
 import { ProviderFactory } from './services/providerFactory';
 import { SettingsDatabase } from './utils/imageDatabase';
 import { Toast, ToastType } from './components/Toast';
-import { enrichPromptWithJSON, formatJsonPromptForImage } from './utils/jsonPrompting';
-import { JsonPromptEditor, getEmptyJsonData, JsonPromptData } from './components/JsonPromptEditor';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -54,9 +52,7 @@ const App: React.FC = () => {
   });
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const [useJsonMode, setUseJsonMode] = useState(false);
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
-  const [jsonPromptData, setJsonPromptData] = useState<JsonPromptData>(getEmptyJsonData());
   const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -112,17 +108,12 @@ const App: React.FC = () => {
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const mobilePromptRef = useRef<HTMLTextAreaElement>(null);
 
-  // Vypočítat zda lze generovat (prompt vyplněn NEBO existuje referenční obrázek s promptem)
+  // canGenerate: Check if user can trigger generation
   const canGenerate = useMemo(() => {
-    if (promptMode === 'simple') {
-      const hasTextPrompt = state.prompt.trim().length > 0;
-      const hasReferencePrompt = state.sourceImages.some(img => img.prompt && img.prompt.trim().length > 0);
-      return hasTextPrompt || hasReferencePrompt;
-    } else {
-      // V advanced mode: kontrola JSON dat
-      return jsonPromptData.subject.main.trim().length > 0;
-    }
-  }, [promptMode, state.prompt, state.sourceImages, jsonPromptData.subject.main]);
+    const hasTextPrompt = state.prompt.trim().length > 0;
+    const hasReferencePrompt = state.sourceImages.some(img => img.prompt && img.prompt.trim().length > 0);
+    return hasTextPrompt || hasReferencePrompt;
+  }, [state.prompt, state.sourceImages]);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -607,45 +598,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAnalyzeImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setIsAnalyzing(true);
-
-      // Convert to data URL
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const dataUrl = event.target?.result as string;
-
-          // Call Gemini Vision
-          const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
-          const jsonText = await (provider as any).analyzeImageForJson(dataUrl);
-
-          // Parse and fill editor
-          const parsedJson = JSON.parse(jsonText);
-          setJsonPromptData(parsedJson);
-
-          setToast({ message: 'Image analyzed! JSON editor auto-filled.', type: 'success' });
-          setShowAnalyzeModal(false);
-        } catch (error: any) {
-          console.error('[Analyze] Parse/analysis error:', error);
-          setToast({ message: 'Failed to analyze image. Try another image.', type: 'error' });
-        } finally {
-          setIsAnalyzing(false);
-        }
-      };
-
-      reader.readAsDataURL(file);
-    } catch (error: any) {
-      console.error('[Analyze] File read error:', error);
-      setToast({ message: 'Failed to read image file', type: 'error' });
-      setIsAnalyzing(false);
-    }
-  };
-
   const handleGenerateVariations = async (baseImage: GeneratedImage) => {
     if (!baseImage.url) return;
 
@@ -819,10 +771,6 @@ const App: React.FC = () => {
         return;
       }
     }
-    if (promptMode === 'advanced' && !jsonPromptData.subject.main.trim()) {
-      setToast({ message: 'Please fill at least the main subject in Advanced mode', type: 'error' });
-      return;
-    }
 
     // Přidat prompt do historie
     promptHistory.add(state.prompt);
@@ -951,37 +899,6 @@ const App: React.FC = () => {
               if (imageWithPrompt?.prompt) {
                 basePrompt = imageWithPrompt.prompt;
                 console.log('[Generation] Using prompt from reference image:', basePrompt);
-              }
-            }
-
-            if (promptMode === 'advanced') {
-              // Serialize Advanced mode JSON data to structured prompt
-              const jsonString = JSON.stringify(jsonPromptData, null, 2);
-              basePrompt = formatJsonPromptForImage(jsonString);
-              console.log('[Advanced Mode] Serialized JSON to prompt:', basePrompt);
-            }
-            // JSON Mode enrichment (only for Simple mode)
-            else if (useJsonMode) {
-              try {
-                console.log('[JSON Mode] Enriching prompt...');
-                const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
-
-                // Use Gemini to generate JSON structure
-                const jsonPrompt = await enrichPromptWithJSON(
-                  basePrompt.trim() || state.prompt, // Use basePrompt if available
-                  async (prompt, systemInstruction) => {
-                    return await (provider as any).generateText(prompt, systemInstruction);
-                  }
-                );
-
-                console.log('[JSON Mode] Generated JSON:', jsonPrompt);
-
-                // Convert JSON to formatted prompt
-                basePrompt = formatJsonPromptForImage(jsonPrompt);
-                console.log('[JSON Mode] Formatted prompt:', basePrompt);
-              } catch (error) {
-                console.error('[JSON Mode] Enrichment failed, using original prompt:', error);
-                // Fallback to original prompt or reference prompt
               }
             }
 
@@ -1506,65 +1423,17 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Conditional Rendering: Simple Text or Advanced Editor */}
-        {promptMode === 'simple' ? (
-          <textarea
-            ref={isMobileView ? mobilePromptRef : promptRef}
-            value={state.prompt}
-            onChange={(e) => setState(p => ({ ...p, prompt: e.target.value }))}
-            onKeyDown={handleKeyDown}
-            placeholder=""
-            className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
-          />
-        ) : (
-          <div className="space-y-2">
-            {/* Analyze Image Button - Advanced Mode Only */}
-            <button
-              onClick={() => setShowAnalyzeModal(true)}
-              className="w-full px-3 py-2.5 text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded transition-all flex items-center justify-center gap-2 shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Analyze Reference Image
-            </button>
+        {/* Prompt textarea (same for both modes for now) */}
+        <textarea
+          ref={isMobileView ? mobilePromptRef : promptRef}
+          value={state.prompt}
+          onChange={(e) => setState(p => ({ ...p, prompt: e.target.value }))}
+          onKeyDown={handleKeyDown}
+          placeholder=""
+          className="w-full min-h-[140px] max-h-[300px] bg-white border border-monstera-200 rounded-md p-3 text-[13px] font-medium placeholder-monstera-300 focus:bg-white focus:border-monstera-400 transition-all outline-none resize-none leading-relaxed shadow-inner overflow-y-auto custom-scrollbar"
+        />
 
-            <div className="bg-white border border-monstera-200 rounded-md p-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-              <JsonPromptEditor
-                data={jsonPromptData}
-                onChange={setJsonPromptData}
-              />
-            </div>
-          </div>
-        )}
-
-
-        {/* JSON Mode Toggle */}
-        <div className="flex items-center justify-between mb-4 bg-monstera-50/50 border border-monstera-200 rounded-md px-3 py-2">
-          <div className="flex items-center gap-2">
-            <label className="text-[10px] font-bold text-monstera-800 uppercase tracking-wider cursor-pointer" onClick={() => setUseJsonMode(!useJsonMode)}>
-              JSON Mode
-            </label>
-            <div className="group relative">
-              <svg className="w-3 h-3 text-monstera-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="invisible group-hover:visible absolute left-0 top-5 z-50 w-48 p-2 bg-ink text-white text-[9px] rounded-md shadow-xl">
-                Strukturovaný JSON prompt pro přesnější kontrolu generování
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={() => setUseJsonMode(!useJsonMode)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useJsonMode ? 'bg-monstera-500' : 'bg-monstera-200'
-              }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${useJsonMode ? 'translate-x-6' : 'translate-x-1'
-                }`}
-            />
-          </button>
-        </div>
+        {/* TODO: Add Advanced Mode variant selector here (A/B/C) */}
 
         {/* Prompt actions */}
         <div className="flex items-center gap-1.5">
@@ -2261,53 +2130,6 @@ const App: React.FC = () => {
           setToast({ message: 'Settings saved successfully!', type: 'success' });
         }}
       />
-
-      {/* Analyze Image Modal - Phase 3 */}
-      {showAnalyzeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-            <h3 className="text-lg font-bold mb-4 text-ink">Analyze Reference Image</h3>
-
-            <div className="border-2 border-dashed border-monstera-300 rounded-lg p-8 text-center bg-monstera-50/30">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleAnalyzeImageSelect}
-                className="hidden"
-                id="analyze-upload"
-                disabled={isAnalyzing}
-              />
-              <label
-                htmlFor="analyze-upload"
-                className={`cursor-pointer block ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <svg className="w-12 h-12 mx-auto text-monstera-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p className="text-sm font-bold text-ink">Click to upload image</p>
-                <p className="text-xs text-monstera-600 mt-1">Gemini Vision will extract style details</p>
-              </label>
-            </div>
-
-            {isAnalyzing && (
-              <div className="mt-4 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-monstera-500"></div>
-                <p className="text-sm mt-2 text-monstera-700">Analyzing image with Gemini Vision...</p>
-              </div>
-            )}
-
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => setShowAnalyzeModal(false)}
-                disabled={isAnalyzing}
-                className="flex-1 px-4 py-2 bg-monstera-100 hover:bg-monstera-200 text-ink rounded transition-all font-bold text-sm disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Toast Notification */}
       {toast && (
