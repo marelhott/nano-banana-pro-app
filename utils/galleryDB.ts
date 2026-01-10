@@ -23,6 +23,22 @@ export const saveToGallery = async (image: Omit<GalleryImage, 'id' | 'timestamp'
   }
 
   try {
+    // Generate a simple hash from the image data for duplicate detection
+    const imageHash = generateImageHash(image.url);
+
+    // Check if image with same hash already exists
+    const { data: existing } = await supabase
+      .from('generated_images')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('image_hash', imageHash)
+      .maybeSingle();
+
+    if (existing) {
+      console.log('[Gallery] Duplicate image detected, skipping save');
+      return; // Skip saving duplicate
+    }
+
     // 1. Upload hlavního obrázku
     const imageBlob = await dataUrlToBlob(image.url);
     const storagePath = await uploadImage(imageBlob, 'generated');
@@ -34,7 +50,7 @@ export const saveToGallery = async (image: Omit<GalleryImage, 'id' | 'timestamp'
       thumbnailPath = await uploadImage(thumbnailBlob, 'generated');
     }
 
-    // 3. Uložit metadata do DB
+    // 3. Uložit metadata do DB including hash
     const { error } = await supabase
       .from('generated_images')
       .insert({
@@ -43,7 +59,8 @@ export const saveToGallery = async (image: Omit<GalleryImage, 'id' | 'timestamp'
         storage_path: storagePath,
         thumbnail_path: thumbnailPath,
         resolution: image.resolution,
-        aspect_ratio: image.aspectRatio
+        aspect_ratio: image.aspectRatio,
+        image_hash: imageHash
       });
 
     if (error) throw error;
@@ -51,6 +68,19 @@ export const saveToGallery = async (image: Omit<GalleryImage, 'id' | 'timestamp'
     console.error('Error saving to gallery:', error);
     throw error;
   }
+};
+
+// Helper function to generate a simple hash from image data
+const generateImageHash = (dataUrl: string): string => {
+  // Extract just the base64 data part (after the comma)
+  const base64Data = dataUrl.split(',')[1] || dataUrl;
+
+  // Take a sample of the data for hash (first 200 chars + last 200 chars + length)
+  // This is fast and catches most duplicates
+  const sample = base64Data.substring(0, 200) + base64Data.substring(base64Data.length - 200) + base64Data.length;
+
+  // Simple hash using btoa (base64 encode)
+  return btoa(sample).substring(0, 64);
 };
 
 // Získat všechny obrázky z galerie

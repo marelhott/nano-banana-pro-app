@@ -70,97 +70,32 @@ Vylepšený prompt:`;
    */
   async generate3PromptVariants(simplePrompt: string): Promise<Array<{ variant: string; approach: string; prompt: string }>> {
     try {
-      const systemInstruction = `Jsi expert na vytváření AI promptů pro generování obrázků.
+      const systemInstruction = `Jsi expert na vytváření variant promptů pro AI generování obrázů.
 
-Tvůj úkol: Vezmi jednoduchý prompt a vytvoř 3 RŮZNÉ sofistikované verze.
+ÚKOL: Vezmi základní prompt a vytvoř 3 VARIACE s různými přístupy.
 
-## KRITICKÉ: FORMÁT VÝSTUPU
-Vypiš POUZE validní JSON pole s touto strukturou:
+## KRITICKÉ PRAVIDLO
+✓ Všechny 3 varianty musí vycházet ze STEJNÉHO základního tématu
+✓ Každá varianta mění PERSPEKTIVU, NÁLADU nebo DETAIL
+✓ Změny musí být MALÉ ale znatelné
+✓ Zachovej původní záměr
+
+## FORMÁT VÝSTUPU
 [
-  {
-    "variant": "Fotorealistický",
-    "approach": "Profesionální fotografický styl",
-    "prompt": "detailní fotografický prompt v češtině..."
-  },
-  {
-    "variant": "Umělecký",
-    "approach": "Umělecké a kompoziční zaměření",  
-    "prompt": "umělecký prompt v češtině..."
-  },
-  {
-    "variant": "Technický",
-    "approach": "Technická kvalita a rendering",
-    "prompt": "technicky detailní prompt v češtině..."
-  }
+  {"variant": "Variace 1", "approach": "popis změny", "prompt": "..."},
+  {"variant": "Variace 2", "approach": "popis změny", "prompt": "..."},
+  {"variant": "Variace 3", "approach": "popis změny", "prompt": "..."}
 ]
-
-## PRAVIDLA PRO VARIANTY
-
-Varianta 1 - FOTOREALISTICKÝ:
-- Přidej detaily fotoaparátu (ohnisková vzdálenost, clona, ISO)
-- Specifikuj osvětlení (zlatá hodina, studio, přirozené světlo)
-- Zahrň fotografická kompoziční pravidla
-- Přidej reference na kamery/filmy
-- Použij profesionální fotografickou terminologii
-- PROMPT PIŠ V ČEŠTINĚ
-
-Varianta 2 - UMĚLECKÝ:
-- Specifikuj umělecké médium (olejomalba, akvarel, konceptuální umění, ilustrace)
-- Definuj kompozici a rámování
-- Přidej náladu a atmosféru
-- Zahrň barevnou paletu a estetický styl
-- Reference na umělecké směry (impresionismus, surrealismus, atd.)
-- PROMPT PIŠ V ČEŠTINĚ
-
-Varianta 3 - TECHNICKÝ:
-- Zaměř se na kvalitu renderu (4K, 8K, vysoce detailní, ostrý zaostření)
-- Přidej technické specifikace
-- Zahrň popisovače úrovně detailů
-- Specifikuj náznaky renderovacího enginu (Unreal Engine, Octane, atd.)
-- Použij profesionální CGI/VFX terminologii
-- PROMPT PIŠ V ČEŠTINĚ
-
-## PRAVIDLA
-1. Všechny 3 varianty MUSÍ mít stejný hlavní obsah/předmět
-2. Každá varianta používá ODLIŠNÝ přístup
-3. Buď specifický a detailní (100-200 slov každý)
-4. Zachovej původní záměr
-5. VŠECHNY PROMPTY V ČEŠTINĚ
-6. ŽÁDNÁ vysvětlení, ŽÁDNÝ markdown, POUZE JSON pole
 
 ## PŘÍKLAD
-
-Jednoduchý prompt: "kočka sedící na okenním parapetu"
-
-Výstup:
+Vstup: "pes běžící v parku"
 [
-  {
-    "variant": "Fotorealistický",
-    "approach": "Profesionální fotografie",
-    "prompt": "Nadýchaná oranžová pruhovaná kočka graciézně sedící na dřevěném parapetu osvětleném sluncem, zachycená fotoaparátem Canon EOS R5 s objektivem 85mm f/1.4 vytvářejícím malou hloubku ostrosti při f/2.0. Měkké ranní sluneční světlo pronikající skrz krajkové záclony vytváří jemné obrysové osvětlení na kočičí srsti. Snímek z úrovně očí kočky, rozostřené pozadí pokojových rostlin. Profesionální fotografování domácích mazlíčků, teplá teplota barev 5500K, vysoce detailní textura srsti, fotorealistické, rozlišení 8K, oceněná kompozice."
-  },
-  {
-    "variant": "Umělecký",
-    "approach": "Impresionistický malířský styl",
-    "prompt": "Elegantní zrzavá kočka posazená na ošuntělém okenním parapetu, vykreslená v měkkém impresionistickém malířském stylu připomínajícím Pierra Bonnarda. Volné tahy štětcem zachycují skvrnitě rozptýlené sluneční světlo tančící po kočičí srsti. Teplá zlatá a jantarová barevná paleta s nádechem krémové a pálené sieny. Snová atmosféra s jemnými stíny, umělecká kompozice podle pravidla třetin. Olejomalba na plátně, romantická a klidná nálada, intimní domácí scéna, viditelné tahy štětcem, malířská kvalita."
-  },
-  {
-    "variant": "Technický",
-    "approach": "Vysoce věrný 3D render",
-    "prompt": "Fotorealistický 3D render oranžové pruhované kočky sedící na dřevěném okenním parapetu, vytvořený v Unreal Engine 5 s povoleným ray tracingem. Vysoce detailní simulace srsti s viditelnými jednotlivými chlupy pomocí XGen, fyzikálně přesné osvětlení pomocí HDRI environment mapy. Rozlišení 4K, ostření po celé ploše, subsurface scattering na uších prosvítlých světlem z okna. Hyperrealistické materiály na texturách dřevěných žil a látek, kvalita octane renderu, profesionální úroveň detailů archviz, path-traced globální osvětlení."
-  }
+  {"variant": "Variace 1", "approach": "Detail v pohybu", "prompt": "Zlatý retrívr běžící po zelené trávě, zachycený z nízkého úhlu při rychlém běhu, kapky vody odlétající ze srsti"},
+  {"variant": "Variace 2", "approach": "Široký záběr", "prompt": "Pes běžící kolem rybníka v klidném parku za slunečného dne, okolní lidé se procházejí po cestičkách"},
+  {"variant": "Variace 3", "approach": "Dramatické osvětlení", "prompt": "Pes běžící parkem při západu slunce, dramatické oranžové nebe, silueta psa zvýrazněná proti světlu"}
 ]
 
-## CHECKLIST PŘED VÝSTUPEM
-✓ Všechny 3 varianty mají stejný hlavní předmět
-✓ Každá varianta používá odlišnou terminologii (foto/umění/tech)
-✓ Každý prompt je 100-200 slov
-✓ Výstup je validní JSON pole
-✓ Žádné markdown bloky kódu
-✓ Žádná vysvětlení
-✓ VŠECHNY PROMPTY V ČEŠTINĚ
-
-Uživatelův jednoduchý prompt: "${simplePrompt}"
+Uživatelův prompt: "${simplePrompt}"
 
 VYPIŠ POUZE JSON POLE:`;
 
