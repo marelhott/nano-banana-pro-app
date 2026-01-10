@@ -368,7 +368,7 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
 
       // Call Veo API 
       const response = await this.ai.models.generateContent({
-        model: 'veo-3.1-generate-preview',
+        model: 'veo-3.1-generate-001',
         contents: { parts },
         config: {
           videoDuration: `${duration}s`,
