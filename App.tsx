@@ -827,6 +827,56 @@ const App: React.FC = () => {
     // Přidat prompt do historie
     promptHistory.add(state.prompt);
 
+    // Auto-save referenčních a stylových obrázků do galerie
+    const saveReferenceAndStyleImages = async () => {
+      const savedUrls = new Set<string>(); // Track saved URLs to avoid duplicates
+
+      // Save reference images
+      for (const img of state.sourceImages) {
+        if (!savedUrls.has(img.url)) {
+          try {
+            const thumbnail = await createThumbnail(img.url);
+            await saveToGallery({
+              url: img.url,
+              prompt: img.prompt || 'Referenční obrázek',
+              resolution: '2K',
+              aspectRatio: 'Original',
+              thumbnail,
+            });
+            savedUrls.add(img.url);
+            console.log('[Auto-Save] Saved reference image to gallery');
+          } catch (err) {
+            console.error('[Auto-Save] Failed to save reference image:', err);
+          }
+        }
+      }
+
+      // Save style images
+      for (const img of state.styleImages) {
+        if (!savedUrls.has(img.url)) {
+          try {
+            const thumbnail = await createThumbnail(img.url);
+            await saveToGallery({
+              url: img.url,
+              prompt: 'Stylový obrázek',
+              resolution: '2K',
+              aspectRatio: 'Original',
+              thumbnail,
+            });
+            savedUrls.add(img.url);
+            console.log('[Auto-Save] Saved style image to gallery');
+          } catch (err) {
+            console.error('[Auto-Save] Failed to save style image:', err);
+          }
+        }
+      }
+    };
+
+    // Save images in background (don't block generation)
+    saveReferenceAndStyleImages().catch(err => {
+      console.error('[Auto-Save] Error saving images:', err);
+    });
+
     // Detekce jazyka a quality enhancement
     const language = detectLanguage(state.prompt);
     const suggestion = getPromptSuggestion(state.prompt, language);
@@ -1084,16 +1134,21 @@ const App: React.FC = () => {
         ...prev,
         generatedImages: prev.generatedImages.map(img => {
           if (img.id === imageId) {
+            // Save current version to history
             const newVersions = [
               ...(img.versions || []),
               { url: img.url!, prompt: img.prompt, timestamp: img.timestamp }
             ];
+
+            // After new edit, set currentVersionIndex to the latest (newest) version
+            // This makes undo available but clears redo history
             return {
               ...img,
               url: result.imageBase64,
               prompt: editPrompt,
               timestamp: Date.now(),
               versions: newVersions,
+              currentVersionIndex: newVersions.length, // Point to the new current version (after all history)
               isEditing: false,
             };
           }
@@ -1132,24 +1187,59 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUndoEdit = (imageId: string) => {
+  // Undo to previous version (step back in history)
+  const handleUndoImageEdit = (imageId: string) => {
     setState(prev => ({
       ...prev,
       generatedImages: prev.generatedImages.map(img => {
         if (img.id === imageId && img.versions && img.versions.length > 0) {
-          const versions = [...img.versions];
-          const previousVersion = versions.pop()!;
-          return {
-            ...img,
-            url: previousVersion.url,
-            prompt: previousVersion.prompt,
-            timestamp: previousVersion.timestamp,
-            versions,
-          };
+          const currentIndex = img.currentVersionIndex ?? img.versions.length;
+
+          // Can only undo if we're not at the beginning
+          if (currentIndex > 0) {
+            const previousVersion = img.versions[currentIndex - 1];
+            return {
+              ...img,
+              url: previousVersion.url,
+              prompt: previousVersion.prompt,
+              timestamp: previousVersion.timestamp,
+              currentVersionIndex: currentIndex - 1,
+            };
+          }
         }
         return img;
       }),
     }));
+  };
+
+  // Redo to next version (step forward in history)
+  const handleRedoImageEdit = (imageId: string) => {
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img => {
+        if (img.id === imageId && img.versions && img.versions.length > 0) {
+          const currentIndex = img.currentVersionIndex ?? img.versions.length;
+
+          // Can only redo if we're not at the end
+          if (currentIndex < img.versions.length) {
+            const nextVersion = img.versions[currentIndex];
+            return {
+              ...img,
+              url: nextVersion.url,
+              prompt: nextVersion.prompt,
+              timestamp: nextVersion.timestamp,
+              currentVersionIndex: currentIndex + 1,
+            };
+          }
+        }
+        return img;
+      }),
+    }));
+  };
+
+  // OLD handleUndoEdit - keeping for backward compatibility with existing UI
+  const handleUndoEdit = (imageId: string) => {
+    handleUndoImageEdit(imageId);
   };
 
   const handleDeleteImage = (imageId: string) => {
@@ -1997,17 +2087,30 @@ const App: React.FC = () => {
                                   </svg>
                                 )}
                               </button>
+                              {/* Undo/Redo buttons for version history */}
                               {image.versions && image.versions.length > 0 && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleUndoEdit(image.id); }}
-                                  disabled={image.isEditing}
-                                  className="p-2.5 bg-white hover:bg-monstera-100 text-monstera-600 hover:text-ink rounded-lg transition-all border-2 border-monstera-300 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm hover:shadow-md active:scale-95"
-                                  title={`Vrátit zpět (${image.versions.length} verze)`}
-                                >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                  </svg>
-                                </button>
+                                <>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleUndoImageEdit(image.id); }}
+                                    disabled={image.isEditing || (image.currentVersionIndex ?? image.versions.length) === 0}
+                                    className="p-2.5 bg-white hover:bg-monstera-100 text-monstera-600 hover:text-ink rounded-lg transition-all border-2 border-monstera-300 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm hover:shadow-md active:scale-95"
+                                    title="Krok zpět"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleRedoImageEdit(image.id); }}
+                                    disabled={image.isEditing || (image.currentVersionIndex ?? image.versions.length) >= image.versions.length}
+                                    className="p-2.5 bg-white hover:bg-monstera-100 text-monstera-600 hover:text-ink rounded-lg transition-all border-2 border-monstera-300 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm hover:shadow-md active:scale-95"
+                                    title="Krok vpřed"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
+                                    </svg>
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>

@@ -17,6 +17,7 @@ export interface GeneratedImage {
   aspectRatio?: string;
   styleCode?: number;
   versions?: Array<{ url: string; prompt: string; timestamp: number }>;
+  currentVersionIndex?: number; // Track which version is currently displayed (for undo/redo)
   isEditing?: boolean;
   isVideo?: boolean;
   duration?: number;
