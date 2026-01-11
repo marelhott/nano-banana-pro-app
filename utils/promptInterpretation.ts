@@ -4,34 +4,51 @@ const VARIANT_INSTRUCTIONS = {
     A: `VARIANT A - CANDID EVERYDAY MOMENT:
 Create an unplanned, spontaneous snapshot from real life.
 
-MANDATORY CHANGES from reference:
-- Different location (if indoor → outdoor or different indoor; if outdoor → different outdoor setting)
-- Different activity (if sitting → standing/walking; if working → relaxing; if static → in motion)
+CONTEXT PRESERVATION (CRITICAL):
+- Maintain the CORE THEME and ACTIVITY from the reference image
+- If reference shows music → keep music activity in variant
+- If reference shows winter setting → keep similar season/climate
+- If reference shows work → keep work-related context
+- If reference shows collaboration → keep collaborative element
+- VARY the specific location and execution details, NOT the fundamental context
+
+Examples of CORRECT context preservation:
+- Reference: Winter cabin + music → Variant: Outdoor snowy setting + music, or cozy indoor corner + music
+- Reference: Summer cafe + laptop → Variant: Park bench + laptop, or library + laptop
+- Reference: Studio recording → Variant: Home music setup, or rehearsal space
+
+Examples of INCORRECT (avoid these):
+- Reference: Winter cabin + music → Variant: Summer cafe (WRONG: changed season AND lost music)
+- Reference: Office work → Variant: Beach vacation (WRONG: completely different context)
+
+MANDATORY CHANGES from reference (while preserving context):
+- Different specific location within same general context (if indoor cabin → different indoor space OR outdoor in same climate)
+- Different angle or framing of same activity
 - Different time of day (morning vs afternoon vs evening light quality)
-- Casual, everyday clothing (not formal or business attire)
+- Slightly different execution of same activity (if playing guitar → different pose/position with guitar)
 - Natural, unposed body language and expression
 
 STYLE REQUIREMENTS:
 - Imperfect composition (slightly off-center, natural framing, not studio-perfect)
 - Natural lighting ONLY (sunlight, window light, ambient indoor light - NO studio lights)
-- Authentic environment (real places people actually visit: parks, cafes, streets, homes)
+- Authentic environment (real places people actually visit)
 - Candid expression (genuine emotion, not posed smile or serious portrait face)
-- Include environmental context (trees, buildings, furniture, everyday objects visible)
+- Include environmental context appropriate to the theme
 - Slightly imperfect focus or framing (feels like real snapshot)
 
-CONCRETE EXAMPLES:
-- Person walking in park with coffee cup, dappled sunlight through trees
-- Person on apartment balcony looking at city view, morning light
-- Person in cozy kitchen making breakfast, natural window light
-- Person reading book on park bench, afternoon sun
-- Person browsing at outdoor market, casual clothes, candid moment
-
-AVOID: Studio setups, perfect lighting, posed expressions, formal settings`,
+AVOID: Completely changing the context, season, or core activity`,
 
     B: `VARIANT B - EDITORIAL PORTRAIT:
 Create a high-end magazine-quality portrait with professional production value.
 
-MANDATORY CHANGES from reference:
+CONTEXT PRESERVATION (CRITICAL):
+- Maintain the CORE IDENTITY and ROLE from reference
+- If reference shows musician → keep music-related editorial context
+- If reference shows professional → keep professional/work context
+- If reference shows creative → keep creative context
+- Elevate the PRODUCTION QUALITY and AESTHETIC, NOT change the person's role or activity type
+
+MANDATORY CHANGES from reference (while preserving context):
 - Professional studio OR carefully curated artistic location
 - Intentional, directed pose (not casual or candid)
 - Controlled, dramatic lighting setup (multiple light sources)
@@ -65,7 +82,14 @@ AVOID: Casual snapshots, messy backgrounds, flat lighting, everyday clothing`,
     C: `VARIANT C - PROFESSIONAL LIFESTYLE:
 Create a polished but believable real-world work scenario.
 
-MANDATORY CHANGES from reference:
+CONTEXT PRESERVATION (CRITICAL):
+- Maintain the PROFESSION and ACTIVITY TYPE from reference
+- If reference shows creative work → keep creative work context
+- If reference shows collaboration → keep collaborative setting
+- If reference shows music/art → keep that creative domain
+- Professionalize and organize the SETTING, NOT change the fundamental work type
+
+MANDATORY CHANGES from reference (while preserving context):
 - Professional or creative work environment (office, studio, workspace, co-working space)
 - Active engagement with work task and tools (NOT just posing)
 - Props relevant to activity MUST be visible and IN USE (laptop, notebook, tablet, tools, etc.)
