@@ -941,6 +941,10 @@ const App: React.FC = () => {
             if (promptMode === 'advanced') {
               basePrompt = applyAdvancedInterpretation(basePrompt, advancedVariant, faceIdentityMode);
               console.log('[Interpretive Mode] Applied variant:', advancedVariant);
+            } else if (faceIdentityMode) {
+              // Apply face identity preservation in Simple mode
+              basePrompt = applyAdvancedInterpretation(basePrompt, 'C', true);
+              console.log('[Face Identity Mode] Applied identity preservation in Simple mode');
             }
 
             // Vytvořit prompt s informací o stylu, pokud jsou stylové obrázky
@@ -950,6 +954,7 @@ const App: React.FC = () => {
               const referenceImageCount = state.sourceImages.length;
               enhancedPrompt = `${basePrompt}\n\n[Technická instrukce: První ${referenceImageCount} obrázek${referenceImageCount > 1 ? 'y' : ''} ${referenceImageCount > 1 ? 'jsou' : 'je'} referenční obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu referenčního obsahu.]`;
             }
+
 
 
             // Get selected AI provider
