@@ -942,9 +942,11 @@ const App: React.FC = () => {
               basePrompt = applyAdvancedInterpretation(basePrompt, advancedVariant, faceIdentityMode);
               console.log('[Interpretive Mode] Applied variant:', advancedVariant);
             } else if (faceIdentityMode) {
-              // Apply face identity preservation in Simple mode
+              // Apply face identity preservation with creative variation
               basePrompt = applyAdvancedInterpretation(basePrompt, 'C', true);
-              console.log('[Face Identity Mode] Applied identity preservation in Simple mode');
+              // Add explicit instruction to maximize variation
+              basePrompt += `\n\n[VARIATION REQUIREMENT: Create a unique and visually distinct interpretation. Vary pose, angle, clothing, environment, lighting, mood, and context significantly. Make each image tell a different story while keeping the same recognizable face.]`;
+              console.log('[Face Identity Mode] Applied identity preservation with variation requirement');
             }
 
             // Vytvořit prompt s informací o stylu, pokud jsou stylové obrázky
