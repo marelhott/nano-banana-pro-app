@@ -1,31 +1,99 @@
 export type AdvancedVariant = 'A' | 'B' | 'C';
 
 const VARIANT_INSTRUCTIONS = {
-    A: `MAXIMUM AUTHENTICITY (REALITY-FIRST):
-- Absolute priority on realism and credibility
-- Naturally captured, not stylized
-- No exaggeration, idealization, or cinematic drama
-- Lighting: accidental or naturally occurring
-- Composition: imperfect but believable
-- For interiors: subtle, random everyday objects, no minimalism
-- For people: natural skin texture, no beauty enhancement, realistic proportions
-- Goal: the image should feel like an unplanned real photograph from everyday life`,
+    A: `VARIANT A - CANDID EVERYDAY MOMENT:
+Create an unplanned, spontaneous snapshot from real life.
 
-    B: `MAXIMUM ENHANCEMENT (IDEALIZED / HIGH-END):
-- Visually perfected, aspirational image
-- Use top-tier photographic logic: best lenses, optimal angles, intentional composition
-- Lighting: controlled, flattering, and technically excellent
-- Visual clarity, depth, contrast, and polish are prioritized
-- Inspiration may draw from renowned photographers and high-end editorial photography
-- Subjects should appear at their visual best (without becoming artificial)
-- The result should feel premium, cinematic, and visually impressive`,
+MANDATORY CHANGES from reference:
+- Different location (if indoor → outdoor or different indoor; if outdoor → different outdoor setting)
+- Different activity (if sitting → standing/walking; if working → relaxing; if static → in motion)
+- Different time of day (morning vs afternoon vs evening light quality)
+- Casual, everyday clothing (not formal or business attire)
+- Natural, unposed body language and expression
 
-    C: `BALANCED REALISM (NATURAL + AESTHETIC):
-- Maintain overall credibility and realism
-- Allow gentle enhancement in lighting, framing, and clarity
-- Avoid extremes: no raw randomness, no excessive perfection
-- The image should feel like a well-shot real photo, not a stylized artwork
-- Suitable as a neutral default between authenticity and visual appeal`
+STYLE REQUIREMENTS:
+- Imperfect composition (slightly off-center, natural framing, not studio-perfect)
+- Natural lighting ONLY (sunlight, window light, ambient indoor light - NO studio lights)
+- Authentic environment (real places people actually visit: parks, cafes, streets, homes)
+- Candid expression (genuine emotion, not posed smile or serious portrait face)
+- Include environmental context (trees, buildings, furniture, everyday objects visible)
+- Slightly imperfect focus or framing (feels like real snapshot)
+
+CONCRETE EXAMPLES:
+- Person walking in park with coffee cup, dappled sunlight through trees
+- Person on apartment balcony looking at city view, morning light
+- Person in cozy kitchen making breakfast, natural window light
+- Person reading book on park bench, afternoon sun
+- Person browsing at outdoor market, casual clothes, candid moment
+
+AVOID: Studio setups, perfect lighting, posed expressions, formal settings`,
+
+    B: `VARIANT B - EDITORIAL PORTRAIT:
+Create a high-end magazine-quality portrait with professional production value.
+
+MANDATORY CHANGES from reference:
+- Professional studio OR carefully curated artistic location
+- Intentional, directed pose (not casual or candid)
+- Controlled, dramatic lighting setup (multiple light sources)
+- Styled, coordinated outfit (fashionable, intentional wardrobe choice)
+- Clean, minimal background OR intentionally artistic backdrop
+- Confident, editorial expression (not everyday casual)
+
+STYLE REQUIREMENTS:
+- Perfect composition (rule of thirds, leading lines, intentional framing)
+- Professional lighting (key light + fill light + rim/hair light OR dramatic single source)
+- Shallow depth of field (beautifully blurred background, subject in sharp focus)
+- Premium aesthetic (Vogue, GQ, National Geographic, high-end editorial style)
+- Polished, confident expression (editorial model energy)
+- Color grading (warm golden tones OR cool cinematic tones, intentional palette)
+
+TECHNICAL SPECS:
+- Shot with professional camera feel (85mm portrait lens aesthetic)
+- Studio lighting OR golden hour outdoor with reflectors
+- High contrast and clarity, professional post-processing
+- Magazine cover or spread quality
+
+CONCRETE EXAMPLES:
+- Fashion editorial in minimalist urban setting, dramatic side lighting
+- Corporate executive portrait in modern office, confident pose
+- Artist in their studio surrounded by work, intentional composition
+- Musician with instrument, dramatic lighting, editorial mood
+- Creative professional in architectural space, high-end aesthetic
+
+AVOID: Casual snapshots, messy backgrounds, flat lighting, everyday clothing`,
+
+    C: `VARIANT C - PROFESSIONAL LIFESTYLE:
+Create a polished but believable real-world work scenario.
+
+MANDATORY CHANGES from reference:
+- Professional or creative work environment (office, studio, workspace, co-working space)
+- Active engagement with work task and tools (NOT just posing)
+- Props relevant to activity MUST be visible and IN USE (laptop, notebook, tablet, tools, etc.)
+- Business casual or smart casual attire (professional but not overly formal)
+- Well-lit, organized, clean workspace (not messy, not sterile)
+
+STYLE REQUIREMENTS:
+- Natural but flattering light (large window light + ambient, OR soft overhead + desk lamp)
+- Organized, professional environment (clean desk, intentional decor, not cluttered)
+- Person ACTIVELY doing something (typing on laptop, writing notes, sketching, creating)
+- Authentic but aesthetically pleasing (LinkedIn profile quality)
+- Include relevant objects in frame (technology, books, creative tools, coffee, plants)
+- Professional but approachable expression (focused on work, slight smile okay)
+
+CRITICAL REQUIREMENTS:
+- Person must be USING tools/objects, not just sitting near them
+- Laptop/notebook/tools must be OPEN and VISIBLE in frame
+- Hands must be engaged with work (on keyboard, holding pen, etc.)
+- Environment must look like real workspace (not empty studio)
+
+CONCRETE EXAMPLES:
+- Designer working at desk with laptop and sketches, typing or drawing
+- Writer with open notebook and coffee, pen in hand, natural light from window
+- Consultant in modern office, laptop open, taking notes during video call
+- Creative professional with tablet and stylus, actively designing
+- Entrepreneur in co-working space, laptop and phone visible, working
+
+AVOID: Empty desks, closed laptops, just posing without activity, overly staged setups`
 };
 
 const FACE_IDENTITY_INSTRUCTION = `FACE IDENTITY PRESERVATION WITH CREATIVE VARIATION:
