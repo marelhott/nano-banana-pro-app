@@ -58,6 +58,9 @@ const App: React.FC = () => {
   const [faceIdentityMode, setFaceIdentityMode] = useState(false);
   const [jsonContext, setJsonContext] = useState<{ fileName: string; content: any } | null>(null);
   const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
+
+  // Refs
+  const galleryPanelRef = useRef<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const [state, setState] = useState<AppState>({
@@ -992,6 +995,8 @@ const App: React.FC = () => {
                 thumbnail,
               });
               console.log('[Gallery] Image saved successfully');
+              // Refresh gallery to show new image
+              galleryPanelRef.current?.refresh();
             } catch (err) {
               console.error('Failed to save to gallery:', err);
               setToast({ message: `⚠️ Obrázek se nepodařilo uložit do galerie: ${err instanceof Error ? err.message : 'Neznámá chyba'}`, type: 'error' });
@@ -2200,6 +2205,7 @@ const App: React.FC = () => {
         className="hidden lg:flex h-full flex-col"
       >
         <ImageGalleryPanel
+          ref={galleryPanelRef}
           onDragStart={(imageData, type) => {
             console.log('[Drag] Started from gallery:', type, imageData);
           }}

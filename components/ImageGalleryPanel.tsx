@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { getAllImages, deleteImage, GalleryImage } from '../utils/galleryDB';
 import { ImageDatabase, StoredImage } from '../utils/imageDatabase';
 
@@ -6,9 +6,13 @@ interface ImageGalleryPanelProps {
   onDragStart?: (image: { url: string; fileName: string; fileType: string }, imageType: 'saved' | 'generated') => void;
 }
 
+export interface ImageGalleryPanelRef {
+  refresh: () => Promise<void>;
+}
+
 type TabType = 'saved' | 'generated';
 
-export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStart }) => {
+export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPanelProps>(({ onDragStart }, ref) => {
   const [activeTab, setActiveTab] = useState<TabType>('saved');
   const [savedImages, setSavedImages] = useState<StoredImage[]>([]);
   const [generatedImages, setGeneratedImages] = useState<GalleryImage[]>([]);
@@ -37,6 +41,11 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
       setLoading(false);
     }
   };
+
+  // Expose refresh method to parent
+  useImperativeHandle(ref, () => ({
+    refresh: loadImages
+  }));
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -402,4 +411,7 @@ export const ImageGalleryPanel: React.FC<ImageGalleryPanelProps> = ({ onDragStar
       )}
     </div>
   );
-};
+});
+
+ImageGalleryPanel.displayName = 'ImageGalleryPanel';
+
