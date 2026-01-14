@@ -738,8 +738,10 @@ const App: React.FC = () => {
                 aspectRatio: state.aspectRatio,
                 thumbnail
               });
+              console.log(`[3 Variants] Variant ${i + 1} saved to gallery`);
             } catch (err) {
               console.error(`[3 Variants] Failed to save variant ${i + 1} to gallery:`, err);
+              setToast({ message: `⚠️ Varianta ${i + 1} se nepodařila uložit do galerie`, type: 'error' });
             }
 
             // Track API usage
@@ -989,8 +991,10 @@ const App: React.FC = () => {
                 aspectRatio: state.aspectRatio,
                 thumbnail,
               });
+              console.log('[Gallery] Image saved successfully');
             } catch (err) {
               console.error('Failed to save to gallery:', err);
+              setToast({ message: `⚠️ Obrázek se nepodařilo uložit do galerie: ${err instanceof Error ? err.message : 'Neznámá chyba'}`, type: 'error' });
             }
 
             // Trackovat API usage
