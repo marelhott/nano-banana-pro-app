@@ -234,7 +234,6 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           </div>
         ))}
       </div>
-      </>
     );
   };
 
@@ -385,8 +384,9 @@ const renderGeneratedTab = () => {
           </div>
         ))}
       </div>
-      );
-  };
+      </>
+  );
+};
 
       return (
       <div className="h-full flex flex-col bg-paper border-l border-monstera-200 w-full overflow-x-hidden" style={{ boxSizing: 'border-box', maxWidth: '100%' }}>
