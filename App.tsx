@@ -1134,7 +1134,6 @@ const App: React.FC = () => {
       }));
     }
   };
-
   // Batch processing handler
   const handleBatchProcess = async (images: any[]) => {
     console.log('[Batch] Starting batch process with', images.length, 'images');
@@ -1151,6 +1150,22 @@ const App: React.FC = () => {
     for (let i = 0; i < images.length; i += PARALLEL_BATCH_SIZE) {
       chunks.push(images.slice(i, i + PARALLEL_BATCH_SIZE));
     }
+
+    // Create loading placeholders for all images
+    const loadingImages = images.map((_, index) => ({
+      id: `batch_${Date.now()}_${index}`,
+      prompt: state.prompt,
+      timestamp: Date.now() + index,
+      status: 'loading' as const,
+      resolution: state.resolution,
+      aspectRatio: state.aspectRatio,
+    }));
+
+    // Add all loading images to state
+    setState(prev => ({
+      ...prev,
+      generatedImages: [...loadingImages, ...prev.generatedImages],
+    }));
 
     setBatchProgress({
       current: 0,
@@ -1172,8 +1187,11 @@ const App: React.FC = () => {
         } : null);
 
         // Generate chunk in parallel
-        await Promise.all(
-          chunk.map(async (image) => {
+        const results = await Promise.all(
+          chunk.map(async (image, indexInChunk) => {
+            const globalIndex = chunkIndex * PARALLEL_BATCH_SIZE + indexInChunk;
+            const loadingId = loadingImages[globalIndex].id;
+
             try {
               // Prepare image data
               const sourceImagesData = [{
@@ -1188,6 +1206,21 @@ const App: React.FC = () => {
                 state.resolution,
                 state.aspectRatio
               );
+
+              // Update state with generated image
+              setState(prev => ({
+                ...prev,
+                generatedImages: prev.generatedImages.map(img =>
+                  img.id === loadingId
+                    ? {
+                      ...img,
+                      status: 'success' as const,
+                      url: result.imageBase64,
+                      timestamp: Date.now(),
+                    }
+                    : img
+                ),
+              }));
 
               // Save to gallery
               const thumbnail = await createThumbnail(result.imageBase64);
@@ -1205,8 +1238,25 @@ const App: React.FC = () => {
                 current: processedCount
               } : null);
 
+              return { success: true, loadingId };
             } catch (error) {
               console.error(`Failed to process image ${image.id}:`, error);
+
+              // Update state with error
+              setState(prev => ({
+                ...prev,
+                generatedImages: prev.generatedImages.map(img =>
+                  img.id === loadingId
+                    ? {
+                      ...img,
+                      status: 'error' as const,
+                      error: error instanceof Error ? error.message : 'Generation failed',
+                    }
+                    : img
+                ),
+              }));
+
+              return { success: false, loadingId, error };
             }
           })
         );
@@ -1232,7 +1282,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Undo to previous version (step back in history)
   const handleUndoImageEdit = (imageId: string) => {
     setState(prev => ({
       ...prev,
