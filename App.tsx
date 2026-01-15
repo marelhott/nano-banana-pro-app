@@ -58,6 +58,12 @@ const App: React.FC = () => {
   const [faceIdentityMode, setFaceIdentityMode] = useState(false);
   const [jsonContext, setJsonContext] = useState<{ fileName: string; content: any } | null>(null);
   const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{
+    current: number;
+    total: number;
+    currentChunk: number;
+    totalChunks: number;
+  } | null>(null);
 
   // Refs
   const galleryPanelRef = useRef<any>(null);
@@ -1161,6 +1167,100 @@ const App: React.FC = () => {
     }
   };
 
+  // Batch processing handler
+  const handleBatchProcess = async (images: any[]) => {
+    if (!state.prompt.trim()) {
+      setToast({ message: 'Vyplňte prompt pro batch zpracování', type: 'error' });
+      return;
+    }
+
+    const PARALLEL_BATCH_SIZE = 5;
+    const chunks: any[][] = [];
+    for (let i = 0; i < images.length; i += PARALLEL_BATCH_SIZE) {
+      chunks.push(images.slice(i, i + PARALLEL_BATCH_SIZE));
+    }
+
+    setBatchProgress({
+      current: 0,
+      total: images.length,
+      currentChunk: 0,
+      totalChunks: chunks.length
+    });
+
+    let processedCount = 0;
+    const provider = ProviderFactory.getProvider(selectedProvider, providerSettings[selectedProvider]);
+
+    try {
+      for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+        const chunk = chunks[chunkIndex];
+
+        setBatchProgress(prev => prev ? {
+          ...prev,
+          currentChunk: chunkIndex + 1
+        } : null);
+
+        // Generate chunk in parallel
+        await Promise.all(
+          chunk.map(async (image) => {
+            try {
+              // Prepare image data
+              const sourceImagesData = [{
+                data: await urlToDataUrl(image.url),
+                mimeType: image.fileType || 'image/jpeg'
+              }];
+
+              // Generate image
+              const result = await provider.generateImage(
+                sourceImagesData,
+                [],
+                state.prompt,
+                state.resolution,
+                state.aspectRatio
+              );
+
+              // Save to gallery
+              const thumbnail = await createThumbnail(result.imageBase64);
+              await saveToGallery({
+                url: result.imageBase64,
+                prompt: state.prompt,
+                resolution: state.resolution,
+                aspectRatio: state.aspectRatio,
+                thumbnail
+              });
+
+              processedCount++;
+              setBatchProgress(prev => prev ? {
+                ...prev,
+                current: processedCount
+              } : null);
+
+            } catch (error) {
+              console.error(`Failed to process image ${image.id}:`, error);
+            }
+          })
+        );
+
+        // Pause between chunks (except last)
+        if (chunkIndex < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      setBatchProgress(null);
+      galleryPanelRef.current?.refresh();
+      setToast({
+        message: `✅ Zpracováno ${processedCount}/${images.length} obrázků`,
+        type: 'success'
+      });
+    } catch (error) {
+      setBatchProgress(null);
+      setToast({
+        message: `❌ Chyba při batch zpracování: ${error instanceof Error ? error.message : 'Neznámá chyba'}`,
+        type: 'error'
+      });
+    }
+  };
+
   // Undo to previous version (step back in history)
   const handleUndoImageEdit = (imageId: string) => {
     setState(prev => ({
@@ -2209,6 +2309,7 @@ const App: React.FC = () => {
           onDragStart={(imageData, type) => {
             console.log('[Drag] Started from gallery:', type, imageData);
           }}
+          onBatchProcess={handleBatchProcess}
         />
       </div>
 
@@ -2281,6 +2382,24 @@ const App: React.FC = () => {
           setToast({ message: 'Settings saved successfully!', type: 'success' });
         }}
       />
+
+      {/* Batch Progress Bar */}
+      {batchProgress && (
+        <div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-2xl border-2 border-ink z-50 min-w-[280px]">
+          <p className="font-black text-sm uppercase mb-2 text-ink">Batch zpracování</p>
+          <p className="text-xs text-monstera-600 mb-3">
+            Chunk {batchProgress.currentChunk}/{batchProgress.totalChunks} • {batchProgress.current}/{batchProgress.total} obrázků
+          </p>
+          <div className="w-64 h-3 bg-monstera-100 rounded-full border border-monstera-300">
+            <div
+              className="h-full bg-monstera-400 rounded-full transition-all duration-300"
+              style={{
+                width: `${(batchProgress.current / batchProgress.total) * 100}%`
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast && (

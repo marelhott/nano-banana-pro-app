@@ -4,6 +4,7 @@ import { ImageDatabase, StoredImage } from '../utils/imageDatabase';
 
 interface ImageGalleryPanelProps {
   onDragStart?: (image: { url: string; fileName: string; fileType: string }, imageType: 'saved' | 'generated') => void;
+  onBatchProcess?: (images: StoredImage[]) => void;
 }
 
 export interface ImageGalleryPanelRef {
@@ -12,11 +13,12 @@ export interface ImageGalleryPanelRef {
 
 type TabType = 'saved' | 'generated';
 
-export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPanelProps>(({ onDragStart }, ref) => {
+export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPanelProps>(({ onDragStart, onBatchProcess }, ref) => {
   const [activeTab, setActiveTab] = useState<TabType>('saved');
   const [savedImages, setSavedImages] = useState<StoredImage[]>([]);
   const [generatedImages, setGeneratedImages] = useState<GalleryImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,6 +48,31 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
   useImperativeHandle(ref, () => ({
     refresh: loadImages
   }));
+
+  // Multi-select handlers
+  const toggleSelection = (imageId: string) => {
+    setSelectedImages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(imageId)) {
+        newSet.delete(imageId);
+      } else {
+        newSet.add(imageId);
+      }
+      return newSet;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedImages(new Set());
+  };
+
+  const handleBatchProcess = () => {
+    const selected = savedImages.filter(img => selectedImages.has(img.id));
+    if (selected.length > 0 && onBatchProcess) {
+      onBatchProcess(selected);
+      clearSelection();
+    }
+  };
 
   const handleBulkUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -148,6 +175,17 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             className="group relative aspect-square bg-monstera-50 rounded-md overflow-hidden border-2 border-monstera-200 hover:border-monstera-400 transition-all cursor-move shadow-sm hover:shadow-lg"
             title="Přetáhněte do referenčního nebo stylového pole"
           >
+            {/* Checkbox for multi-select */}
+            <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={selectedImages.has(image.id)}
+                onChange={() => toggleSelection(image.id)}
+                className="w-5 h-5 cursor-pointer accent-monstera-400"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
             <img
               src={image.url}
               alt={image.fileName}
@@ -290,6 +328,31 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           </button>
         )}
       </div>
+
+      {/* Selection Toolbar */}
+      {selectedImages.size > 0 && (
+        <div className="bg-monstera-100 px-4 py-3 border-b border-monstera-300">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-ink">
+              ✓ Vybráno: {selectedImages.size}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={clearSelection}
+                className="px-3 py-1.5 text-xs font-bold text-monstera-600 hover:text-ink transition-colors"
+              >
+                Zrušit
+              </button>
+              <button
+                onClick={handleBatchProcess}
+                className="px-4 py-2 bg-monstera-400 hover:bg-monstera-500 text-ink font-black text-xs uppercase tracking-widest rounded-md transition-all border border-ink shadow-sm"
+              >
+                Zpracovat ({selectedImages.size})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 px-4 pt-4 pb-2 bg-white border-b border-monstera-200">
