@@ -1499,7 +1499,7 @@ const App: React.FC = () => {
             : 'bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-ink hover:to-monstera-900 hover:text-white text-ink'
             }`}
         >
-          {isGenerating ? 'Generuji' : 'Generovat'}
+          {isGenerating ? 'Generuji' : state.sourceImages.length > 1 ? `Generovat (${state.sourceImages.length})` : 'Generovat'}
         </button>
       </div>
 
@@ -1568,14 +1568,13 @@ const App: React.FC = () => {
         {/* Mode Switcher */}
         <div className="flex gap-1 mb-2">
           <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className={`flex-1 px-6 py-3 rounded-md font-black text-sm uppercase tracking-widest transition-all border-2 shadow-md ${isGenerating
-              ? 'bg-monstera-300 text-monstera-600 border-monstera-400 cursor-not-allowed'
-              : 'bg-monstera-400 hover:bg-monstera-500 text-ink border-ink hover:shadow-lg'
+            onClick={() => setPromptMode('simple')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded transition-all ${promptMode === 'simple'
+              ? 'bg-monstera-500 text-white shadow-sm'
+              : 'bg-monstera-50 text-monstera-700 hover:bg-monstera-100'
               }`}
           >
-            {isGenerating ? 'Generuji' : state.sourceImages.length > 1 ? `Generovat (${state.sourceImages.length})` : 'Generovat'}
+            Jednoduchý Režim
           </button>
           <button
             onClick={() => setPromptMode('advanced')}
