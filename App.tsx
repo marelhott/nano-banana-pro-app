@@ -64,6 +64,7 @@ const App: React.FC = () => {
     currentChunk: number;
     totalChunks: number;
   } | null>(null);
+  const [selectedGeneratedImages, setSelectedGeneratedImages] = useState<Set<string>>(new Set());
 
   // Refs
   const galleryPanelRef = useRef<any>(null);
@@ -2032,6 +2033,66 @@ const App: React.FC = () => {
             </div>
           </header>
 
+          {/* Selection Toolbar */}
+          {selectedGeneratedImages.size > 0 && (
+            <div className="bg-monstera-100 px-4 py-3 border-b border-monstera-300">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-ink">
+                  ✓ Vybráno: {selectedGeneratedImages.size}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedGeneratedImages(new Set())}
+                    className="px-3 py-1.5 text-xs font-bold text-monstera-600 hover:text-ink transition-colors"
+                  >
+                    Zrušit
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const JSZip = (await import('jszip')).default;
+                      const zip = new JSZip();
+                      const folderName = `selected_images_${Date.now()}`;
+                      const folder = zip.folder(folderName);
+
+                      const selectedImages = state.generatedImages.filter(img =>
+                        selectedGeneratedImages.has(img.id) && img.status === 'success'
+                      );
+
+                      await Promise.all(selectedImages.map(async (img, index) => {
+                        const response = await fetch(img.url!);
+                        const blob = await response.blob();
+                        const baseFilename = `image_${index + 1}`;
+                        folder!.file(`${baseFilename}.jpg`, blob);
+
+                        const metadata = [
+                          `Prompt: ${img.prompt}`,
+                          `Resolution: ${img.resolution || 'N/A'}`,
+                          `Aspect Ratio: ${img.aspectRatio || 'N/A'}`,
+                          `Timestamp: ${new Date(img.timestamp).toLocaleString()}`,
+                          `ID: ${img.id}`,
+                        ].join('\n');
+
+                        folder!.file(`${baseFilename}.txt`, metadata);
+                      }));
+
+                      const content = await zip.generateAsync({ type: "blob" });
+                      const link = document.createElement('a');
+                      link.href = URL.createObjectURL(content);
+                      link.download = `${folderName}.zip`;
+                      link.click();
+
+                      setSelectedGeneratedImages(new Set());
+                      setToast({ message: `✅ Staženo ${selectedImages.length} obrázků`, type: 'success' });
+                    }}
+                    className="px-4 py-2 bg-monstera-400 hover:bg-monstera-500 text-ink font-black text-xs uppercase tracking-widest rounded-md transition-all border border-ink shadow-sm"
+                  >
+                    Stáhnout ({selectedGeneratedImages.size})
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {state.generatedImages.length === 0 ? (
             <div className="py-20 md:py-40 flex flex-col items-center justify-center space-y-6">
               <div className="w-16 h-16 bg-monstera-50 rounded-md flex items-center justify-center grayscale opacity-20 border border-monstera-200 shadow-inner">
@@ -2054,6 +2115,29 @@ const App: React.FC = () => {
                     style={gridCols === 1 && image.status !== 'success' ? getLoadingAspectRatio(image.aspectRatio) : undefined}
                     onClick={() => setSelectedImage(image)}
                   >
+                    {/* Checkbox for multi-select */}
+                    {image.status === 'success' && (
+                      <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedGeneratedImages.has(image.id)}
+                          onChange={() => {
+                            setSelectedGeneratedImages(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(image.id)) {
+                                newSet.delete(image.id);
+                              } else {
+                                newSet.add(image.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                          className="w-5 h-5 cursor-pointer accent-monstera-400"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    )}
+
                     {image.status === 'loading' ? (
                       <div className="absolute inset-0 flex items-center justify-center bg-white/40">
                         <LoadingSpinner />
