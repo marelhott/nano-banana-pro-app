@@ -120,27 +120,23 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
 
   const handleDeleteSaved = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Opravdu chcete tento obrázek odstranit?')) {
-      try {
-        await ImageDatabase.remove(id);
-        await loadImages();
-      } catch (error) {
-        console.error('Error deleting image:', error);
-        alert('Chyba při mazání obrázku');
-      }
+    try {
+      await ImageDatabase.remove(id);
+      await loadImages();
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      alert('Chyba při mazání obrázku');
     }
   };
 
   const handleDeleteGenerated = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Opravdu chcete tento vygenerovaný obrázek odstranit?')) {
-      try {
-        await deleteImage(id);
-        await loadImages();
-      } catch (error) {
-        console.error('Error deleting generated image:', error);
-        alert('Chyba při mazání obrázku');
-      }
+    try {
+      await deleteImage(id);
+      await loadImages();
+    } catch (error) {
+      console.error('Error deleting generated image:', error);
+      alert('Chyba při mazání obrázku');
     }
   };
 
