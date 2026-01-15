@@ -321,7 +321,7 @@ const renderGeneratedTab = () => {
             title="Klikněte pro velké zobrazení nebo přetáhněte do pole nalevo"
           >
             {/* Checkbox for multi-select */}
-            <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute top-2 left-2 z-20" onClick={(e) => e.stopPropagation()}>
               <input
                 type="checkbox"
                 checked={selectedGeneratedImages.has(image.id)}
