@@ -1223,7 +1223,6 @@ const App: React.FC = () => {
               // Generate image
               const result = await provider.generateImage(
                 sourceImagesData,
-                [],
                 state.prompt,
                 state.resolution,
                 state.aspectRatio
