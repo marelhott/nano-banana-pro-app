@@ -253,7 +253,7 @@ const renderGeneratedTab = () => {
 
   return (
       <>
-      {/* Selection Toolbar for Generated Images */}
+      {/* Selection Toolbar */}
       {selectedGeneratedImages.size > 0 && (
         <div className="bg-monstera-100 px-4 py-3 border-b border-monstera-300">
           <div className="flex items-center justify-between">
