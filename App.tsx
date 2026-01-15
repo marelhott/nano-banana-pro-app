@@ -822,47 +822,8 @@ const App: React.FC = () => {
 
     // Auto-save referenčních a stylových obrázků do galerie
     const saveReferenceAndStyleImages = async () => {
-      const savedUrls = new Set<string>(); // Track saved URLs to avoid duplicates
-
-      // Save reference images
-      for (const img of state.sourceImages) {
-        if (!savedUrls.has(img.url)) {
-          try {
-            const thumbnail = await createThumbnail(img.url);
-            await saveToGallery({
-              url: img.url,
-              prompt: img.prompt || 'Referenční obrázek',
-              resolution: '2K',
-              aspectRatio: 'Original',
-              thumbnail,
-            });
-            savedUrls.add(img.url);
-            console.log('[Auto-Save] Saved reference image to gallery');
-          } catch (err) {
-            console.error('[Auto-Save] Failed to save reference image:', err);
-          }
-        }
-      }
-
-      // Save style images
-      for (const img of state.styleImages) {
-        if (!savedUrls.has(img.url)) {
-          try {
-            const thumbnail = await createThumbnail(img.url);
-            await saveToGallery({
-              url: img.url,
-              prompt: 'Stylový obrázek',
-              resolution: '2K',
-              aspectRatio: 'Original',
-              thumbnail,
-            });
-            savedUrls.add(img.url);
-            console.log('[Auto-Save] Saved style image to gallery');
-          } catch (err) {
-            console.error('[Auto-Save] Failed to save style image:', err);
-          }
-        }
-      }
+      const savedUrls = new Set<string>();      // Note: Reference and style images are NOT automatically saved to gallery
+      // They are only saved when user explicitly clicks the save button
     };
 
     // Save images in background (don't block generation)
