@@ -1176,7 +1176,11 @@ const App: React.FC = () => {
 
   // Batch processing handler
   const handleBatchProcess = async (images: any[]) => {
+    console.log('[Batch] Starting batch process with', images.length, 'images');
+    console.log('[Batch] Prompt:', state.prompt);
+
     if (!state.prompt.trim()) {
+      console.error('[Batch] No prompt provided');
       setToast({ message: 'Vyplňte prompt pro batch zpracování', type: 'error' });
       return;
     }
