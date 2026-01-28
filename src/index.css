@@ -55,7 +55,8 @@
   .glass-panel {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
-    @apply backdrop-blur-sm;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 
   .glass-card {
