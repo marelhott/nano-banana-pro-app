@@ -438,6 +438,9 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
       if (error?.message?.includes("Requested entity was not found")) {
         throw new Error("API_KEY_NOT_FOUND");
       }
+      if (error?.message?.includes("API key not valid") || error?.toString().includes("API_KEY_INVALID")) {
+        throw new Error("API_KEY_NOT_FOUND"); // Reuse existing code to trigger modal
+      }
       if (error instanceof Error) {
         throw new Error(`Failed to generate image: ${error.message}`);
       }
