@@ -1611,6 +1611,14 @@ const App: React.FC = () => {
               <Folder className="w-3.5 h-3.5" />
             </button>
 
+            {/* Saved Prompts */}
+            <div className="flex items-center justify-center w-7 h-7">
+              <SavedPromptsDropdown
+                currentPrompt={state.prompt}
+                onSelectPrompt={(p) => setState(prev => ({ ...prev, prompt: p }))}
+              />
+            </div>
+
             {/* Run Hint */}
             <div className="flex items-center gap-1 ml-2 px-2 py-1 rounded bg-[var(--bg-input)] border border-[var(--accent)]/20">
               <span className="text-[var(--accent)] text-[10px]">↵</span>
