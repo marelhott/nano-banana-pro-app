@@ -118,11 +118,11 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
       <button
         ref={buttonRef}
         onClick={toggleDropdown}
-        className="p-2 bg-monstera-50 hover:bg-monstera-100 border border-monstera-200 rounded-md transition-all group relative z-10"
+        className="p-2 bg-gray-800/50 hover:bg-gray-800 border border-transparent hover:border-gray-700 rounded-lg transition-all group relative z-10"
         title="Uložené prompty"
         type="button"
       >
-        <svg className="w-4 h-4 text-monstera-600 group-hover:text-ink transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
         </svg>
       </button>
@@ -131,7 +131,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="fixed w-80 max-w-[calc(100vw-2rem)] bg-white border-2 border-monstera-300 rounded-lg shadow-2xl z-[100] overflow-hidden animate-fadeIn"
+          className="fixed w-80 max-w-[calc(100vw-2rem)] bg-[#0f1512] border border-gray-800 rounded-xl shadow-2xl z-[100] overflow-hidden animate-slideUp"
           style={{
             top: `${dropdownPosition.top}px`,
             left: `${dropdownPosition.left}px`
@@ -139,14 +139,14 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-4 py-3 bg-monstera-50 border-b border-monstera-200">
+          <div className="px-4 py-3 bg-[#0f1512]/50 border-b border-gray-800">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-wider text-ink">Uložené prompty</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-200">Uložené prompty</h3>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-monstera-400">{savedPrompts.length}</span>
+                <span className="text-[10px] font-bold text-gray-500">{savedPrompts.length}</span>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1 hover:bg-monstera-200 rounded transition-all"
+                  className="p-1 hover:bg-gray-800 rounded transition-all text-gray-500 hover:text-white"
                   title="Zavřít"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -160,7 +160,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
           {/* Seznam promptů */}
           <div className="max-h-96 overflow-y-auto custom-scrollbar">
             {savedPrompts.length === 0 ? (
-              <div className="p-6 text-center text-sm text-monstera-400">
+              <div className="p-6 text-center text-sm text-gray-500">
                 Žádné uložené prompty
               </div>
             ) : (
@@ -168,7 +168,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                 {savedPrompts.map((saved) => (
                   <div
                     key={saved.id}
-                    className="group px-4 py-3 hover:bg-monstera-50 transition-colors border-b border-monstera-100 last:border-b-0"
+                    className="group px-4 py-3 hover:bg-[#0f1512]/30 transition-colors border-b border-gray-800/50 last:border-b-0"
                   >
                     {editingId === saved.id ? (
                       // Editační režim
@@ -177,26 +177,26 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="w-full text-xs font-bold bg-white border border-monstera-300 rounded px-2 py-1 outline-none focus:border-monstera-500"
+                          className="w-full text-xs font-bold bg-black/50 border border-gray-700 rounded px-2 py-1 outline-none focus:border-[#7ed957] text-gray-200"
                           placeholder="Název promptu..."
                           autoFocus
                         />
                         <textarea
                           value={editPromptText}
                           onChange={(e) => setEditPromptText(e.target.value)}
-                          className="w-full text-[10px] bg-white border border-monstera-300 rounded px-2 py-1.5 outline-none focus:border-monstera-500 resize-none leading-relaxed min-h-[60px]"
+                          className="w-full text-[10px] bg-black/50 border border-gray-700 rounded px-2 py-1.5 outline-none focus:border-[#7ed957] resize-none leading-relaxed min-h-[60px] text-gray-300"
                           placeholder="Text promptu..."
                         />
                         <div className="flex gap-2">
                           <button
                             onClick={saveEdit}
-                            className="flex-1 px-2 py-1.5 bg-monstera-400 hover:bg-monstera-500 text-ink font-bold text-[9px] uppercase tracking-wider rounded transition-all border border-ink"
+                            className="flex-1 px-2 py-1.5 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-[9px] uppercase tracking-wider rounded transition-all shadow-sm"
                           >
                             Uložit
                           </button>
                           <button
                             onClick={cancelEdit}
-                            className="px-2 py-1.5 bg-white hover:bg-monstera-100 text-monstera-600 font-bold text-[9px] uppercase tracking-wider rounded transition-all border border-monstera-300"
+                            className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-[9px] uppercase tracking-wider rounded transition-all border border-transparent"
                           >
                             Zrušit
                           </button>
@@ -208,21 +208,21 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <h4 className="text-xs font-bold text-ink truncate">{saved.name}</h4>
+                              <h4 className="text-xs font-bold text-gray-200 truncate">{saved.name}</h4>
                               {saved.category && (
-                                <span className="text-[9px] font-bold text-monstera-500 bg-monstera-100 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                                <span className="text-[9px] font-bold text-[#7ed957] bg-[#7ed957]/10 px-1.5 py-0.5 rounded uppercase tracking-wide border border-[#7ed957]/20">
                                   {saved.category}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[10px] text-monstera-600 line-clamp-2 leading-relaxed">
+                            <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed group-hover:text-gray-400 transition-colors">
                               {saved.prompt}
                             </p>
                           </div>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={(e) => startEditing(saved, e)}
-                              className="p-1 hover:bg-monstera-200 text-monstera-700 rounded transition-all"
+                              className="p-1 hover:bg-gray-800 text-gray-500 hover:text-white rounded transition-all"
                               title="Upravit"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -231,7 +231,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                             </button>
                             <button
                               onClick={(e) => handleDelete(saved.id, e)}
-                              className="p-1 hover:bg-red-100 text-red-500 rounded transition-all"
+                              className="p-1 hover:bg-red-500/20 text-gray-500 hover:text-red-500 rounded transition-all"
                               title="Smazat"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -249,7 +249,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
           </div>
 
           {/* Přidat nový */}
-          <div className="p-3 bg-monstera-50 border-t-2 border-monstera-200">
+          <div className="p-3 bg-[#0f1512] border-t border-gray-800">
             {isAdding ? (
               <div className="space-y-2">
                 <input
@@ -257,7 +257,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Název promptu..."
-                  className="w-full text-xs font-medium bg-white border border-monstera-300 rounded-md px-3 py-2 outline-none focus:border-monstera-500"
+                  className="w-full text-xs font-medium bg-black/50 border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#7ed957] text-gray-200"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleAdd();
@@ -268,13 +268,13 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                   <button
                     onClick={handleAdd}
                     disabled={!newName.trim() || !currentPrompt?.trim()}
-                    className="flex-1 px-3 py-2 bg-monstera-400 hover:bg-monstera-500 text-ink font-bold text-[10px] uppercase tracking-wider rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed border border-ink"
+                    className="flex-1 px-3 py-2 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-[#7ed957]/20"
                   >
                     Uložit
                   </button>
                   <button
                     onClick={() => setIsAdding(false)}
-                    className="px-3 py-2 bg-white hover:bg-monstera-100 text-monstera-600 font-bold text-[10px] uppercase tracking-wider rounded-md transition-all border border-monstera-300"
+                    className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all"
                   >
                     Zrušit
                   </button>
@@ -284,12 +284,12 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
               <button
                 onClick={() => setIsAdding(true)}
                 disabled={!currentPrompt?.trim()}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white hover:bg-monstera-100 border border-monstera-300 hover:border-monstera-400 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-800/50 hover:bg-gray-800 border border-transparent hover:border-gray-700 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
               >
-                <svg className="w-3.5 h-3.5 text-monstera-600 group-hover:text-ink transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-[#7ed957] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                 </svg>
-                <span className="text-[10px] font-bold text-monstera-600 group-hover:text-ink uppercase tracking-wider transition-colors">
+                <span className="text-[10px] font-bold text-gray-400 group-hover:text-gray-200 uppercase tracking-wider transition-colors">
                   Uložit aktuální prompt
                 </span>
               </button>
