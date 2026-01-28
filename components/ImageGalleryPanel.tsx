@@ -291,6 +291,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           </div>
         ))}
       </div>
+    );
   };
 
   return (

@@ -62,14 +62,26 @@
   .glass-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
-    @apply rounded-lg transition-all duration-300;
+    border-radius: 0.5rem;
+    /* rounded-lg */
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+    /* duration-300 */
   }
 
   .glass-input {
     background-color: var(--bg-input);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    @apply rounded-lg outline-none transition-all duration-200;
+    border-radius: 0.5rem;
+    /* rounded-lg */
+    outline: none;
+    /* outline-none */
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+    /* duration-200 */
   }
 
   .glass-input:focus {
