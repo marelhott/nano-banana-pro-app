@@ -1689,7 +1689,7 @@ const App: React.FC = () => {
             handleKeyDown(e);
           }}
           placeholder={promptMode === 'advanced' ? "Popište obrázek přirozeně. Vyberte variantu níže pro určení stylu interpretace..." : "Popište obrázek..."}
-          className="w-full min-h-[120px] max-h-[240px] bg-transparent border-0 border-b border-[var(--border-color)] rounded-none p-2 text-[10px] font-medium text-[var(--text-primary)] placeholder-gray-500 focus:border-[var(--accent)] focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
+          className="w-full min-h-[120px] max-h-[240px] bg-transparent border-0 border-b border-[var(--border-color)] rounded-none p-2 text-[11px] font-medium text-[var(--text-primary)] placeholder-gray-500 focus:border-[var(--accent)] focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
         />
 
         {/* Advanced Mode Controls (Conditional) */}
