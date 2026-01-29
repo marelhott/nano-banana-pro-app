@@ -1,138 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mulen nano</title>
-    <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
-    <link rel="apple-touch-icon" href="/public/favicon.svg" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              serif: ['Merriweather', 'serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            },
-            colors: {
-              'paper': '#f4f7f5', // Richer off-white paper
-              'ink': '#0d2117',   // Deep jungle dark
-              'monstera': {
-                50: '#eff7f2',
-                100: '#daefe0',
-                200: '#b8e0c4', // Higher contrast for borders
-                300: '#89cba0',
-                400: '#56b07a',
-                500: '#2e945d', // Luscious tropical green
-                600: '#22784a',
-                700: '#1e603d',
-                800: '#1b4d33',
-                900: '#17402b', // Deepest forest
-              }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0f0d" />
+  <title>Mulen nano</title>
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
+  <link rel="apple-touch-icon" href="/public/favicon.svg" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['Merriweather', 'serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            'paper': '#f4f7f5', // Richer off-white paper
+            'ink': '#0d2117',   // Deep jungle dark
+            'monstera': {
+              50: '#eff7f2',
+              100: '#daefe0',
+              200: '#b8e0c4', // Higher contrast for borders
+              300: '#89cba0',
+              400: '#56b07a',
+              500: '#2e945d', // Luscious tropical green
+              600: '#22784a',
+              700: '#1e603d',
+              800: '#1b4d33',
+              900: '#17402b', // Deepest forest
             }
           }
         }
       }
-    </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-      :root {
-        --app-bg: #f4f7f5;
-        --sidebar-bg: #ffffff;
-        --accent: #2e945d;
-        --text-main: #0d2117;
+    }
+  </script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Merriweather:wght@400;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --app-bg: #0a0f0d;
+      --sidebar-bg: #0f1512;
+      --accent: #7ed957;
+      --text-main: #f3f4f6;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0a0f0d;
+      color: var(--text-main);
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+
+    /* Refined custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #89cba0;
+      border-radius: 20px;
+      border: 2px solid var(--app-bg);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #56b07a;
+    }
+
+    @keyframes slideUpFade {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
       }
 
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: var(--app-bg);
-        color: var(--text-main);
-        -webkit-font-smoothing: antialiased;
+      to {
+        opacity: 1;
+        transform: translateY(0);
       }
-      
-      /* Refined custom scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #89cba0;
-        border-radius: 20px;
-        border: 2px solid var(--app-bg);
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #56b07a;
-      }
-      
-      @keyframes slideUpFade {
-        from { opacity: 0; transform: translateY(12px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-fadeIn {
-        animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .animate-fadeIn {
+      animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
       }
 
-      @keyframes fade {
-        from { opacity: 0; }
-        to { opacity: 1; }
+      to {
+        opacity: 1;
       }
-      .animate-fade {
-        animation: fade 0.3s ease-out forwards;
+    }
+
+    .animate-fade {
+      animation: fade 0.3s ease-out forwards;
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: -200% 0;
       }
 
-      @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
+      100% {
+        background-position: 200% 0;
       }
+    }
 
-      .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #b8e0c4;
-        border-radius: 10px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: #89cba0;
-      }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
 
-      /* Transitions for interactive elements */
-      button, input, select, textarea, .card {
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
 
-      .glass-card {
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.6);
-      }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #b8e0c4;
+      border-radius: 10px;
+    }
 
-      /* Force high-quality image rendering */
-      img {
-        image-rendering: -webkit-optimize-contrast;
-        image-rendering: high-quality;
-        -ms-interpolation-mode: bicubic;
-        /* Prevent browser downsampling */
-        transform: translateZ(0);
-        backface-visibility: hidden;
-        -webkit-font-smoothing: subpixel-antialiased;
-      }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #89cba0;
+    }
 
-      /* Gallery thumbnails - force full quality */
-      article img {
-        will-change: auto;
-        transform: translateZ(0);
-      }
-    </style>
+    /* Transitions for interactive elements */
+    button,
+    input,
+    select,
+    textarea,
+    .card {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+
+    /* Force high-quality image rendering */
+    img {
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: high-quality;
+      -ms-interpolation-mode: bicubic;
+      /* Prevent browser downsampling */
+      transform: translateZ(0);
+      backface-visibility: hidden;
+      -webkit-font-smoothing: subpixel-antialiased;
+    }
+
+    /* Gallery thumbnails - force full quality */
+    article img {
+      will-change: auto;
+      transform: translateZ(0);
+    }
+  </style>
   <script type="importmap">
 {
   "imports": {
@@ -145,48 +179,59 @@
 }
 </script>
 </head>
-  <body class="overflow-hidden">
-    <div id="root">
-      <!-- Initial Splash Screen (Removed by React hydration) -->
-      <div style="position: fixed; inset: 0; background-color: #0a0f0d; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;">
-        <div style="opacity: 0.8; animation: spin-slow 20s linear infinite;">
-          <svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <style>
-              @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-            </style>
-            <!-- Center - Highlight -->
-            <circle cx="50" cy="50" r="2.5" fill="#ffffff" />
-            <!-- Inner Ring -->
-            <circle cx="50" cy="40" r="2.2" fill="#d1d5db" />
-            <circle cx="58" cy="44" r="2.2" fill="#d1d5db" />
-            <circle cx="60" cy="50" r="2.2" fill="#d1d5db" />
-            <circle cx="58" cy="56" r="2.2" fill="#d1d5db" />
-            <circle cx="50" cy="60" r="2.2" fill="#d1d5db" />
-            <circle cx="42" cy="56" r="2.2" fill="#d1d5db" />
-            <circle cx="40" cy="50" r="2.2" fill="#d1d5db" />
-            <circle cx="42" cy="44" r="2.2" fill="#d1d5db" />
-            <!-- Middle Ring -->
-            <circle cx="50" cy="30" r="2" fill="#6b7280" />
-            <circle cx="64" cy="36" r="2" fill="#6b7280" />
-            <circle cx="70" cy="50" r="2" fill="#6b7280" />
-            <circle cx="64" cy="64" r="2" fill="#6b7280" />
-            <circle cx="50" cy="70" r="2" fill="#6b7280" />
-            <circle cx="36" cy="64" r="2" fill="#6b7280" />
-            <circle cx="30" cy="50" r="2" fill="#6b7280" />
-            <circle cx="36" cy="36" r="2" fill="#6b7280" />
-            <!-- Outer Ring -->
-            <circle cx="50" cy="20" r="1.5" fill="#374151" />
-            <circle cx="70" cy="28" r="1.5" fill="#374151" />
-            <circle cx="80" cy="50" r="1.5" fill="#374151" />
-            <circle cx="70" cy="72" r="1.5" fill="#374151" />
-            <circle cx="50" cy="80" r="1.5" fill="#374151" />
-            <circle cx="30" cy="72" r="1.5" fill="#374151" />
-            <circle cx="20" cy="50" r="1.5" fill="#374151" />
-            <circle cx="30" cy="28" r="1.5" fill="#374151" />
-          </svg>
-        </div>
+
+<body class="overflow-hidden">
+  <div id="root">
+    <!-- Initial Splash Screen (Removed by React hydration) -->
+    <div
+      style="position: fixed; inset: 0; background-color: #0a0f0d; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;">
+      <div style="opacity: 0.8; animation: spin-slow 20s linear infinite;">
+        <svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <style>
+            @keyframes spin-slow {
+              from {
+                transform: rotate(0deg);
+              }
+
+              to {
+                transform: rotate(360deg);
+              }
+            }
+          </style>
+          <!-- Center - Highlight -->
+          <circle cx="50" cy="50" r="2.5" fill="#ffffff" />
+          <!-- Inner Ring -->
+          <circle cx="50" cy="40" r="2.2" fill="#d1d5db" />
+          <circle cx="58" cy="44" r="2.2" fill="#d1d5db" />
+          <circle cx="60" cy="50" r="2.2" fill="#d1d5db" />
+          <circle cx="58" cy="56" r="2.2" fill="#d1d5db" />
+          <circle cx="50" cy="60" r="2.2" fill="#d1d5db" />
+          <circle cx="42" cy="56" r="2.2" fill="#d1d5db" />
+          <circle cx="40" cy="50" r="2.2" fill="#d1d5db" />
+          <circle cx="42" cy="44" r="2.2" fill="#d1d5db" />
+          <!-- Middle Ring -->
+          <circle cx="50" cy="30" r="2" fill="#6b7280" />
+          <circle cx="64" cy="36" r="2" fill="#6b7280" />
+          <circle cx="70" cy="50" r="2" fill="#6b7280" />
+          <circle cx="64" cy="64" r="2" fill="#6b7280" />
+          <circle cx="50" cy="70" r="2" fill="#6b7280" />
+          <circle cx="36" cy="64" r="2" fill="#6b7280" />
+          <circle cx="30" cy="50" r="2" fill="#6b7280" />
+          <circle cx="36" cy="36" r="2" fill="#6b7280" />
+          <!-- Outer Ring -->
+          <circle cx="50" cy="20" r="1.5" fill="#374151" />
+          <circle cx="70" cy="28" r="1.5" fill="#374151" />
+          <circle cx="80" cy="50" r="1.5" fill="#374151" />
+          <circle cx="70" cy="72" r="1.5" fill="#374151" />
+          <circle cx="50" cy="80" r="1.5" fill="#374151" />
+          <circle cx="30" cy="72" r="1.5" fill="#374151" />
+          <circle cx="20" cy="50" r="1.5" fill="#374151" />
+          <circle cx="30" cy="28" r="1.5" fill="#374151" />
+        </svg>
       </div>
     </div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+  </div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>
