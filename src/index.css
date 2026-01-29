@@ -1,7 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap');
+@font-face {
+  font-family: 'Calling Code';
+  src: url('/public/fonts/CallingCode-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
 @theme {
-  --font-sans: 'JetBrains Mono', monospace;
+  --font-sans: 'Calling Code', 'JetBrains Mono', monospace;
 
   /* Semantic Colors - mapped in :root */
 }
