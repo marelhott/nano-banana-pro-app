@@ -56,44 +56,77 @@ export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
     }
   };
 
-  // Zobrazit loading během auto-login
+  // Reusable Sphere SVG Component
+  const SphereIcon = () => (
+    <div style={{ opacity: 0.8, animation: 'spin-slow 20s linear infinite' }}>
+      <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <style>{`
+          @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        `}</style>
+        <circle cx="50" cy="50" r="2.5" fill="currentColor" className="text-white" />
+        <circle cx="50" cy="40" r="2.2" fill="currentColor" className="text-gray-500" />
+        <circle cx="58" cy="44" r="2.2" fill="currentColor" className="text-gray-500" />
+        <circle cx="60" cy="50" r="2.2" fill="currentColor" className="text-gray-500" />
+        <circle cx="58" cy="56" r="2.2" fill="currentColor" className="text-gray-500" />
+        <circle cx="50" cy="60" r="2.2" fill="currentColor" className="text-gray-500" />
+        <circle cx="42" cy="56" r="2.2" fill="currentColor" className="text-gray-500" />
+        <circle cx="40" cy="50" r="2.2" fill="currentColor" className="text-gray-500" />
+        <circle cx="42" cy="44" r="2.2" fill="currentColor" className="text-gray-500" />
+        <circle cx="50" cy="30" r="2" fill="currentColor" className="text-gray-600" />
+        <circle cx="64" cy="36" r="2" fill="currentColor" className="text-gray-600" />
+        <circle cx="70" cy="50" r="2" fill="currentColor" className="text-gray-600" />
+        <circle cx="64" cy="64" r="2" fill="currentColor" className="text-gray-600" />
+        <circle cx="50" cy="70" r="2" fill="currentColor" className="text-gray-600" />
+        <circle cx="36" cy="64" r="2" fill="currentColor" className="text-gray-600" />
+        <circle cx="30" cy="50" r="2" fill="currentColor" className="text-gray-600" />
+        <circle cx="36" cy="36" r="2" fill="currentColor" className="text-gray-600" />
+        <circle cx="50" cy="20" r="1.5" fill="currentColor" className="text-gray-800" />
+        <circle cx="70" cy="28" r="1.5" fill="currentColor" className="text-gray-800" />
+        <circle cx="80" cy="50" r="1.5" fill="currentColor" className="text-gray-800" />
+        <circle cx="70" cy="72" r="1.5" fill="currentColor" className="text-gray-800" />
+        <circle cx="50" cy="80" r="1.5" fill="currentColor" className="text-gray-800" />
+        <circle cx="30" cy="72" r="1.5" fill="currentColor" className="text-gray-800" />
+        <circle cx="20" cy="50" r="1.5" fill="currentColor" className="text-gray-800" />
+        <circle cx="30" cy="28" r="1.5" fill="currentColor" className="text-gray-800" />
+      </svg>
+    </div>
+  );
+
+  // Zobrazit loading během auto-login (tento screen musí dokonale sedět na splash screen)
   if (isCheckingAutoLogin) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-monstera-400 to-monstera-600">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0f0d]">
         <div className="text-center">
-          <div className="w-20 h-20 bg-white rounded-full mx-auto mb-4 flex items-center justify-center animate-pulse">
-            <span className="text-4xl">🍌</span>
-          </div>
-          <p className="text-white font-bold text-lg">Načítám...</p>
+          <SphereIcon />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-monstera-400 via-monstera-500 to-monstera-600 p-4">
-      {/* Decorative elements */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0f0d] p-4">
+      {/* Decorative elements - Subtle gradients instead of blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-10 w-32 h-32 bg-white/5 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#7ed957]/20 to-transparent"></div>
+        <div className="absolute bottom-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-[#7ed957]/10 to-transparent"></div>
       </div>
 
-      <div className="relative bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border-4 border-ink">
+      <div className="relative bg-[#0f1512] rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border border-gray-800">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-monstera-300 to-monstera-400 rounded-full mx-auto mb-4 flex items-center justify-center border-4 border-ink shadow-lg">
-            <span className="text-4xl">🍌</span>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <div className="mb-6">
+            <SphereIcon />
           </div>
-          <h1 className="text-3xl font-black uppercase tracking-wider text-ink mb-2">
-            Nano Banana Pro
+          <h1 className="text-2xl font-black uppercase tracking-[0.2em] text-gray-200 mb-2">
+            Mulen Nano Pro
           </h1>
-          <p className="text-sm font-bold text-monstera-600 uppercase tracking-widest">
-            Zadejte svůj PIN
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+            Autorizace Vyžadována
           </p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-8">
           <div>
             <input
               type="password"
@@ -104,26 +137,25 @@ export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
               onChange={handlePinChange}
               placeholder="••••••"
               autoFocus
-              className="w-full text-center text-5xl tracking-[0.5em] font-black bg-monstera-50 border-4 border-monstera-200 rounded-xl py-6 outline-none focus:border-monstera-400 focus:ring-4 focus:ring-monstera-200 transition-all"
+              className="w-full text-center text-4xl tracking-[0.5em] font-bold bg-black/40 border border-gray-800 rounded-xl py-5 text-gray-200 placeholder-gray-800 outline-none focus:border-[#7ed957] focus:ring-1 focus:ring-[#7ed957]/50 transition-all font-mono"
             />
 
-            {/* Pomocný text */}
-            <div className="mt-3 flex items-center justify-center gap-2">
+            {/* Pomocný text / Indikátory */}
+            <div className="mt-4 flex items-center justify-center gap-3">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div
                   key={i}
-                  className={`w-3 h-3 rounded-full transition-all ${
-                    i <= pin.length
-                      ? 'bg-monstera-400 scale-110'
-                      : 'bg-monstera-200'
-                  }`}
+                  className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i <= pin.length
+                      ? 'bg-[#7ed957] scale-125'
+                      : 'bg-gray-800'
+                    }`}
                 />
               ))}
             </div>
 
             {error && (
-              <div className="mt-4 p-3 bg-red-50 border-2 border-red-200 rounded-lg">
-                <p className="text-red-600 text-sm font-bold text-center">{error}</p>
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg animate-fadeIn">
+                <p className="text-red-400 text-xs font-bold text-center uppercase tracking-wide">{error}</p>
               </div>
             )}
           </div>
@@ -131,30 +163,24 @@ export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
           <button
             type="submit"
             disabled={loading || pin.length < 4}
-            className="w-full py-4 bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-monstera-400 hover:to-monstera-500 text-ink font-black text-base uppercase tracking-widest rounded-xl border-4 border-ink shadow-[6px_6px_0_rgba(13,33,23,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
+            className="w-full py-4 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-black text-sm uppercase tracking-widest rounded-lg border border-transparent shadow-[0_0_20px_rgba(126,217,87,0.15)] hover:shadow-[0_0_30px_rgba(126,217,87,0.3)] active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
           >
             {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Přihlašuji...
+              <span className="flex items-center justify-center gap-3">
+                <div className="w-4 h-4 border-2 border-[#0a0f0d]/30 border-t-[#0a0f0d] rounded-full animate-spin"></div>
+                Ověřuji...
               </span>
             ) : (
-              'Pokračovat'
+              'Vstoupit'
             )}
           </button>
         </form>
 
-        {/* Info */}
-        <div className="mt-6 pt-6 border-t-2 border-monstera-100">
-          <div className="text-center space-y-2">
-            <p className="text-xs font-bold text-monstera-500 uppercase tracking-widest">
-              💡 První přihlášení vytvoří nový účet
-            </p>
-            <p className="text-xs text-monstera-400">
-              PIN si zapamatujeme pro příští použití
+        {/* Footer */}
+        <div className="mt-8 pt-6 border-t border-gray-800/50">
+          <div className="text-center space-y-1">
+            <p className="text-[9px] text-gray-600 uppercase tracking-widest">
+              Zabezpečený Přístup
             </p>
           </div>
         </div>
