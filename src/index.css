@@ -56,6 +56,18 @@
     color: var(--text-primary);
     font-family: var(--font-sans);
     transition: background-color 0.3s ease, color 0.3s ease;
+    position: relative;
+  }
+
+  /* Dot Grid Background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(126, 217, 87, 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
   }
 
   /* Custom Scrollbar - matching reference or keeping premium feel */

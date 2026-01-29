@@ -1780,11 +1780,8 @@ const renderSidebarControls = (isMobileView: boolean = false) => (
 
         {/* 3 Variants Button */}
         <button
-          onClick={() => {
-            setState(p => ({ ...p, numberOfImages: 3 }));
-            handleGenerate();
-          }}
-          disabled={!canGenerate}
+          onClick={() => handleGenerate3Variants()}
+          disabled={!canGenerate || isGenerating}
           className="w-full py-2 px-3 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--text-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center gap-2 group"
         >
           <Sparkles className="w-3 h-3 text-[#7ed957] group-hover:animate-pulse" />
