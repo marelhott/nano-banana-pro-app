@@ -21,6 +21,7 @@ export interface GeneratedImage {
   isEditing?: boolean;
   isVideo?: boolean;
   duration?: number;
+  progress?: number; // 0-100 for generation progress tracking
 
   // Variant generation metadata
   variantInfo?: {

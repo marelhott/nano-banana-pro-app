@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Calling Code';
+  src: url('/public/fonts/CallingCode-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Calling Code', 'JetBrains Mono', monospace;
+  --font-serif: 'Merriweather', serif;
+  --font-mono: 'Calling Code', 'JetBrains Mono', monospace;
+
+  --color-paper: #f4f7f5;
+  --color-ink: #0d2117;
+  --color-app-bg: #0a0f0d;
+  --color-sidebar-bg: #0f1512;
+
+  --color-monstera-50: #eff7f2;
+  --color-monstera-100: #daefe0;
+  --color-monstera-200: #b8e0c4;
+  --color-monstera-300: #89cba0;
+  --color-monstera-400: #56b07a;
+  --color-monstera-500: #2e945d;
+  --color-monstera-600: #22784a;
+  --color-monstera-700: #1e603d;
+  --color-monstera-800: #1b4d33;
+  --color-monstera-900: #17402b;
+}
+
+@layer base {
+  :root {
+    /* Default Dark Mode */
+    --bg-main: #0a0f0d;
+    --bg-card: #0f1512;
+    --bg-input: rgba(15, 21, 18, 0.5);
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --border-color: rgba(31, 41, 55, 0.5);
+    --accent: #7ed957;
+    --accent-hover: #6bc547;
+    --scrollbar-thumb: #27272a;
+    --scrollbar-track: transparent;
+  }
+
+
+
+  html {
+    background-color: #0a0f0d;
+  }
+
+  body {
+    background-color: #0a0f0d;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    position: relative;
+  }
+
+  /* Dot Grid Background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(126, 217, 87, 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Custom Scrollbar - matching reference or keeping premium feel */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    transition: background-color 0.3s;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    filter: brightness(0.8);
+  }
+}
+
+@layer utilities {
+  .bg-dot-grid {
+    background-color: #0a0f0d;
+    background-image: radial-gradient(#1f2937 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-attachment: fixed;
+    /* Ensures distinct paralax-like feel or solid ground */
+  }
+
+  .glass-panel {
+    background: rgba(10, 15, 13, 0.4);
+    /* More transparency */
+    backdrop-filter: blur(24px);
+    /* Stronger blur */
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    /* Subtle white border */
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    /* Deep shadow */
+  }
+
+  /* Floating Sidebar specific tweak if needed */
+  .floating-sidebar {
+    background: rgba(10, 15, 13, 0.4);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .glass-card {
+    background: rgba(15, 21, 18, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    border-radius: 0.75rem;
+    /* rounded-xl */
+    transition: all 0.3s ease;
+  }
+
+  .glass-card:hover {
+    border-color: rgba(126, 217, 87, 0.3);
+    /* Green accent on hover */
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+  }
+
+  .glass-input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    border-radius: 0.5rem;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+
+  .glass-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px rgba(126, 217, 87, 0.2);
+    /* Neon Glow */
+  }
+
+  .neon-button {
+    background: rgba(126, 217, 87, 0.1);
+    border: 1px solid rgba(126, 217, 87, 0.2);
+    color: var(--accent);
+    transition: all 0.2s;
+  }
+
+  .neon-button:hover {
+    background: rgba(126, 217, 87, 0.2);
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(126, 217, 87, 0.4);
+    text-shadow: 0 0 5px rgba(126, 217, 87, 0.5);
+  }
+
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 20s linear infinite;
+  }
+}
