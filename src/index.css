@@ -8,8 +8,24 @@
 
 @theme {
   --font-sans: 'Calling Code', 'JetBrains Mono', monospace;
+  --font-serif: 'Merriweather', serif;
+  --font-mono: 'Calling Code', 'JetBrains Mono', monospace;
 
-  /* Semantic Colors - mapped in :root */
+  --color-paper: #f4f7f5;
+  --color-ink: #0d2117;
+  --color-app-bg: #0a0f0d;
+  --color-sidebar-bg: #0f1512;
+
+  --color-monstera-50: #eff7f2;
+  --color-monstera-100: #daefe0;
+  --color-monstera-200: #b8e0c4;
+  --color-monstera-300: #89cba0;
+  --color-monstera-400: #56b07a;
+  --color-monstera-500: #2e945d;
+  --color-monstera-600: #22784a;
+  --color-monstera-700: #1e603d;
+  --color-monstera-800: #1b4d33;
+  --color-monstera-900: #17402b;
 }
 
 @layer base {

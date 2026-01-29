@@ -8,41 +8,7 @@
   <title>Mulen nano</title>
   <link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
   <link rel="apple-touch-icon" href="/public/favicon.svg" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            'app-bg': '#0a0f0d',
-            'sidebar-bg': '#0f1512',
-          },
-          fontFamily: {
-            sans: ['Calling Code', 'JetBrains Mono', 'monospace'],
-            serif: ['Merriweather', 'serif'],
-            mono: ['Calling Code', 'JetBrains Mono', 'monospace'],
-          },
-          colors: {
-            'paper': '#f4f7f5', // Richer off-white paper
-            'ink': '#0d2117',   // Deep jungle dark
-            'monstera': {
-              50: '#eff7f2',
-              100: '#daefe0',
-              200: '#b8e0c4', // Higher contrast for borders
-              300: '#89cba0',
-              400: '#56b07a',
-              500: '#2e945d', // Luscious tropical green
-              600: '#22784a',
-              700: '#1e603d',
-              800: '#1b4d33',
-              900: '#17402b', // Deepest forest
-            }
-          }
-        }
-      }
-    }
-  </script>
+
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
     href="https://fonts.googleapis.com/css2?family=Internal:wght@100&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@100..800&display=swap"
@@ -50,19 +16,19 @@
   <style>
     :root {
       --app-bg: #0a0f0d;
-      --sidebar-bg: #0f1512;
-      --accent: #7ed957;
-      --text-main: #f3f4f6;
+      --font-sans: 'Calling Code', 'JetBrains Mono', monospace;
     }
 
     html {
-      background-color: #0a0f0d;
+      background-color: #0a0f0d !important;
     }
 
     body {
-      font-family: 'Calling Code', 'JetBrains Mono', monospace;
-      background-color: #0a0f0d;
-      color: var(--text-main);
+      font-family: 'Calling Code', 'JetBrains Mono', monospace !important;
+      background-color: #0a0f0d !important;
+      background-image: radial-gradient(#1f2937 1px, transparent 1px);
+      background-size: 24px 24px;
+      color: #f3f4f6;
       -webkit-font-smoothing: antialiased;
       overscroll-behavior: none;
     }
