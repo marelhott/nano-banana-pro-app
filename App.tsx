@@ -2006,7 +2006,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen transition-colors duration-300 bg-[var(--bg-main)] text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen transition-colors duration-300 bg-transparent text-[var(--text-primary)] font-sans">
 
       {/* Settings Modal */}
       <SettingsModal
