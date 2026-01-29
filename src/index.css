@@ -23,6 +23,10 @@
 
 
 
+  html {
+    background-color: #0a0f0d;
+  }
+
   body {
     background-color: var(--bg-main);
     color: var(--text-primary);
