@@ -1808,7 +1808,7 @@ const App: React.FC = () => {
             {/* JSON Context */}
             <button
               onClick={() => {/* TODO: Implement JSON upload */ }}
-              className="w-7 h-7 flex items-center justify-center rounded bg-[var(--bg-input)] text-[var(--accent)] border border-[var(--accent)]/30 hover:border-[var(--accent)] transition-all"
+              className="w-7 h-7 flex items-center justify-center rounded bg-[var(--bg-input)] text-[var(--accent)] border border-[var(--accent)]/30 hover:border-[var(--accent)] hover:shadow-[0_0_8px_rgba(126,217,87,0.4)] focus:outline-none focus:border-[var(--accent)] focus:box-shadow-[0_0_8px_rgba(126,217,87,0.4)] transition-all"
               title="Připojit JSON kontext"
             >
               <FileJson className="w-3.5 h-3.5" />
