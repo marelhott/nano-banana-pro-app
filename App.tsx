@@ -1998,33 +1998,6 @@ const renderSidebarControls = (isMobileView: boolean = false) => (
   </div >
 );
 
-// Handle PIN authentication
-const handleAuth = async (userId: string) => {
-  setAuthUserId(userId);
-  setIsAuthenticated(true);
-  // Pre-load data from Supabase
-  ImageDatabase.getAll();
-
-  // Load provider settings
-  const savedSettings = await SettingsDatabase.loadProviderSettings();
-  if (savedSettings) {
-    setProviderSettings(savedSettings);
-  }
-};
-
-// Show PIN auth screen if not authenticated
-if (!isAuthenticated) {
-  return <PinAuth onAuth={handleAuth} />;
-}
-
-
-
-const handleSaveSettings = async (newSettings: ProviderSettings) => {
-  setProviderSettings(newSettings);
-  await SettingsDatabase.saveProviderSettings(newSettings);
-  setToast({ message: 'Settings saved successfully!', type: 'success' });
-};
-
 return (
   <div className="min-h-screen transition-colors duration-300 bg-transparent text-[var(--text-primary)] font-sans">
 
