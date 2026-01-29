@@ -2147,22 +2147,197 @@ const App: React.FC = () => {
 
                       {/* Card Footer */}
                       <div className="px-4 py-3 flex flex-col gap-2 border-t border-gray-800 bg-[#0f1512]">
-                        <div className="flex items-center gap-3">
+                        {/* Prompt + Actions Row */}
+                        <div className="flex items-center gap-2">
                           <p className="text-[11px] font-bold text-gray-300 leading-snug line-clamp-1 flex-1" title={image.prompt}>
                             {image.prompt}
                           </p>
                           <div className="flex gap-1 shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(image.prompt); }} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors" title="Kopírovat">
+                            {/* Copy Prompt */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(image.prompt);
+                                setToast({ message: 'Prompt zkopírován', type: 'success' });
+                              }}
+                              className="p-1.5 text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors"
+                              title="Kopírovat prompt"
+                            >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
                             </button>
+
+                            {/* Repopulate */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRepopulate(image); }}
+                              className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors"
+                              title="Repopulate (nahrát do editoru)"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            </button>
+
+                            {/* Download */}
                             {image.url && (
-                              <a href={image.url} download onClick={(e) => e.stopPropagation()} className="p-1.5 text-gray-500 hover:text-[#7ed957] hover:bg-[#7ed957]/10 rounded transition-colors">
+                              <a
+                                href={image.url}
+                                download
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1.5 text-gray-500 hover:text-[#7ed957] hover:bg-[#7ed957]/10 rounded transition-colors"
+                                title="Stáhnout"
+                              >
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                               </a>
                             )}
+
+                            {/* Delete */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm('Smazat tento obrázek?')) {
+                                  setState(prev => ({
+                                    ...prev,
+                                    generatedImages: prev.generatedImages.filter(img => img.id !== image.id)
+                                  }));
+                                  setToast({ message: 'Obrázek smazán', type: 'success' });
+                                }
+                              }}
+                              className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
+                              title="Smazat"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
                           </div>
                         </div>
+
+                        {/* Grounding Links (if present) */}
+                        {image.groundingMetadata && image.groundingMetadata.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {image.groundingMetadata.slice(0, 3).map((link, idx) => (
+                              <a
+                                key={idx}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[9px] px-2 py-0.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded border border-blue-500/20 hover:border-blue-500/40 transition-colors font-medium truncate max-w-[150px]"
+                                title={link.title || link.url}
+                              >
+                                {link.title || new URL(link.url).hostname}
+                              </a>
+                            ))}
+                            {image.groundingMetadata.length > 3 && (
+                              <span className="text-[9px] text-gray-500 px-2 py-0.5">
+                                +{image.groundingMetadata.length - 3} více
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
+
+                      {/* Inline Edit Section */}
+                      {image.status === 'success' && image.url && (
+                        <div className="px-4 py-3 border-t border-gray-800/50 bg-[#0a0f0d]/30 space-y-2.5">
+                          {/* Header Row */}
+                          <div className="flex items-center justify-between px-1">
+                            <div className="flex items-center gap-1.5">
+                              <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              <span className="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                                Upravit prompt
+                              </span>
+                            </div>
+
+                            {/* Add Images Toggle */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowReferenceUpload(prev => ({
+                                  ...prev,
+                                  [image.id]: !prev[image.id]
+                                }));
+                              }}
+                              className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${showReferenceUpload[image.id]
+                                ? 'bg-[#7ed957] text-[#0a0f0d] border border-[#7ed957]'
+                                : 'bg-[#0f1512] text-gray-500 hover:text-gray-300 border border-gray-800 hover:border-gray-700'
+                                }`}
+                              title="Přidat referenční obrázky"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              {showReferenceUpload[image.id] ? 'Obrázky' : '+ Obrázky'}
+                            </button>
+                          </div>
+
+                          {/* Edit Textarea */}
+                          <textarea
+                            value={editPrompts[image.id] || ''}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }));
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Popište úpravy..."
+                            className="w-full min-h-[80px] bg-[#0f1512] border border-gray-800 hover:border-gray-700 focus:border-[#7ed957] rounded-md p-2 text-xs text-gray-200 placeholder-gray-600 focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
+                          />
+
+                          {/* Inline Reference Images (Conditional) */}
+                          {showReferenceUpload[image.id] && (
+                            <div className="grid grid-cols-4 gap-1 p-2 bg-[#0a0f0d] border border-gray-800 rounded-md">
+                              {(inlineEditStates[image.id]?.referenceImages || []).map((img, idx) => (
+                                <div key={idx} className="relative group aspect-square rounded overflow-hidden bg-gray-900 border border-gray-800">
+                                  <img src={img.url} className="w-full h-full object-cover" alt={`Ref ${idx}`} />
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setInlineEditStates(prev => ({
+                                        ...prev,
+                                        [image.id]: {
+                                          ...prev[image.id],
+                                          referenceImages: prev[image.id]?.referenceImages?.filter((_, i) => i !== idx) || []
+                                        }
+                                      }));
+                                    }}
+                                    className="absolute top-0 right-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+                              ))}
+                              {(inlineEditStates[image.id]?.referenceImages?.length || 0) < MAX_IMAGES && (
+                                <label className="flex items-center justify-center aspect-square rounded border border-dashed border-gray-700 hover:border-gray-600 hover:bg-gray-900/50 cursor-pointer transition-colors">
+                                  <span className="text-gray-500">+</span>
+                                  <input
+                                    type="file"
+                                    multiple
+                                    accept="image/*"
+                                    className="hidden"
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      if (e.target.files) {
+                                        addInlineReferenceImages(image.id, Array.from(e.target.files));
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Regenerate Button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditImage(image.id);
+                            }}
+                            disabled={!editPrompts[image.id]?.trim()}
+                            className="w-full py-2 px-3 bg-gradient-to-r from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30 text-blue-400 hover:text-blue-300 font-black text-[9px] uppercase tracking-widest rounded-md border border-blue-500/30 hover:border-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
+                          >
+                            Regenerovat obrázek
+                          </button>
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>
