@@ -450,13 +450,30 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
 }
 
 // Legacy function - uses default provider or creates new one
-let defaultProvider: GeminiProvider | null = null;
-
-export const enhancePromptWithAI = async (shortPrompt: string): Promise<string> => {
-  if (!defaultProvider) {
-    defaultProvider = new GeminiProvider(process.env.API_KEY || '');
+// Helper to get API key from storage if not provided
+const getStoredApiKey = () => {
+  try {
+    const settings = localStorage.getItem('providerSettings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      return parsed.GEMINI?.apiKey || '';
+    }
+  } catch (e) {
+    return '';
   }
-  return defaultProvider.enhancePrompt(shortPrompt);
+  return '';
+};
+
+export const enhancePromptWithAI = async (shortPrompt: string, apiKey?: string): Promise<string> => {
+  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+
+  if (!keyToUse) {
+    throw new Error('API Key missing. Please configure it in settings.');
+  }
+
+  // Always create a fresh provider to ensure correct key usage
+  const tempProvider = new GeminiProvider(keyToUse);
+  return tempProvider.enhancePrompt(shortPrompt);
 };
 
 export const editImageWithGemini = async (

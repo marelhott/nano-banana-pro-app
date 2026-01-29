@@ -612,7 +612,8 @@ const App: React.FC = () => {
 
     setIsEnhancingPrompt(true);
     try {
-      const enhanced = await enhancePromptWithAI(state.prompt);
+      const apiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
+      const enhanced = await enhancePromptWithAI(state.prompt, apiKey);
       setState(prev => ({ ...prev, prompt: enhanced }));
       promptHistory.add(enhanced);
     } catch (error) {
