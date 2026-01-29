@@ -2034,6 +2034,14 @@ const App: React.FC = () => {
           style={{ width: isMobile ? undefined : sidebarWidth }}
         >
           <div className="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
+            {/* Logo Area */}
+            <div className="pb-2">
+              <h1 className="text-xl font-black tracking-tighter text-white">
+                Mulen <span className="text-[#7ed957]">nano</span>
+              </h1>
+              <p className="text-[9px] text-gray-500 uppercase tracking-[0.2em] font-bold mt-1">AI Workspace</p>
+            </div>
+
             <ProviderSelector
               selectedProvider={selectedProvider}
               onChange={setSelectedProvider}
@@ -2045,9 +2053,9 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Content Area - Floating & Centered */}
+        {/* Main Content Area - Scoped Dot Grid & Floating */}
         <main
-          className={`flex-1 flex flex-col h-[calc(100vh-2rem)] mt-4 mb-4 mr-4 glass-panel rounded-2xl relative overflow-hidden transition-all duration-300 ${!isMobile && !isGalleryOpen ? 'ml-[352px]' : 'ml-4' // 320px sidebar + 16px gap + 16px padding
+          className={`flex-1 flex flex-col h-[calc(100vh-2rem)] mt-4 mb-4 mr-4 bg-dot-grid rounded-2xl border border-white/5 relative overflow-hidden transition-all duration-300 ${!isMobile && !isGalleryOpen ? 'ml-[352px]' : 'ml-4' // 320px width + 32px gap
             } ${isGalleryOpen && !isMobile ? 'mr-[400px]' : ''}`}
         >
           <div className="p-6 lg:p-10 pb-32 w-full">

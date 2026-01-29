@@ -53,8 +53,6 @@
 
   body {
     background-color: #0a0f0d;
-    background-image: radial-gradient(#1f2937 1px, transparent 1px);
-    background-size: 24px 24px;
     color: var(--text-primary);
     font-family: var(--font-sans);
     transition: background-color 0.3s ease, color 0.3s ease;
@@ -82,42 +80,73 @@
 }
 
 @layer utilities {
+  .bg-dot-grid {
+    background-color: #0a0f0d;
+    background-image: radial-gradient(#1f2937 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-attachment: fixed;
+    /* Ensures distinct paralax-like feel or solid ground */
+  }
+
   .glass-panel {
-    background: rgba(10, 15, 13, 0.6);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(10, 15, 13, 0.4);
+    /* More transparency */
+    backdrop-filter: blur(24px);
+    /* Stronger blur */
+    -webkit-backdrop-filter: blur(24px);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    /* Subtle white border */
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    /* Deep shadow */
+  }
+
+  /* Floating Sidebar specific tweak if needed */
+  .floating-sidebar {
+    @apply glass-panel rounded-2xl border border-white/5;
   }
 
   .glass-card {
-    background-color: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 0.5rem;
-    /* rounded-lg */
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
-    /* duration-300 */
+    background: rgba(15, 21, 18, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    border-radius: 0.75rem;
+    /* rounded-xl */
+    transition: all 0.3s ease;
+  }
+
+  .glass-card:hover {
+    border-color: rgba(126, 217, 87, 0.3);
+    /* Green accent on hover */
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
   }
 
   .glass-input {
-    background-color: var(--bg-input);
-    border: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     color: var(--text-primary);
     border-radius: 0.5rem;
-    /* rounded-lg */
     outline: none;
-    /* outline-none */
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 200ms;
-    /* duration-200 */
+    transition: all 0.2s ease;
   }
 
   .glass-input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
+    box-shadow: 0 0 15px rgba(126, 217, 87, 0.2);
+    /* Neon Glow */
+  }
+
+  .neon-button {
+    background: rgba(126, 217, 87, 0.1);
+    border: 1px solid rgba(126, 217, 87, 0.2);
+    color: var(--accent);
+    transition: all 0.2s;
+  }
+
+  .neon-button:hover {
+    background: rgba(126, 217, 87, 0.2);
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(126, 217, 87, 0.4);
+    text-shadow: 0 0 5px rgba(126, 217, 87, 0.5);
   }
 
   @keyframes spin-slow {
