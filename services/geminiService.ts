@@ -418,8 +418,23 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         safetyRatings: response.candidates?.[0]?.safetyRatings,
       });
 
-      const generatedPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-      const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+      const candidate = response.candidates?.[0];
+      const finishReason = candidate?.finishReason;
+
+      // Handle Safety Blocks
+      if (finishReason === 'SAFETY') {
+        const safetyRatings = candidate?.safetyRatings;
+        const blockedCategories = safetyRatings?.filter((r: any) => r.probability !== 'NEGLIGIBLE').map((r: any) => r.category).join(', ');
+        throw new Error(`Generování zablokováno bezpečnostním filtrem (Safety). Kategorie: ${blockedCategories || 'Neznámé'}`);
+      }
+
+      // Handle Other Finish Reasons
+      if (finishReason && finishReason !== 'STOP') {
+        throw new Error(`Generování selhalo. Důvod ukončení: ${finishReason}`);
+      }
+
+      const generatedPart = candidate?.content?.parts?.find(p => p.inlineData);
+      const groundingMetadata = candidate?.groundingMetadata;
 
       if (generatedPart && generatedPart.inlineData && generatedPart.inlineData.data) {
         const imageBytes = generatedPart.inlineData.data;
@@ -431,7 +446,8 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
           groundingMetadata
         };
       } else {
-        throw new Error("No image data returned from the model.");
+        console.error('[Gemini] No image data found in candidate:', candidate);
+        throw new Error("Model nevrátil žádná data obrázku. Zkuste upravit prompt.");
       }
     } catch (error: any) {
       console.error("[Gemini] API Error:", error);
@@ -439,12 +455,13 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         throw new Error("API_KEY_NOT_FOUND");
       }
       if (error?.message?.includes("API key not valid") || error?.toString().includes("API_KEY_INVALID")) {
-        throw new Error("API_KEY_NOT_FOUND"); // Reuse existing code to trigger modal
+        throw new Error("API_KEY_NOT_FOUND");
       }
+      // Re-throw specific errors defined above
       if (error instanceof Error) {
-        throw new Error(`Failed to generate image: ${error.message}`);
+        throw error;
       }
-      throw new Error("An unexpected error occurred while communicating with Gemini AI.");
+      throw new Error("Neočekávaná chyba při komunikaci s Gemini AI.");
     }
   }
 }
