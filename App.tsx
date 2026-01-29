@@ -876,11 +876,16 @@ const App: React.FC = () => {
       };
     });
 
-    // Přidat všechny loading obrázky do state
-    setState(prev => ({
-      ...prev,
-      generatedImages: [...imagesToGenerate, ...prev.generatedImages],
-    }));
+    // Přidat všechny loading obrázky do state + FIFO removal (max 14 images)
+    setState(prev => {
+      const newImages = [...imagesToGenerate, ...prev.generatedImages];
+      // FIFO: Keep only last 14 images (remove oldest)
+      const limitedImages = newImages.length > MAX_IMAGES ? newImages.slice(0, MAX_IMAGES) : newImages;
+      return {
+        ...prev,
+        generatedImages: limitedImages,
+      };
+    });
 
     // Generovat obrázky sekvenčně s malým zpožděním mezi požadavky
     // aby nedošlo k rate limitingu API
@@ -1542,17 +1547,14 @@ const App: React.FC = () => {
             {isGenerating ? 'Generating...' : state.sourceImages.length > 1 ? `Generate (${state.sourceImages.length})` : 'Generate Image'}
           </button>
 
-          {/* 3 Variants Button */}
+          {/* 3 Variants Button - Generates 3 sophisticated AI variations */}
           <button
-            onClick={() => {
-              setState(p => ({ ...p, numberOfImages: 3 }));
-              handleGenerate();
-            }}
-            disabled={!canGenerate}
-            className="w-full py-2 px-3 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--text-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center gap-2 group"
+            onClick={handleGenerate3Variants}
+            disabled={!canGenerate || isGenerating}
+            className="w-full py-2 px-3 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all bg-gradient-to-r from-purple-500/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-500/60 text-purple-400 hover:text-purple-300 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
           >
-            <Sparkles className="w-3 h-3 text-[#7ed957] group-hover:animate-pulse" />
-            3 Varianty
+            <Sparkles className="w-3 h-3 text-purple-400 group-hover:animate-pulse" />
+            {isGenerating ? 'Generuji varianty...' : '✨ 3 Varianty'}
           </button>
         </div>
       </div>
@@ -1585,13 +1587,34 @@ const App: React.FC = () => {
           </span>
           <div className="flex items-center gap-1">
             {/* JSON Context */}
-            <button
-              onClick={() => {/* TODO: Implement JSON upload */ }}
-              className="w-7 h-7 flex items-center justify-center rounded bg-[var(--bg-input)] text-[var(--accent)] border border-[var(--accent)]/30 hover:border-[var(--accent)] transition-all"
-              title="Připojit JSON kontext"
+            <label
+              htmlFor="json-context-upload"
+              className="w-7 h-7 flex items-center justify-center rounded bg-[var(--bg-input)] text-[var(--accent)] border border-[var(--accent)]/30 hover:border-[var(--accent)] transition-all cursor-pointer"
+              title={jsonContext ? "Změnit JSON kontext" : "Připojit JSON kontext"}
             >
               <FileJson className="w-3.5 h-3.5" />
-            </button>
+              <input
+                id="json-context-upload"
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleJsonUpload}
+              />
+            </label>
+
+            {/* JSON Context Badge */}
+            {jsonContext && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/30">
+                <span className="text-[9px] font-medium text-blue-400 max-w-[80px] truncate">{jsonContext.fileName}</span>
+                <button
+                  onClick={() => setJsonContext(null)}
+                  className="text-blue-400 hover:text-blue-300"
+                  title="Odebrat JSON kontext"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
 
             {/* Mode Switch (Compact) */}
             <button
@@ -1619,10 +1642,32 @@ const App: React.FC = () => {
           </div>
         </div>
 
+        {/* Mode Switcher Tabs */}
+        <div className="flex gap-1 mb-2">
+          <button
+            onClick={() => setPromptMode('simple')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded transition-all ${promptMode === 'simple'
+              ? 'bg-[var(--accent)] text-[#0a0f0d] shadow-sm'
+              : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-input)]'
+              }`}
+          >
+            Jednoduchý Režim
+          </button>
+          <button
+            onClick={() => setPromptMode('advanced')}
+            className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded transition-all ${promptMode === 'advanced'
+              ? 'bg-[var(--accent)] text-[#0a0f0d] shadow-sm'
+              : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-input)]'
+              }`}
+          >
+            Interpretační Režim
+          </button>
+        </div>
+
         <textarea
           ref={isMobileView ? mobilePromptRef : promptRef}
           value={state.prompt}
-          onChange={(e) => setState(p => ({ ...p, prompt: e.target.value }))}
+          onChange={(e) => { setState(p => ({ ...p, prompt: e.target.value })); promptHistory.add(e.target.value); }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -1630,9 +1675,79 @@ const App: React.FC = () => {
             }
             handleKeyDown(e);
           }}
-          placeholder={promptMode === 'advanced' ? "Popište obrázek..." : "Zadejte prompt..."}
+          placeholder={promptMode === 'advanced' ? "Popište obrázek přirozeně. Vyberte variantu níže pro určení stylu interpretace..." : "Popište obrázek..."}
           className="w-full min-h-[100px] max-h-[200px] bg-transparent border-0 border-b border-[var(--border-color)] rounded-none p-2 text-sm font-medium text-[var(--text-primary)] placeholder-gray-500 focus:border-[var(--accent)] focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
         />
+
+        {/* Advanced Mode Controls (Conditional) */}
+        {promptMode === 'advanced' && (
+          <div className="mt-2 space-y-2 animate-fadeIn">
+            {/* Variant Selector A/B/C */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { id: 'A', label: 'VARIANTA A', subtitle: 'Autenticita', tooltip: 'Maximální autenticita (Priorita reality). Přirozené, nedokonalé, věrohodné.' },
+                { id: 'B', label: 'VARIANTA B', subtitle: 'Vylepšení', tooltip: 'Maximální vylepšení (Idealizované). Vybroušené, filmové, prémiové.' },
+                { id: 'C', label: 'VARIANTA C', subtitle: 'Vyvážené', tooltip: 'Vyvážený realismus (Přirozené + Estetické). Neutrální výchozí.' }
+              ].map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => setAdvancedVariant(v.id as 'A' | 'B' | 'C')}
+                  className={`group relative flex flex-col items-center p-2 rounded-md border transition-all text-center ${advancedVariant === v.id
+                    ? 'bg-[var(--accent)]/10 border-[var(--accent)] ring-1 ring-[var(--accent)]/50'
+                    : 'bg-transparent border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50'
+                    }`}
+                >
+                  <span className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${advancedVariant === v.id ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'
+                    }`}>
+                    {v.label}
+                  </span>
+                  <span className="text-[8px] text-[var(--text-secondary)] font-medium">
+                    {v.subtitle}
+                  </span>
+                  {/* Tooltip */}
+                  <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-[#0a0f0d]/90 backdrop-blur-sm text-white text-[9px] rounded-md shadow-xl z-50 pointer-events-none text-left leading-relaxed">
+                    {v.tooltip}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-[#0a0f0d]/90"></div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Face Identity Toggle */}
+            <label
+              className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-all ${faceIdentityMode
+                ? 'bg-amber-500/10 border-amber-500/30'
+                : 'bg-transparent border-[var(--border-color)] hover:border-[var(--text-secondary)]'
+                }`}
+            >
+              {/* Custom Toggle Switch */}
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={faceIdentityMode}
+                  onChange={(e) => setFaceIdentityMode(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className={`w-8 h-4 rounded-full transition-all ${faceIdentityMode ? 'bg-amber-500' : 'bg-[var(--border-color)]'
+                  }`}>
+                  <div className={`absolute top-0.5 left-0.5 bg-white border border-gray-300 rounded-full h-3 w-3 transition-all ${faceIdentityMode ? 'translate-x-full' : 'translate-x-0'
+                    }`}></div>
+                </div>
+              </div>
+
+              {/* Label */}
+              <div className="flex-1">
+                <div className={`text-[9px] font-black uppercase tracking-wider ${faceIdentityMode ? 'text-amber-800' : 'text-[var(--text-secondary)]'
+                  }`}>
+                  Zachování Identity Tváře
+                </div>
+                <div className="text-[8px] text-[var(--text-secondary)]">
+                  Upřednostnit věrnost tváře před estetikou
+                </div>
+              </div>
+            </label>
+          </div>
+        )}
 
         {/* Prompt Tools (Compacted) */}
         <div className="flex items-center gap-2 pt-1">
@@ -1645,12 +1760,30 @@ const App: React.FC = () => {
 
           <div className="flex-1" />
 
+          {/* Undo / Redo Buttons */}
+          <button
+            onClick={handleUndoPrompt}
+            disabled={!promptHistory.canUndo()}
+            className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-[var(--bg-panel)] hover:bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded border border-[var(--border-color)] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Vrátit zpět (Undo)"
+          >
+            ↶
+          </button>
+          <button
+            onClick={handleRedoPrompt}
+            disabled={!promptHistory.canRedo()}
+            className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-[var(--bg-panel)] hover:bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded border border-[var(--border-color)] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Znovu (Redo)"
+          >
+            ↷
+          </button>
+
           <button
             onClick={handleEnhancePrompt}
             disabled={!state.prompt.trim() || isEnhancingPrompt}
-            className="px-3 py-1 text-[9px] font-bold uppercase tracking-widest bg-[var(--bg-panel)] hover:bg-[var(--bg-input)] text-[var(--accent)] rounded border border-[var(--border-color)] hover:border-[var(--accent)]/30 transition-all disabled:opacity-50 flex items-center gap-1"
+            className="px-3 py-1 text-[9px] font-bold uppercase tracking-widest bg-gradient-to-r from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30 text-blue-400 hover:text-blue-300 rounded border border-blue-500/30 hover:border-blue-500/50 transition-all disabled:opacity-50 flex items-center gap-1"
           >
-            <Sparkles className="w-3 h-3" /> Vylepšit
+            <Sparkles className="w-3 h-3" /> {isEnhancingPrompt ? 'Vylepšuji...' : '✨ Vylepšit'}
           </button>
         </div>
       </div>
