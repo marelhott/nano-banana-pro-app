@@ -2155,23 +2155,19 @@ return (
                             {/* Animated Progress Bar */}
                             <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
                               <div
-                                className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full transition-all ease-out"
+                                className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full"
                                 style={{
-                                  width: '90%',
-                                  transitionDuration: '8000ms',
-                                  transitionProperty: 'width'
+                                  width: '0%',
+                                  animation: 'growWidth 10s ease-out forwards'
                                 }}
-                              />
-                              {/* Initial zero width set via ref or key? A simpler way for React re-render: */}
-                              <div
-                                className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full animate-[progress_8s_ease-out_forwards]"
-                                style={{ width: '0%', animationName: 'growWidth', animationDuration: '10s', animationFillMode: 'forwards' }}
                               />
                               <style>{`
                                   @keyframes growWidth {
                                     0% { width: 0%; }
-                                    90% { width: 95%; }
-                                    100% { width: 98%; }
+                                    10% { width: 10%; }
+                                    50% { width: 60%; }
+                                    90% { width: 90%; }
+                                    100% { width: 95%; }
                                   }
                                 `}</style>
                             </div>
@@ -2179,33 +2175,49 @@ return (
                             <div className="text-center">
                               <span className="text-[10px] text-gray-400 font-medium tracking-wide animate-pulse">generuji...</span>
                             </div>
+                            <div
+                              className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full animate-[progress_8s_ease-out_forwards]"
+                              style={{ width: '0%', animationName: 'growWidth', animationDuration: '10s', animationFillMode: 'forwards' }}
+                            />
+                            <style>{`
+                                  @keyframes growWidth {
+                                    0% { width: 0%; }
+                                    90% { width: 95%; }
+                                    100% { width: 98%; }
+                                  }
+                                `}</style>
+                          </div>
+                          {/* "generuji" text */}
+                          <div className="text-center">
+                            <span className="text-[10px] text-gray-400 font-medium tracking-wide animate-pulse">generuji...</span>
                           </div>
                         </div>
-                      ) : (
-                        image.url && (
-                          <img
-                            src={image.url}
-                            className={`w-full h-auto ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
-                            decoding="sync"
-                            style={{ imageRendering: '-webkit-optimize-contrast' }}
-                          />
-                        )
-                      )}
-                      {/* Error Overlay */}
-                      {image.status === 'error' && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/80 backdrop-blur-sm">
-                          <div className="w-10 h-10 bg-red-500/20 text-red-500 border border-red-500/30 rounded-md flex items-center justify-center mb-4">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                          </div>
-                          <p className="text-[10px] font-bold text-red-400 leading-relaxed max-w-[150px]">{image.error}</p>
                         </div>
+                    ) : (
+                    image.url && (
+                    <img
+                      src={image.url}
+                      className={`w-full h-auto ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
+                      decoding="sync"
+                      style={{ imageRendering: '-webkit-optimize-contrast' }}
+                    />
+                    )
                       )}
-                    </div>
+                    {/* Error Overlay */}
+                    {image.status === 'error' && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/80 backdrop-blur-sm">
+                        <div className="w-10 h-10 bg-red-500/20 text-red-500 border border-red-500/30 rounded-md flex items-center justify-center mb-4">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </div>
+                        <p className="text-[10px] font-bold text-red-400 leading-relaxed max-w-[150px]">{image.error}</p>
+                      </div>
+                    )}
+                  </div>
 
-                    {/* Card Footer */}
-                    <div className="px-4 py-3 flex flex-col gap-2 border-t border-gray-800 bg-[#0f1512]">
-                      {/* Prompt + Actions Row */}
-                      <div className="flex items-center gap-2">
+                    {/* Card Footer */ }
+                  < div className = "px-4 py-3 flex flex-col gap-2 border-t border-gray-800 bg-[#0f1512]" >
+                  {/* Prompt + Actions Row */ }
+                  < div className = "flex items-center gap-2" >
                         <p className="text-[11px] font-bold text-gray-300 leading-snug line-clamp-1 flex-1" title={image.prompt}>
                           {image.prompt}
                         </p>
@@ -2266,148 +2278,148 @@ return (
                       </div>
 
                       {/* Grounding Links (if present) */}
-                      {image.groundingMetadata && image.groundingMetadata.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {image.groundingMetadata.slice(0, 3).map((link, idx) => (
-                            <a
-                              key={idx}
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-[9px] px-2 py-0.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded border border-blue-500/20 hover:border-blue-500/40 transition-colors font-medium truncate max-w-[150px]"
-                              title={link.title || link.url}
-                            >
-                              {link.title || new URL(link.url).hostname}
-                            </a>
-                          ))}
-                          {image.groundingMetadata.length > 3 && (
-                            <span className="text-[9px] text-gray-500 px-2 py-0.5">
-                              +{image.groundingMetadata.length - 3} více
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Inline Edit Section */}
-                    {image.status === 'success' && image.url && (
-                      <div className="px-4 py-3 border-t border-gray-800/50 bg-[#0a0f0d]/30 space-y-2.5">
-                        {/* Header Row */}
-                        <div className="flex items-center justify-between px-1">
-                          <div className="flex items-center gap-1.5">
-                            <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            <span className="text-[9px] font-black uppercase tracking-wider text-gray-400">
-                              Upravit prompt
-                            </span>
-                          </div>
-
-                          {/* Add Images Toggle */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowReferenceUpload(prev => ({
-                                ...prev,
-                                [image.id]: !prev[image.id]
-                              }));
-                            }}
-                            className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${showReferenceUpload[image.id]
-                              ? 'bg-[#7ed957] text-[#0a0f0d] border border-[#7ed957]'
-                              : 'bg-[#0f1512] text-gray-500 hover:text-gray-300 border border-gray-800 hover:border-gray-700'
-                              }`}
-                            title="Přidat referenční obrázky"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            {showReferenceUpload[image.id] ? 'Obrázky' : '+ Obrázky'}
-                          </button>
-                        </div>
-
-                        {/* Edit Textarea */}
-                        <textarea
-                          value={editPrompts[image.id] || ''}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }));
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          placeholder="Popište úpravy..."
-                          className="w-full min-h-[80px] bg-[#0f1512] border border-gray-800 hover:border-gray-700 focus:border-[#7ed957] rounded-md p-2 text-xs text-gray-200 placeholder-gray-600 focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
-                        />
-
-                        {/* Inline Reference Images (Conditional) */}
-                        {showReferenceUpload[image.id] && (
-                          <div className="grid grid-cols-4 gap-1 p-2 bg-[#0a0f0d] border border-gray-800 rounded-md">
-                            {(inlineEditStates[image.id]?.referenceImages || []).map((img, idx) => (
-                              <div key={idx} className="relative group aspect-square rounded overflow-hidden bg-gray-900 border border-gray-800">
-                                <img src={img.url} className="w-full h-full object-cover" alt={`Ref ${idx}`} />
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setInlineEditStates(prev => ({
-                                      ...prev,
-                                      [image.id]: {
-                                        ...prev[image.id],
-                                        referenceImages: prev[image.id]?.referenceImages?.filter((_, i) => i !== idx) || []
-                                      }
-                                    }));
-                                  }}
-                                  className="absolute top-0 right-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <X className="w-2.5 h-2.5" />
-                                </button>
-                              </div>
-                            ))}
-                            {(inlineEditStates[image.id]?.referenceImages?.length || 0) < MAX_IMAGES && (
-                              <label className="flex items-center justify-center aspect-square rounded border border-dashed border-gray-700 hover:border-gray-600 hover:bg-gray-900/50 cursor-pointer transition-colors">
-                                <span className="text-gray-500">+</span>
-                                <input
-                                  type="file"
-                                  multiple
-                                  accept="image/*"
-                                  className="hidden"
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    if (e.target.files) {
-                                      addInlineReferenceImages(image.id, Array.from(e.target.files));
-                                    }
-                                  }}
-                                />
-                              </label>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Regenerate Button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditImage(image.id);
-                          }}
-                          disabled={!editPrompts[image.id]?.trim()}
-                          className="w-full py-2 px-3 bg-gradient-to-r from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30 text-blue-400 hover:text-blue-300 font-black text-[9px] uppercase tracking-widest rounded-md border border-blue-500/30 hover:border-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
-                        >
-                          Regenerovat obrázek
-                        </button>
-                      </div>
-                    )}
-                  </article>
+            {image.groundingMetadata && image.groundingMetadata.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {image.groundingMetadata.slice(0, 3).map((link, idx) => (
+                  <a
+                    key={idx}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[9px] px-2 py-0.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded border border-blue-500/20 hover:border-blue-500/40 transition-colors font-medium truncate max-w-[150px]"
+                    title={link.title || link.url}
+                  >
+                    {link.title || new URL(link.url).hostname}
+                  </a>
                 ))}
+                {image.groundingMetadata.length > 3 && (
+                  <span className="text-[9px] text-gray-500 px-2 py-0.5">
+                    +{image.groundingMetadata.length - 3} více
+                  </span>
+                )}
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Right Sidebar - Sliding Library */}
-      <div
-        className={`absolute right-0 top-0 bottom-0 z-50 w-[85vw] sm:w-[340px] transition-transform duration-300 ease-in-out border-l border-gray-800/50 bg-[#0f1512] flex flex-col h-full shadow-2xl group ${isHoveringGallery ? 'translate-x-0' : 'translate-x-[calc(100%-20px)]'}`}
-        onMouseEnter={() => setIsHoveringGallery(true)}
-        onMouseLeave={() => setIsHoveringGallery(false)}
+          {/* Inline Edit Section */}
+          {image.status === 'success' && image.url && (
+            <div className="px-4 py-3 border-t border-gray-800/50 bg-[#0a0f0d]/30 space-y-2.5">
+              {/* Header Row */}
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                    Upravit prompt
+                  </span>
+                </div>
+
+                {/* Add Images Toggle */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowReferenceUpload(prev => ({
+                      ...prev,
+                      [image.id]: !prev[image.id]
+                    }));
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${showReferenceUpload[image.id]
+                    ? 'bg-[#7ed957] text-[#0a0f0d] border border-[#7ed957]'
+                    : 'bg-[#0f1512] text-gray-500 hover:text-gray-300 border border-gray-800 hover:border-gray-700'
+                    }`}
+                  title="Přidat referenční obrázky"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {showReferenceUpload[image.id] ? 'Obrázky' : '+ Obrázky'}
+                </button>
+              </div>
+
+              {/* Edit Textarea */}
+              <textarea
+                value={editPrompts[image.id] || ''}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }));
+                }}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="Popište úpravy..."
+                className="w-full min-h-[80px] bg-[#0f1512] border border-gray-800 hover:border-gray-700 focus:border-[#7ed957] rounded-md p-2 text-xs text-gray-200 placeholder-gray-600 focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
+              />
+
+              {/* Inline Reference Images (Conditional) */}
+              {showReferenceUpload[image.id] && (
+                <div className="grid grid-cols-4 gap-1 p-2 bg-[#0a0f0d] border border-gray-800 rounded-md">
+                  {(inlineEditStates[image.id]?.referenceImages || []).map((img, idx) => (
+                    <div key={idx} className="relative group aspect-square rounded overflow-hidden bg-gray-900 border border-gray-800">
+                      <img src={img.url} className="w-full h-full object-cover" alt={`Ref ${idx}`} />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInlineEditStates(prev => ({
+                            ...prev,
+                            [image.id]: {
+                              ...prev[image.id],
+                              referenceImages: prev[image.id]?.referenceImages?.filter((_, i) => i !== idx) || []
+                            }
+                          }));
+                        }}
+                        className="absolute top-0 right-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {(inlineEditStates[image.id]?.referenceImages?.length || 0) < MAX_IMAGES && (
+                    <label className="flex items-center justify-center aspect-square rounded border border-dashed border-gray-700 hover:border-gray-600 hover:bg-gray-900/50 cursor-pointer transition-colors">
+                      <span className="text-gray-500">+</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (e.target.files) {
+                            addInlineReferenceImages(image.id, Array.from(e.target.files));
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {/* Regenerate Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditImage(image.id);
+                }}
+                disabled={!editPrompts[image.id]?.trim()}
+                className="w-full py-2 px-3 bg-gradient-to-r from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30 text-blue-400 hover:text-blue-300 font-black text-[9px] uppercase tracking-widest rounded-md border border-blue-500/30 hover:border-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
+              >
+                Regenerovat obrázek
+              </button>
+            </div>
+          )}
+        </article>
+                ))}
+      </div>
+            )}
+    </div>
+  </div>
+      </div >
+
+  {/* Right Sidebar - Sliding Library */ }
+  < div
+className = {`absolute right-0 top-0 bottom-0 z-50 w-[85vw] sm:w-[340px] transition-transform duration-300 ease-in-out border-l border-gray-800/50 bg-[#0f1512] flex flex-col h-full shadow-2xl group ${isHoveringGallery ? 'translate-x-0' : 'translate-x-[calc(100%-20px)]'}`}
+onMouseEnter = {() => setIsHoveringGallery(true)}
+onMouseLeave = {() => setIsHoveringGallery(false)}
       >
         <div className={`p-4 border-b border-gray-800/50 bg-[#0f1512] flex items-center justify-between transition-opacity duration-300 delay-100 ${isHoveringGallery ? 'opacity-100' : 'opacity-0'}`}>
           <div className="flex items-center gap-2">
@@ -2424,12 +2436,12 @@ return (
             onBatchProcess={handleBatchProcess}
           />
         </div>
-        {/* Handle indicator - Increased width for better hit target */}
-        <div className="absolute left-0 top-0 bottom-0 w-[20px] bg-transparent cursor-pointer flex items-center justify-center transition-opacity" style={{ opacity: isHoveringGallery ? 0 : 1 }}>
-          <div className="w-1 h-8 bg-gray-700/50 rounded-full"></div>
-        </div>
-      </div>
-    </div>
+{/* Handle indicator - Increased width for better hit target */ }
+<div className="absolute left-0 top-0 bottom-0 w-[20px] bg-transparent cursor-pointer flex items-center justify-center transition-opacity" style={{ opacity: isHoveringGallery ? 0 : 1 }}>
+  <div className="w-1 h-8 bg-gray-700/50 rounded-full"></div>
+</div>
+      </div >
+    </div >
 
     <ImageComparisonModal
       isOpen={!!selectedImage}
@@ -2483,47 +2495,47 @@ return (
       actions={quickActionsMenu.imageId ? getQuickActionsForImage(quickActionsMenu.imageId) : []}
     />
 
-    {
-      generationProgress && (
-        <LoadingProgress
-          current={generationProgress.current}
-          total={generationProgress.total}
+{
+  generationProgress && (
+    <LoadingProgress
+      current={generationProgress.current}
+      total={generationProgress.total}
+    />
+  )
+}
+
+
+
+{/* Batch Progress Bar */ }
+{
+  batchProgress && (
+    <div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-2xl border-2 border-ink z-50 min-w-[280px]">
+      <p className="font-black text-sm uppercase mb-2 text-ink">Batch zpracování</p>
+      <p className="text-xs text-monstera-600 mb-3">
+        Chunk {batchProgress.currentChunk}/{batchProgress.totalChunks} • {batchProgress.current}/{batchProgress.total} obrázků
+      </p>
+      <div className="w-64 h-3 bg-monstera-100 rounded-full border border-monstera-300">
+        <div
+          className="h-full bg-monstera-400 rounded-full transition-all duration-300"
+          style={{
+            width: `${(batchProgress.current / batchProgress.total) * 100}%`
+          }}
         />
-      )
-    }
+      </div>
+    </div>
+  )
+}
 
-
-
-    {/* Batch Progress Bar */}
-    {
-      batchProgress && (
-        <div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-2xl border-2 border-ink z-50 min-w-[280px]">
-          <p className="font-black text-sm uppercase mb-2 text-ink">Batch zpracování</p>
-          <p className="text-xs text-monstera-600 mb-3">
-            Chunk {batchProgress.currentChunk}/{batchProgress.totalChunks} • {batchProgress.current}/{batchProgress.total} obrázků
-          </p>
-          <div className="w-64 h-3 bg-monstera-100 rounded-full border border-monstera-300">
-            <div
-              className="h-full bg-monstera-400 rounded-full transition-all duration-300"
-              style={{
-                width: `${(batchProgress.current / batchProgress.total) * 100}%`
-              }}
-            />
-          </div>
-        </div>
-      )
-    }
-
-    {/* Toast Notification */}
-    {
-      toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )
-    }
+{/* Toast Notification */ }
+{
+  toast && (
+    <Toast
+      message={toast.message}
+      type={toast.type}
+      onClose={() => setToast(null)}
+    />
+  )
+}
   </div >
 );
 };
