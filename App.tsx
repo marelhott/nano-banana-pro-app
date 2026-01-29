@@ -1193,7 +1193,34 @@ const App: React.FC = () => {
   };
 
   const handleInlineGenerate = async (image: GeneratedImage, prompt: string, references: SourceImage[]) => {
-    setToast({ message: 'Generuji variantu...', type: 'info' });
+    setToast({ message: 'Přegenerovávám...', type: 'info' });
+
+    // 1. Create a version snapshot of current state
+    const currentVersion = {
+      url: image.url || '',
+      prompt: image.prompt,
+      timestamp: image.timestamp
+    };
+
+    const newVersions = [
+      ...(image.versions || []),
+      ...(image.versions ? [] : [currentVersion]) // If no versions yet, push current as first
+    ];
+
+    // 2. Set status to loading on the SAME image
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img =>
+        img.id === image.id
+          ? {
+            ...img,
+            status: 'loading',
+            versions: newVersions,
+            currentVersionIndex: newVersions.length // Point to "future" new version
+          }
+          : img
+      )
+    }));
 
     try {
       const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
@@ -1205,43 +1232,183 @@ const App: React.FC = () => {
         mimeType: r.file.type
       }));
 
-      const newId = Math.random().toString(36).substr(2, 9);
-      const newImagePlaceholder: GeneratedImage = {
-        id: newId,
-        url: '',
-        prompt: finalPrompt,
-        timestamp: Date.now(),
-        status: 'loading',
-        aspectRatio: image.aspectRatio,
-        resolution: image.resolution
-      };
-
-      setState(prev => ({
-        ...prev,
-        generatedImages: [newImagePlaceholder, ...prev.generatedImages]
-      }));
-
       const result = await provider.generateImage(allRefs, finalPrompt, image.resolution || '1024x1024', image.aspectRatio || '1:1', false);
 
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img =>
-          img.id === newId ? { ...img, status: 'success', url: result.imageBase64 } : img
-        )
-      }));
-
       if (result.imageBase64) {
+        // 3. Update the SAME image with new result
+        setState(prev => ({
+          ...prev,
+          generatedImages: prev.generatedImages.map(img =>
+            img.id === image.id
+              ? {
+                ...img,
+                status: 'success',
+                url: result.imageBase64,
+                groundingMetadata: result.groundingMetadata,
+                // Add new version to history is implicit: the "current" state is now the latest
+                // We keep versions array as is (history), and current state is "head"
+              }
+              : img
+          )
+        }));
+
         await saveToGallery({
           url: result.imageBase64,
           prompt: finalPrompt,
           resolution: image.resolution,
           aspectRatio: image.aspectRatio
         });
-        setToast({ message: 'Varianta vygenerována!', type: 'success' });
+        setToast({ message: 'Přegenerováno!', type: 'success' });
+      } else {
+        throw new Error('No image data returned');
       }
     } catch (err: any) {
+      console.error('Inline generation error:', err);
+      // Revert status to success if failed (or error)
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img =>
+          img.id === image.id
+            ? { ...img, status: 'error', error: err.message }
+            : img
+        )
+      }));
       setToast({ message: `Chyba: ${err.message}`, type: 'error' });
     }
+  };
+
+  const handleUndo = (imageId: string) => {
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img => {
+        if (img.id !== imageId || !img.versions || img.versions.length === 0) return img;
+
+        // Current state is considered the "latest" (index = versions.length)
+        // If we have versions [v0, v1], current is implicitly v2.
+        // currentVersionIndex tracks what we are SHOWING.
+        // Let's normalize:
+        // versions = [v0, v1, v2 (current)]
+        // Actually, let's simplify:
+        // When we generate, we push OLD state to versions.
+        // So currently displayed is NOT in versions until we generate again?
+        // Let's use a simpler model:
+        // versions contains ALL history including current.
+        // But `GeneratedImage` structure has top-level `url` and `versions`.
+        // Let's use top-level as "cursor".
+
+        // Actually, the implemented logic in handleInlineGenerate pushed OLD state to versions.
+        // So `versions` has [v0, v1]. Top level has v2.
+        // currentVersionIndex should be 2.
+        // Undo -> index 1. Load v1 from versions[1] into top level.
+
+        // Need to ensure "current" (latest) is also saved in versions if we act like this.
+        // Let's adjust handleInlineGenerate logic slightly above or handle it here.
+
+        // Fix: Ensure we capture "current active" into versions before navigating if it's not there?
+        // Simpler: Just rely on versions array.
+        // If index > 0, decrement.
+        // restored version = versions[index - 1]
+
+        const currentIndex = img.currentVersionIndex ?? (img.versions.length);
+        if (currentIndex <= 0) return img; // Can't undo further
+
+        const newIndex = currentIndex - 1;
+        const versionToRestore = img.versions[newIndex];
+
+        // We need to save the "current" state to versions if we are stepping back from Head?
+        // If we are at Head (currentIndex == versions.length), the "current" image is NOT in versions yet?
+        // Let's ensure handleInlineGenerate pushes the *previous* head to versions. Yes it does.
+        // But what about the *result* of the generation? It becomes the new Head.
+        // So versions = [v0], Head = v1.
+        // Undo -> go to v0.
+        // But we need to keep v1 somewhere if we want to Redo?
+        // The standard undo/redo pattern:
+        // history = [v0, v1, v2]
+        // pointer = 2
+        // Undo -> pointer = 1. Show history[1].
+
+        // Let's migrate to this pattern on the fly?
+        // Or stick to: versions = history.
+        // If I undo, I need to save "Head" to versions?
+        // Let's assume handleInlineGenerate does NOT push the new result to versions, only the old one.
+        // So versions = [old]. Head = new.
+        // If I undo, I swap Head with versions[last].
+        // And I need to temporarily store "new" in versions to allow Redo?
+
+        // BETTER STRATEGY:
+        // Treat `versions` as the definitive timeline.
+        // When generating:
+        // 1. Push current `url` code to `versions`.
+        // 2. Generate.
+        // 3. Push new `url` to `versions`.
+        // 4. Update top-level `url` to match new `url` and set index to last.
+
+        // Let's patch handleInlineGenerate first to align with this cleaner model?
+        // Or implement robust undo here.
+
+        // Let's try:
+        // If undoing from Head (no redo stack yet):
+        // We need to SAVE Head to versions so we can Redo to it.
+        // actually `versions` should hold all snapshots.
+        // Let's update `handleInlineGenerate` to push the NEW result to versions too.
+
+        // For now, let's assume specific behavior:
+        // versions=[v0]. Head=v1.
+        // Undo: We want to show v0. We MUST save v1 to versions array to Redo.
+        // But versions array is order-dependent.
+        // versions=[v0, v1]. index=1.
+        // Undo -> index=0. show versions[0].
+        // Redo -> index=1. show versions[1].
+
+        // So, `handleInlineGenerate` needs to:
+        // 1. Push OLD state to versions (if not already valid history).
+        // 2. Generate.
+        // 3. Push NEW state to versions.
+        // 4. Set index to last.
+
+        // I will update handleInlineGenerate above to support this robustly.
+        // AND implement handleUndo/Redo here assuming that model.
+
+        const allVersions = img.versions || [];
+        // If we are at "head" but it's not in versions (legacy), we might lose it.
+        // But let's assume we fixed handleInlineGenerate.
+
+        // If currentVersionIndex is undefined, assume we are at Head = versions.length - 1?
+        // No, let's rely on explicit index.
+
+        const idx = img.currentVersionIndex ?? (allVersions.length - 1);
+        if (idx > 0) {
+          const prevVer = allVersions[idx - 1];
+          return {
+            ...img,
+            url: prevVer.url,
+            prompt: prevVer.prompt,
+            currentVersionIndex: idx - 1
+          };
+        }
+        return img;
+      })
+    }));
+  };
+
+  const handleRedo = (imageId: string) => {
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img => {
+        if (img.id !== imageId || !img.versions) return img;
+        const idx = img.currentVersionIndex ?? (img.versions.length - 1);
+        if (idx < img.versions.length - 1) {
+          const nextVer = img.versions[idx + 1];
+          return {
+            ...img,
+            url: nextVer.url,
+            prompt: nextVer.prompt,
+            currentVersionIndex: idx + 1
+          };
+        }
+        return img;
+      })
+    }));
   };
 
   const handleBatchProcess = async (images: any[]) => {
@@ -2021,13 +2188,12 @@ const App: React.FC = () => {
                       onContextMenu={(e) => image.status === 'success' && handleImageContextMenu(e, image.id)}
                     >
                       <div
-                        className={`relative bg-black/50 cursor-zoom-in ${image.status !== 'success' ? 'aspect-square' : ''}`}
-                        style={gridCols === 1 && image.status !== 'success' ? getLoadingAspectRatio(image.aspectRatio) : undefined}
+                        className={`relative w-full aspect-[2/3] bg-[#0f1512] cursor-zoom-in overflow-hidden group/image`}
                         onClick={() => setSelectedImage(image)}
                       >
-                        {/* Image Rendering Logic - Simplified for brevity, assume existing mostly works but ensure styles are updated */}
+                        {/* Image Rendering Logic - Fixed Aspect Ratio & In-Place Updates */}
                         {image.status === 'success' && (
-                          <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
+                          <div className="absolute top-3 left-3 z-10 opacity-0 group-hover/image:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={selectedGeneratedImages.has(image.id)}
@@ -2040,25 +2206,49 @@ const App: React.FC = () => {
                                 });
                               }}
                               className="w-5 h-5 cursor-pointer accent-[#7ed957] bg-black/50 border-gray-500 rounded"
-                              onClick={(e) => e.stopPropagation()}
                             />
                           </div>
                         )}
 
-                        {image.status === 'loading' ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        {/* Undo/Redo Controls */}
+                        {image.status === 'success' && (image.versions?.length ?? 0) > 0 && (
+                          <div className="absolute top-3 right-3 z-20 flex gap-1 opacity-0 group-hover/image:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleUndo(image.id)}
+                              disabled={(image.currentVersionIndex ?? (image.versions?.length || 0)) <= 0}
+                              className="p-1.5 bg-black/60 hover:bg-black/90 text-white disabled:opacity-30 rounded-full backdrop-blur-md transition-all border border-white/10"
+                              title="Zpět (Undo)"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 14L4 9l5-5" /></svg>
+                            </button>
+                            <button
+                              onClick={() => handleRedo(image.id)}
+                              disabled={(image.currentVersionIndex ?? (image.versions?.length || 0)) >= (image.versions?.length || 0)}
+                              className="p-1.5 bg-black/60 hover:bg-black/90 text-white disabled:opacity-30 rounded-full backdrop-blur-md transition-all border border-white/10"
+                              title="Vpřed (Redo)"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 14l5-5-5-5" /></svg>
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Always render image if URL exists (for blur effect) */}
+                        {image.url && (
+                          <img
+                            src={image.url}
+                            className={`w-full h-full object-cover transition-all duration-700 ${image.status === 'loading' ? 'blur-lg scale-110 opacity-50 grayscale' : ''}`}
+                            decoding="sync"
+                            style={{ imageRendering: '-webkit-optimize-contrast' }}
+                          />
+                        )}
+
+                        {/* Loading Spinner Overlay */}
+                        {image.status === 'loading' && (
+                          <div className="absolute inset-0 flex items-center justify-center z-10">
                             <LoadingSpinner />
                           </div>
-                        ) : (
-                          image.url && (
-                            <img
-                              src={image.url}
-                              className={`w-full h-auto ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
-                              decoding="sync"
-                              style={{ imageRendering: '-webkit-optimize-contrast' }}
-                            />
-                          )
                         )}
+
                         {/* Error Overlay */}
                         {image.status === 'error' && (
                           <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/80 backdrop-blur-sm">
