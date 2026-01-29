@@ -1632,7 +1632,7 @@ const App: React.FC = () => {
     });
   };
 
-};
+}
 
 const handleJsonUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
   const file = event.target.files?.[0];
@@ -1651,7 +1651,7 @@ const handleJsonUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
   reader.readAsText(file);
   // Reset inputs
   event.target.value = '';
-};
+}
 
 const getQuickActionsForImage = (imageId: string): QuickAction[] => {
   const image = state.generatedImages.find(img => img.id === imageId);
@@ -1700,7 +1700,7 @@ const getQuickActionsForImage = (imageId: string): QuickAction[] => {
       dangerous: true,
     },
   ];
-};
+}
 
 
 
@@ -1709,7 +1709,7 @@ const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     handleGenerate();
   }
-};
+}
 
 const handleNextImage = () => {
   if (!selectedImage) return;
@@ -1717,7 +1717,7 @@ const handleNextImage = () => {
   if (idx < state.generatedImages.length - 1) {
     setSelectedImage(state.generatedImages[idx + 1]);
   }
-};
+}
 
 const handlePrevImage = () => {
   if (!selectedImage) return;
@@ -1725,7 +1725,7 @@ const handlePrevImage = () => {
   if (idx > 0) {
     setSelectedImage(state.generatedImages[idx - 1]);
   }
-};
+}
 
 const getDomainFromUrl = (url: string, title?: string) => {
   try {
@@ -1750,7 +1750,7 @@ const getDomainFromUrl = (url: string, title?: string) => {
   } catch {
     return title || 'Link';
   }
-};
+}
 
 if (hasApiKey === false) {
   return <ApiKeyModal onKeySelected={handleKeySelected} />;
@@ -2011,7 +2011,7 @@ const handleAuth = async (userId: string) => {
   if (savedSettings) {
     setProviderSettings(savedSettings);
   }
-};
+}
 
 // Show PIN auth screen if not authenticated
 if (!isAuthenticated) {
@@ -2024,7 +2024,7 @@ const handleSaveSettings = async (newSettings: ProviderSettings) => {
   setProviderSettings(newSettings);
   await SettingsDatabase.saveProviderSettings(newSettings);
   setToast({ message: 'Settings saved successfully!', type: 'success' });
-};
+}
 
 return (
   <div className="min-h-screen transition-colors duration-300 bg-transparent text-[var(--text-primary)] font-sans">
@@ -2518,6 +2518,6 @@ return (
     }
   </div >
 );
-};
+}
 
 export default App;
