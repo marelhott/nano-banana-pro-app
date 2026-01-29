@@ -47,6 +47,9 @@ const App: React.FC = () => {
   // PIN Autentizace state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authUserId, setAuthUserId] = useState<string | null>(null);
+
+  // Inline Editing State (Restored)
+  const [inlineEdits, setInlineEdits] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   // Theme state
   // Theme state - Enforced Dark Mode (v2)
   const isDark = true;
@@ -1156,6 +1159,91 @@ const App: React.FC = () => {
     }
   };
   // Batch processing handler
+  // --- Inline Editing Handlers (Restored) ---
+  const readFileAsDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const addInlineReferenceImages = async (imageId: string, files: File[]) => {
+    const newImages = await Promise.all(files.map(async file => {
+      const url = await readFileAsDataURL(file);
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        url,
+        file,
+        isUploaded: false
+      };
+    }));
+
+    setInlineEdits(prev => {
+      const current = prev[imageId] || { prompt: '', referenceImages: [] };
+      return {
+        ...prev,
+        [imageId]: {
+          ...current,
+          referenceImages: [...current.referenceImages, ...newImages]
+        }
+      };
+    });
+  };
+
+  const handleInlineGenerate = async (image: GeneratedImage, prompt: string, references: SourceImage[]) => {
+    setToast({ message: 'Generuji variantu...', type: 'info' });
+
+    try {
+      const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
+
+      const finalPrompt = prompt || image.prompt;
+      // Map SourceImage to ImageInput for the provider
+      const allRefs = references.map(r => ({
+        data: r.url,
+        mimeType: r.file.type
+      }));
+
+      const newId = Math.random().toString(36).substr(2, 9);
+      const newImagePlaceholder: GeneratedImage = {
+        id: newId,
+        url: '',
+        prompt: finalPrompt,
+        timestamp: Date.now(),
+        status: 'loading',
+        aspectRatio: image.aspectRatio,
+        resolution: image.resolution
+      };
+
+      setState(prev => ({
+        ...prev,
+        generatedImages: [newImagePlaceholder, ...prev.generatedImages]
+      }));
+
+      const result = await provider.generateImage(allRefs, finalPrompt, image.resolution || '1024x1024', image.aspectRatio || '1:1', false);
+
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img =>
+          img.id === newId ? { ...img, status: 'success', url: result.imageBase64 } : img
+        )
+      }));
+
+      if (result.imageBase64) {
+        await saveToGallery({
+          url: result.imageBase64,
+          prompt: finalPrompt,
+          resolution: image.resolution,
+          aspectRatio: image.aspectRatio
+        });
+        setToast({ message: 'Varianta vygenerována!', type: 'success' });
+      }
+    } catch (err: any) {
+      setToast({ message: `Chyba: ${err.message}`, type: 'error' });
+    }
+  };
+
   const handleBatchProcess = async (images: any[]) => {
     console.log('[Batch] Starting batch process with', images.length, 'images');
     console.log('[Batch] Prompt:', state.prompt);
@@ -1433,41 +1521,7 @@ const App: React.FC = () => {
     ];
   };
 
-  const addInlineReferenceImages = (imageId: string, files: File[]) => {
-    const remainingSlots = MAX_IMAGES - (inlineEditStates[imageId]?.referenceImages?.length || 0);
-    if (remainingSlots <= 0) return;
 
-    files.slice(0, remainingSlots).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result && typeof e.target.result === 'string') {
-          const newImage: SourceImage = {
-            id: Math.random().toString(36).substr(2, 9),
-            url: e.target.result,
-            file: file
-          };
-          setInlineEditStates(prev => ({
-            ...prev,
-            [imageId]: {
-              ...prev[imageId],
-              referenceImages: [...(prev[imageId]?.referenceImages || []), newImage]
-            }
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removeInlineReferenceImage = (imageId: string, refImageId: string) => {
-    setInlineEditStates(prev => ({
-      ...prev,
-      [imageId]: {
-        ...prev[imageId],
-        referenceImages: prev[imageId].referenceImages.filter(img => img.id !== refImageId)
-      }
-    }));
-  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1619,11 +1673,7 @@ const App: React.FC = () => {
               />
             </div>
 
-            {/* Run Hint */}
-            <div className="flex items-center gap-1 ml-2 px-2 py-1 rounded bg-[var(--bg-input)] border border-[var(--accent)]/20">
-              <span className="text-[var(--accent)] text-[10px]">↵</span>
-              <span className="text-[9px] font-bold text-[var(--accent)] tracking-wider">SPUSTIT</span>
-            </div>
+
           </div>
         </div>
 
@@ -1655,7 +1705,7 @@ const App: React.FC = () => {
 
           <button
             onClick={handleEnhancePrompt}
-            disabled={!state.prompt.trim() || isEnhancingPrompt}
+            disabled={!state.prompt || !state.prompt.trim() || isEnhancingPrompt}
             className="px-3 py-1 text-[9px] font-bold uppercase tracking-widest bg-[var(--bg-panel)] hover:bg-[var(--bg-input)] text-[var(--accent)] rounded border border-[var(--border-color)] hover:border-[var(--accent)]/30 transition-all disabled:opacity-50 flex items-center gap-1"
           >
             <Sparkles className="w-3 h-3" /> Vylepšit
@@ -1963,7 +2013,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-min">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 auto-rows-min">
                   {state.generatedImages.map((image) => (
                     <article
                       key={image.id}
@@ -2021,31 +2071,104 @@ const App: React.FC = () => {
                       </div>
 
                       {/* Card Footer */}
-                      <div className="px-4 py-3 flex flex-col gap-2 border-t border-gray-800 bg-[#0f1512]">
-                        <div className="flex items-center gap-3">
-                          <p className="text-[11px] font-bold text-gray-300 leading-snug line-clamp-1 flex-1" title={image.prompt}>
-                            {image.prompt}
-                          </p>
-                          <div className="flex gap-1 shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(image.prompt); }} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors" title="Kopírovat">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                            </button>
-                            {image.url && (
-                              <a href={image.url} download onClick={(e) => e.stopPropagation()} className="p-1.5 text-gray-500 hover:text-[#7ed957] hover:bg-[#7ed957]/10 rounded transition-colors">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                              </a>
-                            )}
+                      {/* Post-Generation Edit UI (Restored) */}
+                      <div className="px-4 pb-4 bg-[#0f1512] border-t-0 rounded-b-xl border-gray-800">
+                        <div className="space-y-2 pt-2 border-t border-gray-800/50">
+                          {/* Inline Prompt Input */}
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={inlineEdits[image.id]?.prompt ?? image.prompt}
+                              onChange={(e) => setInlineEdits(prev => ({
+                                ...prev,
+                                [image.id]: {
+                                  ...(prev[image.id] || { referenceImages: [] }),
+                                  prompt: e.target.value
+                                }
+                              }))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleInlineGenerate(
+                                    image,
+                                    inlineEdits[image.id]?.prompt ?? image.prompt,
+                                    inlineEdits[image.id]?.referenceImages || []
+                                  );
+                                }
+                              }}
+                              className="w-full text-[10px] bg-black/40 border border-gray-800 rounded px-2 py-1.5 text-gray-300 focus:border-[#7ed957] outline-none"
+                              placeholder="Upravit prompt..."
+                            />
                           </div>
+
+                          {/* Inline Actions */}
+                          <div className="flex items-center justify-between gap-2">
+                            {/* Reference Upload */}
+                            <label className="flex items-center gap-1.5 px-2 py-1 bg-gray-800/50 hover:bg-gray-800 rounded border border-transparent hover:border-gray-700 cursor-pointer transition-colors group/btn">
+                              <svg className="w-3 h-3 text-gray-500 group-hover/btn:text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                              <span className="text-[9px] font-bold text-gray-500 group-hover/btn:text-gray-300 uppercase">Ref. Obrázek</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  if (e.target.files?.length) {
+                                    addInlineReferenceImages(image.id, Array.from(e.target.files));
+                                  }
+                                }}
+                              />
+                            </label>
+
+                            {/* Regenerate Button */}
+                            <button
+                              onClick={() => {
+                                handleInlineGenerate(
+                                  image,
+                                  inlineEdits[image.id]?.prompt ?? image.prompt,
+                                  inlineEdits[image.id]?.referenceImages || []
+                                );
+                              }}
+                              className="px-3 py-1 bg-[#7ed957]/10 hover:bg-[#7ed957] text-[#7ed957] hover:text-[#0a0f0d] border border-[#7ed957]/30 rounded font-black text-[9px] uppercase tracking-wider transition-all"
+                            >
+                              PŘEGENEROVAT
+                            </button>
+                          </div>
+
+                          {/* Show Inline References */}
+                          {inlineEdits[image.id]?.referenceImages?.length > 0 && (
+                            <div className="flex gap-1 pt-1 overflow-x-auto custom-scrollbar">
+                              {inlineEdits[image.id].referenceImages.map((refImg, idx) => (
+                                <div key={idx} className="relative w-8 h-8 rounded overflow-hidden border border-gray-700 group/ref shrink-0">
+                                  <img src={refImg.url} className="w-full h-full object-cover" />
+                                  <button
+                                    onClick={() => {
+                                      setInlineEdits(prev => ({
+                                        ...prev,
+                                        [image.id]: {
+                                          ...prev[image.id],
+                                          referenceImages: prev[image.id].referenceImages.filter((_, i) => i !== idx)
+                                        }
+                                      }));
+                                    }}
+                                    className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover/ref:opacity-100 text-white"
+                                  >
+                                    <X className="w-2 h-2" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </article>
+
                   ))}
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </div >
+        </div >
 
+        {/* Right Sidebar - Sliding Library */}
         {/* Right Sidebar - Sliding Library */}
         <div
           className={`absolute right-0 top-0 bottom-0 z-50 w-[85vw] sm:w-[340px] transition-transform duration-300 ease-in-out border-l border-gray-800/50 bg-[#0f1512] flex flex-col h-full shadow-2xl group ${isHoveringGallery ? 'translate-x-0' : 'translate-x-[calc(100%-20px)]'}`}
@@ -2072,7 +2195,7 @@ const App: React.FC = () => {
             <div className="w-1 h-8 bg-gray-700/50 rounded-full"></div>
           </div>
         </div>
-      </div>
+      </div >
 
       <ImageComparisonModal
         isOpen={!!selectedImage}
