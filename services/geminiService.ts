@@ -46,7 +46,7 @@ Krátký prompt: "${shortPrompt}"
 Vylepšený prompt:`;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-3-pro-image-preview',
         contents: {
           parts: [{ text: enhancementInstruction }],
         },
@@ -102,7 +102,7 @@ VYPIŠ POUZE JSON POLE:`;
       console.log('[Gemini 3 Variants] Generating variants for:', simplePrompt);
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-3-pro-image-preview',
         contents: {
           parts: [{ text: systemInstruction }],
         },
@@ -169,7 +169,7 @@ VYPIŠ POUZE JSON POLE:`;
   async generateText(prompt: string, systemInstruction?: string): Promise<string> {
     try {
       const config: any = {
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-3-pro-image-preview',
         contents: {
           parts: [{ text: prompt }],
         },
@@ -237,7 +237,7 @@ Use this exact structure:
 Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no additional text.`;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-3-pro-image-preview',
         contents: {
           parts: [
             {
