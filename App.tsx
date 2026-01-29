@@ -2023,10 +2023,17 @@ const App: React.FC = () => {
 
 
 
-      <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
-        {/* Left Sidebar - Fixed Width (Hidden on Mobile) */}
-        <div className="hidden lg:flex w-[340px] shrink-0 border-r border-gray-800/50 bg-[#0f1512] flex-col h-full overflow-y-auto custom-scrollbar z-20">
-          <div className="p-6 space-y-6">
+      <div className="flex h-screen overflow-hidden relative">
+        {/* Floating Glass Sidebar */}
+        <div
+          ref={sidebarRef}
+          className={`fixed left-4 top-4 bottom-4 z-40 flex flex-col glass-panel rounded-2xl transition-all duration-300 ease-in-out ${isMobile
+            ? isMobileMenuOpen ? 'translate-x-0 w-[calc(100%-2rem)]' : '-translate-x-full w-[calc(100%-2rem)]'
+            : isGalleryOpen ? 'w-0 opacity-0 pointer-events-none' : 'translate-x-0'
+            }`}
+          style={{ width: isMobile ? undefined : sidebarWidth }}
+        >
+          <div className="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
             <ProviderSelector
               selectedProvider={selectedProvider}
               onChange={setSelectedProvider}
@@ -2038,10 +2045,10 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Content - Flexible Center */}
-        <div
-          className="flex-1 relative flex flex-col min-w-0 bg-[#0a0f0d] h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
-          style={{ marginRight: isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0' }}
+        {/* Main Content Area - Floating & Centered */}
+        <main
+          className={`flex-1 flex flex-col h-[calc(100vh-2rem)] mt-4 mb-4 mr-4 glass-panel rounded-2xl relative overflow-hidden transition-all duration-300 ${!isMobile && !isGalleryOpen ? 'ml-[352px]' : 'ml-4' // 320px sidebar + 16px gap + 16px padding
+            } ${isGalleryOpen && !isMobile ? 'mr-[400px]' : ''}`}
         >
           <div className="p-6 lg:p-10 pb-32 w-full">
             <div className="space-y-6 md:space-y-8 w-full">
@@ -2356,7 +2363,7 @@ const App: React.FC = () => {
               )}
             </div>
           </div >
-        </div >
+        </main >
 
         {/* Right Sidebar - Sliding Library */}
         {/* Right Sidebar - Sliding Library */}
