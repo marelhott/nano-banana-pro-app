@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 @font-face {
   font-family: 'Calling Code';
   src: url('/public/fonts/CallingCode-Regular.ttf') format('truetype');
