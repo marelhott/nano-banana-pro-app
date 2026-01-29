@@ -1889,6 +1889,13 @@ const renderSidebarControls = (isMobileView: boolean = false) => (
           Šablony
         </button>
 
+        <button
+          onClick={() => setIsRemixModalOpen(true)}
+          className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-[var(--bg-panel)] hover:bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded border border-[var(--border-color)] transition-all"
+        >
+          Remix
+        </button>
+
         <div className="flex-1" />
 
         <button
