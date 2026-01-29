@@ -608,11 +608,24 @@ const App: React.FC = () => {
 
     setIsEnhancingPrompt(true);
     try {
+      console.log('[Enhance Prompt] Starting enhancement...');
       const enhanced = await enhancePromptWithAI(state.prompt);
-      setState(prev => ({ ...prev, prompt: enhanced }));
-      promptHistory.add(enhanced);
-    } catch (error) {
-      console.error('Prompt enhancement failed:', error);
+
+      if (!enhanced || enhanced === state.prompt) {
+        console.warn('[Enhance Prompt] No enhancement received or same as original');
+        setToast({ message: 'Nepodařilo se vylepšit prompt', type: 'error' });
+      } else {
+        console.log('[Enhance Prompt] Success:', enhanced);
+        setState(prev => ({ ...prev, prompt: enhanced }));
+        promptHistory.add(enhanced);
+        setToast({ message: '✨ Prompt vylepšen', type: 'success' });
+      }
+    } catch (error: any) {
+      console.error('[Enhance Prompt] Error:', error);
+      const errorMessage = error.message?.includes('API Key')
+        ? 'Chybí API klíč - nastavte ho v nastavení'
+        : 'Chyba při vylepšování promptu';
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setIsEnhancingPrompt(false);
     }
@@ -2121,8 +2134,25 @@ const App: React.FC = () => {
                         )}
 
                         {image.status === 'loading' ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                            <LoadingSpinner />
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm px-6">
+                            {/* Elegant Progress Bar */}
+                            <div className="w-full max-w-[200px] space-y-2">
+                              {/* Black base line with green progress */}
+                              <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
+                                <div
+                                  className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full transition-all duration-300 ease-out"
+                                  style={{
+                                    width: generationProgress && generationProgress.total > 0
+                                      ? `${(generationProgress.current / generationProgress.total) * 100}%`
+                                      : '0%'
+                                  }}
+                                />
+                              </div>
+                              {/* "generuji" text */}
+                              <div className="text-center">
+                                <span className="text-[10px] text-gray-400 font-medium tracking-wide">generuji</span>
+                              </div>
+                            </div>
                           </div>
                         ) : (
                           image.url && (
