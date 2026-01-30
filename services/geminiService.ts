@@ -12,6 +12,8 @@ import {
  * Uses Google's Gemini API for image generation and editing
  */
 export class GeminiProvider implements AIProvider {
+  private static readonly IMAGE_MODEL = 'gemini-3-pro-image-preview';
+  private static readonly TEXT_MODEL = 'gemini-3-flash-preview';
   private apiKey: string;
   private ai: GoogleGenAI;
 
@@ -47,7 +49,7 @@ Krátký prompt: "${shortPrompt}"
 Vylepšený prompt:`;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview',
+        model: GeminiProvider.TEXT_MODEL,
         contents: {
           parts: [{ text: enhancementInstruction }],
         },
@@ -103,7 +105,7 @@ VYPIŠ POUZE JSON POLE:`;
       console.log('[Gemini 3 Variants] Generating variants for:', simplePrompt);
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview',
+        model: GeminiProvider.TEXT_MODEL,
         contents: {
           parts: [{ text: systemInstruction }],
         },
@@ -170,7 +172,7 @@ VYPIŠ POUZE JSON POLE:`;
   async generateText(prompt: string, systemInstruction?: string): Promise<string> {
     try {
       const config: any = {
-        model: 'gemini-2.0-flash-exp',
+        model: GeminiProvider.TEXT_MODEL,
         contents: {
           parts: [{ text: prompt }],
         },
@@ -238,7 +240,7 @@ Use this exact structure:
 Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no additional text.`;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview',
+        model: GeminiProvider.IMAGE_MODEL,
         contents: {
           parts: [
             {
@@ -398,7 +400,7 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
       }
 
       // STRICTLY REQUESTED MODEL
-      const modelName = 'gemini-3-pro-image-preview';
+      const modelName = GeminiProvider.IMAGE_MODEL;
       console.log('[Gemini] Requesting model:', modelName);
 
       const response = await this.ai.models.generateContent({
