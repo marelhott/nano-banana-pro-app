@@ -2129,61 +2129,35 @@ return (
                       onClick={() => setSelectedImage(image)}
                     >
                       {/* Image Rendering Logic - Simplified for brevity, assume existing mostly works but ensure styles are updated */}
-                      {image.status === 'success' && (
-                        <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedGeneratedImages.has(image.id)}
-                            onChange={() => {
-                              setSelectedGeneratedImages(prev => {
-                                const newSet = new Set(prev);
-                                if (newSet.has(image.id)) newSet.delete(image.id);
-                                else newSet.add(image.id);
-                                return newSet;
-                              });
-                            }}
-                            className="w-5 h-5 cursor-pointer accent-[#7ed957] bg-black/50 border-gray-500 rounded"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                      )}
-
                       {image.status === 'loading' ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm px-6">
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md px-6 transition-all duration-300">
                           {/* Elegant Progress Bar */}
-                          <div className="w-full max-w-[200px] space-y-2">
+                          <div className="w-full max-w-[200px] space-y-3">
                             {/* Animated Progress Bar */}
                             <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
                               <div
-                                className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full"
+                                className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"
                                 style={{
                                   width: '0%',
-                                  animation: 'growWidth 10s ease-out forwards'
+                                  animation: 'growWidth 10s cubic-bezier(0.4, 0, 0.2, 1) forwards'
                                 }}
                               />
                               <style>{`
                                   @keyframes growWidth {
                                     0% { width: 0%; }
-                                    10% { width: 10%; }
-                                    50% { width: 60%; }
-                                    90% { width: 90%; }
+                                    10% { width: 15%; }
+                                    40% { width: 50%; }
+                                    70% { width: 80%; }
                                     100% { width: 95%; }
                                   }
                                 `}</style>
                             </div>
                             {/* "generuji" text */}
                             <div className="text-center">
-                              <span className="text-[10px] text-gray-400 font-medium tracking-wide animate-pulse">generuji...</span>
-                            </div>
-                            <div
-                              className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full animate-[progress_8s_ease-out_forwards]"
-                              style={{ width: '0%', animationName: 'growWidth', animationDuration: '10s', animationFillMode: 'forwards' }}
-                            />
-                            <style>{`
-                                  @keyframes growWidth {
-                                    0% { width: 0%; }
-                                    90% { width: 95%; }
-                                    100% { width: 98%; }
+                              @keyframes growWidth {
+                                0 % { width: 0 %; }
+                                    90% {width: 95%; }
+                              100% {width: 98%; }
                                   }
                                 `}</style>
                           </div>
@@ -2308,7 +2282,7 @@ return (
               {/* Header Row */}
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-1.5">
-                  <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-3 h-3 text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   <span className="text-[9px] font-black uppercase tracking-wider text-gray-400">
@@ -2316,26 +2290,44 @@ return (
                   </span>
                 </div>
 
-                {/* Add Images Toggle */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowReferenceUpload(prev => ({
-                      ...prev,
-                      [image.id]: !prev[image.id]
-                    }));
-                  }}
-                  className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${showReferenceUpload[image.id]
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border border-[#7ed957]'
-                    : 'bg-[#0f1512] text-gray-500 hover:text-gray-300 border border-gray-800 hover:border-gray-700'
-                    }`}
-                  title="Přidat referenční obrázky"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {showReferenceUpload[image.id] ? 'Obrázky' : '+ Obrázky'}
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Opravdu chcete smazat tento obrázek?')) {
+                        handleDeleteImage(image.id);
+                      }
+                    }}
+                    className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
+                    title="Smazat obrázek"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+
+                  {/* Add Images Toggle */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowReferenceUpload(prev => ({
+                        ...prev,
+                        [image.id]: !prev[image.id]
+                      }));
+                    }}
+                    className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${showReferenceUpload[image.id]
+                      ? 'bg-[#7ed957] text-[#0a0f0d] border border-[#7ed957]'
+                      : 'bg-[#0f1512] text-gray-500 hover:text-gray-300 border border-gray-800 hover:border-gray-700'
+                      }`}
+                    title="Přidat referenční obrázky"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {showReferenceUpload[image.id] ? 'Skrýt' : '+ Obrázky'}
+                  </button>
+                </div>
               </div>
 
               {/* Edit Textarea */}
@@ -2345,8 +2337,17 @@ return (
                   e.stopPropagation();
                   setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }));
                 }}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (editPrompts[image.id]?.trim()) {
+                      handleEditImage(image.id);
+                    }
+                  }
+                }}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="Popište úpravy..."
+                placeholder="Popište úpravy a stiskněte Enter..."
                 className="w-full min-h-[80px] bg-[#0f1512] border border-gray-800 hover:border-gray-700 focus:border-[#7ed957] rounded-md p-2 text-xs text-gray-200 placeholder-gray-600 focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
               />
 
