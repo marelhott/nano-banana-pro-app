@@ -1090,7 +1090,10 @@ const App: React.FC = () => {
     if (!editPrompt || !editPrompt.trim()) return;
 
     const image = state.generatedImages.find(img => img.id === imageId);
-    if (!image || !image.url) return;
+    if (!image || !image.url) {
+      setToast({ message: 'Chyba: Obrázek nebyl nalezen', type: 'error' });
+      return;
+    }
 
     // Nastavit loading stav
     setState(prev => ({
@@ -1103,25 +1106,48 @@ const App: React.FC = () => {
     // Zavřít reference upload po zahájení editace
     setShowReferenceUpload(prev => ({ ...prev, [imageId]: false }));
 
+    // User feedback
+    setToast({ message: 'Zahajuji úpravu obrázku...', type: 'info' });
+
     try {
       // DŮLEŽITÉ: První obrázek = obrázek k editaci, další obrázky = reference pro inspiraci
       const editState = inlineEditStates[imageId];
 
       // Konvertovat všechny URL na base64 data URL pro Gemini API
-      const baseImageData = await urlToDataUrl(image.url);
+      console.log('[Edit] Converting images to base64...');
+      let baseImageData: string;
+      try {
+        baseImageData = await urlToDataUrl(image.url);
+      } catch (err) {
+        console.error('[Edit] Failed to convert base image:', err);
+        throw new Error('Nepodařilo se načíst původní obrázek. Zkuste to prosím znovu.');
+      }
+
       const referenceImagesData = await Promise.all(
-        (editState?.referenceImages || []).map(async i => ({
-          data: await urlToDataUrl(i.url),
-          mimeType: i.file.type
-        }))
+        (editState?.referenceImages || []).map(async i => {
+          try {
+            return {
+              data: await urlToDataUrl(i.url),
+              mimeType: i.file.type
+            };
+          } catch (e) {
+            console.warn('[Edit] Failed to load reference image, skipping:', i.url);
+            return null;
+          }
+        })
       );
+
+      // Filter out failed reference images
+      const validReferenceImages = referenceImagesData.filter(img => img !== null) as { data: string; mimeType: string }[];
 
       const sourceImages = [
         // Původní vygenerovaný obrázek - VŽDY první (je to obrázek, který má být editován)
         { data: baseImageData, mimeType: 'image/jpeg' },
         // Referenční obrázky - jako kontext/inspirace pro úpravu
-        ...referenceImagesData
+        ...validReferenceImages
       ];
+
+      console.log('[Edit] Sending request to Gemini...', { prompt: editPrompt, imageCount: sourceImages.length });
 
       const result = await editImageWithGemini(
         sourceImages,
@@ -1130,6 +1156,8 @@ const App: React.FC = () => {
         image.aspectRatio,
         false
       );
+
+      console.log('[Edit] Success! updating gallery...');
 
       // Uložit starou verzi a aktualizovat obrázek
       setState(prev => ({
@@ -1165,6 +1193,8 @@ const App: React.FC = () => {
         return newPrompts;
       });
 
+      setToast({ message: 'Obrázek byl úspěšně upraven!', type: 'success' });
+
       // Uložit upravenou verzi do galerie
       try {
         const thumbnail = await createThumbnail(result.imageBase64);
@@ -1180,6 +1210,11 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Edit error:', err);
+      setToast({
+        message: `Chyba při úpravě: ${err instanceof Error ? err.message : 'Neznámá chyba'}`,
+        type: 'error'
+      });
+
       setState(prev => ({
         ...prev,
         generatedImages: prev.generatedImages.map(img =>
