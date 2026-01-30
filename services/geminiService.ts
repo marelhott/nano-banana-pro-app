@@ -168,34 +168,35 @@ VYPIŠ POUZE JSON POLE:`;
    */
   async generateText(prompt: string, systemInstruction?: string): Promise<string> {
     try {
-      model: 'gemini-2.0-flash-exp',
+      const config: any = {
+        model: 'gemini-2.0-flash-exp',
         contents: {
-        parts: [{ text: prompt }],
+          parts: [{ text: prompt }],
         },
-    };
+      };
 
-    if (systemInstruction) {
-      config.systemInstruction = systemInstruction;
+      if (systemInstruction) {
+        config.systemInstruction = systemInstruction;
+      }
+
+      const response = await this.ai.models.generateContent(config);
+      return response.text?.trim() || '';
+    } catch (error: any) {
+      console.error('[Gemini] Text generation error:', error);
+      throw error;
     }
-
-    const response = await this.ai.models.generateContent(config);
-    return response.text?.trim() || '';
-  } catch(error: any) {
-    console.error('[Gemini] Text generation error:', error);
-    throw error;
   }
-}
 
   /**
    * Analyze image using Gemini Vision and extract JSON prompt structure
    * Used for Reference Image Analysis (Phase 3)
    */
-  async analyzeImageForJson(imageDataUrl: string): Promise < string > {
-  try {
-    const base64Data = imageDataUrl.split(',')[1];
-    const mimeType = imageDataUrl.split(';')[0].split(':')[1];
+  async analyzeImageForJson(imageDataUrl: string): Promise<string> {
+    try {
+      const base64Data = imageDataUrl.split(',')[1];
+      const mimeType = imageDataUrl.split(';')[0].split(':')[1];
 
-    const systemInstruction = `You are an expert image analyst. Analyze this image and extract a detailed JSON structure describing it.
+      const systemInstruction = `You are an expert image analyst. Analyze this image and extract a detailed JSON structure describing it.
 
 Use this exact structure:
 {
@@ -235,235 +236,235 @@ Use this exact structure:
 
 Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no additional text.`;
 
-    const response = await this.ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: mimeType
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-3-pro-image-preview',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType
+              }
+            },
+            {
+              text: 'Analyze this image and provide a detailed JSON structure following the template provided.'
             }
-          },
-          {
-            text: 'Analyze this image and provide a detailed JSON structure following the template provided.'
-          }
-        ]
-      },
-      config: {
-        systemInstruction: systemInstruction
-      }
-    });
+          ]
+        },
+        config: {
+          systemInstruction: systemInstruction
+        }
+      });
 
-    let jsonText = response.text?.trim() || '';
+      let jsonText = response.text?.trim() || '';
 
-    // Clean markdown if present
-    jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      // Clean markdown if present
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
-    // Validate JSON
-    JSON.parse(jsonText);
+      // Validate JSON
+      JSON.parse(jsonText);
 
-    console.log('[Gemini Vision] Analysis complete:', jsonText);
-    return jsonText;
-  } catch(error: any) {
-    console.error('[Gemini Vision] Analysis error:', error);
-    throw error;
+      console.log('[Gemini Vision] Analysis complete:', jsonText);
+      return jsonText;
+    } catch (error: any) {
+      console.error('[Gemini Vision] Analysis error:', error);
+      throw error;
+    }
   }
-}
 
   async generateVideo(
-  images: ImageInput[],
-  prompt: string,
-  duration: number = 8
-): Promise < GenerateVideoResult > {
-  try {
-    console.log('[Gemini Veo] Generating video...');
-    console.log('[Gemini Veo] Prompt:', prompt, 'Duration:', duration, 'Images:', images.length);
+    images: ImageInput[],
+    prompt: string,
+    duration: number = 8
+  ): Promise<GenerateVideoResult> {
+    try {
+      console.log('[Gemini Veo] Generating video...');
+      console.log('[Gemini Veo] Prompt:', prompt, 'Duration:', duration, 'Images:', images.length);
 
-    const parts: any[] = [];
+      const parts: any[] = [];
 
-    // Add images if provided (image-to-video mode)
-    if(images.length > 0) {
-  console.log('[Gemini Veo] Using image-to-video mode');
-  for (const image of images) {
-    const base64Data = image.data.split(',')[1];
-    parts.push({
-      inlineData: {
-        data: base64Data,
-        mimeType: image.mimeType
+      // Add images if provided (image-to-video mode)
+      if (images.length > 0) {
+        console.log('[Gemini Veo] Using image-to-video mode');
+        for (const image of images) {
+          const base64Data = image.data.split(',')[1];
+          parts.push({
+            inlineData: {
+              data: base64Data,
+              mimeType: image.mimeType
+            }
+          });
+        }
       }
-    });
-  }
-}
 
-// Add text prompt
-parts.push({ text: prompt });
+      // Add text prompt
+      parts.push({ text: prompt });
 
-// Call Veo API 
-const response = await this.ai.models.generateContent({
-  model: 'veo-3.1-generate-001',
-  contents: { parts },
-  config: {
-    videoDuration: `${duration}s`,
-    aspectRatio: '16:9'
-  } as any
-});
+      // Call Veo API 
+      const response = await this.ai.models.generateContent({
+        model: 'veo-3.1-generate-001',
+        contents: { parts },
+        config: {
+          videoDuration: `${duration}s`,
+          aspectRatio: '16:9'
+        } as any
+      });
 
-console.log('[Gemini Veo] Response received');
+      console.log('[Gemini Veo] Response received');
 
-// Extract video URL
-const videoUrl = (response as any).videoUrl ||
-  (response as any).candidates?.[0]?.content?.parts?.[0]?.videoUrl;
+      // Extract video URL
+      const videoUrl = (response as any).videoUrl ||
+        (response as any).candidates?.[0]?.content?.parts?.[0]?.videoUrl;
 
-if (!videoUrl) {
-  console.error('[Gemini Veo] No video URL in response');
-  throw new Error('No video URL returned from Veo API');
-}
+      if (!videoUrl) {
+        console.error('[Gemini Veo] No video URL in response');
+        throw new Error('No video URL returned from Veo API');
+      }
 
-console.log('[Gemini Veo] Video generated:', videoUrl);
+      console.log('[Gemini Veo] Video generated:', videoUrl);
 
-return {
-  videoUrl: videoUrl,
-  duration: duration
-};
+      return {
+        videoUrl: videoUrl,
+        duration: duration
+      };
     } catch (error: any) {
-  console.error('[Gemini Veo] Error:', error);
-  throw new Error(`Failed to generate video: ${error.message}`);
-}
+      console.error('[Gemini Veo] Error:', error);
+      throw new Error(`Failed to generate video: ${error.message}`);
+    }
   }
 
   async generateImage(
-  images: ImageInput[],
-  prompt: string,
-  resolution: string = '1024x1024',
-  aspectRatio: string = '1:1',
-  useGrounding: boolean = false
-): Promise < GenerateImageResult > {
-  try {
-    console.log('[Gemini] Generating image with prompt:', prompt);
+    images: ImageInput[],
+    prompt: string,
+    resolution: string = '1024x1024',
+    aspectRatio: string = '1:1',
+    useGrounding: boolean = false
+  ): Promise<GenerateImageResult> {
+    try {
+      console.log('[Gemini] Generating image with prompt:', prompt);
 
-    const parts: any[] = [];
+      const parts: any[] = [];
 
-    // Add all image parts
-    images.forEach((img) => {
-      const base64Data = img.data.split(',')[1];
-      parts.push({
-        inlineData: {
-          data: base64Data,
-          mimeType: img.mimeType
-        }
+      // Add all image parts
+      images.forEach((img) => {
+        const base64Data = img.data.split(',')[1];
+        parts.push({
+          inlineData: {
+            data: base64Data,
+            mimeType: img.mimeType
+          }
+        });
       });
-    });
 
-    // Add text prompt
-    parts.push({ text: prompt });
+      // Add text prompt
+      parts.push({ text: prompt });
 
-    // Config logic
-    const config: any = {
-      responseModalities: ["IMAGE"],
-      safetySettings: [
-        {
-          category: 'HARM_CATEGORY_HATE_SPEECH',
-          threshold: 'BLOCK_ONLY_HIGH'
-        },
-        {
-          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-          threshold: 'BLOCK_ONLY_HIGH'
-        },
-        {
-          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-          threshold: 'BLOCK_ONLY_HIGH'
-        },
-        {
-          category: 'HARM_CATEGORY_HARASSMENT',
-          threshold: 'BLOCK_ONLY_HIGH'
-        }
-      ]
-    };
+      // Config logic
+      const config: any = {
+        responseModalities: ["IMAGE"],
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_HATE_SPEECH',
+            threshold: 'BLOCK_ONLY_HIGH'
+          },
+          {
+            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+            threshold: 'BLOCK_ONLY_HIGH'
+          },
+          {
+            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+            threshold: 'BLOCK_ONLY_HIGH'
+          },
+          {
+            category: 'HARM_CATEGORY_HARASSMENT',
+            threshold: 'BLOCK_ONLY_HIGH'
+          }
+        ]
+      };
 
-    if(useGrounding) {
-      config.tools = [{ googleSearch: {} }];
-    }
+      if (useGrounding) {
+        config.tools = [{ googleSearch: {} }];
+      }
 
       // Add image config if needed
       const imageConfig: any = {};
-    if(aspectRatio && aspectRatio !== 'Original') {
-  // rough map or pass directly
-  imageConfig.aspectRatio = aspectRatio;
-}
-if (Object.keys(imageConfig).length > 0) {
-  config.imageConfig = imageConfig;
-}
+      if (aspectRatio && aspectRatio !== 'Original') {
+        // rough map or pass directly
+        imageConfig.aspectRatio = aspectRatio;
+      }
+      if (Object.keys(imageConfig).length > 0) {
+        config.imageConfig = imageConfig;
+      }
 
-// STRICTLY REQUESTED MODEL
-const modelName = 'gemini-3-pro-image-preview';
-console.log('[Gemini] Requesting model:', modelName);
+      // STRICTLY REQUESTED MODEL
+      const modelName = 'gemini-3-pro-image-preview';
+      console.log('[Gemini] Requesting model:', modelName);
 
-const response = await this.ai.models.generateContent({
-  model: modelName,
-  contents: {
-    parts: parts,
-  },
-  config: config,
-});
+      const response = await this.ai.models.generateContent({
+        model: modelName,
+        contents: {
+          parts: parts,
+        },
+        config: config,
+      });
 
-console.log('[Gemini] Response received');
+      console.log('[Gemini] Response received');
 
-// The response structure for multimodal models returning images can vary.
-// We check for inline data in the candidates.
-const candidate = response.candidates?.[0];
-const finishReason = candidate?.finishReason;
+      // The response structure for multimodal models returning images can vary.
+      // We check for inline data in the candidates.
+      const candidate = response.candidates?.[0];
+      const finishReason = candidate?.finishReason;
 
-if (finishReason === 'SAFETY') {
-  throw new Error('Generování zablokováno bezpečnostním filtrem (Safety).');
-}
+      if (finishReason === 'SAFETY') {
+        throw new Error('Generování zablokováno bezpečnostním filtrem (Safety).');
+      }
 
-// Attempt to find image part
-const generatedPart = candidate?.content?.parts?.find((p: any) => p.inlineData);
+      // Attempt to find image part
+      const generatedPart = candidate?.content?.parts?.find((p: any) => p.inlineData);
 
-if (generatedPart?.inlineData?.data) {
-  const imageBytes = generatedPart.inlineData.data;
-  return {
-    imageBase64: `data:image/jpeg;base64,${imageBytes}`,
-    images: [{ url: `data:image/jpeg;base64,${imageBytes}` }]
-  };
-}
+      if (generatedPart?.inlineData?.data) {
+        const imageBytes = generatedPart.inlineData.data;
+        return {
+          imageBase64: `data:image/jpeg;base64,${imageBytes}`,
+          images: [{ url: `data:image/jpeg;base64,${imageBytes}` }]
+        };
+      }
 
-// Fallback: check executable code or other outputs if model differs
-throw new Error("Model nevrátil žádná data obrázku. Zkuste upravit prompt.");
+      // Fallback: check executable code or other outputs if model differs
+      throw new Error("Model nevrátil žádná data obrázku. Zkuste upravit prompt.");
 
     } catch (error: any) {
-  console.error('[Gemini] Image generation error:', error);
-  throw error;
-}
-  }
-
-// Legacy function - uses default provider or creates new one
-// Helper to get API key from storage if not provided
-const getStoredApiKey = () => {
-  try {
-    const settings = localStorage.getItem('providerSettings');
-    if (settings) {
-      const parsed = JSON.parse(settings);
-      return parsed.GEMINI?.apiKey || '';
+      console.error('[Gemini] Image generation error:', error);
+      throw error;
     }
-  } catch (e) {
+  }
+
+  // Legacy function - uses default provider or creates new one
+  // Helper to get API key from storage if not provided
+  const getStoredApiKey = () => {
+    try {
+      const settings = localStorage.getItem('providerSettings');
+      if (settings) {
+        const parsed = JSON.parse(settings);
+        return parsed.GEMINI?.apiKey || '';
+      }
+    } catch (e) {
+      return '';
+    }
     return '';
-  }
-  return '';
-};
+  };
 
-export const enhancePromptWithAI = async (shortPrompt: string, apiKey?: string): Promise<string> => {
-  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+  export const enhancePromptWithAI = async (shortPrompt: string, apiKey?: string): Promise<string> => {
+    const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
 
-  if (!keyToUse) {
-    throw new Error('API Key missing. Please configure it in settings.');
-  }
+    if (!keyToUse) {
+      throw new Error('API Key missing. Please configure it in settings.');
+    }
 
-  // Always create a fresh provider to ensure correct key usage
-  const tempProvider = new GeminiProvider(keyToUse);
-  return tempProvider.enhancePrompt(shortPrompt);
-};
+    // Always create a fresh provider to ensure correct key usage
+    const tempProvider = new GeminiProvider(keyToUse);
+    return tempProvider.enhancePrompt(shortPrompt);
+  };
 
 let defaultProvider: GeminiProvider | null = null;
 
