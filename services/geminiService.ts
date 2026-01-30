@@ -491,7 +491,11 @@ export const enhancePromptWithAI = async (shortPrompt: string, apiKey?: string):
   // Always create a fresh provider to ensure correct key usage
   const tempProvider = new GeminiProvider(keyToUse);
   return tempProvider.enhancePrompt(shortPrompt);
+  const tempProvider = new GeminiProvider(keyToUse);
+  return tempProvider.enhancePrompt(shortPrompt);
 };
+
+let defaultProvider: GeminiProvider | null = null;
 
 export const editImageWithGemini = async (
   images: ImageInput[],

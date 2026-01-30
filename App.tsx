@@ -881,17 +881,18 @@ const App: React.FC = () => {
 
     // Detekce jazyka a quality enhancement
     const language = detectLanguage(state.prompt);
-    const suggestion = getPromptSuggestion(state.prompt, language);
-    if (suggestion) {
-      console.log(suggestion);
+    if (language) {
+      console.log(language);
     }
 
-    setIsGenerateClicked(true);
     setIsGenerating(true);
-    setGenerationProgress({ current: 0, total: state.numberOfImages });
+
+    // Force 1 image if somehow set otherwise, to prevent double generation issues
+    const countToGenerate = 1;
+    setGenerationProgress({ current: 0, total: countToGenerate });
 
     // Vytvořit pole s požadovaným počtem obrázků
-    const imagesToGenerate = Array.from({ length: state.numberOfImages }, (_, index) => {
+    const imagesToGenerate = Array.from({ length: countToGenerate }, (_, index) => {
       const newId = `${Date.now()}-${index}`;
       return {
         id: newId,
