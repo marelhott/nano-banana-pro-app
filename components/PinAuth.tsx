@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { loginWithPin, autoLogin } from '../utils/supabaseClient';
 
 interface PinAuthProps {
@@ -10,6 +10,7 @@ export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isCheckingAutoLogin, setIsCheckingAutoLogin] = useState(true);
+  const autoSubmittedRef = useRef(false);
 
   // Zkusit auto-login při načtení
   useEffect(() => {
@@ -30,7 +31,7 @@ export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
     if (e) e.preventDefault();
 
     if (pin.length < 4 || pin.length > 6) {
-      setError('PIN too short');
+      setError('PIN musí mít 4–6 číslic');
       return;
     }
 
@@ -48,6 +49,27 @@ export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
       if (navigator.vibrate) navigator.vibrate(200);
     }
   };
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (autoSubmittedRef.current) return;
+
+    const urlPin = new URLSearchParams(window.location.search).get('pin');
+    if (!urlPin) return;
+    if (!/^[0-9]{4,6}$/.test(urlPin)) return;
+
+    autoSubmittedRef.current = true;
+    setPin(urlPin);
+    setLoading(true);
+    setError('');
+    loginWithPin(urlPin)
+      .then((userId) => onAuth(userId))
+      .catch(() => {
+        setLoading(false);
+        setError('Nesprávný PIN');
+        setPin('');
+      });
+  }, [onAuth]);
 
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
