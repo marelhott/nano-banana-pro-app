@@ -1,7 +1,8 @@
 // Utilita pro export a import všech dat aplikace
 
 import { getAllImages, saveToGallery, GalleryImage } from './galleryDB';
-import { getSavedPrompts, addSavedPrompt, SavedPrompt } from './savedPrompts';
+import { getSavedPrompts, addSavedPrompt } from './savedPrompts';
+import { SavedPrompt } from '../types';
 
 export interface AppDataBackup {
   version: string;

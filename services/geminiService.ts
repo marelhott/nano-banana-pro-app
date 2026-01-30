@@ -3,7 +3,8 @@ import {
   AIProvider,
   AIProviderType,
   ImageInput,
-  GenerateImageResult
+  GenerateImageResult,
+  GenerateVideoResult
 } from './aiProvider';
 
 /**
@@ -439,7 +440,6 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
     }
   }
 
-}
 }
 
 // Legacy function - uses default provider or creates new one
