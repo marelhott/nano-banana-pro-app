@@ -346,64 +346,97 @@ return {
 
     // Add all image parts
     images.forEach((img) => {
-      config: config,
+      const base64Data = img.data.split(',')[1];
+      parts.push({
+        inlineData: {
+          data: base64Data,
+          mimeType: img.mimeType
+        }
+      });
     });
 
-    console.log('[Gemini] API Response metadata:', {
-      modelUsed: modelName,
-      hasCandidates: !!response.candidates,
-      candidateCount: response.candidates?.length,
-      finishReason: response.candidates?.[0]?.finishReason,
-      safetyRatings: response.candidates?.[0]?.safetyRatings,
-    });
+    // Add text prompt
+    parts.push({ text: prompt });
 
-    const candidate = response.candidates?.[0];
-    const finishReason = candidate?.finishReason;
+    // Config logic
+    const config: any = {
+      responseModalities: ["IMAGE"],
+      safetySettings: [
+        {
+          category: 'HARM_CATEGORY_HATE_SPEECH',
+          threshold: 'BLOCK_ONLY_HIGH'
+        },
+        {
+          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        },
+        {
+          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        },
+        {
+          category: 'HARM_CATEGORY_HARASSMENT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        }
+      ]
+    };
 
-    // Handle Safety Blocks
-    if(finishReason === 'SAFETY') {
-  const safetyRatings = candidate?.safetyRatings;
-  const blockedCategories = safetyRatings?.filter((r: any) => r.probability !== 'NEGLIGIBLE').map((r: any) => r.category).join(', ');
-  throw new Error(`Generování zablokováno bezpečnostním filtrem (Safety). Kategorie: ${blockedCategories || 'Neznámé'}`);
+    if(useGrounding) {
+      config.tools = [{ googleSearch: {} }];
+    }
+
+      // Add image config if needed
+      const imageConfig: any = {};
+    if(aspectRatio && aspectRatio !== 'Original') {
+  // rough map or pass directly
+  imageConfig.aspectRatio = aspectRatio;
+}
+if (Object.keys(imageConfig).length > 0) {
+  config.imageConfig = imageConfig;
 }
 
-// Handle Other Finish Reasons
-if (finishReason && finishReason !== 'STOP') {
-  throw new Error(`Generování selhalo. Důvod ukončení: ${finishReason}`);
+// STRICTLY REQUESTED MODEL
+const modelName = 'gemini-3-pro-image-preview';
+console.log('[Gemini] Requesting model:', modelName);
+
+const response = await this.ai.models.generateContent({
+  model: modelName,
+  contents: {
+    parts: parts,
+  },
+  config: config,
+});
+
+console.log('[Gemini] Response received');
+
+// The response structure for multimodal models returning images can vary.
+// We check for inline data in the candidates.
+const candidate = response.candidates?.[0];
+const finishReason = candidate?.finishReason;
+
+if (finishReason === 'SAFETY') {
+  throw new Error('Generování zablokováno bezpečnostním filtrem (Safety).');
 }
 
-const generatedPart = candidate?.content?.parts?.find(p => p.inlineData);
-const groundingMetadata = candidate?.groundingMetadata;
+// Attempt to find image part
+const generatedPart = candidate?.content?.parts?.find((p: any) => p.inlineData);
 
-if (generatedPart && generatedPart.inlineData && generatedPart.inlineData.data) {
+if (generatedPart?.inlineData?.data) {
   const imageBytes = generatedPart.inlineData.data;
-  const imageSizeKB = Math.round(imageBytes.length * 0.75 / 1024);
-  console.log(`[Gemini] Generated image size: ~${imageSizeKB} KB`);
-
   return {
     imageBase64: `data:image/jpeg;base64,${imageBytes}`,
-    groundingMetadata
+    images: [{ url: `data:image/jpeg;base64,${imageBytes}` }]
   };
-} else {
-  console.error('[Gemini] No image data found in candidate:', candidate);
-  throw new Error("Model nevrátil žádná data obrázku. Zkuste upravit prompt.");
 }
+
+// Fallback: check executable code or other outputs if model differs
+throw new Error("Model nevrátil žádná data obrázku. Zkuste upravit prompt.");
+
     } catch (error: any) {
-  console.error("[Gemini] API Error:", error);
-  if (error?.message?.includes("Requested entity was not found")) {
-    throw new Error("API_KEY_NOT_FOUND");
-  }
-  if (error?.message?.includes("API key not valid") || error?.toString().includes("API_KEY_INVALID")) {
-    throw new Error("API_KEY_NOT_FOUND");
-  }
-  // Re-throw specific errors defined above
-  if (error instanceof Error) {
-    throw error;
-  }
-  throw new Error("Neočekávaná chyba při komunikaci s Gemini AI.");
+  console.error('[Gemini] Image generation error:', error);
+  throw error;
 }
   }
-}
 
 // Legacy function - uses default provider or creates new one
 // Helper to get API key from storage if not provided
