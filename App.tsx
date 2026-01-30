@@ -34,6 +34,7 @@ import { ProviderFactory } from './services/providerFactory';
 import { SettingsDatabase } from './utils/imageDatabase';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
+import { runSupabaseSmokeTests } from './utils/smokeTests';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -1961,6 +1962,23 @@ const App: React.FC = () => {
     const savedSettings = await SettingsDatabase.loadProviderSettings();
     if (savedSettings) {
       setProviderSettings(savedSettings);
+    }
+
+    if (new URLSearchParams(window.location.search).get('smoke') === '1') {
+      const result = await runSupabaseSmokeTests((message, data) => {
+        if (data !== undefined) {
+          console.log(`[Smoke] ${message}`, data);
+        } else {
+          console.log(`[Smoke] ${message}`);
+        }
+      });
+
+      if (result.ok) {
+        setToast({ message: '✅ Smoke test Supabase: OK', type: 'success' });
+      } else {
+        setToast({ message: `❌ Smoke test Supabase: ${result.failures[0]}`, type: 'error' });
+        console.error('[Smoke] Failures:', result.failures);
+      }
     }
   };
 
