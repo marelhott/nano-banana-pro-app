@@ -467,18 +467,20 @@ export const enhancePromptWithAI = async (shortPrompt: string, apiKey?: string):
   const tempProvider = new GeminiProvider(keyToUse);
   return tempProvider.enhancePrompt(shortPrompt);
 };
-
-let defaultProvider: GeminiProvider | null = null;
-
 export const editImageWithGemini = async (
   images: ImageInput[],
   prompt: string,
   resolution?: string,
   aspectRatio?: string,
-  useGrounding: boolean = false
+  useGrounding: boolean = false,
+  apiKey?: string
 ): Promise<GenerateImageResult> => {
-  if (!defaultProvider) {
-    defaultProvider = new GeminiProvider(process.env.API_KEY || '');
+  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+
+  if (!keyToUse) {
+    throw new Error('API Key missing. Please configure it in settings.');
   }
-  return defaultProvider.generateImage(images, prompt, resolution, aspectRatio, useGrounding);
+
+  const tempProvider = new GeminiProvider(keyToUse);
+  return tempProvider.generateImage(images, prompt, resolution, aspectRatio, useGrounding);
 };

@@ -4,7 +4,7 @@ import { Sun, Moon, Upload, X, FileJson, ArrowLeftRight, Folder, Sparkles } from
 import { ImageUpload } from './components/ImageUpload';
 import { ImageLibrary } from './components/ImageLibrary';
 import { LoadingSpinner } from './components/LoadingSpinner';
-import { editImageWithGemini, enhancePromptWithAI } from './services/geminiService';
+import { enhancePromptWithAI } from './services/geminiService';
 import { AppState, GeneratedImage, SourceImage } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
@@ -624,7 +624,8 @@ const App: React.FC = () => {
     setIsEnhancingPrompt(true);
     try {
       console.log('[Enhance Prompt] Starting enhancement...');
-      const enhanced = await enhancePromptWithAI(state.prompt);
+      const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
+      const enhanced = await enhancePromptWithAI(state.prompt, geminiKey);
 
       if (!enhanced || enhanced === state.prompt) {
         console.warn('[Enhance Prompt] No enhancement received or same as original');
@@ -1151,13 +1152,8 @@ const App: React.FC = () => {
 
       console.log('[Edit] Sending request to Gemini...', { prompt: editPrompt, imageCount: sourceImages.length });
 
-      const result = await editImageWithGemini(
-        sourceImages,
-        editPrompt,
-        image.resolution,
-        image.aspectRatio,
-        false
-      );
+      const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
+      const result = await provider.generateImage(sourceImages, editPrompt, image.resolution, image.aspectRatio, false);
 
       console.log('[Edit] Success! updating gallery...');
 
@@ -1962,6 +1958,10 @@ const App: React.FC = () => {
     const savedSettings = await SettingsDatabase.loadProviderSettings();
     if (savedSettings) {
       setProviderSettings(savedSettings);
+      try {
+        localStorage.setItem('providerSettings', JSON.stringify(savedSettings));
+      } catch {
+      }
     }
 
     if (new URLSearchParams(window.location.search).get('smoke') === '1') {
@@ -1992,6 +1992,10 @@ const App: React.FC = () => {
   const handleSaveSettings = async (newSettings: ProviderSettings) => {
     setProviderSettings(newSettings);
     await SettingsDatabase.saveProviderSettings(newSettings);
+    try {
+      localStorage.setItem('providerSettings', JSON.stringify(newSettings));
+    } catch {
+    }
     setToast({ message: 'Settings saved successfully!', type: 'success' });
   };
 
