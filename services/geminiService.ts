@@ -426,8 +426,7 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
       if (generatedPart?.inlineData?.data) {
         const imageBytes = generatedPart.inlineData.data;
         return {
-          imageBase64: `data:image/jpeg;base64,${imageBytes}`,
-          images: [{ url: `data:image/jpeg;base64,${imageBytes}` }]
+          imageBase64: `data:image/jpeg;base64,${imageBytes}`
         };
       }
 

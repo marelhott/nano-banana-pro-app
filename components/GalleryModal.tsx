@@ -13,7 +13,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set<string>());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   useEffect(() => {
@@ -97,7 +97,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
   };
 
   const toggleSelection = (id: string) => {
-    const newSelectedIds = new Set(selectedIds);
+    const newSelectedIds = new Set<string>(selectedIds);
     if (newSelectedIds.has(id)) {
       newSelectedIds.delete(id);
     } else {
@@ -119,7 +119,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
     if (!confirm(`Opravdu chcete smazat ${selectedIds.size} vybraných obrázků?`)) return;
 
     try {
-      for (const id of Array.from(selectedIds)) {
+      for (const id of selectedIds) {
         await deleteImage(id);
       }
       await loadImages();

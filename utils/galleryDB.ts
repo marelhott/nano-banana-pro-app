@@ -15,8 +15,13 @@ export interface GalleryImage {
   duration?: number;   // Video duration in seconds
 }
 
+type SaveToGalleryInput = Omit<GalleryImage, 'id' | 'timestamp'> & {
+  id?: string;
+  timestamp?: number;
+};
+
 // Uložit obrázek do galerie
-export const saveToGallery = async (image: Omit<GalleryImage, 'id' | 'timestamp'>): Promise<void> => {
+export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> => {
   const userId = getCurrentUserId();
   if (!userId) {
     throw new Error('Uživatel není přihlášen');
@@ -35,16 +40,26 @@ export const saveToGallery = async (image: Omit<GalleryImage, 'id' | 'timestamp'
     }
 
     // 3. Uložit metadata do DB
+    const row: Record<string, any> = {
+      user_id: userId,
+      prompt: image.prompt,
+      storage_path: storagePath,
+      thumbnail_path: thumbnailPath,
+      resolution: image.resolution,
+      aspect_ratio: image.aspectRatio
+    };
+
+    if (image.id) {
+      row.id = image.id;
+    }
+
+    if (image.timestamp) {
+      row.created_at = new Date(image.timestamp).toISOString();
+    }
+
     const { error } = await supabase
       .from('generated_images')
-      .insert({
-        user_id: userId,
-        prompt: image.prompt,
-        storage_path: storagePath,
-        thumbnail_path: thumbnailPath,
-        resolution: image.resolution,
-        aspect_ratio: image.aspectRatio
-      });
+      .upsert(row, { onConflict: 'id' });
 
     if (error) throw error;
   } catch (error) {

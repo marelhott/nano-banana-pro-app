@@ -106,7 +106,7 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
             {/* Left: Template List */}
             <div className="border-r border-gray-800 p-4 overflow-y-auto custom-scrollbar">
               <div className="space-y-6">
-                {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
+                {(Object.entries(groupedTemplates) as Array<[string, PromptTemplate[]]>).map(([category, categoryTemplates]) => (
                   <div key={category}>
                     <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3 px-2">
                       {category}

@@ -79,7 +79,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
     const files = event.target.files;
     if (!files) return;
 
-    Array.from(files).forEach(file => {
+    Array.from(files).forEach((file: File) => {
       const reader = new FileReader();
       reader.onload = async (e) => {
         if (e.target?.result && typeof e.target.result === 'string') {
@@ -427,4 +427,3 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
 });
 
 ImageGalleryPanel.displayName = 'ImageGalleryPanel';
-
