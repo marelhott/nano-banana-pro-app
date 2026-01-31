@@ -79,12 +79,14 @@ function mergeFromMulenProviderSettings(current: ProviderSettings): ProviderSett
 // Workflow configs helpers
 export const loadSaveConfigs = (): Record<string, WorkflowSaveConfig> => {
   if (typeof window === "undefined") return {};
+  if (typeof (globalThis as any).localStorage?.getItem !== "function") return {};
   const stored = localStorage.getItem(STORAGE_KEY);
   return stored ? JSON.parse(stored) : {};
 };
 
 export const saveSaveConfig = (config: WorkflowSaveConfig): void => {
   if (typeof window === "undefined") return;
+  if (typeof (globalThis as any).localStorage?.setItem !== "function") return;
   const configs = loadSaveConfigs();
   configs[config.workflowId] = config;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(configs));
@@ -93,6 +95,7 @@ export const saveSaveConfig = (config: WorkflowSaveConfig): void => {
 // Cost data helpers
 export const loadWorkflowCostData = (workflowId: string): WorkflowCostData | null => {
   if (typeof window === "undefined") return null;
+  if (typeof (globalThis as any).localStorage?.getItem !== "function") return null;
   const stored = localStorage.getItem(COST_DATA_STORAGE_KEY);
   if (!stored) return null;
   try {
@@ -105,6 +108,7 @@ export const loadWorkflowCostData = (workflowId: string): WorkflowCostData | nul
 
 export const saveWorkflowCostData = (data: WorkflowCostData): void => {
   if (typeof window === "undefined") return;
+  if (typeof (globalThis as any).localStorage?.setItem !== "function") return;
   const stored = localStorage.getItem(COST_DATA_STORAGE_KEY);
   let allCosts: Record<string, WorkflowCostData> = {};
   if (stored) {

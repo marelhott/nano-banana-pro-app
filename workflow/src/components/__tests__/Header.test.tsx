@@ -68,26 +68,18 @@ describe("Header", () => {
   describe("Basic Rendering", () => {
     it("should render the app title", () => {
       render(<Header />);
-      expect(screen.getByText("Node Banana")).toBeInTheDocument();
+      expect(screen.getByText("Nodes")).toBeInTheDocument();
     });
 
-    it("should render the banana icon", () => {
+    it("should render Settings button", () => {
       render(<Header />);
-      const icon = screen.getByAltText("Banana");
-      expect(icon).toBeInTheDocument();
-      expect(icon).toHaveAttribute("src", "/banana_icon.png");
+      expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
     });
 
-    it("should render 'Made by Willie' link", () => {
+    it("should render back link to Nano Banana", () => {
       render(<Header />);
-      const link = screen.getByText("Made by Willie");
-      expect(link).toHaveAttribute("href", "https://x.com/ReflctWillie");
-    });
-
-    it("should render Discord support link", () => {
-      render(<Header />);
-      const link = screen.getByTitle("Support");
-      expect(link).toHaveAttribute("href", "https://discord.com/invite/89Nr6EKkTf");
+      const link = screen.getByText("← Nano Banana");
+      expect(link).toHaveAttribute("href", "/");
     });
   });
 

@@ -356,6 +356,14 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-3 text-xs">
+          <button
+            onClick={handleOpenSettings}
+            className="px-2 py-1 rounded-md bg-[var(--bg-panel)] border border-[var(--border-soft)] text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--bg-panel-hover)] transition-colors"
+            title="Project Settings"
+            type="button"
+          >
+            Settings
+          </button>
           <a
             href="/"
             className="px-2 py-1 rounded-md bg-[var(--bg-panel)] border border-[var(--border-soft)] text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--bg-panel-hover)] transition-colors"
