@@ -1,10 +1,9 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import {
   AIProvider,
   AIProviderType,
   ImageInput,
-  GenerateImageResult,
-  GenerateVideoResult
+  GenerateImageResult
 } from './aiProvider';
 
 /**
@@ -275,67 +274,6 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
     }
   }
 
-  async generateVideo(
-    images: ImageInput[],
-    prompt: string,
-    duration: number = 8
-  ): Promise<GenerateVideoResult> {
-    try {
-      console.log('[Gemini Veo] Generating video...');
-      console.log('[Gemini Veo] Prompt:', prompt, 'Duration:', duration, 'Images:', images.length);
-
-      const parts: any[] = [];
-
-      // Add images if provided (image-to-video mode)
-      if (images.length > 0) {
-        console.log('[Gemini Veo] Using image-to-video mode');
-        for (const image of images) {
-          const base64Data = image.data.split(',')[1];
-          parts.push({
-            inlineData: {
-              data: base64Data,
-              mimeType: image.mimeType
-            }
-          });
-        }
-      }
-
-      // Add text prompt
-      parts.push({ text: prompt });
-
-      // Call Veo API 
-      const response = await this.ai.models.generateContent({
-        model: 'veo-3.1-generate-001',
-        contents: { parts },
-        config: {
-          videoDuration: `${duration}s`,
-          aspectRatio: '16:9'
-        } as any
-      });
-
-      console.log('[Gemini Veo] Response received');
-
-      // Extract video URL
-      const videoUrl = (response as any).videoUrl ||
-        (response as any).candidates?.[0]?.content?.parts?.[0]?.videoUrl;
-
-      if (!videoUrl) {
-        console.error('[Gemini Veo] No video URL in response');
-        throw new Error('No video URL returned from Veo API');
-      }
-
-      console.log('[Gemini Veo] Video generated:', videoUrl);
-
-      return {
-        videoUrl: videoUrl,
-        duration: duration
-      };
-    } catch (error: any) {
-      console.error('[Gemini Veo] Error:', error);
-      throw new Error(`Failed to generate video: ${error.message}`);
-    }
-  }
-
   async generateImage(
     images: ImageInput[],
     prompt: string,
@@ -418,6 +356,13 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
       const candidate = response.candidates?.[0];
       const finishReason = candidate?.finishReason;
 
+      const groundingChunks = candidate?.groundingMetadata?.groundingChunks as any[] | undefined;
+      const groundingMetadata = groundingChunks
+        ? groundingChunks
+          .map((c) => c?.web ? ({ url: c.web.uri, title: c.web.title }) : null)
+          .filter((x): x is { url: string; title: string } => !!x?.url)
+        : undefined;
+
       if (finishReason === 'SAFETY') {
         throw new Error('Generování zablokováno bezpečnostním filtrem (Safety).');
       }
@@ -428,7 +373,8 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
       if (generatedPart?.inlineData?.data) {
         const imageBytes = generatedPart.inlineData.data;
         return {
-          imageBase64: `data:image/jpeg;base64,${imageBytes}`
+          imageBase64: `data:image/jpeg;base64,${imageBytes}`,
+          groundingMetadata
         };
       }
 
@@ -485,4 +431,15 @@ export const editImageWithGemini = async (
 
   const tempProvider = new GeminiProvider(keyToUse);
   return tempProvider.generateImage(images, prompt, resolution, aspectRatio, useGrounding);
+};
+
+export const analyzeImageForJsonWithAI = async (imageDataUrl: string, apiKey?: string): Promise<string> => {
+  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+
+  if (!keyToUse) {
+    throw new Error('API Key missing. Please configure it in settings.');
+  }
+
+  const tempProvider = new GeminiProvider(keyToUse);
+  return tempProvider.analyzeImageForJson(imageDataUrl);
 };

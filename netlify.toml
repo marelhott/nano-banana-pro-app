@@ -19,6 +19,54 @@
 
 # SPA redirect - ensure all routes work
 [[redirects]]
+  from = "/nodes/*"
+  to = "https://mulennano-nodes.netlify.app/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/_next/*"
+  to = "https://mulennano-nodes.netlify.app/_next/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://mulennano-nodes.netlify.app/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/sample-images/*"
+  to = "https://mulennano-nodes.netlify.app/sample-images/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/template-thumbnails/*"
+  to = "https://mulennano-nodes.netlify.app/template-thumbnails/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/banana_icon.png"
+  to = "https://mulennano-nodes.netlify.app/banana_icon.png"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/node-banana.png"
+  to = "https://mulennano-nodes.netlify.app/node-banana.png"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/icon.png"
+  to = "https://mulennano-nodes.netlify.app/icon.png"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

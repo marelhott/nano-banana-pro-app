@@ -5,9 +5,10 @@ import { exportAllData, importData } from '../utils/dataBackup';
 interface GalleryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onRepopulate?: (image: GalleryImage) => void;
 }
 
-export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) => {
+export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onRepopulate }) => {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -172,13 +173,13 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative w-full h-full max-w-7xl max-h-[90vh] m-4 bg-[#0f1512] rounded-xl shadow-2xl overflow-hidden flex flex-col border border-gray-800" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full h-full max-w-7xl max-h-[90vh] m-4 overflow-hidden flex flex-col card-surface" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#0f1512]/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-transparent">
           <div className="flex items-center gap-3">
             <div className="w-1.5 h-8 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
-            <h2 className="text-xl font-bold uppercase tracking-wider text-gray-100">Gallery</h2>
-            <span className="text-sm font-bold text-gray-500">
+            <h2 className="text-xl font-bold uppercase tracking-wider text-white/85">Gallery</h2>
+            <span className="text-sm font-bold text-white/40">
               ({images.length} images{isSelectionMode && selectedIds.size > 0 ? ` • ${selectedIds.size} selected` : ''})
             </span>
           </div>
@@ -231,7 +232,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
                 )}
                 <button
                   onClick={onClose}
-                  className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+                  className="p-2 rounded-lg transition-all icon-btn"
                 >
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -288,7 +289,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#0f1512]/30">
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-transparent">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-[#7ed957] font-bold animate-pulse">Loading gallery...</div>
@@ -315,16 +316,23 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
                   onClick={() => isSelectionMode ? toggleSelection(image.id) : setSelectedImage(image)}
                 >
                   {isSelectionMode && (
-                    <div className="absolute top-2 left-2 z-10">
-                      <div className={`w-5 h-5 rounded border transition-colors flex items-center justify-center ${selectedIds.has(image.id) ? 'bg-[#7ed957] border-[#7ed957]' : 'bg-black/50 border-white/50'
-                        }`}>
-                        {selectedIds.has(image.id) && (
-                          <svg className="w-3.5 h-3.5 text-[#0a0f0d]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelection(image.id);
+                      }}
+                      className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full border transition-all backdrop-blur flex items-center justify-center ${selectedIds.has(image.id)
+                        ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d] shadow-[0_0_0_3px_rgba(126,217,87,0.15)]'
+                        : 'bg-black/30 border-white/20 text-white/70 hover:border-white/40'
+                        }`}
+                      aria-pressed={selectedIds.has(image.id)}
+                      title={selectedIds.has(image.id) ? 'Odebrat z výběru' : 'Přidat do výběru'}
+                    >
+                      <svg className={`w-4 h-4 transition-opacity ${selectedIds.has(image.id) ? 'opacity-100' : 'opacity-40'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
                   )}
                   <img
                     src={image.thumbnail || image.url}
@@ -339,6 +347,21 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
                         <span className="text-[#7ed957] text-[10px] font-bold">
                           {new Date(image.timestamp).toLocaleDateString('cs-CZ')}
                         </span>
+                        {onRepopulate && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRepopulate(image);
+                              onClose();
+                            }}
+                            className="p-1.5 bg-[#7ed957]/20 hover:bg-[#7ed957] text-[#7ed957] hover:text-[#0a0f0d] rounded-md transition-all"
+                            title="Nahrát do editoru"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 12h16m-7-7 7 7-7 7" />
+                            </svg>
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -435,7 +458,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose }) =
 
       {/* Notification */}
       {notification && (
-        <div className="fixed top-4 right-4 z-[70] bg-[#0f1512] border border-[#7ed957] rounded-lg shadow-2xl shadow-[#7ed957]/10 px-6 py-4 animate-fadeIn">
+        <div className="fixed top-4 right-4 z-[70] px-6 py-4 animate-fadeIn card-surface">
           <p className="text-sm font-bold text-gray-200 flex items-center gap-2">
             {notification.startsWith('✅') ? (
               <span className="text-[#7ed957]">{notification}</span>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SavedPrompt } from '../types';
-import { getSavedPrompts, addSavedPrompt, deleteSavedPrompt, updateSavedPrompt } from '../utils/savedPrompts';
+import { deleteSavedPrompt, listSavedPrompts, updateSavedPrompt, upsertSavedPromptByName } from '../utils/savedPromptsDB';
 
 interface SavedPromptsDropdownProps {
   onSelectPrompt: (prompt: string) => void;
@@ -15,6 +15,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editPromptText, setEditPromptText] = useState('');
+  const [loading, setLoading] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -42,9 +43,17 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const loadPrompts = () => {
-    const prompts = getSavedPrompts();
-    setSavedPrompts(prompts);
+  const loadPrompts = async () => {
+    setLoading(true);
+    try {
+      const prompts = await listSavedPrompts();
+      setSavedPrompts(prompts);
+    } catch (error) {
+      console.error('Failed to load saved prompts:', error);
+      setSavedPrompts([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSelect = (prompt: string) => {
@@ -55,17 +64,23 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Opravdu chcete smazat tento prompt?')) {
-      deleteSavedPrompt(id);
-      loadPrompts();
+      deleteSavedPrompt(id)
+        .then(loadPrompts)
+        .catch((error) => console.error('Failed to delete prompt:', error));
     }
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newName.trim() || !currentPrompt?.trim()) return;
-    addSavedPrompt(newName, currentPrompt);
-    setNewName('');
-    setIsAdding(false);
-    loadPrompts();
+    try {
+      await upsertSavedPromptByName(newName, currentPrompt);
+      setNewName('');
+      setIsAdding(false);
+      await loadPrompts();
+    } catch (error) {
+      console.error('Failed to save prompt:', error);
+      alert('Nepodařilo se uložit prompt');
+    }
   };
 
   const startEditing = (saved: SavedPrompt, e: React.MouseEvent) => {
@@ -75,14 +90,19 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
     setEditPromptText(saved.prompt);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingId || !editName.trim() || !editPromptText.trim()) return;
-    updateSavedPrompt(editingId, {
-      name: editName,
-      prompt: editPromptText,
-    });
-    setEditingId(null);
-    loadPrompts();
+    try {
+      await updateSavedPrompt(editingId, {
+        name: editName,
+        prompt: editPromptText,
+      });
+      setEditingId(null);
+      await loadPrompts();
+    } catch (error) {
+      console.error('Failed to update prompt:', error);
+      alert('Nepodařilo se uložit změny');
+    }
   };
 
   const cancelEdit = () => {
@@ -104,6 +124,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
   const toggleDropdown = () => {
     if (!isOpen) {
       updateDropdownPosition();
+      loadPrompts();
     }
     setIsOpen(!isOpen);
     if (isOpen) {
@@ -118,11 +139,11 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
       <button
         ref={buttonRef}
         onClick={toggleDropdown}
-        className="p-2 bg-gray-800/50 hover:bg-gray-800 border border-transparent hover:border-gray-700 rounded-lg transition-all group relative z-10"
+        className="p-2 bg-white/5 hover:bg-white/10 rounded-md transition-all group relative z-10 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         title="Uložené prompty"
         type="button"
       >
-        <svg className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-4 h-4 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
         </svg>
       </button>
@@ -131,7 +152,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="fixed w-80 max-w-[calc(100vw-2rem)] bg-[#0f1512] border border-gray-800 rounded-xl shadow-2xl z-[100] overflow-hidden animate-slideUp"
+          className="fixed w-80 max-w-[calc(100vw-2rem)] z-[100] overflow-hidden animate-slideUp card-surface"
           style={{
             top: `${dropdownPosition.top}px`,
             left: `${dropdownPosition.left}px`
@@ -139,7 +160,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-4 py-3 bg-[#0f1512]/50 border-b border-gray-800">
+          <div className="px-4 py-3 bg-transparent border-b border-white/5">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-200">Uložené prompty</h3>
               <div className="flex items-center gap-2">
@@ -159,7 +180,9 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
 
           {/* Seznam promptů */}
           <div className="max-h-96 overflow-y-auto custom-scrollbar">
-            {savedPrompts.length === 0 ? (
+            {loading ? (
+              <div className="p-6 text-center text-sm text-gray-500">Načítám…</div>
+            ) : savedPrompts.length === 0 ? (
               <div className="p-6 text-center text-sm text-gray-500">
                 Žádné uložené prompty
               </div>

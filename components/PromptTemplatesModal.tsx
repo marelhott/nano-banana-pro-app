@@ -79,20 +79,20 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-[#0f1512] rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-800">
+      <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col card-surface">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#0f1512]/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-transparent">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-[#7ed957]/10 rounded-lg flex items-center justify-center border border-[#7ed957]/20">
               <svg className="w-5 h-5 text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h2 className="text-base font-bold uppercase tracking-wider text-gray-200">Prompt Templates</h2>
+            <h2 className="text-base font-bold uppercase tracking-wider text-white/85">Prompt Templates</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+            className="p-2 rounded-lg transition-all icon-btn"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -101,14 +101,14 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#0f1512]/30">
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-transparent">
           <div className="grid grid-cols-2 h-full">
             {/* Left: Template List */}
-            <div className="border-r border-gray-800 p-4 overflow-y-auto custom-scrollbar">
+            <div className="border-r border-white/5 p-4 overflow-y-auto custom-scrollbar">
               <div className="space-y-6">
                 {(Object.entries(groupedTemplates) as Array<[string, PromptTemplate[]]>).map(([category, categoryTemplates]) => (
                   <div key={category}>
-                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3 px-2">
+                    <h3 className="text-[10px] font-bold text-white/45 uppercase tracking-widest mb-3 px-2">
                       {category}
                     </h3>
                     <div className="space-y-1">
@@ -120,12 +120,12 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
                           <button
                             onClick={() => handleSelectTemplate(template)}
                             className={`w-full text-left px-3 py-3 rounded-lg transition-all border ${selectedTemplate?.id === template.id
-                                ? 'bg-[#7ed957]/10 border-[#7ed957]/50 text-[#7ed957]'
-                                : 'bg-transparent border-transparent hover:bg-white/5 text-gray-300'
+                                ? 'bg-[#7ed957]/10 border-[#7ed957]/30 text-[#7ed957]'
+                                : 'bg-transparent border-transparent hover:bg-white/5 text-white/75'
                               }`}
                           >
                             <div className="font-bold text-sm mb-1">{template.name}</div>
-                            <div className={`text-[10px] font-mono truncate ${selectedTemplate?.id === template.id ? 'text-[#7ed957]/70' : 'text-gray-500'
+                            <div className={`text-[10px] font-mono truncate ${selectedTemplate?.id === template.id ? 'text-[#7ed957]/70' : 'text-white/40'
                               }`}>
                               {template.template}
                             </div>
@@ -155,29 +155,29 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
             </div>
 
             {/* Right: Template Editor */}
-            <div className="p-6 bg-[#0a0f0d]">
+            <div className="p-6 bg-transparent">
               {selectedTemplate ? (
                 <div className="space-y-6">
                   <div>
-                    <h3 className="font-bold text-lg text-gray-100 mb-1">{selectedTemplate.name}</h3>
+                    <h3 className="font-bold text-lg text-white/90 mb-1">{selectedTemplate.name}</h3>
                     <div className="flex gap-2">
-                      <span className="text-[10px] bg-gray-800 text-gray-400 px-2 py-0.5 rounded uppercase tracking-wider">
+                      <span className="text-[10px] px-2 py-0.5 rounded uppercase tracking-wider bg-white/5 text-white/55">
                         {selectedTemplate.category || 'Other'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="bg-[#0f1512] rounded-lg p-4 border border-gray-800">
-                    <div className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-2">
+                  <div className="rounded-lg p-4 border border-white/5 bg-white/[0.03]">
+                    <div className="text-[9px] font-bold text-white/45 uppercase tracking-widest mb-2">
                       Template
                     </div>
-                    <div className="text-xs font-mono text-gray-300 leading-relaxed">
+                    <div className="text-xs font-mono text-white/75 leading-relaxed">
                       {selectedTemplate.template}
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
+                    <div className="text-[9px] font-bold text-white/45 uppercase tracking-widest">
                       Variables
                     </div>
                     {selectedTemplate.variables.map(variable => (
@@ -193,18 +193,18 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
                             [variable]: e.target.value
                           }))}
                           placeholder={`Enter ${variable.toLowerCase().replace(/_/g, ' ')}...`}
-                          className="w-full px-4 py-2.5 bg-[#0f1512] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#7ed957] focus:ring-1 focus:ring-[#7ed957] transition-all placeholder-gray-600"
+                          className="w-full px-4 py-2.5 control-surface text-sm font-medium text-white/85 outline-none focus:border-[#7ed957] focus:ring-0 transition-all placeholder-white/30"
                         />
                       </div>
                     ))}
                   </div>
 
-                  <div className="bg-[#0f1512] border border-gray-800 rounded-lg p-4">
-                    <div className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-2">
+                  <div className="border border-white/5 rounded-lg p-4 bg-white/[0.03]">
+                    <div className="text-[9px] font-bold text-white/45 uppercase tracking-widest mb-2">
                       Preview
                     </div>
-                    <div className="text-sm text-gray-300 leading-relaxed min-h-[60px]">
-                      {preview || <span className="text-gray-600 italic">Fill in variables...</span>}
+                    <div className="text-sm text-white/75 leading-relaxed min-h-[60px]">
+                      {preview || <span className="text-white/30 italic">Fill in variables...</span>}
                     </div>
                   </div>
 

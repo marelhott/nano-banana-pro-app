@@ -17,13 +17,12 @@ interface ImageComparisonModalProps {
   onPrev?: () => void;
   hasNext?: boolean;
   hasPrev?: boolean;
-  isVideo?: boolean;  // Flag for video content
 }
 
 export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
   isOpen, onClose, originalImage, generatedImage, prompt, timestamp,
   resolution, aspectRatio, styleCode, groundingMetadata,
-  onNext, onPrev, hasNext, hasPrev, isVideo
+  onNext, onPrev, hasNext, hasPrev
 }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
@@ -174,18 +173,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
                 </div>
               </div>
             ) : (
-              isVideo ? (
-                <video
-                  src={generatedImage}
-                  className="max-w-full max-h-full object-contain shadow-2xl rounded-lg border border-gray-800"
-                  controls
-                  autoPlay
-                  loop
-                  playsInline
-                />
-              ) : (
-                <img src={generatedImage} className="max-w-full max-h-full object-contain shadow-2xl rounded-lg border border-gray-800" />
-              )
+              <img src={generatedImage} className="max-w-full max-h-full object-contain shadow-2xl rounded-lg border border-gray-800" />
             )}
           </div>
         </div>
@@ -240,7 +228,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
               </button>
             </div>
-            <p className="text-gray-300 font-mono text-sm leading-relaxed whitespace-pre-wrap selection:bg-[#7ed957] selection:text-[#0a0f0d]">
+            <p className="text-white/75 font-mono text-[11px] leading-relaxed whitespace-pre-wrap selection:bg-[#7ed957] selection:text-[#0a0f0d]">
               {displayedPrompt}
             </p>
           </div>

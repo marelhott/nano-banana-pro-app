@@ -11,8 +11,7 @@ export interface GalleryImage {
   resolution?: string;
   aspectRatio?: string;
   thumbnail?: string; // URL thumbnailů z Storage
-  isVideo?: boolean;   // Flag for video results
-  duration?: number;   // Video duration in seconds
+  params?: any;
 }
 
 type SaveToGalleryInput = Omit<GalleryImage, 'id' | 'timestamp'> & {
@@ -29,13 +28,17 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
 
   try {
     // 1. Upload hlavního obrázku
-    const imageBlob = await dataUrlToBlob(image.url);
+    const imageBlob = image.url.startsWith('data:')
+      ? await dataUrlToBlob(image.url)
+      : await (await fetch(image.url)).blob();
     const storagePath = await uploadImage(imageBlob, 'generated');
 
     // 2. Upload thumbnai (pokud existuje)
     let thumbnailPath: string | undefined;
     if (image.thumbnail) {
-      const thumbnailBlob = await dataUrlToBlob(image.thumbnail);
+      const thumbnailBlob = image.thumbnail.startsWith('data:')
+        ? await dataUrlToBlob(image.thumbnail)
+        : await (await fetch(image.thumbnail)).blob();
       thumbnailPath = await uploadImage(thumbnailBlob, 'generated');
     }
 
@@ -46,7 +49,8 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
       storage_path: storagePath,
       thumbnail_path: thumbnailPath,
       resolution: image.resolution,
-      aspect_ratio: image.aspectRatio
+      aspect_ratio: image.aspectRatio,
+      params: image.params ?? {}
     };
 
     if (image.id) {
@@ -66,19 +70,6 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
     console.error('Error saving to gallery:', error);
     throw error;
   }
-};
-
-// Helper function to generate a simple hash from image data
-const generateImageHash = (dataUrl: string): string => {
-  // Extract just the base64 data part (after the comma)
-  const base64Data = dataUrl.split(',')[1] || dataUrl;
-
-  // Take a sample of the data for hash (first 200 chars + last 200 chars + length)
-  // This is fast and catches most duplicates
-  const sample = base64Data.substring(0, 200) + base64Data.substring(base64Data.length - 200) + base64Data.length;
-
-  // Simple hash using btoa (base64 encode)
-  return btoa(sample).substring(0, 64);
 };
 
 // Získat všechny obrázky z galerie
@@ -102,7 +93,8 @@ export const getAllImages = async (): Promise<GalleryImage[]> => {
       timestamp: new Date(row.created_at).getTime(),
       resolution: row.resolution,
       aspectRatio: row.aspect_ratio,
-      thumbnail: row.thumbnail_path ? getPublicUrl(row.thumbnail_path) : undefined
+      thumbnail: row.thumbnail_path ? getPublicUrl(row.thumbnail_path) : undefined,
+      params: row.params || undefined
     }));
   } catch (error) {
     console.error('Error loading gallery:', error);

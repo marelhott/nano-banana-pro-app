@@ -167,23 +167,29 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             key={image.id}
             draggable
             onDragStart={(e) => handleDragStart(e, image, 'saved')}
-            className="group relative aspect-square bg-[#0f1512] rounded-lg overflow-hidden border border-gray-800 hover:border-[#7ed957] transition-all cursor-move shadow-sm hover:shadow-lg hover:shadow-[#7ed957]/10"
+            className={`group relative aspect-square bg-[#0f1512] rounded-lg overflow-hidden border transition-all cursor-move shadow-sm hover:shadow-lg hover:shadow-[#7ed957]/10 ${selectedImages.has(image.id)
+              ? 'border-[#7ed957]/60 ring-1 ring-[#7ed957]/40'
+              : 'border-gray-800 hover:border-[#7ed957]'
+              }`}
             title="Přetáhněte do referenčního nebo stylového pole"
           >
-            {/* Checkbox for multi-select */}
-            <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
-              <div
-                onClick={() => toggleSelection(image.id)}
-                className={`w-5 h-5 cursor-pointer rounded border transition-all flex items-center justify-center ${selectedImages.has(image.id)
-                  ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d]'
-                  : 'bg-black/40 border-gray-700 hover:border-gray-500 text-transparent'
-                  }`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSelection(image.id);
+              }}
+              className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full border transition-all backdrop-blur flex items-center justify-center ${selectedImages.has(image.id)
+                ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d] shadow-[0_0_0_3px_rgba(126,217,87,0.15)] opacity-100'
+                : 'bg-black/25 border-white/15 text-white/70 opacity-0 group-hover:opacity-100 hover:border-white/30'
+                }`}
+              aria-pressed={selectedImages.has(image.id)}
+              title={selectedImages.has(image.id) ? 'Odebrat z výběru' : 'Přidat do výběru'}
+            >
+              <svg className={`w-4 h-4 transition-opacity ${selectedImages.has(image.id) ? 'opacity-100' : 'opacity-40'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </button>
 
             <img
               src={image.url}
@@ -239,30 +245,11 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             className="group relative aspect-square bg-[#0f1512] rounded-lg overflow-hidden border border-gray-800 hover:border-[#7ed957] transition-all cursor-pointer shadow-sm hover:shadow-lg hover:shadow-[#7ed957]/10"
             title="Klikněte pro velké zobrazení nebo přetáhněte do pole nalevo"
           >
-            {image.isVideo ? (
-              <>
-                <video
-                  src={image.url}
-                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                  muted
-                  loop
-                  playsInline
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                  <div className="bg-black/50 backdrop-blur rounded-full p-3 shadow-lg border border-gray-700">
-                    <svg className="w-6 h-6 text-[#7ed957]" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <img
-                src={image.url}
-                alt={image.prompt}
-                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-              />
-            )}
+            <img
+              src={image.url}
+              alt={image.prompt}
+              className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="absolute bottom-0 left-0 right-0 p-2 space-y-1">
                 <p className="text-gray-200 text-[9px] font-bold line-clamp-2" title={image.prompt}>
@@ -295,20 +282,20 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0f1512] rounded-lg border border-gray-800/50 overflow-hidden text-gray-100 font-sans">
+    <div className="flex flex-col h-full overflow-hidden font-sans card-surface">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800/50 bg-[#0f1512]">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-transparent">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Image Library</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-white/55">Image Library</h3>
         </div>
 
-        <div className="flex bg-[#0a0f0d] p-1 rounded-lg border border-gray-800/50">
+        <div className="flex p-1 rounded-lg control-surface">
           <button
             onClick={() => setActiveTab('saved')}
             className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${activeTab === 'saved'
-              ? 'bg-[#1f2937] text-white shadow-sm'
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'bg-white/10 text-white shadow-sm'
+              : 'text-white/40 hover:text-white/70'
               }`}
           >
             Saved
@@ -316,8 +303,8 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           <button
             onClick={() => setActiveTab('generated')}
             className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${activeTab === 'generated'
-              ? 'bg-[#1f2937] text-white shadow-sm'
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'bg-white/10 text-white shadow-sm'
+              : 'text-white/40 hover:text-white/70'
               }`}
           >
             Generated
@@ -326,11 +313,11 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       </div>
 
       {/* Toolbar */}
-      <div className="px-6 py-3 border-b border-gray-800/50 bg-[#0f1512]/50 flex items-center justify-between">
+      <div className="px-6 py-3 border-b border-white/5 bg-transparent flex items-center justify-between">
         <div className="flex items-center gap-2">
           {selectedImages.size > 0 && (
             <div className="flex items-center gap-2 animate-fadeIn">
-              <span className="text-xs text-gray-400 font-medium">Selected: <span className="text-white">{selectedImages.size}</span></span>
+              <span className="text-xs text-white/55 font-medium">Selected: <span className="text-white">{selectedImages.size}</span></span>
               {onBatchProcess && (
                 <button
                   onClick={handleBatchProcess}
@@ -341,7 +328,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
               )}
               <button
                 onClick={clearSelection}
-                className="px-2 py-1 bg-gray-800 text-gray-400 text-[10px] font-bold uppercase tracking-wider rounded hover:bg-gray-700 transition-all"
+                className="px-2 py-1 text-white/60 text-[10px] font-bold uppercase tracking-wider rounded hover:bg-white/5 transition-all"
               >
                 Clear
               </button>
@@ -361,7 +348,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           {activeTab === 'saved' && (
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] text-[10px] font-bold uppercase tracking-wider rounded transition-all shadow-lg shadow-[#7ed957]/20"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] text-[10px] font-bold uppercase tracking-wider rounded transition-all shadow-lg shadow-[#7ed957]/20 ambient-glow glow-green glow-weak"
             >
               <Upload size={14} strokeWidth={3} />
               <span>Upload</span>
@@ -369,7 +356,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           )}
           <button
             onClick={loadImages}
-            className="p-1.5 text-gray-500 hover:text-[#7ed957] transition-colors"
+            className="p-1.5 transition-colors icon-btn"
             title="Refresh"
           >
             <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -380,7 +367,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#0a0f0d]">
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-transparent">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-[#7ed957] border-t-transparent rounded-full animate-spin"></div>
@@ -394,7 +381,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       </div>
 
       {/* Footer / Status */}
-      <div className="px-6 py-2 border-t border-gray-800/50 bg-[#0f1512] text-[10px] text-gray-500 font-medium flex justify-between">
+      <div className="px-6 py-2 border-t border-white/5 bg-transparent text-[10px] text-white/35 font-medium flex justify-between">
         <span>{activeTab === 'saved' ? `${savedImages.length} saved images` : `${generatedImages.length} generated images`}</span>
         {loading && <span className="text-[#7ed957]">Syncing...</span>}
       </div>

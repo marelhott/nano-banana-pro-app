@@ -5,6 +5,25 @@ export interface ImageVersion {
   timestamp: number;
 }
 
+export type ProviderId = 'gemini' | 'grok' | 'chatgpt';
+
+export interface GenerationRecipe {
+  provider: ProviderId;
+  operation: 'generate' | 'edit' | 'variant' | 'batch';
+  prompt: string;
+  effectivePrompt?: string;
+  useGrounding?: boolean;
+  promptMode: 'simple' | 'advanced';
+  advancedVariant?: 'A' | 'B' | 'C';
+  faceIdentityMode?: boolean;
+  jsonContextFileName?: string;
+  resolution?: string;
+  aspectRatio?: string;
+  sourceImageCount: number;
+  styleImageCount: number;
+  createdAt: number;
+}
+
 export interface GeneratedImage {
   id: string;
   url?: string;
@@ -19,9 +38,8 @@ export interface GeneratedImage {
   versions?: Array<{ url: string; prompt: string; timestamp: number }>;
   currentVersionIndex?: number; // Track which version is currently displayed (for undo/redo)
   isEditing?: boolean;
-  isVideo?: boolean;
-  duration?: number;
   progress?: number; // 0-100 for generation progress tracking
+  recipe?: GenerationRecipe;
 
   // Variant generation metadata
   variantInfo?: {
@@ -59,6 +77,7 @@ export interface AppState {
   resolution: string; // '1k', '2k', '4k'
   error: string | null; // For global/upload errors
   numberOfImages: number; // Number of images to generate at once (1-5)
+  shouldAutoGenerate?: boolean;
 }
 
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/heic' | 'image/heif';

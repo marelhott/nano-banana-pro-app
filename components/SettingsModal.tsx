@@ -101,7 +101,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-[#0f1512] border border-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slideUp">
+            <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slideUp card-surface">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#0f1512]/50">
                     <div className="flex items-center gap-3">

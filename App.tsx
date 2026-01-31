@@ -2,17 +2,16 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import './src/index.css'; // ENFORCE NEW STYLES
 import { Sun, Moon, Upload, X, FileJson, ArrowLeftRight, Folder, Sparkles } from 'lucide-react'; // Added icons for design
 import { ImageUpload } from './components/ImageUpload';
-import { ImageLibrary } from './components/ImageLibrary';
 import { LoadingSpinner } from './components/LoadingSpinner';
-import { enhancePromptWithAI } from './services/geminiService';
-import { AppState, GeneratedImage, SourceImage } from './types';
+import { analyzeImageForJsonWithAI, enhancePromptWithAI } from './services/geminiService';
+import { AppState, GeneratedImage, GenerationRecipe, SourceImage } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { Header } from './components/Header';
 import { GalleryModal } from './components/GalleryModal';
 import { SavedPromptsDropdown } from './components/SavedPromptsDropdown';
 import { slugify } from './utils/stringUtils.ts';
-import { saveToGallery, createThumbnail } from './utils/galleryDB';
+import { GalleryImage, saveToGallery, createThumbnail } from './utils/galleryDB';
 import { ImageDatabase } from './utils/imageDatabase';
 import { urlToDataUrl } from './utils/supabaseStorage';
 import JSZip from 'jszip';
@@ -20,11 +19,11 @@ import { ApiUsagePanel } from './components/ApiUsagePanel';
 import { CollectionsModal } from './components/CollectionsModal';
 import { PromptTemplatesModal } from './components/PromptTemplatesModal';
 import { PromptRemixModal } from './components/PromptRemixModal';
-import { LoadingProgress } from './components/LoadingProgress';
 import { QuickActionsMenu, QuickAction } from './components/QuickActionsMenu';
 import { ApiUsageTracker } from './utils/apiUsageTracking';
 import { PromptHistory } from './utils/promptHistory';
 import { detectLanguage, enhancePromptQuality, getPromptSuggestion } from './utils/languageSupport';
+import { formatJsonPromptForImage } from './utils/jsonPrompting';
 import { ImageGalleryPanel } from './components/ImageGalleryPanel';
 import { PinAuth } from './components/PinAuth';
 import { SettingsModal } from './components/SettingsModal';
@@ -63,8 +62,9 @@ const App: React.FC = () => {
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
   const [advancedVariant, setAdvancedVariant] = useState<'A' | 'B' | 'C'>('C'); // Default: Balanced
   const [faceIdentityMode, setFaceIdentityMode] = useState(false);
+  const [simpleLinkMode, setSimpleLinkMode] = useState<'style' | 'merge' | 'object' | null>(null);
+  const [useGrounding, setUseGrounding] = useState(false);
   const [jsonContext, setJsonContext] = useState<{ fileName: string; content: any } | null>(null);
-  const [showAnalyzeModal, setShowAnalyzeModal] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{
     current: number;
     total: number;
@@ -78,7 +78,7 @@ const App: React.FC = () => {
 
   // Refs
   const galleryPanelRef = useRef<any>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzingImageId, setAnalyzingImageId] = useState<string | null>(null);
 
   // Load provider settings from localStorage
   useEffect(() => {
@@ -147,8 +147,14 @@ const App: React.FC = () => {
   const canGenerate = useMemo(() => {
     const hasTextPrompt = state.prompt.trim().length > 0;
     const hasReferencePrompt = state.sourceImages.some(img => img.prompt && img.prompt.trim().length > 0);
-    return hasTextPrompt || hasReferencePrompt;
-  }, [state.prompt, state.sourceImages]);
+    const hasFixedSimpleMode =
+      promptMode === 'simple' &&
+      !!simpleLinkMode &&
+      state.sourceImages.length > 0 &&
+      state.styleImages.length > 0;
+
+    return hasTextPrompt || hasReferencePrompt || hasFixedSimpleMode;
+  }, [promptMode, simpleLinkMode, state.prompt, state.sourceImages, state.styleImages]);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -647,6 +653,51 @@ const App: React.FC = () => {
     }
   };
 
+  const handleExtractPromptFromImage = async (img: SourceImage) => {
+    if (analyzingImageId) return;
+    setAnalyzingImageId(img.id);
+
+    try {
+      const dataUrl = await urlToDataUrl(img.url);
+      const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
+      const json = await analyzeImageForJsonWithAI(dataUrl, geminiKey);
+      const formatted = formatJsonPromptForImage(json);
+      setState(prev => ({ ...prev, prompt: formatted }));
+      promptHistory.add(formatted);
+      setToast({ message: '✨ Prompt byl extrahován z obrázku', type: 'success' });
+    } catch (error: any) {
+      console.error('[Extract Prompt] Error:', error);
+      setToast({ message: error?.message?.includes('API Key') ? 'Chybí API klíč - nastavte ho v nastavení' : 'Extrahování promptu selhalo', type: 'error' });
+    } finally {
+      setAnalyzingImageId(null);
+    }
+  };
+
+  const applyRecipe = (recipe: GenerationRecipe, autoGenerate: boolean) => {
+    setPromptMode(recipe.promptMode || 'simple');
+    if (recipe.advancedVariant) {
+      setAdvancedVariant(recipe.advancedVariant);
+    }
+    setFaceIdentityMode(!!recipe.faceIdentityMode);
+    setUseGrounding(!!recipe.useGrounding);
+    if (recipe.provider && Object.values(AIProviderType).includes(recipe.provider as any)) {
+      setSelectedProvider(recipe.provider as AIProviderType);
+    }
+
+    setJsonContext(null);
+    setState(prev => ({
+      ...prev,
+      prompt: recipe.prompt ?? prev.prompt,
+      aspectRatio: recipe.aspectRatio || prev.aspectRatio,
+      resolution: recipe.resolution || prev.resolution,
+      shouldAutoGenerate: autoGenerate,
+    }));
+
+    if (isMobile) {
+      setIsMobileMenuOpen(true);
+    }
+  };
+
   const handleUndoPrompt = () => {
     const previous = promptHistory.undo();
     if (previous !== null) {
@@ -770,19 +821,36 @@ const App: React.FC = () => {
 
         while (retryCount <= maxRetries && !success) {
           try {
+            const recipe: GenerationRecipe = {
+              provider: AIProviderType.GEMINI,
+              operation: 'variant',
+              prompt: variant.prompt,
+              effectivePrompt: variant.prompt,
+              useGrounding,
+              promptMode,
+              advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+              faceIdentityMode,
+              jsonContextFileName: jsonContext?.fileName,
+              resolution: state.resolution,
+              aspectRatio: state.aspectRatio,
+              sourceImageCount: state.sourceImages.length,
+              styleImageCount: state.styleImages.length,
+              createdAt: Date.now(),
+            };
+
             const result = await provider.generateImage(
               sourceImagesData,
               variant.prompt,
               state.resolution,
               state.aspectRatio,
-              false
+              useGrounding
             );
 
             setState(prev => ({
               ...prev,
               generatedImages: prev.generatedImages.map(img =>
                 img.id === newId
-                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata }
+                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata, recipe }
                   : img
               )
             }));
@@ -795,7 +863,8 @@ const App: React.FC = () => {
                 prompt: variant.prompt,
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
-                thumbnail
+                thumbnail,
+                params: recipe
               });
               console.log(`[3 Variants] Variant ${i + 1} saved to gallery`);
             } catch (err) {
@@ -861,25 +930,19 @@ const App: React.FC = () => {
 
     // Validate prompt based on mode
     if (promptMode === 'simple') {
-      if (!state.prompt.trim() && !hasReferencePrompt) {
-        setToast({ message: 'Vyplňte textový prompt nebo přetáhněte obrázek z galerie', type: 'error' });
+      const hasFixedSimpleMode = !!simpleLinkMode && state.sourceImages.length > 0 && state.styleImages.length > 0;
+      if (!state.prompt.trim() && !hasReferencePrompt && !hasFixedSimpleMode) {
+        setToast({ message: 'Vyberte Styl / Merge / Object (a přidejte referenční + stylový obrázek) nebo napište prompt', type: 'error' });
+        return;
+      }
+      if (!!simpleLinkMode && (state.sourceImages.length === 0 || state.styleImages.length === 0)) {
+        setToast({ message: 'Pro Styl / Merge / Object přidejte aspoň 1 referenční a 1 stylový obrázek', type: 'error' });
         return;
       }
     }
 
     // Přidat prompt do historie
     promptHistory.add(state.prompt);
-
-    // Auto-save referenčních a stylových obrázků do galerie
-    const saveReferenceAndStyleImages = async () => {
-      const savedUrls = new Set<string>();      // Note: Reference and style images are NOT automatically saved to gallery
-      // They are only saved when user explicitly clicks the save button
-    };
-
-    // Save images in background (don't block generation)
-    saveReferenceAndStyleImages().catch(err => {
-      console.error('[Auto-Save] Error saving images:', err);
-    });
 
     // Detekce jazyka a quality enhancement
     const language = detectLanguage(state.prompt);
@@ -952,16 +1015,61 @@ const App: React.FC = () => {
             );
             const allImages = [...sourceImagesData, ...styleImagesData];
 
+            const buildSimpleLinkPrompt = (
+              mode: 'style' | 'merge' | 'object',
+              extra: string,
+              referenceImageCount: number,
+              styleImageCount: number
+            ) => {
+              const header = `
+[LINK MODE: ${mode.toUpperCase()}]
+Images order: first ${referenceImageCount} reference image(s), then ${styleImageCount} style image(s).
+`;
+
+              if (mode === 'style') {
+                return `${header}
+Apply the visual style, composition, lighting, color grading, lens feel, and overall mood from the style image(s) to the reference image(s), while preserving the identity and content of the reference subject(s). Do NOT transfer objects/content from style; transfer only aesthetic and photographic/artistic treatment.
+
+${extra ? `Additional instructions:
+${extra}
+` : ''}`.trim();
+              }
+
+              if (mode === 'merge') {
+                return `${header}
+Create a cohesive merge of reference and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality.
+
+${extra ? `Additional instructions:
+${extra}
+` : ''}`.trim();
+              }
+
+              return `${header}
+Transfer the dominant object/element from the style image(s) onto the reference image(s) in a realistic way. Keep the reference scene intact and place/replace the matching region with the style object (e.g., decorative wall), with correct perspective, lighting, scale, and shadows.
+
+${extra ? `Additional instructions:
+${extra}
+` : ''}`.trim();
+            };
+
             // Handle Advanced Mode: Serialize JSON data first
             let basePrompt = state.prompt;
 
+            let extraPrompt = basePrompt;
+
             // Pokud není vyplněn hlavní prompt, použij prompt z prvního referenčního obrázku
-            if (!basePrompt.trim() && state.sourceImages.length > 0) {
+            if (!extraPrompt.trim() && state.sourceImages.length > 0) {
               const imageWithPrompt = state.sourceImages.find(img => img.prompt);
               if (imageWithPrompt?.prompt) {
-                basePrompt = imageWithPrompt.prompt;
-                console.log('[Generation] Using prompt from reference image:', basePrompt);
+                extraPrompt = imageWithPrompt.prompt;
+                console.log('[Generation] Using prompt from reference image:', extraPrompt);
               }
+            }
+
+            if (promptMode === 'simple' && simpleLinkMode) {
+              basePrompt = buildSimpleLinkPrompt(simpleLinkMode, extraPrompt, state.sourceImages.length, state.styleImages.length);
+            } else {
+              basePrompt = extraPrompt;
             }
 
             // Append JSON context if present (High Priority Context)
@@ -994,6 +1102,23 @@ const App: React.FC = () => {
 
 
 
+            const recipe: GenerationRecipe = {
+              provider: selectedProvider,
+              operation: 'generate',
+              prompt: basePrompt,
+              effectivePrompt: enhancedPrompt,
+              useGrounding,
+              promptMode,
+              advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+              faceIdentityMode,
+              jsonContextFileName: jsonContext?.fileName,
+              resolution: state.resolution,
+              aspectRatio: state.aspectRatio,
+              sourceImageCount: state.sourceImages.length,
+              styleImageCount: state.styleImages.length,
+              createdAt: Date.now(),
+            };
+
             // Get selected AI provider
             const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
 
@@ -1003,14 +1128,16 @@ const App: React.FC = () => {
               enhancedPrompt,
               state.resolution,
               state.aspectRatio,
-              false
+              useGrounding
             );
 
 
             setState(prev => ({
               ...prev,
               generatedImages: prev.generatedImages.map(img =>
-                img.id === imageData.id ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata } : img
+                img.id === imageData.id
+                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata, prompt: basePrompt, recipe }
+                  : img
               ),
             }));
 
@@ -1019,10 +1146,11 @@ const App: React.FC = () => {
               const thumbnail = await createThumbnail(result.imageBase64);
               await saveToGallery({
                 url: result.imageBase64,
-                prompt: state.prompt,
+                prompt: basePrompt,
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
                 thumbnail,
+                params: recipe,
               });
               console.log('[Gallery] Image saved successfully');
               // Refresh gallery to show new image
@@ -1075,6 +1203,11 @@ const App: React.FC = () => {
   };
 
   const handleRepopulate = (image: GeneratedImage) => {
+    if (image.recipe) {
+      applyRecipe(image.recipe, true);
+      return;
+    }
+
     setState(prev => ({
       ...prev,
       prompt: image.prompt,
@@ -1082,7 +1215,25 @@ const App: React.FC = () => {
       resolution: image.resolution || '2K',
       shouldAutoGenerate: true,
     }));
-    // If mobile, open the menu so user sees the repopulated settings
+    if (isMobile) {
+      setIsMobileMenuOpen(true);
+    }
+  };
+
+  const handleRepopulateFromGallery = (image: GalleryImage) => {
+    const recipe = image.params as GenerationRecipe | undefined;
+    if (recipe) {
+      applyRecipe(recipe, true);
+      return;
+    }
+
+    setState(prev => ({
+      ...prev,
+      prompt: image.prompt,
+      aspectRatio: image.aspectRatio || 'Original',
+      resolution: image.resolution || '2K',
+      shouldAutoGenerate: true,
+    }));
     if (isMobile) {
       setIsMobileMenuOpen(true);
     }
@@ -1153,7 +1304,22 @@ const App: React.FC = () => {
       console.log('[Edit] Sending request to Gemini...', { prompt: editPrompt, imageCount: sourceImages.length });
 
       const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
-      const result = await provider.generateImage(sourceImages, editPrompt, image.resolution, image.aspectRatio, false);
+      const recipe: GenerationRecipe = {
+        provider: AIProviderType.GEMINI,
+        operation: 'edit',
+        prompt: editPrompt,
+        effectivePrompt: editPrompt,
+        useGrounding,
+        promptMode,
+        advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+        faceIdentityMode,
+        resolution: image.resolution,
+        aspectRatio: image.aspectRatio,
+        sourceImageCount: sourceImages.length,
+        styleImageCount: 0,
+        createdAt: Date.now(),
+      };
+      const result = await provider.generateImage(sourceImages, editPrompt, image.resolution, image.aspectRatio, useGrounding);
 
       console.log('[Edit] Success! updating gallery...');
 
@@ -1178,6 +1344,7 @@ const App: React.FC = () => {
               versions: newVersions,
               currentVersionIndex: newVersions.length, // Point to the new current version (after all history)
               isEditing: false,
+              recipe,
             };
           }
           return img;
@@ -1202,6 +1369,7 @@ const App: React.FC = () => {
           resolution: image.resolution,
           aspectRatio: image.aspectRatio,
           thumbnail,
+          params: recipe,
         });
       } catch (err) {
         console.error('Failed to save edited image to gallery:', err);
@@ -1226,9 +1394,14 @@ const App: React.FC = () => {
     console.log('[Batch] Starting batch process with', images.length, 'images');
     console.log('[Batch] Prompt:', state.prompt);
 
-    if (!state.prompt.trim()) {
+    const canRunFixedSimpleBatch =
+      promptMode === 'simple' &&
+      !!simpleLinkMode &&
+      state.styleImages.length > 0;
+
+    if (!state.prompt.trim() && !canRunFixedSimpleBatch) {
       console.error('[Batch] No prompt provided');
-      setToast({ message: 'Vyplňte prompt pro batch zpracování', type: 'error' });
+      setToast({ message: 'Vyplňte prompt pro batch zpracování, nebo vyberte Styl/Merge/Object + stylový obrázek', type: 'error' });
       return;
     }
 
@@ -1262,9 +1435,55 @@ const App: React.FC = () => {
     });
 
     let processedCount = 0;
-    const provider = ProviderFactory.getProvider(selectedProvider, providerSettings[selectedProvider]);
+    const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
+
+    const buildSimpleLinkPrompt = (
+      mode: 'style' | 'merge' | 'object',
+      extra: string,
+      referenceImageCount: number,
+      styleImageCount: number
+    ) => {
+      const header = `
+[LINK MODE: ${mode.toUpperCase()}]
+Images order: first ${referenceImageCount} reference image(s), then ${styleImageCount} style image(s).
+`;
+
+      if (mode === 'style') {
+        return `${header}
+Apply the visual style, composition, lighting, color grading, lens feel, and overall mood from the style image(s) to the reference image(s), while preserving the identity and content of the reference subject(s). Do NOT transfer objects/content from style; transfer only aesthetic and photographic/artistic treatment.
+
+${extra ? `Additional instructions:
+${extra}
+` : ''}`.trim();
+      }
+
+      if (mode === 'merge') {
+        return `${header}
+Create a cohesive merge of reference and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality.
+
+${extra ? `Additional instructions:
+${extra}
+` : ''}`.trim();
+      }
+
+      return `${header}
+Transfer the dominant object/element from the style image(s) onto the reference image(s) in a realistic way. Keep the reference scene intact and place/replace the matching region with the style object (e.g., decorative wall), with correct perspective, lighting, scale, and shadows.
+
+${extra ? `Additional instructions:
+${extra}
+` : ''}`.trim();
+    };
 
     try {
+      const styleImagesData = canRunFixedSimpleBatch
+        ? await Promise.all(
+          state.styleImages.map(async (img) => ({
+            data: await urlToDataUrl(img.url),
+            mimeType: img.file.type,
+          }))
+        )
+        : [];
+
       for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         const chunk = chunks[chunkIndex];
 
@@ -1280,18 +1499,45 @@ const App: React.FC = () => {
             const loadingId = loadingImages[globalIndex].id;
 
             try {
+              const effectivePrompt =
+                promptMode === 'simple' && simpleLinkMode && styleImagesData.length > 0
+                  ? buildSimpleLinkPrompt(simpleLinkMode, state.prompt.trim(), 1, styleImagesData.length)
+                  : state.prompt;
+
+              const recipe: GenerationRecipe = {
+                provider: selectedProvider,
+                operation: 'batch',
+                prompt: state.prompt,
+                effectivePrompt,
+                useGrounding,
+                promptMode,
+                advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+                faceIdentityMode,
+                jsonContextFileName: jsonContext?.fileName,
+                resolution: state.resolution,
+                aspectRatio: state.aspectRatio,
+                sourceImageCount: 1,
+                styleImageCount: styleImagesData.length,
+                createdAt: Date.now(),
+              };
+
               // Prepare image data
               const sourceImagesData = [{
                 data: await urlToDataUrl(image.url),
                 mimeType: image.fileType || 'image/jpeg'
               }];
 
+              const allImages = styleImagesData.length > 0
+                ? [...sourceImagesData, ...styleImagesData]
+                : sourceImagesData;
+
               // Generate image
               const result = await provider.generateImage(
-                sourceImagesData,
-                state.prompt,
+                allImages,
+                effectivePrompt,
                 state.resolution,
-                state.aspectRatio
+                state.aspectRatio,
+                useGrounding
               );
 
               // Update state with generated image
@@ -1304,6 +1550,7 @@ const App: React.FC = () => {
                       status: 'success' as const,
                       url: result.imageBase64,
                       timestamp: Date.now(),
+                      recipe,
                     }
                     : img
                 ),
@@ -1313,10 +1560,11 @@ const App: React.FC = () => {
               const thumbnail = await createThumbnail(result.imageBase64);
               await saveToGallery({
                 url: result.imageBase64,
-                prompt: state.prompt,
+                prompt: effectivePrompt,
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
-                thumbnail
+                thumbnail,
+                params: recipe
               });
 
               processedCount++;
@@ -1600,7 +1848,7 @@ const App: React.FC = () => {
           <button
             onClick={handleGenerate}
             disabled={!canGenerate}
-            className={`w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ${isGenerateClicked
+            className={`w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak ${isGenerateClicked
               ? 'bg-blue-600 text-white shadow-blue-500/20'
               : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40'
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none`}
@@ -1612,10 +1860,9 @@ const App: React.FC = () => {
           <button
             onClick={handleGenerate3Variants}
             disabled={!canGenerate || isGenerating}
-            className="w-full py-2 px-3 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all bg-gradient-to-r from-purple-500/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-500/60 text-purple-400 hover:text-purple-300 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
+            className="w-full py-2 px-3 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all bg-white/5 hover:bg-white/10 text-white/80 hover:text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
           >
-            <Sparkles className="w-3 h-3 text-purple-400 group-hover:animate-pulse" />
-            {isGenerating ? 'Generuji varianty...' : '✨ 3 Varianty'}
+            {isGenerating ? 'Generuji varianty...' : '3 varianty'}
           </button>
         </div>
       </div>
@@ -1686,20 +1933,14 @@ const App: React.FC = () => {
               <ArrowLeftRight className="w-3.5 h-3.5" />
             </button>
 
-            {/* Collections */}
-            <button
-              onClick={() => setIsCollectionsModalOpen(true)}
-              className="w-7 h-7 flex items-center justify-center rounded bg-[var(--bg-input)] hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-transparent transition-all"
-              title="Kolekce"
-            >
-              <Folder className="w-3.5 h-3.5" />
-            </button>
+            <SavedPromptsDropdown
+              currentPrompt={state.prompt}
+              onSelectPrompt={(prompt) => {
+                setState(prev => ({ ...prev, prompt }));
+                promptHistory.add(prompt);
+              }}
+            />
 
-            {/* Run Hint */}
-            <div className="flex items-center gap-1 ml-2 px-2 py-1 rounded bg-[var(--bg-input)] border border-[var(--accent)]/20">
-              <span className="text-[var(--accent)] text-[10px]">↵</span>
-              <span className="text-[9px] font-bold text-[var(--accent)] tracking-wider">SPUSTIT</span>
-            </div>
           </div>
         </div>
 
@@ -1725,20 +1966,79 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <textarea
-          ref={isMobileView ? mobilePromptRef : promptRef}
-          value={state.prompt}
-          onChange={(e) => { setState(p => ({ ...p, prompt: e.target.value })); promptHistory.add(e.target.value); }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleGenerate();
-            }
-            handleKeyDown(e);
-          }}
-          placeholder={promptMode === 'advanced' ? "Popište obrázek přirozeně. Vyberte variantu níže pro určení stylu interpretace..." : "Popište obrázek..."}
-          className="w-full min-h-[120px] max-h-[240px] bg-transparent border-0 border-b border-[var(--border-color)] rounded-none p-2 text-[11px] font-medium text-[var(--text-primary)] placeholder-gray-500 focus:border-[var(--accent)] focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
-        />
+        <div className="relative">
+          <textarea
+            ref={isMobileView ? mobilePromptRef : promptRef}
+            value={state.prompt}
+            onChange={(e) => { setState(p => ({ ...p, prompt: e.target.value })); promptHistory.add(e.target.value); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleGenerate();
+              }
+              handleKeyDown(e);
+            }}
+            placeholder={promptMode === 'advanced' ? "Popište obrázek přirozeně. Vyberte variantu níže pro určení stylu interpretace..." : "Volitelné: doplňující prompt (Styl/Merge/Object funguje i bez textu)…"}
+            className="w-full min-h-[120px] max-h-[240px] bg-transparent border-0 border-b border-[var(--border-color)] rounded-none p-2 text-[11px] font-medium text-[var(--text-primary)] placeholder-gray-500 focus:border-[var(--accent)] focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
+          />
+        </div>
+
+        {promptMode === 'simple' && (
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {[
+              { id: 'style' as const, label: 'STYL', subtitle: 'Přenos kompozice', tooltip: 'Přenese kompozici, nasvícení a barvy ze stylu. Obsah/identita zůstává z reference.' },
+              { id: 'merge' as const, label: 'MERGE', subtitle: 'Volné spojení', tooltip: 'Volně spojí oba obrázky (obsah i formu) do jednoho výsledku.' },
+              { id: 'object' as const, label: 'OBJECT', subtitle: 'Přenos objektu', tooltip: 'Přenese dominantní objekt/prvek ze stylu do reference (např. dekorativní zeď).' },
+            ].map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setSimpleLinkMode(m.id)}
+                className={`group relative flex flex-col items-center p-2 rounded-md border transition-all text-center ${simpleLinkMode === m.id
+                  ? 'bg-[var(--accent)]/10 border-[var(--accent)] ring-1 ring-[var(--accent)]/50'
+                  : 'bg-transparent border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50'
+                  }`}
+                title={m.tooltip}
+              >
+                <span className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${simpleLinkMode === m.id ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'
+                  }`}>
+                  {m.label}
+                </span>
+                <span className="text-[8px] text-[var(--text-secondary)] font-medium">
+                  {m.subtitle}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={handleEnhancePrompt}
+            disabled={!state.prompt.trim() || isEnhancingPrompt}
+            className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-white/5 hover:bg-white/10 text-white/80 hover:text-white rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isEnhancingPrompt ? 'Vylepšuji…' : 'Vylepšit prompt'}
+          </button>
+
+          <div className="flex-1" />
+
+          <button
+            onClick={handleUndoPrompt}
+            disabled={!promptHistory.canUndo()}
+            className="px-2 py-1 text-[10px] font-bold bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+            title="Vrátit zpět"
+          >
+            ↶
+          </button>
+          <button
+            onClick={handleRedoPrompt}
+            disabled={!promptHistory.canRedo()}
+            className="px-2 py-1 text-[10px] font-bold bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+            title="Znovu"
+          >
+            ↷
+          </button>
+        </div>
 
         {/* Advanced Mode Controls (Conditional) */}
         {promptMode === 'advanced' && (
@@ -1814,38 +2114,21 @@ const App: React.FC = () => {
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={() => setIsTemplatesModalOpen(true)}
-            className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-[var(--bg-panel)] hover:bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded border border-[var(--border-color)] transition-all"
+            className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-white/5 hover:bg-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-md transition-all"
           >
             Šablony
           </button>
 
+          <button
+            onClick={() => setIsCollectionsModalOpen(true)}
+            className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-white/5 hover:bg-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-md transition-all"
+            title="Kolekce"
+          >
+            Kolekce
+          </button>
+
           <div className="flex-1" />
 
-          {/* Undo / Redo Buttons */}
-          <button
-            onClick={handleUndoPrompt}
-            disabled={!promptHistory.canUndo()}
-            className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-[var(--bg-panel)] hover:bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded border border-[var(--border-color)] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Vrátit zpět (Undo)"
-          >
-            ↶
-          </button>
-          <button
-            onClick={handleRedoPrompt}
-            disabled={!promptHistory.canRedo()}
-            className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider bg-[var(--bg-panel)] hover:bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded border border-[var(--border-color)] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Znovu (Redo)"
-          >
-            ↷
-          </button>
-
-          <button
-            onClick={handleEnhancePrompt}
-            disabled={!state.prompt.trim() || isEnhancingPrompt}
-            className="px-3 py-1 text-[9px] font-bold uppercase tracking-widest bg-gradient-to-r from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30 text-blue-400 hover:text-blue-300 rounded border border-blue-500/30 hover:border-blue-500/50 transition-all disabled:opacity-50 flex items-center gap-1"
-          >
-            <Sparkles className="w-3 h-3" /> {isEnhancingPrompt ? 'Vylepšuji...' : '✨ Vylepšit'}
-          </button>
         </div>
       </div>
 
@@ -1883,6 +2166,18 @@ const App: React.FC = () => {
                     className="absolute top-0 right-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100"
                   >
                     <X className="w-2.5 h-2.5" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleExtractPromptFromImage(img); }}
+                    disabled={!!analyzingImageId}
+                    className="absolute bottom-0 left-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100 disabled:opacity-60"
+                    title="Extrahovat prompt z obrázku"
+                  >
+                    {analyzingImageId === img.id ? (
+                      <span className="text-[10px] font-bold px-1">…</span>
+                    ) : (
+                      <Sparkles className="w-2.5 h-2.5" />
+                    )}
                   </button>
                 </div>
               ))}
@@ -1945,6 +2240,25 @@ const App: React.FC = () => {
         </div>
       </div>
     </div >
+  );
+
+  const renderGroundingControl = () => (
+    <label className="flex items-center justify-between gap-3 p-2 rounded-md border border-[var(--border-color)] hover:border-[var(--text-secondary)] transition-all">
+      <div className="flex flex-col">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-primary)]">Grounding</span>
+        <span className="text-[9px] text-[var(--text-secondary)]">Použít Google Search pro zdroje a odkazy</span>
+      </div>
+      <div className="relative">
+        <input
+          type="checkbox"
+          checked={useGrounding}
+          onChange={(e) => setUseGrounding(e.target.checked)}
+          className="sr-only peer"
+        />
+        <div className="w-10 h-6 bg-gray-700 rounded-full peer peer-checked:bg-[var(--accent)] transition-colors"></div>
+        <div className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+      </div>
+    </label>
   );
 
   // Handle PIN authentication
@@ -2019,22 +2333,26 @@ const App: React.FC = () => {
 
       <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
         {/* Left Sidebar - Fixed Width (Hidden on Mobile) */}
-        <div className="hidden lg:flex w-[340px] shrink-0 border-r border-gray-800/50 bg-[#0f1512] flex-col h-full overflow-y-auto custom-scrollbar z-20">
-          <div className="p-6 space-y-6">
-            <ProviderSelector
-              selectedProvider={selectedProvider}
-              onChange={setSelectedProvider}
-              settings={providerSettings}
-            />
+        <div className="hidden lg:flex w-[340px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20">
+          <div className="p-6 flex flex-col gap-6 min-h-full">
             <div className="pt-2">
               {renderSidebarControls(false)}
+            </div>
+
+            <div className="mt-auto space-y-4">
+              {renderGroundingControl()}
+              <ProviderSelector
+                selectedProvider={selectedProvider}
+                onChange={setSelectedProvider}
+                settings={providerSettings}
+              />
             </div>
           </div>
         </div>
 
         {/* Main Content - Flexible Center */}
         <div
-          className="flex-1 relative flex flex-col min-w-0 bg-[#0a0f0d] h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
+          className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
           style={{ marginRight: isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0' }}
         >
           <div className="p-6 lg:p-10 pb-32 w-full">
@@ -2067,7 +2385,7 @@ const App: React.FC = () => {
 
               {/* Selection Toolbar */}
               {selectedGeneratedImages.size > 0 && (
-                <div className="bg-[#7ed957]/10 px-4 py-3 border border-[#7ed957]/20 rounded-lg backdrop-blur-sm sticky top-0 z-10">
+                <div className="px-4 py-3 sticky top-0 z-10 card-surface">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-[#7ed957]">
                       ✓ Vybráno: {selectedGeneratedImages.size}
@@ -2168,9 +2486,13 @@ const App: React.FC = () => {
                       <circle cx="30" cy="28" r="1.5" fill="currentColor" className="text-gray-700" />
                     </svg>
                   </div>
-                  <div className="text-center space-y-2">
-                    <span className="text-lg font-bold text-gray-400 block">Zatím žádné vygenerované obrázky</span>
-                    <p className="text-sm text-gray-600">Zadejte prompt v postranním panelu (vlevo) a začněte tvořit</p>
+                  <div className="text-center space-y-1.5">
+                    <span className="text-[10px] font-[900] uppercase tracking-[0.28em] text-gray-400 block">
+                      Zatím žádné vygenerované obrázky
+                    </span>
+                    <p className="text-[9px] font-medium text-gray-600">
+                      Zadejte prompt v postranním panelu (vlevo) a začněte tvořit
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -2178,7 +2500,7 @@ const App: React.FC = () => {
                   {state.generatedImages.map((image) => (
                     <article
                       key={image.id}
-                      className="group flex flex-col bg-[#0f1512] border border-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-2xl hover:border-gray-700 transition-all animate-fadeIn"
+                      className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all animate-fadeIn"
                       onContextMenu={(e) => image.status === 'success' && handleImageContextMenu(e, image.id)}
                     >
                       <div
@@ -2238,10 +2560,10 @@ const App: React.FC = () => {
                       </div>
 
                       {/* Card Footer */}
-                      < div className="px-4 py-3 flex flex-col gap-2 border-t border-gray-800 bg-[#0f1512]" >
+                      < div className="px-4 py-3 flex flex-col gap-2 border-t border-white/5 bg-transparent" >
                         {/* Prompt + Actions Row */}
                         < div className="flex items-center gap-2" >
-                          <p className="text-[11px] font-bold text-gray-300 leading-snug line-clamp-1 flex-1" title={image.prompt}>
+                          <p className="text-[9px] font-medium text-white/75 leading-snug line-clamp-1 flex-1" title={image.prompt}>
                             {image.prompt}
                           </p>
                           <div className="flex gap-1 shrink-0">
@@ -2284,13 +2606,11 @@ const App: React.FC = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm('Smazat tento obrázek?')) {
-                                  setState(prev => ({
-                                    ...prev,
-                                    generatedImages: prev.generatedImages.filter(img => img.id !== image.id)
-                                  }));
-                                  setToast({ message: 'Obrázek smazán', type: 'success' });
-                                }
+                                setState(prev => ({
+                                  ...prev,
+                                  generatedImages: prev.generatedImages.filter(img => img.id !== image.id)
+                                }));
+                                setToast({ message: 'Obrázek smazán', type: 'success' });
                               }}
                               className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
                               title="Smazat"
@@ -2340,6 +2660,54 @@ const App: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-2">
+                              {(editPrompts[image.id] !== undefined && editPrompts[image.id] !== image.prompt) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditPrompts(prev => {
+                                      const next = { ...prev };
+                                      delete next[image.id];
+                                      return next;
+                                    });
+                                  }}
+                                  className="px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                                  title="Vrátit původní text"
+                                >
+                                  Vrátit
+                                </button>
+                              )}
+
+                              {(image.versions && image.versions.length > 0) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditPrompts(prev => {
+                                      const next = { ...prev };
+                                      delete next[image.id];
+                                      return next;
+                                    });
+                                    setState(prev => ({
+                                      ...prev,
+                                      generatedImages: prev.generatedImages.map(img => {
+                                        if (img.id !== image.id || !img.versions || img.versions.length === 0) return img;
+                                        const original = img.versions[0];
+                                        return {
+                                          ...img,
+                                          url: original.url,
+                                          prompt: original.prompt,
+                                          timestamp: original.timestamp,
+                                          currentVersionIndex: 0,
+                                        };
+                                      })
+                                    }));
+                                  }}
+                                  className="px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                                  title="Vrátit obrázek na původní verzi"
+                                >
+                                  Původní
+                                </button>
+                              )}
+
                               {/* Add Images Toggle */}
                               <button
                                 onClick={(e) => {
@@ -2365,7 +2733,7 @@ const App: React.FC = () => {
 
                           {/* Edit Textarea */}
                           <textarea
-                            value={editPrompts[image.id] || ''}
+                            value={editPrompts[image.id] ?? image.prompt}
                             onChange={(e) => {
                               e.stopPropagation();
                               setEditPrompts(prev => ({ ...prev, [image.id]: e.target.value }));
@@ -2451,7 +2819,7 @@ const App: React.FC = () => {
 
         {/* Right Sidebar - Sliding Library */}
         < div
-          className={`absolute right-0 top-0 bottom-0 z-50 w-[85vw] sm:w-[340px] transition-transform duration-300 ease-in-out border-l border-gray-800/50 bg-[#0f1512] flex flex-col h-full shadow-2xl group ${isHoveringGallery ? 'translate-x-0' : 'translate-x-[calc(100%-20px)]'}`}
+          className={`absolute right-0 top-0 bottom-0 z-50 w-[85vw] sm:w-[340px] transition-transform duration-300 ease-in-out border-l border-white/5 bg-[var(--bg-card)] flex flex-col h-full shadow-2xl group ${isHoveringGallery ? 'translate-x-0' : 'translate-x-[calc(100%-20px)]'}`}
           onMouseEnter={() => setIsHoveringGallery(true)}
           onMouseLeave={() => setIsHoveringGallery(false)}
         >
@@ -2496,6 +2864,7 @@ const App: React.FC = () => {
       <GalleryModal
         isOpen={isGalleryOpen}
         onClose={() => setIsGalleryOpen(false)}
+        onRepopulate={handleRepopulateFromGallery}
       />
 
       <CollectionsModal
@@ -2528,37 +2897,6 @@ const App: React.FC = () => {
         position={quickActionsMenu.position}
         actions={quickActionsMenu.imageId ? getQuickActionsForImage(quickActionsMenu.imageId) : []}
       />
-
-      {
-        generationProgress && (
-          <LoadingProgress
-            current={generationProgress.current}
-            total={generationProgress.total}
-          />
-        )
-      }
-
-
-
-      {/* Batch Progress Bar */}
-      {
-        batchProgress && (
-          <div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-2xl border-2 border-ink z-50 min-w-[280px]">
-            <p className="font-black text-sm uppercase mb-2 text-ink">Batch zpracování</p>
-            <p className="text-xs text-monstera-600 mb-3">
-              Chunk {batchProgress.currentChunk}/{batchProgress.totalChunks} • {batchProgress.current}/{batchProgress.total} obrázků
-            </p>
-            <div className="w-64 h-3 bg-monstera-100 rounded-full border border-monstera-300">
-              <div
-                className="h-full bg-monstera-400 rounded-full transition-all duration-300"
-                style={{
-                  width: `${(batchProgress.current / batchProgress.total) * 100}%`
-                }}
-              />
-            </div>
-          </div>
-        )
-      }
 
       {/* Toast Notification */}
       {

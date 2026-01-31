@@ -1,7 +1,7 @@
 // Utilita pro export a import všech dat aplikace
 
 import { getAllImages, saveToGallery, GalleryImage } from './galleryDB';
-import { getSavedPrompts, addSavedPrompt } from './savedPrompts';
+import { listSavedPrompts, upsertSavedPromptByName } from './savedPromptsDB';
 import { SavedPrompt } from '../types';
 
 export interface AppDataBackup {
@@ -14,7 +14,7 @@ export interface AppDataBackup {
 // Exportovat všechna data do JSON souboru
 export const exportAllData = async (): Promise<void> => {
   try {
-    const savedPrompts = getSavedPrompts();
+    const savedPrompts = await listSavedPrompts();
     const galleryImages = await getAllImages();
 
     const backup: AppDataBackup = {
@@ -62,12 +62,12 @@ export const importData = (file: File): Promise<{ prompts: number; images: numbe
         let importedImages = 0;
 
         // Import saved prompts (přeskočit duplicity podle názvu)
-        const existingPrompts = getSavedPrompts();
+        const existingPrompts = await listSavedPrompts();
         const existingNames = new Set(existingPrompts.map(p => p.name));
 
         for (const prompt of backup.savedPrompts) {
           if (!existingNames.has(prompt.name)) {
-            addSavedPrompt(prompt.name, prompt.prompt, prompt.category);
+            await upsertSavedPromptByName(prompt.name, prompt.prompt);
             importedPrompts++;
           }
         }
@@ -109,7 +109,7 @@ export const createAutoBackup = async (): Promise<void> => {
       return;
     }
 
-    const savedPrompts = getSavedPrompts();
+    const savedPrompts = await listSavedPrompts();
     const galleryImages = await getAllImages();
 
     const backup: AppDataBackup = {
@@ -134,7 +134,10 @@ export const restoreFromAutoBackup = async (): Promise<boolean> => {
     const backup: AppDataBackup = JSON.parse(lastBackup);
 
     // Obnovit saved prompts
-    localStorage.setItem('nanoBanana_savedPrompts', JSON.stringify(backup.savedPrompts));
+    for (const prompt of backup.savedPrompts) {
+      if (!prompt?.name?.trim() || !prompt?.prompt?.trim()) continue;
+      await upsertSavedPromptByName(prompt.name, prompt.prompt);
+    }
 
     // Obnovit gallery images
     for (const image of backup.galleryImages) {

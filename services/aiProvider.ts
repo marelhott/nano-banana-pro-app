@@ -19,12 +19,6 @@ export interface GenerateImageResult {
     groundingMetadata?: any;
 }
 
-export interface GenerateVideoResult {
-    videoUrl?: string;      // URL to video (Veo returns URLs)
-    videoBase64?: string;   // Base64 fallback if needed
-    duration?: number;      // Video duration in seconds
-}
-
 export interface ProviderConfig {
     apiKey: string;
     enabled: boolean;
@@ -65,19 +59,6 @@ export interface AIProvider {
     enhancePrompt(shortPrompt: string): Promise<string>;
 
     /**
-     * Generate a video based on input images and text prompt (optional)
-     * @param images - Array of input images (first as start/reference frame)
-     * @param prompt - Text description of desired video
-     * @param duration - Video duration in seconds (default 8)
-     * @returns Generated video URL or base64
-     */
-    generateVideo?(
-        images: ImageInput[],
-        prompt: string,
-        duration?: number
-    ): Promise<GenerateVideoResult>;
-
-    /**
      * Get the provider's display name
      */
     getName(): string;
@@ -94,7 +75,6 @@ export interface ProviderMetadata {
     icon: string; // Emoji or icon name
     requiresApiKey: boolean;
     supportsGrounding: boolean;
-    supportsVideo: boolean;
     maxImages: number;
 }
 
@@ -105,7 +85,6 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
         icon: '🌟',
         requiresApiKey: true,
         supportsGrounding: true,
-        supportsVideo: true,
         maxImages: 10
     },
     [AIProviderType.GROK]: {
@@ -114,7 +93,6 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
         icon: '⚡',
         requiresApiKey: true,
         supportsGrounding: false,
-        supportsVideo: false,
         maxImages: 1
     },
     [AIProviderType.CHATGPT]: {
@@ -123,7 +101,6 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
         icon: '🎨',
         requiresApiKey: true,
         supportsGrounding: false,
-        supportsVideo: false,
         maxImages: 1
     }
 };
