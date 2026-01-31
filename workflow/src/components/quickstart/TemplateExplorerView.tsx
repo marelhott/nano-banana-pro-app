@@ -9,6 +9,7 @@ import { CommunityWorkflowMeta, TemplateCategory, TemplateMetadata } from "@/typ
 import { useWorkflowStore } from "@/store/workflowStore";
 import type { ProviderModel } from "@/lib/providers/types";
 import { createDefaultNodeData } from "@/store/utils/nodeDefaults";
+import type { LLMGenerateRequest, LLMGenerateResponse } from "@/types";
 
 interface TemplateExplorerViewProps {
   onBack: () => void;
@@ -308,6 +309,9 @@ export function TemplateExplorerView({
   const [models, setModels] = useState<ProviderModel[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [translateToCzech, setTranslateToCzech] = useState(false);
+  const [translatedDescriptions, setTranslatedDescriptions] = useState<Record<string, string>>({});
+  const [translating, setTranslating] = useState<Record<string, boolean>>({});
   const [modelsSearch, setModelsSearch] = useState("");
   const [debouncedModelsSearch, setDebouncedModelsSearch] = useState("");
   const modelsSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -377,6 +381,59 @@ export function TemplateExplorerView({
       return true;
     });
   }, [models, providerFilter]);
+
+  const canTranslate = !!(
+    providerSettings.providers.gemini?.apiKey ||
+    providerSettings.providers.openai?.apiKey
+  );
+
+  const translateModelDescription = useCallback(
+    async (model: ProviderModel) => {
+      const key = `${model.provider}:${model.id}`;
+      if (!model.description) return;
+      if (translatedDescriptions[key]) return;
+      if (translating[key]) return;
+
+      const geminiKey = providerSettings.providers.gemini?.apiKey;
+      const openaiKey = providerSettings.providers.openai?.apiKey;
+      const provider = geminiKey ? "google" : openaiKey ? "openai" : null;
+      if (!provider) return;
+
+      setTranslating((prev) => ({ ...prev, [key]: true }));
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (provider === "google" && geminiKey) headers["X-Gemini-API-Key"] = geminiKey;
+        if (provider === "openai" && openaiKey) headers["X-OpenAI-API-Key"] = openaiKey;
+
+        const body: LLMGenerateRequest = {
+          provider,
+          model: provider === "google" ? "gemini-3-flash-preview" : "gpt-4.1-mini",
+          temperature: 0.2,
+          maxTokens: 512,
+          prompt: [
+            "Přelož následující anglický popis AI modelu do češtiny.",
+            "- Zachovej názvy produktů, providerů a technické termíny (např. LoRA, CFG, seed).",
+            "- Nezkracuj význam, ale buď stručný.",
+            "- Nevracej nic jiného než samotný překlad (žádné uvozovky, žádné vysvětlování).",
+            "---",
+            model.description,
+          ].join("\n"),
+        };
+
+        const res = await fetch("/api/llm", { method: "POST", headers, body: JSON.stringify(body) });
+        const data: LLMGenerateResponse = await res.json();
+        if (!res.ok || !data.success || !data.text) {
+          throw new Error(data.success === false ? data.error : "Translation failed");
+        }
+        const translated = data.text.trim();
+        if (!translated) return;
+        setTranslatedDescriptions((prev) => ({ ...prev, [key]: translated }));
+      } finally {
+        setTranslating((prev) => ({ ...prev, [key]: false }));
+      }
+    },
+    [providerSettings, translatedDescriptions, translating]
+  );
 
   const createWorkflowFromModel = useCallback(
     (model: ProviderModel) => {
@@ -578,14 +635,29 @@ export function TemplateExplorerView({
                 <h3 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
                   Models
                 </h3>
-                <button
-                  type="button"
-                  onClick={fetchModels}
-                  className="px-3 py-1.5 text-xs font-medium text-neutral-300 bg-neutral-700/40 hover:bg-neutral-700/60 rounded-md transition-colors"
-                  disabled={isLoadingModels}
-                >
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTranslateToCzech((v) => !v)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      translateToCzech
+                        ? "bg-blue-500/20 text-blue-300"
+                        : "text-neutral-300 bg-neutral-700/40 hover:bg-neutral-700/60"
+                    }`}
+                    title={canTranslate ? "Show Czech translations" : "Set a Gemini/OpenAI API key to translate"}
+                    disabled={!canTranslate}
+                  >
+                    CZ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={fetchModels}
+                    className="px-3 py-1.5 text-xs font-medium text-neutral-300 bg-neutral-700/40 hover:bg-neutral-700/60 rounded-md transition-colors"
+                    disabled={isLoadingModels}
+                  >
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {modelsError && (
@@ -606,24 +678,64 @@ export function TemplateExplorerView({
                       className="text-left p-4 rounded-lg border border-neutral-700/50 hover:border-neutral-600 hover:bg-neutral-800/40 transition-all duration-150"
                       title="Create workflow from this model"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-medium text-neutral-200">
-                            {m.name}
-                          </div>
-                          <div className="text-[11px] text-neutral-500 mt-0.5">
-                            {m.provider} • {m.capabilities.join(", ")}
-                          </div>
+                      <div className="flex gap-3">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-neutral-900/60 border border-neutral-700/50 flex items-center justify-center flex-shrink-0">
+                          {m.coverImage ? (
+                            <img
+                              src={m.coverImage}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <span className="text-[10px] text-neutral-500">No preview</span>
+                          )}
                         </div>
-                        <span className="text-[10px] font-medium text-blue-300 bg-blue-500/10 rounded px-2 py-1 shrink-0">
-                          Use
-                        </span>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-neutral-200 truncate">
+                                {m.name}
+                              </div>
+                              <div className="text-[11px] text-neutral-500 mt-0.5 truncate">
+                                {m.provider} • {m.capabilities.join(", ")}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-medium text-blue-300 bg-blue-500/10 rounded px-2 py-1 shrink-0">
+                              Use
+                            </span>
+                          </div>
+
+                          {m.description && (
+                            <div className="text-xs text-neutral-400 mt-2 line-clamp-3">
+                              {translateToCzech
+                                ? translatedDescriptions[`${m.provider}:${m.id}`] || m.description
+                                : m.description}
+                            </div>
+                          )}
+
+                          {translateToCzech && m.description && !translatedDescriptions[`${m.provider}:${m.id}`] && (
+                            <div className="mt-2 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  translateModelDescription(m).catch(() => null);
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-medium text-neutral-200 bg-neutral-700/50 hover:bg-neutral-700 rounded-md transition-colors disabled:opacity-60"
+                                disabled={!canTranslate || !!translating[`${m.provider}:${m.id}`]}
+                              >
+                                {translating[`${m.provider}:${m.id}`] ? "Translating…" : "Přeložit"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {m.description && (
-                        <div className="text-xs text-neutral-400 mt-2 line-clamp-3">
-                          {m.description}
-                        </div>
-                      )}
                     </button>
                   ))}
                 </div>
