@@ -109,18 +109,6 @@ interface ConnectionDropState {
 // Detect if running on macOS for platform-specific trackpad behavior
 const isMacOS = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
-// Detect if a wheel event is from a mouse (vs trackpad)
-const isMouseWheel = (event: WheelEvent): boolean => {
-  // Mouse scroll wheel typically uses deltaMode 1 (lines) or has large discrete deltas
-  // Trackpad uses deltaMode 0 (pixels) with smaller, smoother deltas
-  if (event.deltaMode === 1) return true; // DOM_DELTA_LINE = mouse
-
-  // Fallback: large delta values suggest mouse wheel
-  const threshold = 50;
-  return Math.abs(event.deltaY) >= threshold &&
-         Math.abs(event.deltaY) % 40 === 0; // Mouse deltas often in multiples
-};
-
 // Check if an element can scroll and has room to scroll in the given direction
 const canElementScroll = (element: HTMLElement, deltaX: number, deltaY: number): boolean => {
   const style = window.getComputedStyle(element);
@@ -710,27 +698,6 @@ export function WorkflowCanvas() {
         return;
       }
 
-      // On macOS, differentiate trackpad from mouse
-      if (isMacOS) {
-        if (isMouseWheel(event)) {
-          // Mouse wheel → zoom
-          event.preventDefault();
-          if (event.deltaY < 0) zoomIn();
-          else zoomOut();
-        } else {
-          // Trackpad scroll → pan (also prevent horizontal swipe navigation)
-          event.preventDefault();
-          const viewport = getViewport();
-          setViewport({
-            x: viewport.x - event.deltaX,
-            y: viewport.y - event.deltaY,
-            zoom: viewport.zoom,
-          });
-        }
-        return;
-      }
-
-      // Non-macOS: default zoom behavior
       event.preventDefault();
       if (event.deltaY < 0) zoomIn();
       else zoomOut();

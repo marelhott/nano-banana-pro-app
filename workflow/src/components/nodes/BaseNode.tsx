@@ -244,19 +244,19 @@ export function BaseNode({
         minWidth={minWidth}
         minHeight={minHeight}
         lineClassName="!border-transparent"
-        handleClassName="!w-3 !h-3 !bg-transparent !border-none"
+        handleClassName="!w-2.5 !h-2.5 !bg-transparent !border-none"
         onResize={handleResize}
       />
       <div
         className={`
-          bg-[var(--bg-card-2)] rounded-[var(--radius-2)] shadow-[var(--shadow-1)] border border-[var(--border-soft)] h-full w-full
+          bg-[var(--bg-card-2)] rounded-[var(--radius-2)] shadow-[var(--shadow-1)] border-[0.5px] border-[var(--border-soft)] h-full w-full
           ${isCurrentlyExecuting || isExecuting ? "border-blue-500 ring-1 ring-blue-500/20" : "border-neutral-700"}
           ${hasError ? "border-red-500" : ""}
           ${selected ? "border-blue-500 ring-2 ring-blue-500/40 shadow-lg shadow-blue-500/25" : ""}
           ${className}
         `}
       >
-        <div className="px-3 pt-2 pb-1 flex items-center justify-between">
+        <div className="px-2.5 pt-1.5 pb-0.5 flex items-center justify-between">
           {/* Title Section */}
           <div className="flex-1 min-w-0 flex items-center gap-1.5">
             {titlePrefix}
@@ -269,11 +269,11 @@ export function BaseNode({
                 onBlur={handleTitleSubmit}
                 onKeyDown={handleTitleKeyDown}
                 placeholder="Custom title..."
-                className="nodrag nopan w-full bg-transparent border-none outline-none text-xs font-semibold tracking-wide text-neutral-300 placeholder:text-neutral-500 uppercase"
+                className="nodrag nopan w-full bg-transparent border-none outline-none text-[11px] font-semibold tracking-wide text-neutral-300 placeholder:text-neutral-500 uppercase"
               />
             ) : (
               <span
-                className="nodrag text-xs font-semibold uppercase tracking-wide text-neutral-400 cursor-text truncate"
+                className="nodrag text-[11px] font-semibold uppercase tracking-wide text-neutral-400 cursor-text truncate"
                 onClick={() => setIsEditingTitle(true)}
                 title="Click to edit title"
               >
@@ -447,7 +447,7 @@ export function BaseNode({
             </div>
           )}
         </div>
-        <div className="px-3 pb-4 h-[calc(100%-28px)] overflow-hidden flex flex-col">{children}</div>
+        <div className="px-2.5 pb-3 h-[calc(100%-24px)] overflow-hidden flex flex-col">{children}</div>
       </div>
     </>
   );

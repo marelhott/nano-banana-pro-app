@@ -49,7 +49,7 @@ function NodeButton({ type, label }: NodeButtonProps) {
       onClick={handleClick}
       draggable
       onDragStart={handleDragStart}
-      className="px-2.5 py-1.5 text-[11px] font-medium text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700 rounded transition-colors cursor-grab active:cursor-grabbing"
+      className="px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors cursor-grab active:cursor-grabbing"
     >
       {label}
     </button>
@@ -99,7 +99,7 @@ function GenerateComboButton() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="px-2.5 py-1.5 text-[11px] font-medium text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700 rounded transition-colors flex items-center gap-1"
+        className="px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors flex items-center gap-1"
       >
         Generate
         <svg
@@ -264,7 +264,7 @@ export function FloatingActionBar() {
 
   return (
     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
-      <div className="flex items-center gap-0.5 bg-neutral-800/95 backdrop-blur-sm rounded-lg shadow-lg border border-neutral-700/80 px-1.5 py-1">
+      <div className="flex items-center gap-0.5 bg-neutral-800/95 backdrop-blur-sm rounded-md shadow-lg border border-[0.5px] border-neutral-700/70 px-1 py-0.5">
         <NodeButton type="imageInput" label="Image" />
         <NodeButton type="annotation" label="Annotate" />
         <NodeButton type="prompt" label="Prompt" />
@@ -272,7 +272,7 @@ export function FloatingActionBar() {
         <NodeButton type="output" label="Output" />
 
         {/* Provider model browser icons */}
-        <div className="w-px h-5 bg-neutral-600 mx-1.5" />
+        <div className="w-px h-4 bg-neutral-600/80 mx-1" />
 
         {/* Replicate icon - show if API key is configured via env or project settings */}
         {mounted && (providerSettings.providers.replicate?.apiKey || envStatus?.replicate) && (
@@ -287,32 +287,32 @@ export function FloatingActionBar() {
           onClick={() => setModelSearchOpen(true, "fal")}
         />
 
-        <div className="w-px h-5 bg-neutral-600 mx-1.5" />
+        <div className="w-px h-4 bg-neutral-600/80 mx-1" />
 
         <button
           onClick={toggleEdgeStyle}
           title={`Switch to ${edgeStyle === "angular" ? "curved" : "angular"} connectors`}
-          className="p-1.5 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700 rounded transition-colors"
+          className="p-1 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors"
         >
           {edgeStyle === "angular" ? (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h4l4-8 4 8h4" />
             </svg>
           ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 12c0 0 4-8 8-8s8 8 8 8" />
             </svg>
           )}
         </button>
 
-        <div className="w-px h-5 bg-neutral-600 mx-1.5" />
+        <div className="w-px h-4 bg-neutral-600/80 mx-1" />
 
         <div className="relative flex items-center" ref={runMenuRef}>
           <button
             onClick={handleRunClick}
             disabled={!valid && !isRunning}
             title={!valid ? errors.join("\n") : isRunning ? "Stop" : "Run"}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium transition-colors ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium transition-colors ${
               isRunning
                 ? "bg-white text-neutral-900 hover:bg-neutral-200 rounded"
                 : valid
