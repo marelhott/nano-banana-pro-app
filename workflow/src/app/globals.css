@@ -11,13 +11,13 @@
 @theme {
   --font-sans: 'Calling Code', 'JetBrains Mono', monospace;
 
-  --color-canvas-bg: #0a0f0d;
+  --color-canvas-bg: #07080a;
 
-  --color-neutral-950: #0a0f0d;
-  --color-neutral-900: #0f1512;
-  --color-neutral-800: #141c18;
-  --color-neutral-700: #1f2937;
-  --color-neutral-600: #374151;
+  --color-neutral-950: #07080a;
+  --color-neutral-900: #0d0f12;
+  --color-neutral-800: #121419;
+  --color-neutral-700: #1b1f26;
+  --color-neutral-600: #2a313b;
   --color-neutral-500: #6b7280;
   --color-neutral-400: #9ca3af;
   --color-neutral-300: #d1d5db;
