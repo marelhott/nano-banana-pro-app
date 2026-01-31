@@ -7,6 +7,73 @@ function getCatalogBaseUrl() {
   return process.env.COMMUNITY_WORKFLOWS_API_URL || DEFAULT_COMMUNITY_WORKFLOWS_API_URL;
 }
 
+type ProviderTag = "fal" | "replicate" | "gemini" | "openai";
+
+function detectProviders(workflow: any): ProviderTag[] {
+  const providers = new Set<ProviderTag>();
+  const nodes = Array.isArray(workflow?.nodes) ? workflow.nodes : [];
+
+  for (const node of nodes) {
+    const candidate =
+      node?.data?.selectedModel?.provider ||
+      node?.data?.model?.provider ||
+      node?.data?.provider ||
+      null;
+    if (!candidate) continue;
+    const p = String(candidate).toLowerCase();
+    if (p === "fal" || p === "replicate" || p === "gemini" || p === "openai") {
+      providers.add(p);
+    }
+  }
+
+  return Array.from(providers);
+}
+
+async function fetchShrimblyExamples() {
+  const listUrl = "https://api.github.com/repos/shrimbly/node-banana/contents/examples";
+  const listRes = await fetch(listUrl, {
+    headers: { Accept: "application/vnd.github+json" },
+    next: { revalidate: 300 },
+  });
+
+  if (!listRes.ok) {
+    throw new Error(`Failed to fetch shrimbly examples list: ${listRes.status}`);
+  }
+
+  const entries = await listRes.json();
+  const jsonFiles = Array.isArray(entries)
+    ? entries.filter((e: any) => e?.type === "file" && typeof e?.name === "string" && e.name.toLowerCase().endsWith(".json"))
+    : [];
+
+  const workflows = await Promise.all(
+    jsonFiles.map(async (file: any) => {
+      const rawUrl = `https://raw.githubusercontent.com/shrimbly/node-banana/master/examples/${encodeURIComponent(file.name)}`;
+      const wfRes = await fetch(rawUrl, { next: { revalidate: 300 } });
+      if (!wfRes.ok) {
+        return null;
+      }
+      const workflow = await wfRes.json();
+      const nodeCount = Array.isArray(workflow?.nodes) ? workflow.nodes.length : 0;
+      const providers = detectProviders(workflow);
+      const tags = providers.length > 0 ? providers : [];
+      const id = `shrimbly:${file.name}`;
+      const name = String(file.name).replace(/\.json$/i, "").replace(/[-_]/g, " ");
+      return {
+        id,
+        name,
+        description: "Imported from shrimbly/node-banana examples",
+        tags,
+        nodeCount,
+        previewImage: undefined,
+        hoverImage: undefined,
+        provider: providers[0] || undefined,
+      };
+    })
+  );
+
+  return workflows.filter(Boolean);
+}
+
 /**
  * GET: List all community workflows from the remote API
  *
@@ -17,6 +84,21 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const providerFilter = url.searchParams.get("provider")?.toLowerCase();
+    const source = (url.searchParams.get("source") || "official").toLowerCase();
+
+    if (source === "shrimbly" || source === "node-banana" || source === "github") {
+      const workflows = await fetchShrimblyExamples();
+      const filtered =
+        providerFilter && (providerFilter === "fal" || providerFilter === "replicate")
+          ? workflows.filter((w: any) => Array.isArray(w?.tags) && w.tags.map((t: any) => String(t).toLowerCase()).includes(providerFilter))
+          : workflows;
+
+      return NextResponse.json({
+        success: true,
+        workflows: filtered,
+      });
+    }
+
     const response = await fetch(getCatalogBaseUrl(), {
       headers: {
         Accept: "application/json",

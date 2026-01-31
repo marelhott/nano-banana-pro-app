@@ -194,14 +194,29 @@ export function TemplateExplorerView({
   useEffect(() => {
     async function fetchCommunityWorkflows() {
       try {
-        const response = await fetch("/api/community-workflows");
-        const result = await response.json();
+        const [officialRes, shrimblyRes] = await Promise.all([
+          fetch("/api/community-workflows"),
+          fetch("/api/community-workflows?source=shrimbly"),
+        ]);
 
-        if (result.success) {
-          setCommunityWorkflows(result.workflows);
-        } else {
-          console.error("Failed to fetch community workflows:", result.error);
+        const [official, shrimbly] = await Promise.all([
+          officialRes.json().catch(() => null),
+          shrimblyRes.json().catch(() => null),
+        ]);
+
+        const combined: CommunityWorkflowMeta[] = [];
+        if (official?.success && Array.isArray(official.workflows)) {
+          combined.push(...official.workflows);
+        } else if (official && official.success === false) {
+          console.error("Failed to fetch community workflows:", official.error);
         }
+        if (shrimbly?.success && Array.isArray(shrimbly.workflows)) {
+          combined.push(...shrimbly.workflows);
+        } else if (shrimbly && shrimbly.success === false) {
+          console.error("Failed to fetch shrimbly workflows:", shrimbly.error);
+        }
+
+        setCommunityWorkflows(combined);
       } catch (err) {
         console.error("Error fetching community workflows:", err);
       } finally {

@@ -11,6 +11,15 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+function isShrimblyId(id: string) {
+  return id.startsWith("shrimbly:");
+}
+
+function shrimblyDownloadUrl(id: string) {
+  const fileName = id.slice("shrimbly:".length);
+  return `https://raw.githubusercontent.com/shrimbly/node-banana/master/examples/${encodeURIComponent(fileName)}`;
+}
+
 /**
  * GET: Get a presigned download URL for a community workflow
  *
@@ -21,6 +30,13 @@ interface RouteParams {
 export async function GET(request: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
+
+    if (isShrimblyId(id)) {
+      return NextResponse.json({
+        success: true,
+        downloadUrl: shrimblyDownloadUrl(id),
+      });
+    }
 
     const urlResponse = await fetch(
       `${getCatalogBaseUrl()}/${encodeURIComponent(id)}`,
