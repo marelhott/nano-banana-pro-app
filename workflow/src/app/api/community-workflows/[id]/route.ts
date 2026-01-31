@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
-const COMMUNITY_WORKFLOWS_API_URL =
+const DEFAULT_COMMUNITY_WORKFLOWS_API_URL =
   "https://nodebananapro.com/api/public/community-workflows";
+
+function getCatalogBaseUrl() {
+  return process.env.COMMUNITY_WORKFLOWS_API_URL || DEFAULT_COMMUNITY_WORKFLOWS_API_URL;
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -19,7 +23,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const { id } = await params;
 
     const urlResponse = await fetch(
-      `${COMMUNITY_WORKFLOWS_API_URL}/${encodeURIComponent(id)}`,
+      `${getCatalogBaseUrl()}/${encodeURIComponent(id)}`,
       {
         headers: { Accept: "application/json" },
         next: { revalidate: 60 },
