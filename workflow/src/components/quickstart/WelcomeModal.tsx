@@ -6,6 +6,7 @@ import { QuickstartView } from "@/types/quickstart";
 import { QuickstartInitialView } from "./QuickstartInitialView";
 import { TemplateExplorerView } from "./TemplateExplorerView";
 import { PromptWorkflowView } from "./PromptWorkflowView";
+import { ProjectSetupModal } from "@/components/ProjectSetupModal";
 
 interface WelcomeModalProps {
   onWorkflowGenerated: (workflow: WorkflowFile) => void;
@@ -17,6 +18,8 @@ export function WelcomeModal({
   onClose,
 }: WelcomeModalProps) {
   const [currentView, setCurrentView] = useState<QuickstartView>("initial");
+  const [templateExplorerTab, setTemplateExplorerTab] = useState<"templates" | "models">("templates");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSelectBlankCanvas = useCallback(() => {
@@ -24,6 +27,12 @@ export function WelcomeModal({
   }, [onClose]);
 
   const handleSelectTemplates = useCallback(() => {
+    setTemplateExplorerTab("templates");
+    setCurrentView("templates");
+  }, []);
+
+  const handleSelectModels = useCallback(() => {
+    setTemplateExplorerTab("models");
     setCurrentView("templates");
   }, []);
 
@@ -88,6 +97,7 @@ export function WelcomeModal({
           <QuickstartInitialView
             onSelectBlankCanvas={handleSelectBlankCanvas}
             onSelectTemplates={handleSelectTemplates}
+            onSelectModels={handleSelectModels}
             onSelectVibe={handleSelectVibe}
             onSelectLoad={handleSelectLoad}
           />
@@ -96,6 +106,8 @@ export function WelcomeModal({
           <TemplateExplorerView
             onBack={handleBack}
             onWorkflowSelected={handleWorkflowSelected}
+            initialTab={templateExplorerTab}
+            onOpenSettings={() => setShowSettingsModal(true)}
           />
         )}
         {currentView === "vibe" && (
@@ -105,6 +117,13 @@ export function WelcomeModal({
           />
         )}
       </div>
+
+      <ProjectSetupModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onSave={() => setShowSettingsModal(false)}
+        mode="settings"
+      />
 
       {/* Hidden file input for loading workflows */}
       <input

@@ -6,10 +6,15 @@ import { getAllPresets, PRESET_TEMPLATES } from "@/lib/quickstart/templates";
 import { QuickstartBackButton } from "./QuickstartBackButton";
 import { TemplateCard } from "./TemplateCard";
 import { CommunityWorkflowMeta, TemplateCategory, TemplateMetadata } from "@/types/quickstart";
+import { useWorkflowStore } from "@/store/workflowStore";
+import type { ProviderModel } from "@/lib/providers/types";
+import { createDefaultNodeData } from "@/store/utils/nodeDefaults";
 
 interface TemplateExplorerViewProps {
   onBack: () => void;
   onWorkflowSelected: (workflow: WorkflowFile) => void;
+  initialTab?: "templates" | "models";
+  onOpenSettings?: () => void;
 }
 
 type CategoryFilter = "all" | TemplateCategory;
@@ -24,11 +29,16 @@ const CATEGORY_OPTIONS: { id: CategoryFilter; label: string }[] = [
 export function TemplateExplorerView({
   onBack,
   onWorkflowSelected,
+  initialTab = "templates",
+  onOpenSettings,
 }: TemplateExplorerViewProps) {
+  const [activeTab, setActiveTab] = useState<"templates" | "models">(initialTab);
   const [communityWorkflows, setCommunityWorkflows] = useState<CommunityWorkflowMeta[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [loadingWorkflowId, setLoadingWorkflowId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const providerSettings = useWorkflowStore((s) => s.providerSettings);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -295,19 +305,333 @@ export function TemplateExplorerView({
 
   const isLoading = loadingWorkflowId !== null;
 
+  const [models, setModels] = useState<ProviderModel[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [modelsSearch, setModelsSearch] = useState("");
+  const [debouncedModelsSearch, setDebouncedModelsSearch] = useState("");
+  const modelsSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [providerFilter, setProviderFilter] = useState<{ replicate: boolean; fal: boolean }>({
+    replicate: true,
+    fal: true,
+  });
+  const [capabilityFilter, setCapabilityFilter] = useState<"all" | "image" | "video">("all");
+
+  useEffect(() => {
+    if (modelsSearchTimeoutRef.current) clearTimeout(modelsSearchTimeoutRef.current);
+    modelsSearchTimeoutRef.current = setTimeout(() => {
+      setDebouncedModelsSearch(modelsSearch);
+    }, 300);
+    return () => {
+      if (modelsSearchTimeoutRef.current) clearTimeout(modelsSearchTimeoutRef.current);
+    };
+  }, [modelsSearch]);
+
+  const fetchModels = useCallback(async () => {
+    setIsLoadingModels(true);
+    setModelsError(null);
+    try {
+      const params = new URLSearchParams();
+      if (debouncedModelsSearch) params.set("search", debouncedModelsSearch);
+      if (capabilityFilter !== "all") {
+        params.set(
+          "capabilities",
+          capabilityFilter === "image"
+            ? "text-to-image,image-to-image"
+            : "text-to-video,image-to-video"
+        );
+      }
+
+      const headers: Record<string, string> = {};
+      const replicateKey = providerSettings.providers.replicate?.apiKey;
+      const falKey = providerSettings.providers.fal?.apiKey;
+      if (replicateKey) headers["X-Replicate-Key"] = replicateKey;
+      if (falKey) headers["X-Fal-Key"] = falKey;
+
+      const res = await fetch(`/api/models?${params.toString()}`, { headers });
+      const data = await res.json();
+      if (!data?.success || !Array.isArray(data?.models)) {
+        throw new Error(data?.error || "Failed to fetch models");
+      }
+
+      const onlyExternal = data.models.filter((m: ProviderModel) => m.provider === "replicate" || m.provider === "fal");
+      setModels(onlyExternal);
+    } catch (e) {
+      setModels([]);
+      setModelsError(e instanceof Error ? e.message : "Failed to fetch models");
+    } finally {
+      setIsLoadingModels(false);
+    }
+  }, [debouncedModelsSearch, capabilityFilter, providerSettings]);
+
+  useEffect(() => {
+    if (activeTab === "models") {
+      fetchModels();
+    }
+  }, [activeTab, fetchModels]);
+
+  const filteredModels = useMemo(() => {
+    return models.filter((m) => {
+      if (!providerFilter.fal && m.provider === "fal") return false;
+      if (!providerFilter.replicate && m.provider === "replicate") return false;
+      return true;
+    });
+  }, [models, providerFilter]);
+
+  const createWorkflowFromModel = useCallback(
+    (model: ProviderModel) => {
+      const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `wf-${Date.now()}`;
+      const promptNodeId = `prompt-${id}`;
+      const genNodeId = `gen-${id}`;
+      const outNodeId = `out-${id}`;
+
+      const isVideoModel = model.capabilities.some((cap) => cap === "text-to-video" || cap === "image-to-video");
+      const genNodeType = isVideoModel ? "generateVideo" : "nanoBanana";
+
+      const promptNode = {
+        id: promptNodeId,
+        type: "prompt",
+        position: { x: 120, y: 220 },
+        data: createDefaultNodeData("prompt"),
+      };
+
+      const genNodeBaseData = createDefaultNodeData(genNodeType as any) as any;
+      const genNode = {
+        id: genNodeId,
+        type: genNodeType,
+        position: { x: 520, y: 200 },
+        data: {
+          ...genNodeBaseData,
+          selectedModel: {
+            provider: model.provider,
+            modelId: model.id,
+            displayName: model.name,
+          },
+          model: genNodeType === "nanoBanana" ? (genNodeBaseData.model || "nano-banana-pro") : undefined,
+        },
+      };
+
+      const outNode = {
+        id: outNodeId,
+        type: "output",
+        position: { x: 920, y: 200 },
+        data: createDefaultNodeData("output"),
+      };
+
+      const edges = [
+        {
+          id: `e-${promptNodeId}-${genNodeId}`,
+          source: promptNodeId,
+          target: genNodeId,
+          sourceHandle: "text",
+          targetHandle: "text",
+        },
+        {
+          id: `e-${genNodeId}-${outNodeId}`,
+          source: genNodeId,
+          target: outNodeId,
+          sourceHandle: isVideoModel ? "video" : "image",
+          targetHandle: "image",
+        },
+      ];
+
+      const workflow: WorkflowFile = {
+        version: 1,
+        id,
+        name: `${model.provider.toUpperCase()}: ${model.name}`,
+        nodes: [promptNode as any, genNode as any, outNode as any],
+        edges: edges as any,
+        edgeStyle: "curved",
+      };
+
+      onWorkflowSelected(workflow);
+    },
+    [onWorkflowSelected]
+  );
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-neutral-700 flex items-center gap-4">
         <QuickstartBackButton onClick={onBack} disabled={isLoading} />
         <h2 className="text-lg font-semibold text-neutral-100">
-          Template Explorer
+          Explorer
         </h2>
+
+        <div className="ml-auto flex items-center gap-1 bg-neutral-900/50 border border-neutral-700 rounded-lg p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("templates")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              activeTab === "templates"
+                ? "bg-blue-500/20 text-blue-300"
+                : "text-neutral-400 hover:text-neutral-200"
+            }`}
+          >
+            Templates
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("models")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              activeTab === "models"
+                ? "bg-blue-500/20 text-blue-300"
+                : "text-neutral-400 hover:text-neutral-200"
+            }`}
+          >
+            Models
+          </button>
+        </div>
       </div>
 
       {/* Content - Sidebar + Main Grid */}
       <div className="flex-1 flex min-h-0 overflow-clip">
-        {/* Sidebar */}
+        {activeTab === "models" ? (
+          <>
+            <div className="w-56 flex-shrink-0 bg-neutral-900/80 border-r border-neutral-700 p-4 space-y-5 overflow-y-auto">
+              <div className="space-y-2">
+                <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Search</h3>
+                <input
+                  type="text"
+                  value={modelsSearch}
+                  onChange={(e) => setModelsSearch(e.target.value)}
+                  placeholder="Search models..."
+                  className="w-full px-3 py-2 text-sm bg-neutral-700/50 border border-neutral-600 rounded-lg text-neutral-200 placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Provider</h3>
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setProviderFilter((p) => ({ ...p, replicate: !p.replicate }))}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md text-left transition-colors ${
+                      providerFilter.replicate
+                        ? "bg-blue-500/20 border border-blue-500/50 text-blue-300"
+                        : "bg-neutral-700/30 border border-transparent text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-300"
+                    }`}
+                  >
+                    Replicate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProviderFilter((p) => ({ ...p, fal: !p.fal }))}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md text-left transition-colors ${
+                      providerFilter.fal
+                        ? "bg-blue-500/20 border border-blue-500/50 text-blue-300"
+                        : "bg-neutral-700/30 border border-transparent text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-300"
+                    }`}
+                  >
+                    fal.ai
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Type</h3>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { id: "all" as const, label: "All" },
+                    { id: "image" as const, label: "Image" },
+                    { id: "video" as const, label: "Video" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setCapabilityFilter(opt.id)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md text-left transition-colors ${
+                        capabilityFilter === opt.id
+                          ? "bg-blue-500/20 border border-blue-500/50 text-blue-300"
+                          : "bg-neutral-700/30 border border-transparent text-neutral-400 hover:bg-neutral-700/50 hover:text-neutral-300"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {(!providerSettings.providers.replicate?.apiKey || !providerSettings.providers.fal?.apiKey) && (
+                <div className="text-[11px] text-neutral-400 space-y-2">
+                  <div>
+                    {!providerSettings.providers.replicate?.apiKey && (
+                      <div>Replicate: missing API key</div>
+                    )}
+                    {!providerSettings.providers.fal?.apiKey && <div>fal.ai: missing API key</div>}
+                  </div>
+                  {onOpenSettings && (
+                    <button
+                      type="button"
+                      onClick={onOpenSettings}
+                      className="w-full px-3 py-2 text-xs font-medium text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors"
+                    >
+                      Open Settings
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
+                  Models
+                </h3>
+                <button
+                  type="button"
+                  onClick={fetchModels}
+                  className="px-3 py-1.5 text-xs font-medium text-neutral-300 bg-neutral-700/40 hover:bg-neutral-700/60 rounded-md transition-colors"
+                  disabled={isLoadingModels}
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {modelsError && (
+                <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                  {modelsError}
+                </div>
+              )}
+
+              {isLoadingModels ? (
+                <div className="text-sm text-neutral-400">Loading models…</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredModels.map((m) => (
+                    <button
+                      key={`${m.provider}:${m.id}`}
+                      type="button"
+                      onClick={() => createWorkflowFromModel(m)}
+                      className="text-left p-4 rounded-lg border border-neutral-700/50 hover:border-neutral-600 hover:bg-neutral-800/40 transition-all duration-150"
+                      title="Create workflow from this model"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-neutral-200">
+                            {m.name}
+                          </div>
+                          <div className="text-[11px] text-neutral-500 mt-0.5">
+                            {m.provider} • {m.capabilities.join(", ")}
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-medium text-blue-300 bg-blue-500/10 rounded px-2 py-1 shrink-0">
+                          Use
+                        </span>
+                      </div>
+                      {m.description && (
+                        <div className="text-xs text-neutral-400 mt-2 line-clamp-3">
+                          {m.description}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
         <div className="w-48 flex-shrink-0 bg-neutral-900/80 border-r border-neutral-700 p-4 space-y-5 overflow-y-auto">
           {/* Search Input */}
           <div className="relative">
@@ -552,6 +876,8 @@ export function TemplateExplorerView({
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
 
     </div>

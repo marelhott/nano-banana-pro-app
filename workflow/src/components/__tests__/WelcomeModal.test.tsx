@@ -44,6 +44,12 @@ describe("WelcomeModal", () => {
           json: () => Promise.resolve({ success: true, workflows: [] }),
         });
       }
+      if (url.startsWith("/api/models")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, models: [] }),
+        });
+      }
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ success: true }),
@@ -67,6 +73,7 @@ describe("WelcomeModal", () => {
       expect(screen.getByText("Node Banana")).toBeInTheDocument();
       expect(screen.getByText("Blank canvas")).toBeInTheDocument();
       expect(screen.getByText("Templates")).toBeInTheDocument();
+      expect(screen.getByText("Models")).toBeInTheDocument();
       expect(screen.getByText("Prompt a workflow")).toBeInTheDocument();
     });
 
@@ -110,8 +117,27 @@ describe("WelcomeModal", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Template Explorer")).toBeInTheDocument();
+        expect(screen.getByText("Explorer")).toBeInTheDocument();
         expect(screen.getByText("Quick Start")).toBeInTheDocument();
+      });
+    });
+
+    it("should navigate to templates view with models tab when 'Models' is clicked", async () => {
+      render(
+        <WelcomeModal
+          onWorkflowGenerated={mockOnWorkflowGenerated}
+          onClose={mockOnClose}
+        />
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Models"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Explorer")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Models" })).toBeInTheDocument();
+        expect(screen.getByText("Refresh")).toBeInTheDocument();
       });
     });
 
@@ -145,7 +171,7 @@ describe("WelcomeModal", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Template Explorer")).toBeInTheDocument();
+        expect(screen.getByText("Explorer")).toBeInTheDocument();
       });
 
       // Click back
@@ -381,7 +407,7 @@ describe("WelcomeModal", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Template Explorer")).toBeInTheDocument();
+        expect(screen.getByText("Explorer")).toBeInTheDocument();
       });
 
       // Verify templates view is showing - the actual workflow selection is tested in QuickstartTemplatesView tests

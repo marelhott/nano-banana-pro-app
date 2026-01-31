@@ -5,6 +5,7 @@ import { QuickstartInitialView } from "@/components/quickstart/QuickstartInitial
 describe("QuickstartInitialView", () => {
   const mockOnSelectBlankCanvas = vi.fn();
   const mockOnSelectTemplates = vi.fn();
+  const mockOnSelectModels = vi.fn();
   const mockOnSelectVibe = vi.fn();
   const mockOnSelectLoad = vi.fn();
 
@@ -22,6 +23,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -36,6 +38,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -46,11 +49,12 @@ describe("QuickstartInitialView", () => {
       ).toBeInTheDocument();
     });
 
-    it("should render all four option buttons", () => {
+    it("should render all five option buttons", () => {
       render(
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -59,6 +63,7 @@ describe("QuickstartInitialView", () => {
       expect(screen.getByText("Blank canvas")).toBeInTheDocument();
       expect(screen.getByText("Load workflow")).toBeInTheDocument();
       expect(screen.getByText("Templates")).toBeInTheDocument();
+      expect(screen.getByText("Models")).toBeInTheDocument();
       expect(screen.getByText("Prompt a workflow")).toBeInTheDocument();
     });
 
@@ -67,6 +72,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -75,6 +81,7 @@ describe("QuickstartInitialView", () => {
       expect(screen.getByText("Start from scratch")).toBeInTheDocument();
       expect(screen.getByText("Open existing file")).toBeInTheDocument();
       expect(screen.getByText("Pre-built workflows")).toBeInTheDocument();
+      expect(screen.getByText("Browse fal.ai & Replicate")).toBeInTheDocument();
       expect(screen.getByText("Prompt a workflow")).toBeInTheDocument();
     });
   });
@@ -85,6 +92,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -100,6 +108,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -115,6 +124,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -132,6 +142,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -149,6 +160,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -164,6 +176,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -179,6 +192,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -198,6 +212,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -214,6 +229,7 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
@@ -232,14 +248,15 @@ describe("QuickstartInitialView", () => {
         <QuickstartInitialView
           onSelectBlankCanvas={mockOnSelectBlankCanvas}
           onSelectTemplates={mockOnSelectTemplates}
+          onSelectModels={mockOnSelectModels}
           onSelectVibe={mockOnSelectVibe}
           onSelectLoad={mockOnSelectLoad}
         />
       );
 
       const buttons = screen.getAllByRole("button");
-      // Should have 4 option buttons
-      expect(buttons.length).toBe(4);
+      // Should have 5 option buttons
+      expect(buttons.length).toBe(5);
     });
   });
 });

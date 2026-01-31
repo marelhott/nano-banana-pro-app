@@ -3,6 +3,7 @@
 interface QuickstartInitialViewProps {
   onSelectBlankCanvas: () => void;
   onSelectTemplates: () => void;
+  onSelectModels: () => void;
   onSelectVibe: () => void;
   onSelectLoad: () => void;
 }
@@ -10,6 +11,7 @@ interface QuickstartInitialViewProps {
 export function QuickstartInitialView({
   onSelectBlankCanvas,
   onSelectTemplates,
+  onSelectModels,
   onSelectVibe,
   onSelectLoad,
 }: QuickstartInitialViewProps) {
@@ -125,6 +127,19 @@ export function QuickstartInitialView({
             }
             title="Templates"
             description="Pre-built workflows"
+          />
+
+          <OptionButton
+            onClick={onSelectModels}
+            icon={
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M7.5 3.75h9A2.25 2.25 0 0118.75 6v12A2.25 2.25 0 0116.5 20.25h-9A2.25 2.25 0 015.25 18V6A2.25 2.25 0 017.5 3.75zM8.5 8.25h7M8.5 12h7M8.5 15.75h4"
+              />
+            }
+            title="Models"
+            description="Browse fal.ai & Replicate"
           />
 
           <OptionButton
