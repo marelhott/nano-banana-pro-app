@@ -333,7 +333,7 @@ export function TemplateExplorerView({
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [translatedDescriptions, setTranslatedDescriptions] = useState<Record<string, string>>({});
-  const [translationProgress, setTranslationProgress] = useState<{ total: number; done: number } | null>(null);
+  const [translating, setTranslating] = useState<Record<string, boolean>>({});
   const [modelsSearch, setModelsSearch] = useState("");
   const [debouncedModelsSearch, setDebouncedModelsSearch] = useState("");
   const modelsSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -413,96 +413,55 @@ export function TemplateExplorerView({
     providerSettings.providers.openai?.apiKey
   );
 
-  const translateManyModelDescriptions = useCallback(
-    async (modelsToTranslate: ProviderModel[]) => {
-      if (!canTranslate) return;
+  const translateModelDescription = useCallback(
+    async (model: ProviderModel) => {
+      const key = `${model.provider}:${model.id}`;
+      if (!model.description) return;
+      if (translatedDescriptions[key]) return;
+      if (translating[key]) return;
+
       const geminiKey = providerSettings.providers.gemini?.apiKey;
       const openaiKey = providerSettings.providers.openai?.apiKey;
       const provider = geminiKey ? "google" : openaiKey ? "openai" : null;
       if (!provider) return;
 
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (provider === "google" && geminiKey) headers["X-Gemini-API-Key"] = geminiKey;
-      if (provider === "openai" && openaiKey) headers["X-OpenAI-API-Key"] = openaiKey;
+      setTranslating((prev) => ({ ...prev, [key]: true }));
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (provider === "google" && geminiKey) headers["X-Gemini-API-Key"] = geminiKey;
+        if (provider === "openai" && openaiKey) headers["X-OpenAI-API-Key"] = openaiKey;
 
-      const queue = modelsToTranslate
-        .filter((m) => m.description)
-        .map((m) => ({
-          model: m,
-          key: `${m.provider}:${m.id}`,
-        }))
-        .filter(({ key }) => !translatedDescriptions[key]);
+        const body: LLMGenerateRequest = {
+          provider,
+          model: provider === "google" ? "gemini-3-flash-preview" : "gpt-4.1-mini",
+          temperature: 0.2,
+          maxTokens: 512,
+          prompt: [
+            "Přelož následující anglický popis AI modelu do češtiny.",
+            "- Zachovej názvy produktů, providerů a technické termíny (např. LoRA, CFG, seed).",
+            "- Nezkracuj význam, ale buď stručný.",
+            "- Nevracej nic jiného než samotný překlad (žádné uvozovky, žádné vysvětlování).",
+            "---",
+            model.description,
+          ].join("\n"),
+        };
 
-      if (queue.length === 0) {
-        setTranslationProgress(null);
-        return;
-      }
-
-      const total = queue.length;
-      let done = 0;
-      setTranslationProgress({ total, done: 0 });
-
-      const concurrency = 2;
-      const mutableCache = { ...translatedDescriptions };
-
-      const worker = async () => {
-        while (queue.length > 0) {
-          const item = queue.shift();
-          if (!item) break;
-          const { model, key } = item;
-          if (!model.description || mutableCache[key]) {
-            done++;
-            setTranslationProgress({ total, done });
-            continue;
-          }
-
-          try {
-            const body: LLMGenerateRequest = {
-              provider,
-              model: provider === "google" ? "gemini-3-flash-preview" : "gpt-4.1-mini",
-              temperature: 0.2,
-              maxTokens: 512,
-              prompt: [
-                "Přelož následující anglický popis AI modelu do češtiny.",
-                "- Zachovej názvy produktů, providerů a technické termíny (např. LoRA, CFG, seed).",
-                "- Nezkracuj význam, ale buď stručný.",
-                "- Nevracej nic jiného než samotný překlad (žádné uvozovky, žádné vysvětlování).",
-                "---",
-                model.description,
-              ].join("\n"),
-            };
-
-            const res = await fetch("/api/llm", { method: "POST", headers, body: JSON.stringify(body) });
-            const data: LLMGenerateResponse = await res.json();
-            if (res.ok && data.success && data.text) {
-              const translated = data.text.trim();
-              if (translated) {
-                mutableCache[key] = translated;
-              }
-            }
-          } catch {
-          } finally {
-            done++;
-            setTranslationProgress({ total, done });
-          }
+        const res = await fetch("/api/llm", { method: "POST", headers, body: JSON.stringify(body) });
+        const data: LLMGenerateResponse = await res.json();
+        if (!res.ok || !data.success || !data.text) {
+          throw new Error(data.success === false ? data.error : "Translation failed");
         }
-      };
-
-      await Promise.all(Array.from({ length: concurrency }, worker));
-
-      setTranslatedDescriptions(mutableCache);
-      saveModelDescTranslations(mutableCache);
-      setTranslationProgress(null);
+        const translated = data.text.trim();
+        if (!translated) return;
+        const next = { ...translatedDescriptions, [key]: translated };
+        setTranslatedDescriptions(next);
+        saveModelDescTranslations(next);
+      } finally {
+        setTranslating((prev) => ({ ...prev, [key]: false }));
+      }
     },
-    [canTranslate, providerSettings, translatedDescriptions]
+    [providerSettings, translatedDescriptions, translating]
   );
-
-  useEffect(() => {
-    if (activeTab !== "models") return;
-    if (!canTranslate) return;
-    const batch = filteredModels.slice(0, 20);
-    translateManyModelDescriptions(batch);
-  }, [activeTab, canTranslate, filteredModels, translateManyModelDescriptions]);
 
   const createWorkflowFromModel = useCallback(
     (model: ProviderModel) => {
@@ -716,12 +675,6 @@ export function TemplateExplorerView({
                 </div>
               </div>
 
-              {canTranslate && translationProgress && (
-                <div className="text-[12px] text-neutral-500">
-                  Překládám popisy… {translationProgress.done}/{translationProgress.total}
-                </div>
-              )}
-
               {modelsError && (
                 <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
                   {modelsError}
@@ -775,6 +728,24 @@ export function TemplateExplorerView({
                           {m.description && (
                             <div className="text-[12px] text-neutral-400 mt-2 line-clamp-3">
                               {translatedDescriptions[`${m.provider}:${m.id}`] || m.description}
+                            </div>
+                          )}
+
+                          {m.description && !translatedDescriptions[`${m.provider}:${m.id}`] && (
+                            <div className="mt-2 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  translateModelDescription(m).catch(() => null);
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-medium text-neutral-200 bg-neutral-700/50 hover:bg-neutral-700 rounded-md transition-colors disabled:opacity-60"
+                                disabled={!canTranslate || !!translating[`${m.provider}:${m.id}`]}
+                                title={canTranslate ? "Přeložit do češtiny" : "Nastav Gemini/OpenAI klíč v nastavení"}
+                              >
+                                {translating[`${m.provider}:${m.id}`] ? "Překládám…" : "Přeložit"}
+                              </button>
                             </div>
                           )}
                         </div>

@@ -165,7 +165,7 @@ const findScrollableAncestor = (target: HTMLElement, deltaX: number, deltaY: num
 };
 
 export function WorkflowCanvas() {
-  const { nodes, edges, groups, onNodesChange, onEdgesChange, onConnect, addNode, updateNodeData, loadWorkflow, getNodeById, addToGlobalHistory, setNodeGroupId, executeWorkflow, isModalOpen, showQuickstart, setShowQuickstart, navigationTarget, setNavigationTarget } =
+  const { nodes, edges, groups, onNodesChange, onEdgesChange, onConnect, addNode, updateNodeData, loadWorkflow, getNodeById, addToGlobalHistory, setNodeGroupId, executeWorkflow, isModalOpen, showQuickstart, setShowQuickstart, quickstartOverlayOpen, setQuickstartOverlayOpen, navigationTarget, setNavigationTarget } =
     useWorkflowStore();
   const { screenToFlowPosition, getViewport, zoomIn, zoomOut, setViewport, setCenter } = useReactFlow();
   const [isDragOver, setIsDragOver] = useState(false);
@@ -1197,15 +1197,19 @@ export function WorkflowCanvas() {
       )}
 
       {/* Welcome Modal */}
-      {isCanvasEmpty && showQuickstart && (
+      {(isCanvasEmpty && showQuickstart) || quickstartOverlayOpen ? (
         <WelcomeModal
           onWorkflowGenerated={async (workflow) => {
             await loadWorkflow(workflow);
             setShowQuickstart(false);
+            setQuickstartOverlayOpen(false);
           }}
-          onClose={() => setShowQuickstart(false)}
+          onClose={() => {
+            if (isCanvasEmpty) setShowQuickstart(false);
+            setQuickstartOverlayOpen(false);
+          }}
         />
-      )}
+      ) : null}
 
       <ReactFlow
         nodes={allNodes}

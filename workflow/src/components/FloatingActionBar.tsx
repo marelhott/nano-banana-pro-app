@@ -49,7 +49,7 @@ function NodeButton({ type, label }: NodeButtonProps) {
       onClick={handleClick}
       draggable
       onDragStart={handleDragStart}
-      className="px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors cursor-grab active:cursor-grabbing"
+      className="px-1.5 py-0.5 text-[9px] font-medium text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors cursor-grab active:cursor-grabbing"
     >
       {label}
     </button>
@@ -99,7 +99,7 @@ function GenerateComboButton() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="px-2 py-1 text-[10px] font-medium text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors flex items-center gap-1"
+        className="px-1.5 py-0.5 text-[9px] font-medium text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors flex items-center gap-1"
       >
         Generate
         <svg
@@ -159,18 +159,18 @@ function ProviderIconButton({ provider, onClick }: { provider: ProviderType; onC
     <button
       onClick={onClick}
       title={`Browse ${provider === "replicate" ? "Replicate" : "fal.ai"} models`}
-      className="p-1.5 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700 rounded transition-colors"
+      className="p-1 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors"
     >
       {provider === "replicate" ? (
         // Replicate official logo
-        <svg className="w-4 h-4" viewBox="0 0 1000 1000" fill="currentColor">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 1000 1000" fill="currentColor">
           <polygon points="1000,427.6 1000,540.6 603.4,540.6 603.4,1000 477,1000 477,427.6" />
           <polygon points="1000,213.8 1000,327 364.8,327 364.8,1000 238.4,1000 238.4,213.8" />
           <polygon points="1000,0 1000,113.2 126.4,113.2 126.4,1000 0,1000 0,0" />
         </svg>
       ) : (
         // fal.ai official logo
-        <svg className="w-4 h-4" viewBox="0 0 1855 1855" fill="currentColor">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 1855 1855" fill="currentColor">
           <path fillRule="evenodd" clipRule="evenodd" d="M1181.65 78C1212.05 78 1236.42 101.947 1239.32 131.261C1265.25 392.744 1480.07 600.836 1750.02 625.948C1780.28 628.764 1805 652.366 1805 681.816V1174.18C1805 1203.63 1780.28 1227.24 1750.02 1230.05C1480.07 1255.16 1265.25 1463.26 1239.32 1724.74C1236.42 1754.05 1212.05 1778 1181.65 1778H673.354C642.951 1778 618.585 1754.05 615.678 1724.74C589.754 1463.26 374.927 1255.16 104.984 1230.05C74.7212 1227.24 50 1203.63 50 1174.18V681.816C50 652.366 74.7213 628.764 104.984 625.948C374.927 600.836 589.754 392.744 615.678 131.261C618.585 101.946 642.951 78 673.353 78H1181.65ZM402.377 926.561C402.377 1209.41 638.826 1438.71 930.501 1438.71C1222.18 1438.71 1458.63 1209.41 1458.63 926.561C1458.63 643.709 1222.18 414.412 930.501 414.412C638.826 414.412 402.377 643.709 402.377 926.561Z" />
         </svg>
       )}
@@ -192,6 +192,7 @@ export function FloatingActionBar() {
     setModelSearchOpen,
     modelSearchOpen,
     modelSearchProvider,
+    setQuickstartOverlayOpen,
   } = useWorkflowStore();
   const [runMenuOpen, setRunMenuOpen] = useState(false);
   const runMenuRef = useRef<HTMLDivElement>(null);
@@ -264,7 +265,18 @@ export function FloatingActionBar() {
 
   return (
     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
-      <div className="flex items-center gap-0.5 bg-neutral-800/95 backdrop-blur-sm rounded-md shadow-lg border border-[0.5px] border-neutral-700/70 px-1 py-0.5">
+      <div className="flex items-center gap-0.5 bg-neutral-800/95 backdrop-blur-sm rounded-md shadow-lg border border-[0.5px] border-neutral-700/70 px-0.5 py-0.5">
+        <button
+          type="button"
+          onClick={() => setQuickstartOverlayOpen(true)}
+          title="Zpět do nabídky"
+          className="p-1 text-neutral-400 hover:text-neutral-100 hover:bg-neutral-700/70 rounded-md transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
+
         <NodeButton type="imageInput" label="Image" />
         <NodeButton type="annotation" label="Annotate" />
         <NodeButton type="prompt" label="Prompt" />
@@ -272,7 +284,7 @@ export function FloatingActionBar() {
         <NodeButton type="output" label="Output" />
 
         {/* Provider model browser icons */}
-        <div className="w-px h-4 bg-neutral-600/80 mx-1" />
+        <div className="w-px h-3.5 bg-neutral-600/80 mx-1" />
 
         {/* Replicate icon - show if API key is configured via env or project settings */}
         {mounted && (providerSettings.providers.replicate?.apiKey || envStatus?.replicate) && (
@@ -287,7 +299,7 @@ export function FloatingActionBar() {
           onClick={() => setModelSearchOpen(true, "fal")}
         />
 
-        <div className="w-px h-4 bg-neutral-600/80 mx-1" />
+        <div className="w-px h-3.5 bg-neutral-600/80 mx-1" />
 
         <button
           onClick={toggleEdgeStyle}
@@ -305,14 +317,14 @@ export function FloatingActionBar() {
           )}
         </button>
 
-        <div className="w-px h-4 bg-neutral-600/80 mx-1" />
+        <div className="w-px h-3.5 bg-neutral-600/80 mx-1" />
 
         <div className="relative flex items-center" ref={runMenuRef}>
           <button
             onClick={handleRunClick}
             disabled={!valid && !isRunning}
             title={!valid ? errors.join("\n") : isRunning ? "Stop" : "Run"}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium transition-colors ${
+            className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium transition-colors ${
               isRunning
                 ? "bg-white text-neutral-900 hover:bg-neutral-200 rounded"
                 : valid
