@@ -20,9 +20,9 @@ interface TemplateCardProps {
 }
 
 const CATEGORY_LABELS: Record<TemplateCategory, string> = {
-  simple: "Simple",
-  advanced: "Advanced",
-  community: "Community",
+  simple: "Jednoduché",
+  advanced: "Pokročilé",
+  community: "Komunita",
 };
 
 const CATEGORY_COLORS: Record<TemplateCategory, string> = {
@@ -103,12 +103,12 @@ export function TemplateCard({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header row */}
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="text-sm font-medium text-neutral-200 truncate">
+          <h3 className="text-[13px] font-medium text-neutral-200 truncate">
             {template.name}
           </h3>
           <span
             className={`
-              inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0
+              inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium flex-shrink-0
               ${CATEGORY_COLORS[template.category]}
             `}
           >
@@ -117,7 +117,7 @@ export function TemplateCard({
         </div>
 
         {/* Description */}
-        <p className="text-xs text-neutral-400 line-clamp-2 flex-1">
+        <p className="text-[12px] text-neutral-400 line-clamp-2 flex-1">
           {template.description}
         </p>
 
@@ -126,13 +126,13 @@ export function TemplateCard({
           {template.tags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/30 text-neutral-400"
+              className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-neutral-700/30 text-neutral-400"
             >
               {tag}
             </span>
           ))}
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-700/50 text-neutral-400">
-            {nodeCount} nodes
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-neutral-700/50 text-neutral-400">
+            {nodeCount} uzlů
           </span>
         </div>
 
@@ -141,7 +141,7 @@ export function TemplateCard({
           <button
             onClick={onUseWorkflow}
             disabled={disabled || isLoading}
-            className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            className="px-3 py-2 text-[12px] font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
           >
             {isLoading ? (
               <>
@@ -164,11 +164,11 @@ export function TemplateCard({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Loading...
+                Načítám…
               </>
             ) : (
               <>
-                Use workflow
+                Použít workflow
                 <svg
                   className="w-3 h-3"
                   fill="none"

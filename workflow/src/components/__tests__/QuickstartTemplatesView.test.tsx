@@ -79,7 +79,7 @@ describe("QuickstartTemplatesView", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText("Back")).toBeInTheDocument();
+        expect(screen.getByText("Zpět")).toBeInTheDocument();
       });
     });
 
@@ -331,7 +331,7 @@ describe("QuickstartTemplatesView", () => {
       const allButtons = screen.getAllByRole("button");
       // All buttons should be disabled except maybe the back button
       const templateButtons = allButtons.filter(
-        (btn) => !btn.textContent?.includes("Back")
+        (btn) => !btn.textContent?.includes("Zpět")
       );
       templateButtons.forEach((btn) => {
         expect(btn).toBeDisabled();
@@ -702,10 +702,10 @@ describe("QuickstartTemplatesView", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText("Back")).toBeInTheDocument();
+        expect(screen.getByText("Zpět")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText("Back"));
+      fireEvent.click(screen.getByText("Zpět"));
 
       expect(mockOnBack).toHaveBeenCalled();
     });
@@ -746,7 +746,7 @@ describe("QuickstartTemplatesView", () => {
       });
 
       // Back button should be disabled via the QuickstartBackButton component
-      const backButton = screen.getByText("Back").closest("button");
+      const backButton = screen.getByText("Zpět").closest("button");
       expect(backButton).toBeDisabled();
 
       // Resolve to clean up

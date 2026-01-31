@@ -17,7 +17,7 @@ describe("QuickstartBackButton", () => {
     it("should render the back button with text", () => {
       render(<QuickstartBackButton onClick={mockOnClick} />);
 
-      expect(screen.getByText("Back")).toBeInTheDocument();
+      expect(screen.getByText("Zpět")).toBeInTheDocument();
     });
 
     it("should render as a button element", () => {
@@ -39,7 +39,7 @@ describe("QuickstartBackButton", () => {
     it("should call onClick when clicked", () => {
       render(<QuickstartBackButton onClick={mockOnClick} />);
 
-      fireEvent.click(screen.getByText("Back"));
+      fireEvent.click(screen.getByText("Zpět"));
 
       expect(mockOnClick).toHaveBeenCalledTimes(1);
     });

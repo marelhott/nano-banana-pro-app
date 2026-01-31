@@ -21,11 +21,34 @@ interface TemplateExplorerViewProps {
 type CategoryFilter = "all" | TemplateCategory;
 
 const CATEGORY_OPTIONS: { id: CategoryFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "simple", label: "Simple" },
-  { id: "advanced", label: "Advanced" },
-  { id: "community", label: "Community" },
+  { id: "all", label: "Vše" },
+  { id: "simple", label: "Jednoduché" },
+  { id: "advanced", label: "Pokročilé" },
+  { id: "community", label: "Komunita" },
 ];
+
+const MODEL_DESC_TRANSLATIONS_KEY = "node-banana-model-desc-cs-v1";
+
+function loadModelDescTranslations(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(MODEL_DESC_TRANSLATIONS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveModelDescTranslations(value: Record<string, string>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(MODEL_DESC_TRANSLATIONS_KEY, JSON.stringify(value));
+  } catch {
+    return;
+  }
+}
 
 export function TemplateExplorerView({
   onBack,
@@ -309,9 +332,8 @@ export function TemplateExplorerView({
   const [models, setModels] = useState<ProviderModel[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
-  const [translateToCzech, setTranslateToCzech] = useState(false);
   const [translatedDescriptions, setTranslatedDescriptions] = useState<Record<string, string>>({});
-  const [translating, setTranslating] = useState<Record<string, boolean>>({});
+  const [translationProgress, setTranslationProgress] = useState<{ total: number; done: number } | null>(null);
   const [modelsSearch, setModelsSearch] = useState("");
   const [debouncedModelsSearch, setDebouncedModelsSearch] = useState("");
   const modelsSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -320,6 +342,10 @@ export function TemplateExplorerView({
     fal: true,
   });
   const [capabilityFilter, setCapabilityFilter] = useState<"all" | "image" | "video">("all");
+
+  useEffect(() => {
+    setTranslatedDescriptions(loadModelDescTranslations());
+  }, []);
 
   useEffect(() => {
     if (modelsSearchTimeoutRef.current) clearTimeout(modelsSearchTimeoutRef.current);
@@ -387,53 +413,96 @@ export function TemplateExplorerView({
     providerSettings.providers.openai?.apiKey
   );
 
-  const translateModelDescription = useCallback(
-    async (model: ProviderModel) => {
-      const key = `${model.provider}:${model.id}`;
-      if (!model.description) return;
-      if (translatedDescriptions[key]) return;
-      if (translating[key]) return;
-
+  const translateManyModelDescriptions = useCallback(
+    async (modelsToTranslate: ProviderModel[]) => {
+      if (!canTranslate) return;
       const geminiKey = providerSettings.providers.gemini?.apiKey;
       const openaiKey = providerSettings.providers.openai?.apiKey;
       const provider = geminiKey ? "google" : openaiKey ? "openai" : null;
       if (!provider) return;
 
-      setTranslating((prev) => ({ ...prev, [key]: true }));
-      try {
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (provider === "google" && geminiKey) headers["X-Gemini-API-Key"] = geminiKey;
-        if (provider === "openai" && openaiKey) headers["X-OpenAI-API-Key"] = openaiKey;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (provider === "google" && geminiKey) headers["X-Gemini-API-Key"] = geminiKey;
+      if (provider === "openai" && openaiKey) headers["X-OpenAI-API-Key"] = openaiKey;
 
-        const body: LLMGenerateRequest = {
-          provider,
-          model: provider === "google" ? "gemini-3-flash-preview" : "gpt-4.1-mini",
-          temperature: 0.2,
-          maxTokens: 512,
-          prompt: [
-            "Přelož následující anglický popis AI modelu do češtiny.",
-            "- Zachovej názvy produktů, providerů a technické termíny (např. LoRA, CFG, seed).",
-            "- Nezkracuj význam, ale buď stručný.",
-            "- Nevracej nic jiného než samotný překlad (žádné uvozovky, žádné vysvětlování).",
-            "---",
-            model.description,
-          ].join("\n"),
-        };
+      const queue = modelsToTranslate
+        .filter((m) => m.description)
+        .map((m) => ({
+          model: m,
+          key: `${m.provider}:${m.id}`,
+        }))
+        .filter(({ key }) => !translatedDescriptions[key]);
 
-        const res = await fetch("/api/llm", { method: "POST", headers, body: JSON.stringify(body) });
-        const data: LLMGenerateResponse = await res.json();
-        if (!res.ok || !data.success || !data.text) {
-          throw new Error(data.success === false ? data.error : "Translation failed");
-        }
-        const translated = data.text.trim();
-        if (!translated) return;
-        setTranslatedDescriptions((prev) => ({ ...prev, [key]: translated }));
-      } finally {
-        setTranslating((prev) => ({ ...prev, [key]: false }));
+      if (queue.length === 0) {
+        setTranslationProgress(null);
+        return;
       }
+
+      const total = queue.length;
+      let done = 0;
+      setTranslationProgress({ total, done: 0 });
+
+      const concurrency = 2;
+      const mutableCache = { ...translatedDescriptions };
+
+      const worker = async () => {
+        while (queue.length > 0) {
+          const item = queue.shift();
+          if (!item) break;
+          const { model, key } = item;
+          if (!model.description || mutableCache[key]) {
+            done++;
+            setTranslationProgress({ total, done });
+            continue;
+          }
+
+          try {
+            const body: LLMGenerateRequest = {
+              provider,
+              model: provider === "google" ? "gemini-3-flash-preview" : "gpt-4.1-mini",
+              temperature: 0.2,
+              maxTokens: 512,
+              prompt: [
+                "Přelož následující anglický popis AI modelu do češtiny.",
+                "- Zachovej názvy produktů, providerů a technické termíny (např. LoRA, CFG, seed).",
+                "- Nezkracuj význam, ale buď stručný.",
+                "- Nevracej nic jiného než samotný překlad (žádné uvozovky, žádné vysvětlování).",
+                "---",
+                model.description,
+              ].join("\n"),
+            };
+
+            const res = await fetch("/api/llm", { method: "POST", headers, body: JSON.stringify(body) });
+            const data: LLMGenerateResponse = await res.json();
+            if (res.ok && data.success && data.text) {
+              const translated = data.text.trim();
+              if (translated) {
+                mutableCache[key] = translated;
+              }
+            }
+          } catch {
+          } finally {
+            done++;
+            setTranslationProgress({ total, done });
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: concurrency }, worker));
+
+      setTranslatedDescriptions(mutableCache);
+      saveModelDescTranslations(mutableCache);
+      setTranslationProgress(null);
     },
-    [providerSettings, translatedDescriptions, translating]
+    [canTranslate, providerSettings, translatedDescriptions]
   );
+
+  useEffect(() => {
+    if (activeTab !== "models") return;
+    if (!canTranslate) return;
+    const batch = filteredModels.slice(0, 20);
+    translateManyModelDescriptions(batch);
+  }, [activeTab, canTranslate, filteredModels, translateManyModelDescriptions]);
 
   const createWorkflowFromModel = useCallback(
     (model: ProviderModel) => {
@@ -512,7 +581,7 @@ export function TemplateExplorerView({
       <div className="flex-shrink-0 px-6 py-4 border-b border-neutral-700 flex items-center gap-4">
         <QuickstartBackButton onClick={onBack} disabled={isLoading} />
         <h2 className="text-lg font-semibold text-neutral-100">
-          Explorer
+          Průzkumník
         </h2>
 
         <div className="ml-auto flex items-center gap-1 bg-neutral-900/50 border border-neutral-700 rounded-lg p-1">
@@ -525,7 +594,7 @@ export function TemplateExplorerView({
                 : "text-neutral-400 hover:text-neutral-200"
             }`}
           >
-            Templates
+            Šablony
           </button>
           <button
             type="button"
@@ -536,7 +605,7 @@ export function TemplateExplorerView({
                 : "text-neutral-400 hover:text-neutral-200"
             }`}
           >
-            Models
+            Modely
           </button>
         </div>
       </div>
@@ -547,18 +616,18 @@ export function TemplateExplorerView({
           <>
             <div className="w-56 flex-shrink-0 bg-neutral-900/80 border-r border-neutral-700 p-4 space-y-5 overflow-y-auto">
               <div className="space-y-2">
-                <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Search</h3>
+                <h3 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">Hledat</h3>
                 <input
                   type="text"
                   value={modelsSearch}
                   onChange={(e) => setModelsSearch(e.target.value)}
-                  placeholder="Search models..."
-                  className="w-full px-3 py-2 text-sm bg-neutral-700/50 border border-neutral-600 rounded-lg text-neutral-200 placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Hledat modely…"
+                  className="w-full px-3 py-2 text-[13px] bg-neutral-700/50 border border-neutral-600 rounded-lg text-neutral-200 placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Provider</h3>
+                <h3 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">Provider</h3>
                 <div className="flex flex-col gap-1">
                   <button
                     type="button"
@@ -586,11 +655,11 @@ export function TemplateExplorerView({
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Type</h3>
+                <h3 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">Typ</h3>
                 <div className="flex flex-col gap-1">
                   {[
-                    { id: "all" as const, label: "All" },
-                    { id: "image" as const, label: "Image" },
+                    { id: "all" as const, label: "Vše" },
+                    { id: "image" as const, label: "Obrázek" },
                     { id: "video" as const, label: "Video" },
                   ].map((opt) => (
                     <button
@@ -613,9 +682,9 @@ export function TemplateExplorerView({
                 <div className="text-[11px] text-neutral-400 space-y-2">
                   <div>
                     {!providerSettings.providers.replicate?.apiKey && (
-                      <div>Replicate: missing API key</div>
+                      <div>Replicate: chybí API klíč</div>
                     )}
-                    {!providerSettings.providers.fal?.apiKey && <div>fal.ai: missing API key</div>}
+                    {!providerSettings.providers.fal?.apiKey && <div>fal.ai: chybí API klíč</div>}
                   </div>
                   {onOpenSettings && (
                     <button
@@ -623,7 +692,7 @@ export function TemplateExplorerView({
                       onClick={onOpenSettings}
                       className="w-full px-3 py-2 text-xs font-medium text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors"
                     >
-                      Open Settings
+                      Otevřít nastavení
                     </button>
                   )}
                 </div>
@@ -633,32 +702,25 @@ export function TemplateExplorerView({
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                  Models
+                  Modely
                 </h3>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTranslateToCzech((v) => !v)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                      translateToCzech
-                        ? "bg-blue-500/20 text-blue-300"
-                        : "text-neutral-300 bg-neutral-700/40 hover:bg-neutral-700/60"
-                    }`}
-                    title={canTranslate ? "Show Czech translations" : "Set a Gemini/OpenAI API key to translate"}
-                    disabled={!canTranslate}
-                  >
-                    CZ
-                  </button>
                   <button
                     type="button"
                     onClick={fetchModels}
                     className="px-3 py-1.5 text-xs font-medium text-neutral-300 bg-neutral-700/40 hover:bg-neutral-700/60 rounded-md transition-colors"
                     disabled={isLoadingModels}
                   >
-                    Refresh
+                    Obnovit
                   </button>
                 </div>
               </div>
+
+              {canTranslate && translationProgress && (
+                <div className="text-[12px] text-neutral-500">
+                  Překládám popisy… {translationProgress.done}/{translationProgress.total}
+                </div>
+              )}
 
               {modelsError && (
                 <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
@@ -667,7 +729,7 @@ export function TemplateExplorerView({
               )}
 
               {isLoadingModels ? (
-                <div className="text-sm text-neutral-400">Loading models…</div>
+                <div className="text-[13px] text-neutral-400">Načítám modely…</div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   {filteredModels.map((m) => (
@@ -676,7 +738,7 @@ export function TemplateExplorerView({
                       type="button"
                       onClick={() => createWorkflowFromModel(m)}
                       className="text-left p-4 rounded-lg border border-neutral-700/50 hover:border-neutral-600 hover:bg-neutral-800/40 transition-all duration-150"
-                      title="Create workflow from this model"
+                    title="Vytvořit workflow z tohoto modelu"
                     >
                       <div className="flex gap-3">
                         <div className="w-16 h-16 rounded-lg overflow-hidden bg-neutral-900/60 border border-neutral-700/50 flex items-center justify-center flex-shrink-0">
@@ -691,47 +753,28 @@ export function TemplateExplorerView({
                               }}
                             />
                           ) : (
-                            <span className="text-[10px] text-neutral-500">No preview</span>
+                            <span className="text-[11px] text-neutral-500">Bez náhledu</span>
                           )}
                         </div>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-sm font-medium text-neutral-200 truncate">
+                              <div className="text-[13px] font-medium text-neutral-200 truncate">
                                 {m.name}
                               </div>
-                              <div className="text-[11px] text-neutral-500 mt-0.5 truncate">
+                              <div className="text-[12px] text-neutral-500 mt-0.5 truncate">
                                 {m.provider} • {m.capabilities.join(", ")}
                               </div>
                             </div>
-                            <span className="text-[10px] font-medium text-blue-300 bg-blue-500/10 rounded px-2 py-1 shrink-0">
-                              Use
+                            <span className="text-[11px] font-medium text-blue-300 bg-blue-500/10 rounded px-2 py-1 shrink-0">
+                              Použít
                             </span>
                           </div>
 
                           {m.description && (
-                            <div className="text-xs text-neutral-400 mt-2 line-clamp-3">
-                              {translateToCzech
-                                ? translatedDescriptions[`${m.provider}:${m.id}`] || m.description
-                                : m.description}
-                            </div>
-                          )}
-
-                          {translateToCzech && m.description && !translatedDescriptions[`${m.provider}:${m.id}`] && (
-                            <div className="mt-2 flex justify-end">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  translateModelDescription(m).catch(() => null);
-                                }}
-                                className="px-2.5 py-1 text-[11px] font-medium text-neutral-200 bg-neutral-700/50 hover:bg-neutral-700 rounded-md transition-colors disabled:opacity-60"
-                                disabled={!canTranslate || !!translating[`${m.provider}:${m.id}`]}
-                              >
-                                {translating[`${m.provider}:${m.id}`] ? "Translating…" : "Přeložit"}
-                              </button>
+                            <div className="text-[12px] text-neutral-400 mt-2 line-clamp-3">
+                              {translatedDescriptions[`${m.provider}:${m.id}`] || m.description}
                             </div>
                           )}
                         </div>
@@ -764,16 +807,14 @@ export function TemplateExplorerView({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search templates..."
-              className="w-full pl-8 pr-3 py-2 text-sm bg-neutral-700/50 border border-neutral-600 rounded-lg text-neutral-200 placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Hledat šablony…"
+              className="w-full pl-8 pr-3 py-2 text-[13px] bg-neutral-700/50 border border-neutral-600 rounded-lg text-neutral-200 placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
           {/* Category Filters */}
           <div className="space-y-2">
-            <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
-              Category
-            </h3>
+            <h3 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">Kategorie</h3>
             <div className="flex flex-col gap-1">
               {CATEGORY_OPTIONS.map((option) => (
                 <button
@@ -796,9 +837,7 @@ export function TemplateExplorerView({
 
           {/* Provider Tags */}
           <div className="space-y-2">
-            <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
-              Provider
-            </h3>
+            <h3 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">Provider</h3>
             <div className="flex flex-col gap-1">
               {availableTags.map((tag) => (
                 <button
@@ -825,7 +864,7 @@ export function TemplateExplorerView({
               onClick={clearFilters}
               className="w-full px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-300 bg-neutral-700/30 hover:bg-neutral-700/50 rounded-md transition-colors"
             >
-              Clear filters
+              Vyčistit filtry
             </button>
           )}
         </div>
@@ -848,17 +887,13 @@ export function TemplateExplorerView({
                   d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
                 />
               </svg>
-              <h3 className="text-sm font-medium text-neutral-300 mb-1">
-                No templates match your filters
-              </h3>
-              <p className="text-xs text-neutral-500 mb-4">
-                Try adjusting your search or filters
-              </p>
+              <h3 className="text-[13px] font-medium text-neutral-300 mb-1">Nenalezeny žádné šablony</h3>
+              <p className="text-[12px] text-neutral-500 mb-4">Zkus upravit vyhledávání nebo filtry</p>
               <button
                 onClick={clearFilters}
                 className="px-4 py-2 text-sm font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors"
               >
-                Clear all filters
+                Vyčistit vše
               </button>
             </div>
           )}
@@ -867,7 +902,7 @@ export function TemplateExplorerView({
           {filteredPresets.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                Quick Start
+                Rychlý start
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 {filteredPresets.map((preset) => (
@@ -895,7 +930,7 @@ export function TemplateExplorerView({
           {(filteredCommunity.length > 0 || (isLoadingList && (categoryFilter === "all" || categoryFilter === "community"))) && (
             <div className="space-y-3">
               <h3 className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                Community Workflows
+                Komunita
               </h3>
 
               {isLoadingList ? (
@@ -946,16 +981,16 @@ export function TemplateExplorerView({
 
               {/* Discord CTA */}
               <p className="text-xs text-neutral-500 mt-3">
-                Want to share your workflow?{" "}
+                Chceš sdílet svoje workflow?{" "}
                 <a
                   href="https://discord.com/invite/89Nr6EKkTf"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-purple-400 hover:text-purple-300 underline"
                 >
-                  Join our Discord
+                  Přidej se na Discord
                 </a>{" "}
-                to submit it to the community templates.
+                a pošli ho do komunitních šablon.
               </p>
             </div>
           )}
@@ -982,7 +1017,7 @@ export function TemplateExplorerView({
                   onClick={() => setError(null)}
                   className="text-xs text-red-400/70 hover:text-red-400 mt-1"
                 >
-                  Dismiss
+                  Zavřít
                 </button>
               </div>
             </div>

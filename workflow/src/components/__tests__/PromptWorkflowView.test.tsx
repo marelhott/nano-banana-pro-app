@@ -45,7 +45,7 @@ describe("PromptWorkflowView", () => {
         />
       );
 
-      expect(screen.getByText("Back")).toBeInTheDocument();
+      expect(screen.getByText("Zpět")).toBeInTheDocument();
     });
 
     it("should render description label", () => {
@@ -498,7 +498,7 @@ describe("PromptWorkflowView", () => {
         />
       );
 
-      fireEvent.click(screen.getByText("Back"));
+      fireEvent.click(screen.getByText("Zpět"));
 
       expect(mockOnBack).toHaveBeenCalled();
     });
@@ -526,7 +526,7 @@ describe("PromptWorkflowView", () => {
       });
 
       // Back button should be disabled
-      const backButton = screen.getByText("Back").closest("button");
+      const backButton = screen.getByText("Zpět").closest("button");
       expect(backButton).toBeDisabled();
 
       // Resolve to clean up

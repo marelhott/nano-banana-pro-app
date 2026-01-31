@@ -45,7 +45,7 @@ describe("QuickstartInitialView", () => {
       );
 
       expect(
-        screen.getByText(/node based workflow editor for AI image generation/i)
+        screen.getByText(/editor workflowů založený na uzlech/i)
       ).toBeInTheDocument();
     });
 
@@ -60,11 +60,11 @@ describe("QuickstartInitialView", () => {
         />
       );
 
-      expect(screen.getByText("Blank canvas")).toBeInTheDocument();
-      expect(screen.getByText("Load workflow")).toBeInTheDocument();
-      expect(screen.getByText("Templates")).toBeInTheDocument();
-      expect(screen.getByText("Models")).toBeInTheDocument();
-      expect(screen.getByText("Prompt a workflow")).toBeInTheDocument();
+      expect(screen.getByText("Prázdné plátno")).toBeInTheDocument();
+      expect(screen.getByText("Načíst workflow")).toBeInTheDocument();
+      expect(screen.getByText("Šablony")).toBeInTheDocument();
+      expect(screen.getByText("Modely")).toBeInTheDocument();
+      expect(screen.getByText("Vygenerovat workflow")).toBeInTheDocument();
     });
 
     it("should render option descriptions", () => {
@@ -78,11 +78,11 @@ describe("QuickstartInitialView", () => {
         />
       );
 
-      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
-      expect(screen.getByText("Open existing file")).toBeInTheDocument();
-      expect(screen.getByText("Pre-built workflows")).toBeInTheDocument();
-      expect(screen.getByText("Browse fal.ai & Replicate")).toBeInTheDocument();
-      expect(screen.getByText("Prompt a workflow")).toBeInTheDocument();
+      expect(screen.getByText("Začít od nuly")).toBeInTheDocument();
+      expect(screen.getByText("Otevřít existující soubor")).toBeInTheDocument();
+      expect(screen.getByText("Předpřipravené workflow")).toBeInTheDocument();
+      expect(screen.getByText("Prohlížet fal.ai a Replicate")).toBeInTheDocument();
+      expect(screen.getByText("Vygenerovat workflow")).toBeInTheDocument();
     });
   });
 
@@ -98,7 +98,7 @@ describe("QuickstartInitialView", () => {
         />
       );
 
-      fireEvent.click(screen.getByText("Blank canvas"));
+      fireEvent.click(screen.getByText("Prázdné plátno"));
 
       expect(mockOnSelectBlankCanvas).toHaveBeenCalledTimes(1);
     });
@@ -114,7 +114,7 @@ describe("QuickstartInitialView", () => {
         />
       );
 
-      expect(screen.getByText("Start from scratch")).toBeInTheDocument();
+      expect(screen.getByText("Začít od nuly")).toBeInTheDocument();
     });
   });
 
@@ -130,7 +130,7 @@ describe("QuickstartInitialView", () => {
         />
       );
 
-      fireEvent.click(screen.getByText("Load workflow"));
+      fireEvent.click(screen.getByText("Načíst workflow"));
 
       expect(mockOnSelectLoad).toHaveBeenCalledTimes(1);
     });
@@ -148,7 +148,7 @@ describe("QuickstartInitialView", () => {
         />
       );
 
-      fireEvent.click(screen.getByText("Templates"));
+      fireEvent.click(screen.getByText("Šablony"));
 
       expect(mockOnSelectTemplates).toHaveBeenCalledTimes(1);
     });
@@ -166,7 +166,7 @@ describe("QuickstartInitialView", () => {
         />
       );
 
-      fireEvent.click(screen.getByText("Prompt a workflow"));
+      fireEvent.click(screen.getByText("Vygenerovat workflow"));
 
       expect(mockOnSelectVibe).toHaveBeenCalledTimes(1);
     });

@@ -71,10 +71,10 @@ describe("WelcomeModal", () => {
       );
 
       expect(screen.getByText("Node Banana")).toBeInTheDocument();
-      expect(screen.getByText("Blank canvas")).toBeInTheDocument();
-      expect(screen.getByText("Templates")).toBeInTheDocument();
-      expect(screen.getByText("Models")).toBeInTheDocument();
-      expect(screen.getByText("Prompt a workflow")).toBeInTheDocument();
+      expect(screen.getByText("Prázdné plátno")).toBeInTheDocument();
+      expect(screen.getByText("Šablony")).toBeInTheDocument();
+      expect(screen.getByText("Modely")).toBeInTheDocument();
+      expect(screen.getByText("Vygenerovat workflow")).toBeInTheDocument();
     });
 
     it("should render modal overlay with backdrop", () => {
@@ -91,7 +91,7 @@ describe("WelcomeModal", () => {
   });
 
   describe("Initial View Navigation", () => {
-    it("should call onClose when 'Blank canvas' is clicked", () => {
+    it("should call onClose when 'Prázdné plátno' is clicked", () => {
       render(
         <WelcomeModal
           onWorkflowGenerated={mockOnWorkflowGenerated}
@@ -99,12 +99,12 @@ describe("WelcomeModal", () => {
         />
       );
 
-      fireEvent.click(screen.getByText("Blank canvas"));
+      fireEvent.click(screen.getByText("Prázdné plátno"));
 
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-    it("should navigate to templates view when 'Templates' is clicked", async () => {
+    it("should navigate to templates view when 'Šablony' is clicked", async () => {
       render(
         <WelcomeModal
           onWorkflowGenerated={mockOnWorkflowGenerated}
@@ -113,16 +113,16 @@ describe("WelcomeModal", () => {
       );
 
       await act(async () => {
-        fireEvent.click(screen.getByText("Templates"));
+        fireEvent.click(screen.getByText("Šablony"));
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Explorer")).toBeInTheDocument();
-        expect(screen.getByText("Quick Start")).toBeInTheDocument();
+        expect(screen.getByText("Průzkumník")).toBeInTheDocument();
+        expect(screen.getByText("Rychlý start")).toBeInTheDocument();
       });
     });
 
-    it("should navigate to templates view with models tab when 'Models' is clicked", async () => {
+    it("should navigate to templates view with models tab when 'Modely' is clicked", async () => {
       render(
         <WelcomeModal
           onWorkflowGenerated={mockOnWorkflowGenerated}
@@ -131,17 +131,17 @@ describe("WelcomeModal", () => {
       );
 
       await act(async () => {
-        fireEvent.click(screen.getByText("Models"));
+        fireEvent.click(screen.getByText("Modely"));
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Explorer")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Models" })).toBeInTheDocument();
-        expect(screen.getByText("Refresh")).toBeInTheDocument();
+        expect(screen.getByText("Průzkumník")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Modely" })).toBeInTheDocument();
+        expect(screen.getByText("Obnovit")).toBeInTheDocument();
       });
     });
 
-    it("should navigate to vibe view when 'Prompt a workflow' is clicked", () => {
+    it("should navigate to vibe view when 'Vygenerovat workflow' is clicked", () => {
       render(
         <WelcomeModal
           onWorkflowGenerated={mockOnWorkflowGenerated}
@@ -149,7 +149,7 @@ describe("WelcomeModal", () => {
         />
       );
 
-      fireEvent.click(screen.getByText("Prompt a workflow"));
+      fireEvent.click(screen.getByText("Vygenerovat workflow"));
 
       expect(screen.getByText("Prompt a Workflow")).toBeInTheDocument();
       expect(screen.getByText("Describe your workflow")).toBeInTheDocument();
@@ -167,20 +167,20 @@ describe("WelcomeModal", () => {
 
       // Navigate to templates
       await act(async () => {
-        fireEvent.click(screen.getByText("Templates"));
+        fireEvent.click(screen.getByText("Šablony"));
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Explorer")).toBeInTheDocument();
+        expect(screen.getByText("Průzkumník")).toBeInTheDocument();
       });
 
       // Click back
       await act(async () => {
-        fireEvent.click(screen.getByText("Back"));
+        fireEvent.click(screen.getByText("Zpět"));
       });
 
       expect(screen.getByText("Node Banana")).toBeInTheDocument();
-      expect(screen.getByText("Blank canvas")).toBeInTheDocument();
+      expect(screen.getByText("Prázdné plátno")).toBeInTheDocument();
     });
 
     it("should navigate back to initial view from prompt view", () => {
@@ -192,11 +192,11 @@ describe("WelcomeModal", () => {
       );
 
       // Navigate to prompt view
-      fireEvent.click(screen.getByText("Prompt a workflow"));
+      fireEvent.click(screen.getByText("Vygenerovat workflow"));
       expect(screen.getByText("Prompt a Workflow")).toBeInTheDocument();
 
       // Click back
-      fireEvent.click(screen.getByText("Back"));
+      fireEvent.click(screen.getByText("Zpět"));
 
       expect(screen.getByText("Node Banana")).toBeInTheDocument();
     });
@@ -217,7 +217,7 @@ describe("WelcomeModal", () => {
       expect(fileInput).toHaveClass("hidden");
     });
 
-    it("should trigger file input when 'Load workflow' is clicked", () => {
+    it("should trigger file input when 'Načíst workflow' is clicked", () => {
       const { container } = render(
         <WelcomeModal
           onWorkflowGenerated={mockOnWorkflowGenerated}
@@ -228,7 +228,7 @@ describe("WelcomeModal", () => {
       const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
       const clickSpy = vi.spyOn(fileInput, "click");
 
-      fireEvent.click(screen.getByText("Load workflow"));
+      fireEvent.click(screen.getByText("Načíst workflow"));
 
       expect(clickSpy).toHaveBeenCalled();
     });
@@ -403,15 +403,15 @@ describe("WelcomeModal", () => {
 
       // Navigate to templates
       await act(async () => {
-        fireEvent.click(screen.getByText("Templates"));
+        fireEvent.click(screen.getByText("Šablony"));
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Explorer")).toBeInTheDocument();
+        expect(screen.getByText("Průzkumník")).toBeInTheDocument();
       });
 
       // Verify templates view is showing - the actual workflow selection is tested in QuickstartTemplatesView tests
-      expect(screen.getByText("Quick Start")).toBeInTheDocument();
+      expect(screen.getByText("Rychlý start")).toBeInTheDocument();
     });
 
     it("should show prompt view when navigating to vibe", () => {
@@ -423,7 +423,7 @@ describe("WelcomeModal", () => {
       );
 
       // Navigate to vibe/prompt view
-      fireEvent.click(screen.getByText("Prompt a workflow"));
+      fireEvent.click(screen.getByText("Vygenerovat workflow"));
 
       expect(screen.getByText("Prompt a Workflow")).toBeInTheDocument();
       expect(screen.getByText("Generate Workflow")).toBeInTheDocument();
