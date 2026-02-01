@@ -71,7 +71,7 @@ html {
   /* Required for overscroll-behavior to work in Chrome on macOS */
   overflow-x: hidden;
   overscroll-behavior-x: none;
-  font-size: 14px;
+  font-size: 15.4px;
 }
 
 body {
@@ -106,10 +106,10 @@ body {
 
 /* Base handle styles */
 .react-flow__handle {
-  width: 10px;
-  height: 10px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.9);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
@@ -120,8 +120,8 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
 }
 
@@ -145,10 +145,17 @@ body {
 
 .react-flow__edge-path {
   stroke: var(--text-3);
-  stroke-width: 3;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.text-\[9px\] { font-size: 10px !important; }
+.text-\[10px\] { font-size: 11px !important; }
+.text-\[11px\] { font-size: 12px !important; }
+.text-\[12px\] { font-size: 13px !important; }
+.text-\[13px\] { font-size: 14px !important; }
+.text-\[14px\] { font-size: 15px !important; }
 
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:hover .react-flow__edge-path {

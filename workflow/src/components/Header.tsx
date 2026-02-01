@@ -174,7 +174,7 @@ export function Header() {
       />
       <header className="h-11 bg-[var(--bg-card)] border-b border-[var(--border-soft)] flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2">
-          <h1 className="text-[11px] font-[900] uppercase tracking-[0.32em] text-[var(--text-1)] leading-none whitespace-nowrap">
+          <h1 className="!text-[11px] font-[900] uppercase tracking-[0.32em] text-[var(--text-1)] leading-none whitespace-nowrap">
             Nodes
           </h1>
 

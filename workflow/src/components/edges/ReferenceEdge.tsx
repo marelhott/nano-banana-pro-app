@@ -73,7 +73,7 @@ export function ReferenceEdge({
         style={{
           ...style,
           stroke: `url(#${gradientId})`,
-          strokeWidth: 2,
+          strokeWidth: 1.5,
           strokeDasharray: "6 4",
           strokeLinecap: "round",
           strokeLinejoin: "round",

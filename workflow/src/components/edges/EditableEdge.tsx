@@ -197,7 +197,7 @@ export function EditableEdge({
         style={{
           ...style,
           stroke: `url(#${gradientId})`,
-          strokeWidth: 3,
+          strokeWidth: 2,
           strokeLinecap: "round",
           strokeLinejoin: "round",
         }}
@@ -211,7 +211,7 @@ export function EditableEdge({
             d={edgePath}
             fill="none"
             stroke={`url(#${gradientId})`}
-            strokeWidth={10}
+            strokeWidth={6}
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{
@@ -224,7 +224,7 @@ export function EditableEdge({
             d={edgePath}
             fill="none"
             stroke={`url(#${gradientId})`}
-            strokeWidth={5}
+            strokeWidth={3}
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeDasharray="20 30"
