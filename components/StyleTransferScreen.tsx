@@ -57,15 +57,61 @@ export function StyleTransferScreen(props: {
   }, [outputs]);
 
   const replicateUrlCacheRef = React.useRef<Map<string, string>>(new Map());
-  const ensurePublicImageUrl = React.useCallback(async (dataUrl: string, cacheKey: string) => {
+
+  const shrinkForReplicate = React.useCallback(async (dataUrl: string) => {
+    const estimateBytes = (url: string) => {
+      const commaIdx = url.indexOf(',');
+      const b64 = commaIdx >= 0 ? url.slice(commaIdx + 1) : url;
+      return Math.floor((b64.length * 3) / 4);
+    };
+
+    const MAX_BYTES = 256 * 1024;
+    if (estimateBytes(dataUrl) <= MAX_BYTES) return dataUrl;
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Nepodařilo se načíst obrázek pro zmenšení.'));
+      i.src = dataUrl;
+    });
+
+    const maxDim = 768;
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.floor(img.width * scale));
+    const h = Math.max(1, Math.floor(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return dataUrl;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const qualities = [0.86, 0.78, 0.7, 0.6, 0.5, 0.4];
+    for (const q of qualities) {
+      const out = canvas.toDataURL('image/jpeg', q);
+      if (estimateBytes(out) <= MAX_BYTES) return out;
+    }
+    return canvas.toDataURL('image/jpeg', 0.35);
+  }, []);
+
+  const ensureReplicateImageInput = React.useCallback(async (dataUrl: string, cacheKey: string) => {
     const cached = replicateUrlCacheRef.current.get(cacheKey);
     if (cached) return cached;
-    const blob = await dataUrlToBlob(dataUrl);
-    const path = await uploadImage(blob, 'generated');
-    const url = getPublicUrl(path);
-    replicateUrlCacheRef.current.set(cacheKey, url);
-    return url;
-  }, []);
+
+    try {
+      const blob = await dataUrlToBlob(dataUrl);
+      const path = await uploadImage(blob, 'generated');
+      const url = getPublicUrl(path);
+      replicateUrlCacheRef.current.set(cacheKey, url);
+      return url;
+    } catch {
+      const small = await shrinkForReplicate(dataUrl);
+      replicateUrlCacheRef.current.set(cacheKey, small);
+      return small;
+    }
+  }, [shrinkForReplicate]);
 
   const setReferenceFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
@@ -174,7 +220,6 @@ export function StyleTransferScreen(props: {
 
       const negativeText = negative ? `${negative}` : 'text, watermark, logo, blur, artifacts';
     setIsGenerating(true);
-
     try {
       const negativeText = negative ? `Vyhni se: ${negative}` : 'Vyhni se: text, watermark, logo, rozmazání, artefakty';
       const basePrompt = [
@@ -187,8 +232,8 @@ export function StyleTransferScreen(props: {
       ].filter(Boolean).join('\n');
 
       if (engine === 'replicate_ip_adapter') {
-        const contentUrl = await ensurePublicImageUrl(reference.dataUrl, 'replicate-content');
-        const styleUrl = await ensurePublicImageUrl(style.dataUrl, 'replicate-style');
+        const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'replicate-content');
+        const styleUrl = await ensureReplicateImageInput(style.dataUrl, 'replicate-style');
         const ipWeight = Math.max(0, Math.min(2, ipAdapterWeight));
         const prompt = [
           'Apply the painting style from the style image to the content image.',
@@ -244,8 +289,8 @@ export function StyleTransferScreen(props: {
               const res = await provider.generateImage(images, variantPrompt, '1K', 'Original', false);
               url = res.imageBase64;
             } else {
-              const contentUrl = await ensurePublicImageUrl(reference.dataUrl, 'replicate-content');
-              const styleUrl = await ensurePublicImageUrl(style.dataUrl, 'replicate-style');
+              const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'replicate-content');
+              const styleUrl = await ensureReplicateImageInput(style.dataUrl, 'replicate-style');
               const strengthLabel = strengthValue <= 33 ? 'subtle' : strengthValue <= 66 ? 'medium' : 'strong';
               const replicatePrompt = [
                 'Use image 1 as the content reference.',
@@ -290,10 +335,14 @@ export function StyleTransferScreen(props: {
       }
 
       onToast({ message: 'Hotovo.', type: 'success' });
+    } catch (e: any) {
+      const msg = e?.message || 'Chyba generování.';
+      setOutputs((prev) => prev.map((p) => (p.status === 'loading' ? ({ ...p, status: 'error', error: msg }) : p)));
+      onToast({ message: msg, type: 'error' });
     } finally {
       if (mountedRef.current) setIsGenerating(false);
     }
-  }, [analysis, cfgScale, denoise, engine, ensurePublicImageUrl, geminiKey, ipAdapterWeight, onOpenSettings, onToast, providerSettings, reference, replicateToken, strength, style, useAgenticVision, variants]);
+  }, [analysis, cfgScale, denoise, engine, ensureReplicateImageInput, geminiKey, ipAdapterWeight, onOpenSettings, onToast, providerSettings, reference, replicateToken, strength, style, useAgenticVision, variants]);
 
   return (
     <>
