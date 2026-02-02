@@ -22,13 +22,15 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadImages();
   }, []);
 
-  const loadImages = async () => {
+  const loadImages = async (options?: { preserveScroll?: boolean }) => {
     setLoading(true);
+    const previousScrollTop = options?.preserveScroll ? (contentRef.current?.scrollTop ?? 0) : null;
     try {
       // Načíst uložené obrázky z Supabase
       const saved = await ImageDatabase.getAll();
@@ -42,6 +44,15 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       console.error('Failed to load images:', error);
     } finally {
       setLoading(false);
+      if (previousScrollTop !== null) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (contentRef.current) {
+              contentRef.current.scrollTop = previousScrollTop;
+            }
+          });
+        });
+      }
     }
   };
 
@@ -111,8 +122,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       prompt: 'prompt' in image ? image.prompt : undefined // Přidat prompt z vygenerovaných obrázků
     };
 
-    e.dataTransfer.setData('application/json', JSON.stringify(imageData));
-    e.dataTransfer.setData('text/plain', image.url);
+    e.dataTransfer.setData('application/x-mulen-image', JSON.stringify(imageData));
 
     if (onDragStart) {
       onDragStart(imageData, type);
@@ -123,7 +133,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
     e.stopPropagation();
     try {
       await ImageDatabase.remove(id);
-      await loadImages();
+      await loadImages({ preserveScroll: true });
     } catch (error) {
       console.error('Error deleting image:', error);
       alert('Chyba při mazání obrázku');
@@ -134,7 +144,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
     e.stopPropagation();
     try {
       await deleteImage(id);
-      await loadImages();
+      await loadImages({ preserveScroll: true });
     } catch (error) {
       console.error('Error deleting generated image:', error);
       alert('Chyba při mazání obrázku');
@@ -194,6 +204,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             <img
               src={image.url}
               alt={image.fileName}
+              draggable={false}
               className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -248,6 +259,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             <img
               src={image.url}
               alt={image.prompt}
+              draggable={false}
               className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -367,7 +379,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-transparent">
+      <div ref={contentRef} className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-transparent">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-[#7ed957] border-t-transparent rounded-full animate-spin"></div>

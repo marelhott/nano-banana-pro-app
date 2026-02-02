@@ -450,21 +450,32 @@ const App: React.FC = () => {
     try {
       // Try JSON first
       let imageData = null;
+      const internalData = e.dataTransfer.getData('application/x-mulen-image');
       const jsonData = e.dataTransfer.getData('application/json');
 
-      if (jsonData) {
+      if (internalData) {
+        console.log('[Drop Reference] Got internal data');
+        imageData = JSON.parse(internalData);
+      } else if (jsonData) {
         console.log('[Drop Reference] Got JSON data:', jsonData);
         imageData = JSON.parse(jsonData);
       } else {
-        // Fallback to text/plain
-        const url = e.dataTransfer.getData('text/plain');
-        console.log('[Drop Reference] Got text/plain data:', url);
-        if (url) {
-          imageData = {
-            url: url,
-            fileName: 'dropped-image.jpg',
-            fileType: 'image/jpeg'
-          };
+        const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
+        if (files.length > 0) {
+          const file = files[0];
+          const url = URL.createObjectURL(file);
+          console.log('[Drop Reference] Got file drop:', file.name);
+          imageData = { url, fileName: file.name, fileType: file.type };
+        } else {
+          const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+          console.log('[Drop Reference] Got text url:', url);
+          if (url) {
+            imageData = {
+              url: url,
+              fileName: 'dropped-image.jpg',
+              fileType: 'image/jpeg'
+            };
+          }
         }
       }
 
@@ -487,6 +498,10 @@ const App: React.FC = () => {
         const blob = await response.blob();
         const file = new File([blob], fileName, { type: fileType });
 
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
           url: url,
@@ -503,6 +518,9 @@ const App: React.FC = () => {
         console.log('[Drop Reference] Image added successfully', prompt ? `with prompt: ${prompt}` : 'without prompt');
       } catch (fetchError) {
         console.error('[Drop Reference] Failed to fetch image, using URL directly:', fetchError);
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
         // Fallback - použij URL přímo bez File objektu
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
@@ -532,21 +550,32 @@ const App: React.FC = () => {
     try {
       // Try JSON first
       let imageData = null;
+      const internalData = e.dataTransfer.getData('application/x-mulen-image');
       const jsonData = e.dataTransfer.getData('application/json');
 
-      if (jsonData) {
+      if (internalData) {
+        console.log('[Drop Style] Got internal data');
+        imageData = JSON.parse(internalData);
+      } else if (jsonData) {
         console.log('[Drop Style] Got JSON data:', jsonData);
         imageData = JSON.parse(jsonData);
       } else {
-        // Fallback to text/plain
-        const url = e.dataTransfer.getData('text/plain');
-        console.log('[Drop Style] Got text/plain data:', url);
-        if (url) {
-          imageData = {
-            url: url,
-            fileName: 'dropped-image.jpg',
-            fileType: 'image/jpeg'
-          };
+        const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
+        if (files.length > 0) {
+          const file = files[0];
+          const url = URL.createObjectURL(file);
+          console.log('[Drop Style] Got file drop:', file.name);
+          imageData = { url, fileName: file.name, fileType: file.type };
+        } else {
+          const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+          console.log('[Drop Style] Got text url:', url);
+          if (url) {
+            imageData = {
+              url: url,
+              fileName: 'dropped-image.jpg',
+              fileType: 'image/jpeg'
+            };
+          }
         }
       }
 
@@ -569,6 +598,10 @@ const App: React.FC = () => {
         const blob = await response.blob();
         const file = new File([blob], fileName, { type: fileType });
 
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
           url: url,
@@ -584,6 +617,9 @@ const App: React.FC = () => {
         console.log('[Drop Style] Image added successfully');
       } catch (fetchError) {
         console.error('[Drop Style] Failed to fetch image, using URL directly:', fetchError);
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
         // Fallback - použij URL přímo bez File objektu
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
