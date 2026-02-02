@@ -126,7 +126,7 @@ export async function runFluxKontextProEdit(params: {
   return await fetchAsDataUrl(url);
 }
 
-export async function runIpAdapterStyleTransfer(params: {
+export async function runProSdxlStyleTransfer(params: {
   token: string;
   contentImage: string;
   styleImage: string;
@@ -134,25 +134,31 @@ export async function runIpAdapterStyleTransfer(params: {
   negativePrompt?: string;
   cfgScale: number;
   denoise: number;
-  ipAdapterWeight: number;
+  steps: number;
   numOutputs: number;
+  width: number;
+  height: number;
+  styleOnly?: boolean;
   seed?: number;
 }): Promise<string[]> {
   const prediction = await runReplicatePrediction({
     token: params.token,
-    model: '7a904d90b4a018eeb8e47dd850470ef651a6f4563fa20dc8b62deb0f344cb13a',
+    model: 'replicategithubwc/pixelwave-sdxl:c4fc85b7603f36d5bd6e2169e72877ccd0a2b75e9ca64d08b8e4d24d8cd9e36a',
     input: {
       prompt: params.prompt,
       negative_prompt: params.negativePrompt || 'text, watermark, logo, blur, artifacts',
-      guidance_scale: params.cfgScale,
-      eta: 0,
+      image: params.contentImage,
+      image_prompt: params.styleImage,
+      prompt_mode: 'image_prompt',
+      image_prompt_method: params.styleOnly ? 'style_only' : 'style_and_layout',
+      guidance_scale: Math.max(0.1, Math.min(20, params.cfgScale)),
+      prompt_strength: Math.max(0.01, Math.min(1, params.denoise)),
+      num_inference_steps: Math.max(1, Math.min(150, Math.round(params.steps))),
+      num_outputs: Math.max(1, Math.min(4, params.numOutputs)),
+      width: params.width,
+      height: params.height,
+      scheduler: 'DPMSolverMultistep',
       seed: params.seed,
-      num_outputs: params.numOutputs,
-      img2img_image: params.contentImage,
-      img2img_strength: params.denoise,
-      ip_adapter_image: params.styleImage,
-      ip_adapter_weight: params.ipAdapterWeight,
-      disable_safety_check: false,
     },
     timeoutMs: 240_000,
   });
@@ -163,18 +169,11 @@ export async function runIpAdapterStyleTransfer(params: {
 
   const output = prediction.output as any;
   const urls = Array.isArray(output) ? output : [output];
-  const first = urls[0];
-  if (typeof first !== 'string' || first.length === 0) throw new Error('Replicate nevrátil URL obrázku.');
-
   const results: string[] = [];
   for (const u of urls) {
-    if (typeof u === 'string' && u.length > 0) {
-      results.push(await fetchAsDataUrl(u));
-    }
+    if (typeof u === 'string' && u.length > 0) results.push(await fetchAsDataUrl(u));
   }
-  if (results.length === 0) {
-    throw new Error('Replicate nevrátil žádný výstupní obrázek.');
-  }
+  if (results.length === 0) throw new Error('Replicate nevrátil žádný výstupní obrázek.');
   return results;
 }
 

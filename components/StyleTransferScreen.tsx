@@ -2,7 +2,7 @@ import React from 'react';
 import { AIProviderType, ImageInput, ProviderSettings } from '../services/aiProvider';
 import { ProviderFactory } from '../services/providerFactory';
 import { analyzeStyleTransferWithAI } from '../services/geminiService';
-import { runFluxKontextProEdit, runIpAdapterStyleTransfer } from '../services/replicateService';
+import { runFluxKontextProEdit, runProSdxlStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
 import { LoadingProgress } from './LoadingProgress';
@@ -32,10 +32,11 @@ export function StyleTransferScreen(props: {
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [useAgenticVision, setUseAgenticVision] = React.useState(true);
-  const [engine, setEngine] = React.useState<StyleTransferEngine>('gemini');
+  const [engine, setEngine] = React.useState<StyleTransferEngine>('replicate_pro_sdxl');
   const [cfgScale, setCfgScale] = React.useState(7);
   const [denoise, setDenoise] = React.useState(0.55);
-  const [ipAdapterWeight, setIpAdapterWeight] = React.useState(1);
+  const [steps, setSteps] = React.useState(30);
+  const [styleOnly, setStyleOnly] = React.useState(true);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
   const mountedRef = React.useRef(true);
@@ -241,25 +242,44 @@ export function StyleTransferScreen(props: {
         'Nevytvářej žádný text.'
       ].filter(Boolean).join('\n');
 
-      if (engine === 'replicate_ip_adapter') {
+      if (engine === 'replicate_pro_sdxl') {
         const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'replicate-content');
         const styleUrl = await ensureReplicateImageInput(style.dataUrl, 'replicate-style');
-        const ipWeight = Math.max(0, Math.min(2, ipAdapterWeight));
-        const prompt = [
-          'Apply the painting style from the style image to the content image.',
-          'Preserve the main subject and composition.',
+
+        const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve({ w: img.width, h: img.height });
+          img.onerror = () => reject(new Error('Nepodařilo se načíst Reference obrázek.'));
+          img.src = reference.dataUrl;
+        });
+
+        const maxSide = 1024;
+        const s = Math.min(1, maxSide / Math.max(dims.w, dims.h));
+        const round64 = (n: number) => Math.max(64, Math.round(n / 64) * 64);
+        const width = round64(dims.w * s);
+        const height = round64(dims.h * s);
+
+        const proPrompt = [
+          'High-quality style transfer.',
+          'Keep the subject identity and original composition from the input image.',
+          'Apply the painting style from the style reference image.',
+          `Style strength: ${strengthValue}/100.`,
           'No text.'
         ].join('\n');
-        const results = await runIpAdapterStyleTransfer({
+
+        const results = await runProSdxlStyleTransfer({
           token: replicateToken!,
           contentImage: contentUrl,
           styleImage: styleUrl,
-          prompt,
+          prompt: proPrompt,
           negativePrompt: negativeText,
           cfgScale,
           denoise,
-          ipAdapterWeight: ipWeight,
+          steps,
           numOutputs: variants,
+          width,
+          height,
+          styleOnly,
         });
 
         for (let i = 0; i < variants; i++) {
@@ -284,7 +304,8 @@ export function StyleTransferScreen(props: {
                 engine,
                 cfgScale,
                 denoise,
-                ipAdapterWeight: ipWeight,
+                steps,
+                styleOnly,
                 variant: i + 1,
                 variants
               }
@@ -370,7 +391,7 @@ export function StyleTransferScreen(props: {
     } finally {
       if (mountedRef.current) setIsGenerating(false);
     }
-  }, [analysis, cfgScale, denoise, engine, ensureReplicateImageInput, geminiKey, ipAdapterWeight, onOpenSettings, onToast, providerSettings, reference, replicateToken, strength, style, useAgenticVision, variants]);
+  }, [analysis, cfgScale, denoise, engine, ensureReplicateImageInput, geminiKey, onOpenSettings, onToast, providerSettings, reference, replicateToken, steps, strength, style, styleOnly, useAgenticVision, variants]);
 
   return (
     <>
@@ -395,8 +416,10 @@ export function StyleTransferScreen(props: {
         setCfgScale={setCfgScale}
         denoise={denoise}
         setDenoise={setDenoise}
-        ipAdapterWeight={ipAdapterWeight}
-        setIpAdapterWeight={setIpAdapterWeight}
+        steps={steps}
+        setSteps={setSteps}
+        styleOnly={styleOnly}
+        setStyleOnly={setStyleOnly}
         canAnalyze={canAnalyze}
         canGenerate={canGenerate}
         hasGeminiKey={engine === 'gemini' ? !!geminiKey : !!replicateToken}
@@ -438,8 +461,10 @@ export function StyleTransferScreen(props: {
                 setCfgScale={setCfgScale}
                 denoise={denoise}
                 setDenoise={setDenoise}
-                ipAdapterWeight={ipAdapterWeight}
-                setIpAdapterWeight={setIpAdapterWeight}
+                steps={steps}
+                setSteps={setSteps}
+                styleOnly={styleOnly}
+                setStyleOnly={setStyleOnly}
                 canAnalyze={canAnalyze}
                 canGenerate={canGenerate}
                 hasGeminiKey={engine === 'gemini' ? !!geminiKey : !!replicateToken}

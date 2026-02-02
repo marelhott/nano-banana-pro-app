@@ -11,7 +11,7 @@ export type StyleTransferAnalysis = {
   negativePrompt: string;
 };
 
-export type StyleTransferEngine = 'gemini' | 'replicate_flux_kontext_pro' | 'replicate_ip_adapter';
+export type StyleTransferEngine = 'replicate_pro_sdxl' | 'replicate_flux_kontext_pro' | 'gemini';
 
 export type OutputItem = {
   id: string;

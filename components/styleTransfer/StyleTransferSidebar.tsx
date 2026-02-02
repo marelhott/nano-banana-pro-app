@@ -25,8 +25,10 @@ export function StyleTransferSidebar(props: {
   setCfgScale: (v: number) => void;
   denoise: number;
   setDenoise: (v: number) => void;
-  ipAdapterWeight: number;
-  setIpAdapterWeight: (v: number) => void;
+  steps: number;
+  setSteps: (v: number) => void;
+  styleOnly: boolean;
+  setStyleOnly: (v: boolean) => void;
   canAnalyze: boolean;
   canGenerate: boolean;
   hasGeminiKey: boolean;
@@ -60,8 +62,10 @@ export function StyleTransferSidebar(props: {
     setCfgScale,
     denoise,
     setDenoise,
-    ipAdapterWeight,
-    setIpAdapterWeight,
+    steps,
+    setSteps,
+    styleOnly,
+    setStyleOnly,
     canAnalyze,
     canGenerate,
     hasGeminiKey,
@@ -235,9 +239,9 @@ export function StyleTransferSidebar(props: {
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Engine</div>
             <div className="flex p-1 rounded-lg control-surface">
               {([
-                { id: 'gemini', label: 'Gemini' },
+                { id: 'replicate_pro_sdxl', label: 'PRO' },
                 { id: 'replicate_flux_kontext_pro', label: 'FLUX' },
-                { id: 'replicate_ip_adapter', label: 'IP Adapter' },
+                { id: 'gemini', label: 'FLASH' },
               ] as const).map((opt) => (
                 <button
                   key={opt.id}
@@ -271,7 +275,7 @@ export function StyleTransferSidebar(props: {
             {!style && <div className="text-[9px] text-white/35">Nahraj stylový obrázek pro aktivaci.</div>}
           </div>
 
-          {engine === 'replicate_ip_adapter' && (
+          {engine === 'replicate_pro_sdxl' && (
             <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -281,7 +285,7 @@ export function StyleTransferSidebar(props: {
                 <input
                   type="range"
                   min={0.1}
-                  max={30}
+                  max={20}
                   step={0.1}
                   value={cfgScale}
                   onChange={(e) => setCfgScale(Number(e.target.value))}
@@ -307,18 +311,37 @@ export function StyleTransferSidebar(props: {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">IP Adapter Weight</div>
-                  <div className="text-[9px] font-black text-white/70">{ipAdapterWeight.toFixed(2)}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Steps</div>
+                  <div className="text-[9px] font-black text-white/70">{Math.round(steps)}</div>
                 </div>
                 <input
                   type="range"
-                  min={0}
-                  max={2}
-                  step={0.05}
-                  value={ipAdapterWeight}
-                  onChange={(e) => setIpAdapterWeight(Number(e.target.value))}
+                  min={10}
+                  max={80}
+                  step={1}
+                  value={steps}
+                  onChange={(e) => setSteps(Number(e.target.value))}
                   className="w-full accent-[#7ed957]"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Style Only</div>
+                  <button
+                    type="button"
+                    onClick={() => setStyleOnly(!styleOnly)}
+                    className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${styleOnly
+                      ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25'
+                      : 'bg-white/5 text-white/50 border border-white/10'
+                      }`}
+                  >
+                    {styleOnly ? 'On' : 'Off'}
+                  </button>
+                </div>
+                <div className="text-[9px] text-white/35 leading-relaxed">
+                  Zapnuto = bere jen styl (barvy/štětec). Vypnuto = může kopírovat i layout ze stylové předlohy.
+                </div>
               </div>
             </div>
           )}
