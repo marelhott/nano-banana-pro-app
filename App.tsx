@@ -125,6 +125,7 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isGalleryExpanded, setIsGalleryExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
@@ -228,6 +229,15 @@ const App: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!isGalleryExpanded) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsGalleryExpanded(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isGalleryExpanded]);
 
   // Auto-expand prompt textarea
   useEffect(() => {
@@ -2892,6 +2902,7 @@ ${extra}
         </div >
 
         {/* Right Sidebar - Sliding Library */}
+        {!isGalleryExpanded && (
         < div
           className={`absolute right-0 top-0 bottom-0 z-50 w-[85vw] sm:w-[340px] transition-transform duration-300 ease-in-out border-l border-white/5 bg-[var(--bg-card)] flex flex-col h-full shadow-2xl group ${isHoveringGallery ? 'translate-x-0' : 'translate-x-[calc(100%-20px)]'}`}
           onMouseEnter={() => setIsHoveringGallery(true)}
@@ -2902,6 +2913,20 @@ ${extra}
               <div className="w-1 h-4 bg-[#7ed957] rounded-full"></div>
               <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-300">Knihovna Obrázků</h2>
             </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsGalleryExpanded(true);
+              }}
+              className="p-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all"
+              title="Rozbalit"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V6a2 2 0 012-2h2M20 8V6a2 2 0 00-2-2h-2M4 16v2a2 2 0 002 2h2M20 16v2a2 2 0 01-2 2h-2" />
+              </svg>
+            </button>
           </div>
           <div className={`flex-1 overflow-y-auto p-4 custom-scrollbar transition-opacity duration-300 delay-100 ${isHoveringGallery ? 'opacity-100' : 'opacity-0'}`}>
             <ImageGalleryPanel
@@ -2917,6 +2942,41 @@ ${extra}
             <div className="w-1 h-8 bg-gray-700/50 rounded-full"></div>
           </div>
         </div >
+        )}
+
+        {isGalleryExpanded && (
+          <div
+            className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm"
+            onClick={() => setIsGalleryExpanded(false)}
+          >
+            <div
+              className="absolute inset-4 sm:inset-6 bg-[var(--bg-card)] border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-white/10 bg-[#0f1512] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-4 bg-[#7ed957] rounded-full"></div>
+                  <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-300">Knihovna Obrázků</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsGalleryExpanded(false)}
+                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all text-[10px] font-bold uppercase tracking-widest"
+                >
+                  Zpět
+                </button>
+              </div>
+              <div className="flex-1 min-h-0">
+                <ImageGalleryPanel
+                  onDragStart={(imageData, type) => {
+                    console.log('[Drag] Started from gallery:', type, imageData);
+                  }}
+                  onBatchProcess={handleBatchProcess}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div >
 
       <ImageComparisonModal
