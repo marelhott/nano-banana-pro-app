@@ -483,7 +483,16 @@ Vrať POUZE validní JSON bez markdownu v tomto tvaru:
     temperature: 0.2,
     maxOutputTokens: 2048,
   };
-  if (options?.mediaResolution) config.mediaResolution = options.mediaResolution;
+
+  if (options?.mediaResolution) {
+    const mr = String(options.mediaResolution).toLowerCase();
+    const mapped =
+      mr === 'high' ? 'MEDIA_RESOLUTION_HIGH' :
+      mr === 'medium' ? 'MEDIA_RESOLUTION_MEDIUM' :
+      mr === 'low' ? 'MEDIA_RESOLUTION_LOW' :
+      mr;
+    config.mediaResolution = mapped;
+  }
   if (options?.agenticVision) config.tools = [{ codeExecution: {} }];
 
   const response = await ai.models.generateContent({

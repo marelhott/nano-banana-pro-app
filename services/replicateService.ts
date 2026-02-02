@@ -93,6 +93,39 @@ export async function runFluxKontextProMultiImage(params: {
   return await fetchAsDataUrl(url);
 }
 
+export async function runFluxKontextProEdit(params: {
+  token: string;
+  inputImage: string;
+  prompt: string;
+  seed?: number;
+  aspect_ratio?: string;
+}): Promise<string> {
+  const prediction = await runReplicatePrediction({
+    token: params.token,
+    model: 'black-forest-labs/flux-kontext-pro',
+    input: {
+      prompt: params.prompt,
+      input_image: params.inputImage,
+      seed: params.seed,
+      aspect_ratio: params.aspect_ratio || 'match_input_image',
+      output_format: 'png',
+      safety_tolerance: 2,
+      prompt_upsampling: false,
+    },
+  });
+
+  if (prediction.status !== 'succeeded') {
+    throw new Error(prediction.error || 'Replicate generování selhalo.');
+  }
+
+  const output = prediction.output as any;
+  const url = Array.isArray(output) ? output[0] : output;
+  if (typeof url !== 'string' || url.length === 0) {
+    throw new Error('Replicate nevrátil URL obrázku.');
+  }
+  return await fetchAsDataUrl(url);
+}
+
 export async function runIpAdapterStyleTransfer(params: {
   token: string;
   contentImage: string;
@@ -138,6 +171,9 @@ export async function runIpAdapterStyleTransfer(params: {
     if (typeof u === 'string' && u.length > 0) {
       results.push(await fetchAsDataUrl(u));
     }
+  }
+  if (results.length === 0) {
+    throw new Error('Replicate nevrátil žádný výstupní obrázek.');
   }
   return results;
 }

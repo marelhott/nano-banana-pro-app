@@ -2,10 +2,11 @@ import React from 'react';
 import { AIProviderType, ImageInput, ProviderSettings } from '../services/aiProvider';
 import { ProviderFactory } from '../services/providerFactory';
 import { analyzeStyleTransferWithAI } from '../services/geminiService';
-import { runFluxKontextProMultiImage, runIpAdapterStyleTransfer } from '../services/replicateService';
+import { runFluxKontextProEdit, runIpAdapterStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
 import { LoadingProgress } from './LoadingProgress';
+import { ImageDatabase } from '../utils/imageDatabase';
 import { StyleTransferSidebar } from './styleTransfer/StyleTransferSidebar';
 import { StyleTransferMobileControls } from './styleTransfer/StyleTransferMobileControls';
 import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
@@ -116,12 +117,21 @@ export function StyleTransferScreen(props: {
   const setReferenceFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
     setReference({ file, dataUrl });
+    setAnalysis(null);
+    try {
+      await ImageDatabase.add(file, dataUrl, 'reference');
+    } catch {
+    }
   }, []);
 
   const setStyleFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
     setStyle({ file, dataUrl });
     setAnalysis(null);
+    try {
+      await ImageDatabase.add(file, dataUrl, 'style');
+    } catch {
+    }
   }, []);
 
   const clearReference = React.useCallback(() => {
@@ -254,7 +264,10 @@ export function StyleTransferScreen(props: {
 
         for (let i = 0; i < variants; i++) {
           const url = results[i];
-          if (!url) continue;
+          if (!url) {
+            setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'error', error: 'Replicate nevrátil výstup.' }) : p));
+            continue;
+          }
           const thumb = await createThumbnail(url, 420);
           try {
             await saveToGallery({
@@ -290,20 +303,35 @@ export function StyleTransferScreen(props: {
               url = res.imageBase64;
             } else {
               const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'replicate-content');
-              const styleUrl = await ensureReplicateImageInput(style.dataUrl, 'replicate-style');
               const strengthLabel = strengthValue <= 33 ? 'subtle' : strengthValue <= 66 ? 'medium' : 'strong';
-              const replicatePrompt = [
-                'Use image 1 as the content reference.',
-                'Use image 2 as the style reference (palette, brushwork, texture, shading).',
-                'Preserve the composition and identity from image 1.',
+
+              let styleTraits = styleDesc;
+              let negativeTraits = negative;
+              if (!styleTraits) {
+                if (!geminiKey) {
+                  throw new Error('Pro FLUX engine je potřeba Gemini klíč pro analýzu stylu.');
+                }
+                const res = await analyzeStyleTransferWithAI(reference.dataUrl, style.dataUrl, geminiKey, {
+                  agenticVision: true,
+                  mediaResolution: 'high',
+                });
+                styleTraits = res.styleDescription?.trim();
+                negativeTraits = res.negativePrompt?.trim();
+              }
+
+              const fluxPrompt = [
+                'Restyle this image to match the painting style described below (derived from a reference painting).',
+                styleTraits ? `Style traits: ${styleTraits}` : '',
                 `Style strength: ${strengthValue}/100 (${strengthLabel}).`,
+                'Preserve the subject identity and the original composition.',
+                negativeTraits ? `Avoid: ${negativeTraits}` : 'Avoid: text, watermark, logo, blur, artifacts.',
                 'Do not add any text.'
-              ].join('\n');
-              url = await runFluxKontextProMultiImage({
+              ].filter(Boolean).join('\n');
+
+              url = await runFluxKontextProEdit({
                 token: replicateToken!,
-                image1: contentUrl,
-                image2: styleUrl,
-                prompt: replicatePrompt,
+                inputImage: contentUrl,
+                prompt: fluxPrompt,
                 aspect_ratio: 'match_input_image'
               });
             }
