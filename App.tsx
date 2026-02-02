@@ -56,7 +56,8 @@ const App: React.FC = () => {
   // AI Provider state
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType>(AIProviderType.GEMINI);
   const [providerSettings, setProviderSettings] = useState<ProviderSettings>({
-    [AIProviderType.GEMINI]: { apiKey: process.env.API_KEY || '', enabled: true }
+    [AIProviderType.GEMINI]: { apiKey: process.env.API_KEY || '', enabled: true },
+    [AIProviderType.REPLICATE]: { apiKey: '', enabled: false }
   });
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);

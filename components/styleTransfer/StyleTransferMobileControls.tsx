@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Sparkles, Wand2 } from 'lucide-react';
-import type { ImageSlot, StyleTransferAnalysis } from './utils';
+import type { ImageSlot, StyleTransferAnalysis, StyleTransferEngine } from './utils';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -19,6 +19,14 @@ export function StyleTransferMobileControls(props: {
   isGenerating: boolean;
   useAgenticVision: boolean;
   setUseAgenticVision: (v: boolean) => void;
+  engine: StyleTransferEngine;
+  setEngine: (v: StyleTransferEngine) => void;
+  cfgScale: number;
+  setCfgScale: (v: number) => void;
+  denoise: number;
+  setDenoise: (v: number) => void;
+  ipAdapterWeight: number;
+  setIpAdapterWeight: (v: number) => void;
   canAnalyze: boolean;
   canGenerate: boolean;
   hasGeminiKey: boolean;
@@ -46,6 +54,14 @@ export function StyleTransferMobileControls(props: {
     isGenerating,
     useAgenticVision,
     setUseAgenticVision,
+    engine,
+    setEngine,
+    cfgScale,
+    setCfgScale,
+    denoise,
+    setDenoise,
+    ipAdapterWeight,
+    setIpAdapterWeight,
     canAnalyze,
     canGenerate,
     hasGeminiKey,
@@ -190,6 +206,29 @@ export function StyleTransferMobileControls(props: {
       </div>
 
       <div className="space-y-2">
+        <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Engine</div>
+        <div className="flex p-1 rounded-lg control-surface">
+          {([
+            { id: 'gemini', label: 'Gemini' },
+            { id: 'replicate_flux_kontext_pro', label: 'FLUX' },
+            { id: 'replicate_ip_adapter', label: 'IP Adapter' },
+          ] as const).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setEngine(opt.id)}
+              className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${engine === opt.id
+                ? 'bg-white/10 text-white shadow-sm'
+                : 'text-white/40 hover:text-white/70'
+                }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Síla stylu</div>
           <div className="text-[9px] font-black text-white/70">{Math.round(strength)}%</div>
@@ -204,6 +243,58 @@ export function StyleTransferMobileControls(props: {
           className="w-full accent-[#7ed957] disabled:opacity-40"
         />
       </div>
+
+      {engine === 'replicate_ip_adapter' && (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">CFG Scale</div>
+              <div className="text-[9px] font-black text-white/70">{cfgScale.toFixed(1)}</div>
+            </div>
+            <input
+              type="range"
+              min={0.1}
+              max={30}
+              step={0.1}
+              value={cfgScale}
+              onChange={(e) => setCfgScale(Number(e.target.value))}
+              className="w-full accent-[#7ed957]"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Denoise</div>
+              <div className="text-[9px] font-black text-white/70">{denoise.toFixed(2)}</div>
+            </div>
+            <input
+              type="range"
+              min={0.1}
+              max={0.99}
+              step={0.01}
+              value={denoise}
+              onChange={(e) => setDenoise(Number(e.target.value))}
+              className="w-full accent-[#7ed957]"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">IP Adapter Weight</div>
+              <div className="text-[9px] font-black text-white/70">{ipAdapterWeight.toFixed(2)}</div>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.05}
+              value={ipAdapterWeight}
+              onChange={(e) => setIpAdapterWeight(Number(e.target.value))}
+              className="w-full accent-[#7ed957]"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Počet výstupů</div>
@@ -224,6 +315,7 @@ export function StyleTransferMobileControls(props: {
         </div>
       </div>
 
+      {engine === 'gemini' && (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Agentic Vision</div>
@@ -242,6 +334,7 @@ export function StyleTransferMobileControls(props: {
           Zlepší analýzu detailů a přidá stylové výřezy jako reference.
         </div>
       </div>
+      )}
 
       <button
         type="button"

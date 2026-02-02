@@ -2,14 +2,17 @@ import React from 'react';
 import { AIProviderType, ImageInput, ProviderSettings } from '../services/aiProvider';
 import { ProviderFactory } from '../services/providerFactory';
 import { analyzeStyleTransferWithAI } from '../services/geminiService';
+import { runFluxKontextProMultiImage, runIpAdapterStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
+import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
 import { StyleTransferSidebar } from './styleTransfer/StyleTransferSidebar';
 import { StyleTransferMobileControls } from './styleTransfer/StyleTransferMobileControls';
 import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
 import { createStylePatches, downloadDataUrl, fileToDataUrl, getDataUrlMime, resolveDropToFile } from './styleTransfer/utils';
-import type { ImageSlot, OutputItem, StyleTransferAnalysis } from './styleTransfer/utils';
+import type { ImageSlot, OutputItem, StyleTransferAnalysis, StyleTransferEngine } from './styleTransfer/utils';
 
 type ToastType = 'success' | 'error' | 'info';
+
 
 export function StyleTransferScreen(props: {
   providerSettings: ProviderSettings;
@@ -27,6 +30,10 @@ export function StyleTransferScreen(props: {
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [useAgenticVision, setUseAgenticVision] = React.useState(true);
+  const [engine, setEngine] = React.useState<StyleTransferEngine>('gemini');
+  const [cfgScale, setCfgScale] = React.useState(7);
+  const [denoise, setDenoise] = React.useState(0.55);
+  const [ipAdapterWeight, setIpAdapterWeight] = React.useState(1);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
   const mountedRef = React.useRef(true);
@@ -40,8 +47,20 @@ export function StyleTransferScreen(props: {
 
   const marginRight = isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0';
   const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey?.trim();
-  const canAnalyze = !!reference && !!style && !!geminiKey && !isAnalyzing && !isGenerating;
-  const canGenerate = !!reference && !!style && !!geminiKey && !isGenerating;
+  const replicateToken = providerSettings[AIProviderType.REPLICATE]?.apiKey?.trim();
+  const canAnalyze = engine === 'gemini' && !!reference && !!style && !!geminiKey && !isAnalyzing && !isGenerating;
+  const canGenerate = !!reference && !!style && (engine === 'gemini' ? !!geminiKey : !!replicateToken) && !isGenerating;
+
+  const replicateUrlCacheRef = React.useRef<Map<string, string>>(new Map());
+  const ensurePublicImageUrl = React.useCallback(async (dataUrl: string, cacheKey: string) => {
+    const cached = replicateUrlCacheRef.current.get(cacheKey);
+    if (cached) return cached;
+    const blob = await dataUrlToBlob(dataUrl);
+    const path = await uploadImage(blob, 'generated');
+    const url = getPublicUrl(path);
+    replicateUrlCacheRef.current.set(cacheKey, url);
+    return url;
+  }, []);
 
   const setReferenceFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
@@ -99,19 +118,29 @@ export function StyleTransferScreen(props: {
 
   const handleGenerate = React.useCallback(async () => {
     if (!reference || !style) return;
-    if (!geminiKey) {
-      onToast({ message: 'Chybí Gemini API klíč. Nastav ho v Settings.', type: 'error' });
-      onOpenSettings();
-      return;
+    if (engine === 'gemini') {
+      if (!geminiKey) {
+        onToast({ message: 'Chybí Gemini API klíč. Nastav ho v Settings.', type: 'error' });
+        onOpenSettings();
+        return;
+      }
+    } else {
+      if (!replicateToken) {
+        onToast({ message: 'Chybí Replicate API token. Nastav ho v Settings.', type: 'error' });
+        onOpenSettings();
+        return;
+      }
     }
 
-    let provider;
-    try {
-      provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
-    } catch {
-      onToast({ message: 'Gemini provider není nakonfigurovaný.', type: 'error' });
-      onOpenSettings();
-      return;
+    let provider: any = null;
+    if (engine === 'gemini') {
+      try {
+        provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
+      } catch {
+        onToast({ message: 'Gemini provider není nakonfigurovaný.', type: 'error' });
+        onOpenSettings();
+        return;
+      }
     }
 
     const refMime = getDataUrlMime(reference.dataUrl);
@@ -137,6 +166,8 @@ export function StyleTransferScreen(props: {
 
     const outputIds = Array.from({ length: variants }).map((_, i) => `st-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`);
     setOutputs(outputIds.map((id) => ({ id, status: 'loading' })));
+
+      const negativeText = negative ? `${negative}` : 'text, watermark, logo, blur, artifacts';
     setIsGenerating(true);
 
     try {
@@ -150,11 +181,30 @@ export function StyleTransferScreen(props: {
         'Nevytvářej žádný text.'
       ].filter(Boolean).join('\n');
 
-      for (let i = 0; i < variants; i++) {
-        const variantPrompt = `${basePrompt}\nVarianta: ${i + 1}/${variants}.`;
-        try {
-          const res = await provider.generateImage(images, variantPrompt, '1K', 'Original', false);
-          const url = res.imageBase64;
+      if (engine === 'replicate_ip_adapter') {
+        const contentUrl = await ensurePublicImageUrl(reference.dataUrl, 'replicate-content');
+        const styleUrl = await ensurePublicImageUrl(style.dataUrl, 'replicate-style');
+        const ipWeight = Math.max(0, Math.min(2, ipAdapterWeight));
+        const prompt = [
+          'Apply the painting style from the style image to the content image.',
+          'Preserve the main subject and composition.',
+          'No text.'
+        ].join('\n');
+        const results = await runIpAdapterStyleTransfer({
+          token: replicateToken!,
+          contentImage: contentUrl,
+          styleImage: styleUrl,
+          prompt,
+          negativePrompt: negativeText,
+          cfgScale,
+          denoise,
+          ipAdapterWeight: ipWeight,
+          numOutputs: variants,
+        });
+
+        for (let i = 0; i < variants; i++) {
+          const url = results[i];
+          if (!url) continue;
           const thumb = await createThumbnail(url, 420);
           try {
             await saveToGallery({
@@ -168,6 +218,10 @@ export function StyleTransferScreen(props: {
                 strength: strengthValue,
                 styleDescription: styleDesc || null,
                 negativePrompt: negative || null,
+                engine,
+                cfgScale,
+                denoise,
+                ipAdapterWeight: ipWeight,
                 variant: i + 1,
                 variants
               }
@@ -175,8 +229,58 @@ export function StyleTransferScreen(props: {
           } catch {
           }
           setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'success', url }) : p));
-        } catch (e: any) {
-          setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' }) : p));
+        }
+      } else {
+        for (let i = 0; i < variants; i++) {
+          const variantPrompt = `${basePrompt}\nVarianta: ${i + 1}/${variants}.`;
+          try {
+            let url: string;
+            if (engine === 'gemini') {
+              const res = await provider.generateImage(images, variantPrompt, '1K', 'Original', false);
+              url = res.imageBase64;
+            } else {
+              const contentUrl = await ensurePublicImageUrl(reference.dataUrl, 'replicate-content');
+              const styleUrl = await ensurePublicImageUrl(style.dataUrl, 'replicate-style');
+              const strengthLabel = strengthValue <= 33 ? 'subtle' : strengthValue <= 66 ? 'medium' : 'strong';
+              const replicatePrompt = [
+                'Use image 1 as the content reference.',
+                'Use image 2 as the style reference (palette, brushwork, texture, shading).',
+                'Preserve the composition and identity from image 1.',
+                `Style strength: ${strengthValue}/100 (${strengthLabel}).`,
+                'Do not add any text.'
+              ].join('\n');
+              url = await runFluxKontextProMultiImage({
+                token: replicateToken!,
+                image1: contentUrl,
+                image2: styleUrl,
+                prompt: replicatePrompt,
+                aspect_ratio: 'match_input_image'
+              });
+            }
+            const thumb = await createThumbnail(url, 420);
+            try {
+              await saveToGallery({
+                url,
+                thumbnail: thumb,
+                prompt: `Style Transfer | strength=${strengthValue}`,
+                resolution: '1K',
+                aspectRatio: 'Original',
+                params: {
+                  mode: 'style-transfer',
+                  strength: strengthValue,
+                  styleDescription: styleDesc || null,
+                  negativePrompt: negative || null,
+                  engine,
+                  variant: i + 1,
+                  variants
+                }
+              });
+            } catch {
+            }
+            setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'success', url }) : p));
+          } catch (e: any) {
+            setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' }) : p));
+          }
         }
       }
 
@@ -184,7 +288,7 @@ export function StyleTransferScreen(props: {
     } finally {
       if (mountedRef.current) setIsGenerating(false);
     }
-  }, [analysis, geminiKey, onOpenSettings, onToast, providerSettings, reference, strength, style, useAgenticVision, variants]);
+  }, [analysis, cfgScale, denoise, engine, ensurePublicImageUrl, geminiKey, ipAdapterWeight, onOpenSettings, onToast, providerSettings, reference, replicateToken, strength, style, useAgenticVision, variants]);
 
   return (
     <>
@@ -203,9 +307,17 @@ export function StyleTransferScreen(props: {
         isGenerating={isGenerating}
         useAgenticVision={useAgenticVision}
         setUseAgenticVision={setUseAgenticVision}
+        engine={engine}
+        setEngine={setEngine}
+        cfgScale={cfgScale}
+        setCfgScale={setCfgScale}
+        denoise={denoise}
+        setDenoise={setDenoise}
+        ipAdapterWeight={ipAdapterWeight}
+        setIpAdapterWeight={setIpAdapterWeight}
         canAnalyze={canAnalyze}
         canGenerate={canGenerate}
-        hasGeminiKey={!!geminiKey}
+        hasGeminiKey={engine === 'gemini' ? !!geminiKey : !!replicateToken}
         onAnalyze={handleAnalyze}
         onGenerate={handleGenerate}
         onSetReferenceFromFile={setReferenceFromFile}
@@ -238,9 +350,17 @@ export function StyleTransferScreen(props: {
                 isGenerating={isGenerating}
                 useAgenticVision={useAgenticVision}
                 setUseAgenticVision={setUseAgenticVision}
+                engine={engine}
+                setEngine={setEngine}
+                cfgScale={cfgScale}
+                setCfgScale={setCfgScale}
+                denoise={denoise}
+                setDenoise={setDenoise}
+                ipAdapterWeight={ipAdapterWeight}
+                setIpAdapterWeight={setIpAdapterWeight}
                 canAnalyze={canAnalyze}
                 canGenerate={canGenerate}
-                hasGeminiKey={!!geminiKey}
+                hasGeminiKey={engine === 'gemini' ? !!geminiKey : !!replicateToken}
                 onAnalyze={handleAnalyze}
                 onGenerate={handleGenerate}
                 onSetReferenceFromFile={setReferenceFromFile}

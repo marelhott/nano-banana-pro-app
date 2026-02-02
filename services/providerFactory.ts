@@ -2,6 +2,7 @@ import { AIProvider, AIProviderType, ProviderSettings } from './aiProvider';
 import { GeminiProvider } from './geminiService';
 import { GrokProvider } from './grokService';
 import { ChatGPTProvider } from './chatgptService';
+import { ReplicateProvider } from './replicateService';
 
 /**
  * Factory for creating AI provider instances
@@ -25,6 +26,8 @@ export class ProviderFactory {
                 return new GrokProvider(apiKey);
             case AIProviderType.CHATGPT:
                 return new ChatGPTProvider(apiKey);
+            case AIProviderType.REPLICATE:
+                return new ReplicateProvider(apiKey);
             default:
                 throw new Error(`Unknown provider type: ${type}`);
         }
@@ -79,6 +82,8 @@ export class ProviderFactory {
             case AIProviderType.CHATGPT:
                 // OpenAI keys start with "sk-"
                 return apiKey.startsWith('sk-') && apiKey.length > 20;
+            case AIProviderType.REPLICATE:
+                return apiKey.length > 20;
             default:
                 return false;
         }

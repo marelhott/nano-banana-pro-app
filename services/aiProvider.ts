@@ -6,7 +6,8 @@
 export enum AIProviderType {
     GEMINI = 'gemini',
     GROK = 'grok',
-    CHATGPT = 'chatgpt'
+    CHATGPT = 'chatgpt',
+    REPLICATE = 'replicate'
 }
 
 export interface ImageInput {
@@ -28,6 +29,7 @@ export interface ProviderSettings {
     [AIProviderType.GEMINI]?: ProviderConfig;
     [AIProviderType.GROK]?: ProviderConfig;
     [AIProviderType.CHATGPT]?: ProviderConfig;
+    [AIProviderType.REPLICATE]?: ProviderConfig;
 }
 
 /**
@@ -102,5 +104,13 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
         requiresApiKey: true,
         supportsGrounding: false,
         maxImages: 1
+    },
+    [AIProviderType.REPLICATE]: {
+        type: AIProviderType.REPLICATE,
+        name: 'Replicate',
+        icon: 'replicate',
+        requiresApiKey: true,
+        supportsGrounding: false,
+        maxImages: 2
     }
 };

@@ -11,6 +11,8 @@ export type StyleTransferAnalysis = {
   negativePrompt: string;
 };
 
+export type StyleTransferEngine = 'gemini' | 'replicate_flux_kontext_pro' | 'replicate_ip_adapter';
+
 export type OutputItem = {
   id: string;
   url?: string;
