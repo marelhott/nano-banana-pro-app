@@ -83,20 +83,6 @@ export const LoadingProgress: React.FC<LoadingProgressProps> = ({
           </div>
         </div>
 
-        {/* Status indicators */}
-        <div className="grid grid-cols-5 gap-1">
-          {Array.from({ length: total }).map((_, index) => (
-            <div
-              key={index}
-              className={`h-1 rounded-full transition-all ${index < current
-                  ? 'bg-[#7ed957]'
-                  : index === current
-                    ? 'bg-[#7ed957]/50 animate-pulse'
-                    : 'bg-gray-800'
-                }`}
-            />
-          ))}
-        </div>
       </div>
     </div>
   );
