@@ -5,7 +5,6 @@ import { analyzeStyleTransferWithAI } from '../services/geminiService';
 import { runFluxKontextProEdit, runProSdxlStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
-import { LoadingProgress } from './LoadingProgress';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { StyleTransferSidebar } from './styleTransfer/StyleTransferSidebar';
 import { StyleTransferMobileControls } from './styleTransfer/StyleTransferMobileControls';
@@ -499,10 +498,6 @@ export function StyleTransferScreen(props: {
           </div>
         </div>
       </div>
-
-      {isGenerating && outputs.length > 0 && (
-        <LoadingProgress current={completedCount} total={outputs.length} estimatedTimePerImage={12} />
-      )}
 
       {lightboxUrl && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/95 backdrop-blur-md p-4" onClick={() => setLightboxUrl(null)}>

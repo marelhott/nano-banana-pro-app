@@ -162,10 +162,11 @@ export function StyleTransferSidebar(props: {
                   accept="image/*"
                   className="hidden"
                   onChange={async (e) => {
+                    const inputEl = e.currentTarget;
                     const f = e.target.files?.[0];
                     if (!f) return;
                     await onSetReferenceFromFile(f);
-                    e.currentTarget.value = '';
+                    inputEl.value = '';
                   }}
                 />
               </div>
@@ -221,10 +222,11 @@ export function StyleTransferSidebar(props: {
                   accept="image/*"
                   className="hidden"
                   onChange={async (e) => {
+                    const inputEl = e.currentTarget;
                     const f = e.target.files?.[0];
                     if (!f) return;
                     await onSetStyleFromFile(f);
-                    e.currentTarget.value = '';
+                    inputEl.value = '';
                   }}
                 />
               </div>
