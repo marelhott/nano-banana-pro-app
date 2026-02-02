@@ -5,6 +5,7 @@ import { analyzeStyleTransferWithAI } from '../services/geminiService';
 import { runFluxKontextProMultiImage, runIpAdapterStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
+import { LoadingProgress } from './LoadingProgress';
 import { StyleTransferSidebar } from './styleTransfer/StyleTransferSidebar';
 import { StyleTransferMobileControls } from './styleTransfer/StyleTransferMobileControls';
 import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
@@ -50,6 +51,10 @@ export function StyleTransferScreen(props: {
   const replicateToken = providerSettings[AIProviderType.REPLICATE]?.apiKey?.trim();
   const canAnalyze = engine === 'gemini' && !!reference && !!style && !!geminiKey && !isAnalyzing && !isGenerating;
   const canGenerate = !!reference && !!style && (engine === 'gemini' ? !!geminiKey : !!replicateToken) && !isGenerating;
+
+  const completedCount = React.useMemo(() => {
+    return outputs.filter((o) => o.status === 'success').length;
+  }, [outputs]);
 
   const replicateUrlCacheRef = React.useRef<Map<string, string>>(new Map());
   const ensurePublicImageUrl = React.useCallback(async (dataUrl: string, cacheKey: string) => {
@@ -392,6 +397,10 @@ export function StyleTransferScreen(props: {
           </div>
         </div>
       </div>
+
+      {isGenerating && outputs.length > 0 && (
+        <LoadingProgress current={completedCount} total={outputs.length} estimatedTimePerImage={12} />
+      )}
 
       {lightboxUrl && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/95 backdrop-blur-md p-4" onClick={() => setLightboxUrl(null)}>

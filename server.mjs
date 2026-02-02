@@ -50,6 +50,56 @@ async function start() {
 
   const app = express()
 
+  app.use(express.json({ limit: '2mb' }))
+
+  app.post('/api/replicate/predictions', async (req, res) => {
+    try {
+      const { token, version, input } = req.body || {}
+      if (!token || typeof token !== 'string') {
+        return res.status(400).json({ error: 'Missing Replicate token' })
+      }
+      if (!version || typeof version !== 'string') {
+        return res.status(400).json({ error: 'Missing Replicate model/version' })
+      }
+      const upstream = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Prefer: 'wait=60',
+        },
+        body: JSON.stringify({ version, input: input || {} }),
+      })
+
+      const text = await upstream.text()
+      res.status(upstream.status)
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
+      return res.send(text)
+    } catch (err) {
+      return res.status(500).json({ error: 'Replicate proxy failed' })
+    }
+  })
+
+  app.get('/api/replicate/predictions/:id', async (req, res) => {
+    try {
+      const token = req.header('x-replicate-token')
+      if (!token) return res.status(400).json({ error: 'Missing Replicate token' })
+      const id = req.params.id
+      const upstream = await fetch(`https://api.replicate.com/v1/predictions/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      const text = await upstream.text()
+      res.status(upstream.status)
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
+      return res.send(text)
+    } catch {
+      return res.status(500).json({ error: 'Replicate proxy failed' })
+    }
+  })
+
   const workflowTarget = `http://localhost:${WORKFLOW_PORT}`
 
   app.use(

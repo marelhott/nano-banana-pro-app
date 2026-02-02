@@ -35,28 +35,22 @@ export async function runReplicatePrediction(params: {
   const { token, model, input, timeoutMs = 120_000 } = params;
   const start = Date.now();
 
-  const createRes = await fetch('https://api.replicate.com/v1/predictions', {
+  const createRes = await fetch('/api/replicate/predictions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      Prefer: 'wait=60',
     },
-    body: JSON.stringify({ version: model, input }),
+    body: JSON.stringify({ token, version: model, input }),
   });
 
   assertOk(createRes, 'Replicate request selhal');
   let prediction = (await createRes.json()) as ReplicatePrediction;
 
   while (prediction.status === 'starting' || prediction.status === 'processing') {
-    if (!prediction.urls?.get) throw new Error('Replicate nevrátil URL pro polling.');
     if (Date.now() - start > timeoutMs) throw new Error('Replicate generování trvá příliš dlouho.');
     await new Promise((r) => setTimeout(r, 1200));
-    const pollRes = await fetch(prediction.urls.get, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+    const pollRes = await fetch(`/api/replicate/predictions/${prediction.id}`, {
+      headers: { 'x-replicate-token': token },
     });
     assertOk(pollRes, 'Replicate polling selhal');
     prediction = (await pollRes.json()) as ReplicatePrediction;
