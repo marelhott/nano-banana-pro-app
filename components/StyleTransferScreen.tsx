@@ -144,14 +144,30 @@ export function StyleTransferScreen(props: {
   }, []);
 
   const dropToReference = React.useCallback(async (e: React.DragEvent) => {
-    const f = await resolveDropToFile(e);
-    if (f) await setReferenceFromFile(f);
-  }, [setReferenceFromFile]);
+    try {
+      const f = await resolveDropToFile(e);
+      if (!f) {
+        onToast({ message: 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
+        return;
+      }
+      await setReferenceFromFile(f);
+    } catch (err: any) {
+      onToast({ message: err?.message || 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
+    }
+  }, [onToast, setReferenceFromFile]);
 
   const dropToStyle = React.useCallback(async (e: React.DragEvent) => {
-    const f = await resolveDropToFile(e);
-    if (f) await setStyleFromFile(f);
-  }, [setStyleFromFile]);
+    try {
+      const f = await resolveDropToFile(e);
+      if (!f) {
+        onToast({ message: 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
+        return;
+      }
+      await setStyleFromFile(f);
+    } catch (err: any) {
+      onToast({ message: err?.message || 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
+    }
+  }, [onToast, setStyleFromFile]);
 
   const handleAnalyze = React.useCallback(async () => {
     if (!reference || !style) return;
@@ -178,7 +194,10 @@ export function StyleTransferScreen(props: {
   }, [geminiKey, onOpenSettings, onToast, reference, style, useAgenticVision]);
 
   const handleGenerate = React.useCallback(async () => {
-    if (!reference || !style) return;
+    if (!reference || !style) {
+      onToast({ message: 'Nahraj Reference + Styl.', type: 'error' });
+      return;
+    }
     if (engine === 'gemini') {
       if (!geminiKey) {
         onToast({ message: 'Chybí Gemini API klíč. Nastav ho v Settings.', type: 'error' });

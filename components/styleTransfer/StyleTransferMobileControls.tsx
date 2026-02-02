@@ -378,7 +378,7 @@ export function StyleTransferMobileControls(props: {
       <button
         type="button"
         onClick={onGenerate}
-        disabled={!canGenerate}
+        disabled={isGenerating}
         className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
       >
         {isGenerating ? 'Generuji…' : 'Generovat'}
