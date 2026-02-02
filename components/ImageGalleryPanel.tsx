@@ -76,7 +76,28 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
   };
 
   const clearSelection = () => {
-    setSelectedImages(new Set());
+    setSelectedImages(new Set<string>());
+  };
+
+  const deleteSelected = async () => {
+    if (selectedImages.size === 0) return;
+    const tabLabel = activeTab === 'saved' ? 'uložené' : 'vygenerované';
+    const confirmed = window.confirm(`Smazat ${selectedImages.size} ${tabLabel} obrázků?`);
+    if (!confirmed) return;
+
+    try {
+      const ids = Array.from(selectedImages) as string[];
+      if (activeTab === 'saved') {
+        await Promise.all(ids.map((id) => ImageDatabase.remove(id)));
+      } else {
+        await Promise.all(ids.map((id) => deleteImage(id)));
+      }
+      clearSelection();
+      await loadImages({ preserveScroll: true });
+    } catch (error) {
+      console.error('Error deleting selected images:', error);
+      alert('Chyba při mazání vybraných obrázků');
+    }
   };
 
   const handleBatchProcess = () => {
@@ -271,6 +292,23 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             className="group relative aspect-square bg-[#0f1512] rounded-lg overflow-hidden border border-gray-800 hover:border-[#7ed957] transition-all cursor-pointer shadow-sm hover:shadow-lg hover:shadow-[#7ed957]/10"
             title="Klikněte pro velké zobrazení nebo přetáhněte do pole nalevo"
           >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSelection(image.id);
+              }}
+              className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full border transition-all backdrop-blur flex items-center justify-center ${selectedImages.has(image.id)
+                ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d] shadow-[0_0_0_3px_rgba(126,217,87,0.15)] opacity-100'
+                : 'bg-black/25 border-white/15 text-white/70 opacity-0 group-hover:opacity-100 hover:border-white/30'
+                }`}
+              aria-pressed={selectedImages.has(image.id)}
+              title={selectedImages.has(image.id) ? 'Odebrat z výběru' : 'Přidat do výběru'}
+            >
+              <svg className={`w-4 h-4 transition-opacity ${selectedImages.has(image.id) ? 'opacity-100' : 'opacity-40'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </button>
             <img
               src={image.url}
               alt={image.prompt}
@@ -345,7 +383,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           {selectedImages.size > 0 && (
             <div className="flex items-center gap-2 animate-fadeIn">
               <span className="text-xs text-white/55 font-medium">Selected: <span className="text-white">{selectedImages.size}</span></span>
-              {onBatchProcess && (
+              {activeTab === 'saved' && onBatchProcess && (
                 <button
                   onClick={handleBatchProcess}
                   className="ml-2 px-2 py-1 bg-[#7ed957]/10 text-[#7ed957] text-[10px] font-bold uppercase tracking-wider rounded border border-[#7ed957]/20 hover:bg-[#7ed957]/20 transition-all"
@@ -353,6 +391,12 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
                   Download ZIP
                 </button>
               )}
+              <button
+                onClick={deleteSelected}
+                className="px-2 py-1 bg-red-500/15 hover:bg-red-500/25 text-red-300 hover:text-red-200 text-[10px] font-bold uppercase tracking-wider rounded transition-all"
+              >
+                Delete
+              </button>
               <button
                 onClick={clearSelection}
                 className="px-2 py-1 text-white/60 text-[10px] font-bold uppercase tracking-wider rounded hover:bg-white/5 transition-all"
