@@ -2935,6 +2935,7 @@ ${extra}
                 console.log('[Drag] Started from gallery:', type, imageData);
               }}
               onBatchProcess={handleBatchProcess}
+              view="sidebar"
             />
           </div>
           {/* Handle indicator - Increased width for better hit target */}
@@ -2972,6 +2973,7 @@ ${extra}
                     console.log('[Drag] Started from gallery:', type, imageData);
                   }}
                   onBatchProcess={handleBatchProcess}
+                  view="expanded"
                 />
               </div>
             </div>

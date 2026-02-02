@@ -6,6 +6,7 @@ import { ImageDatabase, StoredImage } from '../utils/imageDatabase';
 interface ImageGalleryPanelProps {
   onDragStart?: (image: { url: string; fileName: string; fileType: string }, imageType: 'saved' | 'generated') => void;
   onBatchProcess?: (images: StoredImage[]) => void;
+  view?: 'sidebar' | 'expanded';
 }
 
 export interface ImageGalleryPanelRef {
@@ -14,7 +15,7 @@ export interface ImageGalleryPanelRef {
 
 type TabType = 'saved' | 'generated';
 
-export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPanelProps>(({ onDragStart, onBatchProcess }, ref) => {
+export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPanelProps>(({ onDragStart, onBatchProcess, view = 'sidebar' }, ref) => {
   const [activeTab, setActiveTab] = useState<TabType>('saved');
   const [savedImages, setSavedImages] = useState<StoredImage[]>([]);
   const [generatedImages, setGeneratedImages] = useState<GalleryImage[]>([]);
@@ -171,7 +172,14 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
     }
 
     return (
-      <div className="grid grid-cols-2 gap-3 p-4">
+      <div
+        className={view === 'expanded' ? "grid gap-3 p-4" : "grid grid-cols-2 gap-3 p-4"}
+        style={
+          view === 'expanded'
+            ? { gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 140px))', justifyContent: 'start' }
+            : undefined
+        }
+      >
         {savedImages.map((image) => (
           <div
             key={image.id}
@@ -246,7 +254,14 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
     }
 
     return (
-      <div className="grid grid-cols-2 gap-3 p-4">
+      <div
+        className={view === 'expanded' ? "grid gap-3 p-4" : "grid grid-cols-2 gap-3 p-4"}
+        style={
+          view === 'expanded'
+            ? { gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 140px))', justifyContent: 'start' }
+            : undefined
+        }
+      >
         {generatedImages.map((image) => (
           <div
             key={image.id}
