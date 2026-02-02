@@ -65,6 +65,7 @@ const App: React.FC = () => {
   const [simpleLinkMode, setSimpleLinkMode] = useState<'style' | 'merge' | 'object' | null>(null);
   const [useGrounding, setUseGrounding] = useState(false);
   const [jsonContext, setJsonContext] = useState<{ fileName: string; content: any } | null>(null);
+  const [generationPromptPreview, setGenerationPromptPreview] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<{
     current: number;
     total: number;
@@ -90,6 +91,18 @@ const App: React.FC = () => {
     if (savedProvider && Object.values(AIProviderType).includes(savedProvider as AIProviderType)) {
       setSelectedProvider(savedProvider as AIProviderType);
     }
+  }, []);
+
+  useEffect(() => {
+    const preventDefault = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('dragover', preventDefault, { capture: true });
+    window.addEventListener('drop', preventDefault, { capture: true });
+    return () => {
+      window.removeEventListener('dragover', preventDefault, { capture: true } as any);
+      window.removeEventListener('drop', preventDefault, { capture: true } as any);
+    };
   }, []);
 
   const [state, setState] = useState<AppState>({
@@ -910,12 +923,14 @@ const App: React.FC = () => {
     } finally {
       setIsGenerating(false);
       setGenerationProgress(null);
+      setGenerationPromptPreview(null);
     }
   };
 
 
   const handleGenerate = async () => {
     setIsMobileMenuOpen(false);
+    setGenerationPromptPreview(null);
 
     // Auto-detect batch processing: if multiple reference images, use batch mode
     if (state.sourceImages.length > 1) {
@@ -1068,6 +1083,7 @@ ${extra}
 
             if (promptMode === 'simple' && simpleLinkMode) {
               basePrompt = buildSimpleLinkPrompt(simpleLinkMode, extraPrompt, state.sourceImages.length, state.styleImages.length);
+              setGenerationPromptPreview(basePrompt);
             } else {
               basePrompt = extraPrompt;
             }
@@ -1992,7 +2008,7 @@ ${extra}
             ].map((m) => (
               <button
                 key={m.id}
-                onClick={() => setSimpleLinkMode(m.id)}
+                onClick={() => setSimpleLinkMode((prev) => (prev === m.id ? null : m.id))}
                 className={`group relative flex flex-col items-center p-2 rounded-md border transition-all text-center ${simpleLinkMode === m.id
                   ? 'bg-[var(--accent)]/10 border-[var(--accent)] ring-1 ring-[var(--accent)]/50'
                   : 'bg-transparent border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50'
@@ -2008,6 +2024,29 @@ ${extra}
                 </span>
               </button>
             ))}
+          </div>
+        )}
+
+        {promptMode === 'simple' && simpleLinkMode && isGenerating && generationPromptPreview && (
+          <div className="mt-2 p-2 rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)]/50">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                Použitý prompt
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(generationPromptPreview);
+                  setToast({ message: 'Prompt zkopírován', type: 'success' });
+                }}
+                className="px-2 py-1 text-[9px] font-bold bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all"
+              >
+                Kopírovat
+              </button>
+            </div>
+            <pre className="text-[10px] text-[var(--text-2)] whitespace-pre-wrap leading-relaxed max-h-[160px] overflow-auto custom-scrollbar">
+              {generationPromptPreview}
+            </pre>
           </div>
         )}
 
@@ -2504,8 +2543,7 @@ ${extra}
                       onContextMenu={(e) => image.status === 'success' && handleImageContextMenu(e, image.id)}
                     >
                       <div
-                        className={`relative bg-black/50 cursor-zoom-in ${image.status !== 'success' ? 'aspect-square' : ''}`}
-                        style={gridCols === 1 && image.status !== 'success' ? getLoadingAspectRatio(image.aspectRatio) : undefined}
+                        className="relative bg-black/50 cursor-zoom-in aspect-square overflow-hidden"
                         onClick={() => setSelectedImage(image)}
                       >
                         {/* Image Rendering Logic - Simplified for brevity, assume existing mostly works but ensure styles are updated */}
@@ -2542,7 +2580,7 @@ ${extra}
                           image.url && (
                             <img
                               src={image.url}
-                              className={`w-full h-auto ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
+                              className={`w-full h-full object-cover ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
                               decoding="sync"
                               style={{ imageRendering: '-webkit-optimize-contrast' }}
                             />

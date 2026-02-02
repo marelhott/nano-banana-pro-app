@@ -67,6 +67,7 @@
 
   html {
     background-color: var(--bg-main);
+    font-size: 110%;
   }
 
   body {
@@ -245,4 +246,14 @@
     background-size: 20px 20px, 80px 80px;
     background-position: 0 0, 0 0;
   }
+}
+
+@layer utilities {
+  .text-\[8px\] { font-size: 9px !important; }
+  .text-\[9px\] { font-size: 10px !important; }
+  .text-\[10px\] { font-size: 11px !important; }
+  .text-\[11px\] { font-size: 12px !important; }
+  .text-\[12px\] { font-size: 13px !important; }
+  .text-\[13px\] { font-size: 14px !important; }
+  .text-\[14px\] { font-size: 15px !important; }
 }

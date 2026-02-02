@@ -15,7 +15,7 @@ export const Header: React.FC<HeaderProps> = ({ onSettingsClick }) => {
             <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
           </svg>
         </div>
-        <h1 className="text-[11px] md:text-[12px] font-[900] uppercase tracking-[0.32em] text-[var(--text-primary)] leading-none whitespace-nowrap">
+        <h1 className="!text-[11px] md:!text-[12px] font-[900] uppercase tracking-[0.32em] text-[var(--text-primary)] leading-none whitespace-nowrap">
           Mulen nano
         </h1>
       </div>
@@ -23,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({ onSettingsClick }) => {
       <div className="flex items-center gap-4">
         <a
           href="/nodes"
-          className="px-3 py-1.5 rounded-md bg-[var(--bg-panel)] border border-[var(--border-soft)] text-[12px] font-[900] uppercase tracking-[0.32em] text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--bg-panel-hover)] transition-colors"
+          className="px-3 py-1.5 rounded-md bg-[var(--bg-panel)] border border-[var(--border-soft)] !text-[12px] font-[900] uppercase tracking-[0.32em] text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--bg-panel-hover)] transition-colors"
         >
           Nodes
         </a>
