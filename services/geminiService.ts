@@ -443,3 +443,80 @@ export const analyzeImageForJsonWithAI = async (imageDataUrl: string, apiKey?: s
   const tempProvider = new GeminiProvider(keyToUse);
   return tempProvider.analyzeImageForJson(imageDataUrl);
 };
+
+export const analyzeStyleTransferWithAI = async (
+  referenceDataUrl: string,
+  styleDataUrl: string,
+  apiKey?: string,
+  options?: { agenticVision?: boolean; mediaResolution?: string }
+): Promise<{ recommendedStrength: number; styleDescription: string; negativePrompt: string }> => {
+  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+  if (!keyToUse) {
+    throw new Error('API Key missing. Please configure it in settings.');
+  }
+
+  const refBase64 = referenceDataUrl.split(',')[1];
+  const refMime = referenceDataUrl.split(';')[0].split(':')[1];
+  const styleBase64 = styleDataUrl.split(',')[1];
+  const styleMime = styleDataUrl.split(';')[0].split(':')[1];
+
+  const ai = new GoogleGenAI({ apiKey: keyToUse });
+  const instruction = `Jsi expert na vizuální styl a promptování pro AI generování obrázků.
+
+Máš 2 obrázky:
+A) reference obsah (co zachovat)
+B) styl (co přenést)
+
+Úkol:
+1) Popiš styl z B (paleta, štětec/texture, světlo, kontrast, mood, medium).
+2) Doporuč sílu stylu v rozsahu 0–100 (vyšší = víc přepisu obsahu), krátce zdůvodni.
+3) Vrať stručný negative prompt (co se má modelu zakázat).
+
+Vrať POUZE validní JSON bez markdownu v tomto tvaru:
+{
+  "recommendedStrength": 60,
+  "styleDescription": "...",
+  "negativePrompt": "..."
+}`;
+
+  const config: any = {
+    temperature: 0.2,
+    maxOutputTokens: 2048,
+  };
+  if (options?.mediaResolution) config.mediaResolution = options.mediaResolution;
+  if (options?.agenticVision) config.tools = [{ codeExecution: {} }];
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: {
+      parts: [
+        { inlineData: { data: refBase64, mimeType: refMime } },
+        { inlineData: { data: styleBase64, mimeType: styleMime } },
+        { text: instruction }
+      ]
+    },
+    config
+  });
+
+  let text = response.text?.trim() || '';
+  if (!text) {
+    const parts = response.candidates?.[0]?.content?.parts as any[] | undefined;
+    text = (parts || []).map((p) => p?.text).filter(Boolean).join('\n').trim();
+  }
+  text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const parsed = JSON.parse(text);
+
+  const recommendedStrength = Number(parsed.recommendedStrength);
+  const styleDescription = String(parsed.styleDescription || '').trim();
+  const negativePrompt = String(parsed.negativePrompt || '').trim();
+
+  if (!Number.isFinite(recommendedStrength) || styleDescription.length === 0) {
+    throw new Error('Neplatná odpověď z analýzy stylu.');
+  }
+
+  return {
+    recommendedStrength,
+    styleDescription,
+    negativePrompt
+  };
+};

@@ -34,6 +34,7 @@ import { SettingsDatabase } from './utils/imageDatabase';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
+import { StyleTransferScreen } from './components/StyleTransferScreen';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -133,6 +134,22 @@ const App: React.FC = () => {
   const [referenceImageSource, setReferenceImageSource] = useState<'computer' | 'database'>('computer');
   const [styleImageSource, setStyleImageSource] = useState<'computer' | 'database'>('computer');
   const [dragOverTarget, setDragOverTarget] = useState<'reference' | 'style' | null>(null);
+
+  const [routePath, setRoutePath] = useState(() => window.location.pathname);
+  const navigate = useCallback((to: string) => {
+    if (window.location.pathname === to) return;
+    window.history.pushState({}, '', to);
+    setRoutePath(to);
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    const onPop = () => setRoutePath(window.location.pathname);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
 
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
@@ -1899,6 +1916,25 @@ ${extra}
 
   const renderSidebarControls = (isMobileView: boolean = false) => (
     <div className="space-y-4">
+      {!isMobileView && (
+        <button
+          type="button"
+          onClick={() => navigate('/style-transfer')}
+          className="w-full card-surface card-surface-hover p-4 text-left"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-4 bg-[#7ed957] rounded-full"></div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-white/75">Style Transfer</div>
+            </div>
+            <Sparkles className="w-4 h-4 text-[#7ed957]" />
+          </div>
+          <div className="mt-2 text-[9px] text-white/40">
+            Přenést malířský styl z jednoho obrázku na druhý.
+          </div>
+        </button>
+      )}
+
       {/* 1. Generate Button Section */}
       <div className="space-y-2">
         <div className="flex justify-between items-baseline">
@@ -2417,56 +2453,66 @@ ${extra}
 
 
       <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
-        {/* Left Sidebar - Fixed Width (Hidden on Mobile) */}
-        <div className="hidden lg:flex w-[340px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20">
-          <div className="p-6 flex flex-col gap-6 min-h-full">
-            <div className="pt-2">
-              {renderSidebarControls(false)}
-            </div>
-
-            <div className="mt-auto space-y-4">
-              {renderGroundingControl()}
-              <ProviderSelector
-                selectedProvider={selectedProvider}
-                onChange={setSelectedProvider}
-                settings={providerSettings}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content - Flexible Center */}
-        <div
-          className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
-          style={{ marginRight: isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0' }}
-        >
-          <div className="p-6 lg:p-10 pb-32 w-full">
-            <div className="space-y-6 md:space-y-8 w-full">
-              <header className="hidden lg:flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
-                    <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Výsledky Generování</h2>
-                  </div>
+        {isStyleTransferRoute ? (
+          <StyleTransferScreen
+            providerSettings={providerSettings}
+            onOpenSettings={() => setIsSettingsModalOpen(true)}
+            onBack={() => navigate('/')}
+            onToast={(t) => setToast(t)}
+            isHoveringGallery={isHoveringGallery}
+          />
+        ) : (
+          <>
+            {/* Left Sidebar - Fixed Width (Hidden on Mobile) */}
+            <div className="hidden lg:flex w-[340px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20">
+              <div className="p-6 flex flex-col gap-6 min-h-full">
+                <div className="pt-2">
+                  {renderSidebarControls(false)}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4 hidden lg:flex">
-                  {state.generatedImages.length > 0 && (
-                    <button
-                      onClick={async () => {
-                        const successImages = state.generatedImages.filter(img => img.status === 'success' && img.url);
-                        if (successImages.length === 0) return;
-                        setDownloadingAll(true);
-                        // ... download logic ...
-                      }}
-                      disabled={downloadingAll}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#0f1512] text-[#7ed957] font-black text-[9px] uppercase tracking-widest rounded-md border border-gray-800 hover:border-[#7ed957]/50 shadow-sm transition-all active:scale-95"
-                    >
-                      {downloadingAll ? 'Balím...' : 'Exportovat vše'}
-                    </button>
-                  )}
+                <div className="mt-auto space-y-4">
+                  {renderGroundingControl()}
+                  <ProviderSelector
+                    selectedProvider={selectedProvider}
+                    onChange={setSelectedProvider}
+                    settings={providerSettings}
+                  />
                 </div>
-              </header>
+              </div>
+            </div>
+
+            {/* Main Content - Flexible Center */}
+            <div
+              className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
+              style={{ marginRight: isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0' }}
+            >
+              <div className="p-6 lg:p-10 pb-32 w-full">
+                <div className="space-y-6 md:space-y-8 w-full">
+                  <header className="hidden lg:flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
+                        <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Výsledky Generování</h2>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4 hidden lg:flex">
+                      {state.generatedImages.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            const successImages = state.generatedImages.filter(img => img.status === 'success' && img.url);
+                            if (successImages.length === 0) return;
+                            setDownloadingAll(true);
+                            // ... download logic ...
+                          }}
+                          disabled={downloadingAll}
+                          className="flex items-center gap-2 px-4 py-2 bg-[#0f1512] text-[#7ed957] font-black text-[9px] uppercase tracking-widest rounded-md border border-gray-800 hover:border-[#7ed957]/50 shadow-sm transition-all active:scale-95"
+                        >
+                          {downloadingAll ? 'Balím...' : 'Exportovat vše'}
+                        </button>
+                      )}
+                    </div>
+                  </header>
 
               {/* Selection Toolbar */}
               {selectedGeneratedImages.size > 0 && (
@@ -2900,6 +2946,8 @@ ${extra}
             </div>
           </div>
         </div >
+          </>
+        )}
 
         {/* Right Sidebar - Sliding Library */}
         {!isGalleryExpanded && (
