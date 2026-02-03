@@ -77,6 +77,7 @@ export interface AppState {
   resolution: string; // '1k', '2k', '4k'
   error: string | null; // For global/upload errors
   numberOfImages: number; // Number of images to generate at once (1-5)
+  multiRefMode?: 'batch' | 'together';
   shouldAutoGenerate?: boolean;
 }
 

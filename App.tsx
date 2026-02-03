@@ -116,7 +116,21 @@ const App: React.FC = () => {
     resolution: '1K', // Default to 1K
     error: null,
     numberOfImages: 1, // Default to 1 image only
+    multiRefMode: 'together',
   });
+
+  useEffect(() => {
+    const saved = localStorage.getItem('multiRefMode');
+    if (saved === 'batch' || saved === 'together') {
+      setState(prev => ({ ...prev, multiRefMode: saved }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (state.multiRefMode) {
+      localStorage.setItem('multiRefMode', state.multiRefMode);
+    }
+  }, [state.multiRefMode]);
 
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [gridCols, setGridCols] = useState<number>(3);
@@ -1003,9 +1017,9 @@ const App: React.FC = () => {
     setIsMobileMenuOpen(false);
     setGenerationPromptPreview(null);
 
-    // Auto-detect batch processing: if multiple reference images, use batch mode
-    if (state.sourceImages.length > 1) {
-      console.log(`[Auto-Batch] Detected ${state.sourceImages.length} reference images, using batch processing`);
+    // Multiple reference images: batch only when explicitly enabled
+    if (state.sourceImages.length > 1 && state.multiRefMode === 'batch') {
+      console.log(`[Multi-Ref] Batch mode ON (${state.sourceImages.length} reference images)`);
       await handleBatchProcess(state.sourceImages);
       return;
     }
@@ -1123,7 +1137,7 @@ ${extra}
 
               if (mode === 'merge') {
                 return `${header}
-Create a cohesive merge of reference and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality.
+Create a cohesive merge of reference and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality. Use the style image(s) as a compositional template when helpful, but preserve the identity of subjects from the reference image(s).
 
 ${extra ? `Additional instructions:
 ${extra}
@@ -1185,6 +1199,10 @@ ${extra}
               const styleImageCount = state.styleImages.length;
               const referenceImageCount = state.sourceImages.length;
               enhancedPrompt = `${basePrompt}\n\n[Technická instrukce: První ${referenceImageCount} obrázek${referenceImageCount > 1 ? 'y' : ''} ${referenceImageCount > 1 ? 'jsou' : 'je'} referenční obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu referenčního obsahu.]`;
+
+              if (referenceImageCount > 1 && state.multiRefMode !== 'batch') {
+                enhancedPrompt += `\n\n[KOMPOZICE & OBSAH: Vytvoř jednu výslednou scénu, která kombinuje obsah ze všech referenčních obrázků. Použij stylové obrázky také jako kompoziční šablonu (rozvržení, póza, framing) pro výslednou scénu. Zachovej maximálně obličejovou podobnost osob z referencí a zachovej jejich klíčové objekty/rekvizity (např. kytary).]`;
+              }
             }
 
 
@@ -1940,7 +1958,7 @@ ${extra}
               : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40'
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none`}
           >
-            {isGenerating ? 'Generating...' : state.sourceImages.length > 1 ? `Generate (${state.sourceImages.length})` : 'Generate Image'}
+            {isGenerating ? 'Generating...' : state.sourceImages.length > 1 && state.multiRefMode === 'batch' ? `Generate (${state.sourceImages.length})` : 'Generate Image'}
           </button>
 
           {/* 3 Variants Button - Generates 3 sophisticated AI variations */}
@@ -2248,6 +2266,28 @@ ${extra}
           <span>Referenční Obrázky</span>
           <span className="text-[9px] text-[var(--text-secondary)]">{state.sourceImages.length}/{MAX_IMAGES}</span>
         </h3>
+
+        {state.sourceImages.length > 1 && (
+          <div className="flex p-1 rounded-lg control-surface">
+            {([
+              { id: 'together', label: 'Sloučit' },
+              { id: 'batch', label: 'Varianty' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setState((p) => ({ ...p, multiRefMode: opt.id }))}
+                className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${state.multiRefMode === opt.id
+                  ? 'bg-white/10 text-white shadow-sm'
+                  : 'text-white/40 hover:text-white/70'
+                  }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div
           className={`relative min-h-[80px] border border-dashed rounded-lg transition-all ${dragOverTarget === 'reference' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50'}`}
           onDragOver={handleDragOverReference}
