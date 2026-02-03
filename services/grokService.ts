@@ -80,6 +80,7 @@ export class GrokProvider implements AIProvider {
                 body: JSON.stringify({
                     model: 'grok-imagine-image',
                     prompt,
+                    image_url: images[0]?.data,
                     n: 1, // Number of images (1-10 supported)
                     response_format: 'b64_json' // Get base64 directly
                 })

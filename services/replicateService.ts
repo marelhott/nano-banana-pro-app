@@ -205,6 +205,17 @@ export class ReplicateProvider implements AIProvider {
   ): Promise<GenerateImageResult> {
     if (!images[0]?.data) throw new Error('Chybí vstupní obrázek.');
 
+    if (images[1]?.data) {
+      return {
+        imageBase64: await runFluxKontextProMultiImage({
+          token: this.apiKey,
+          image1: images[0].data,
+          image2: images[1].data,
+          prompt,
+        }),
+      };
+    }
+
     const prediction = await runReplicatePrediction({
       token: this.apiKey,
       model: 'black-forest-labs/flux-kontext-pro',

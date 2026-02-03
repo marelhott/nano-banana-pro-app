@@ -35,6 +35,7 @@ import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
+import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -1230,9 +1231,25 @@ ${extra}
             const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
 
             // Image generation
+            let providerImages = allImages;
+            let providerPrompt = enhancedPrompt;
+
+            if (
+              (selectedProvider === AIProviderType.CHATGPT || selectedProvider === AIProviderType.GROK) &&
+              sourceImagesData.length > 0 &&
+              styleImagesData.length > 0
+            ) {
+              const composite = await createReferenceStyleComposite({
+                referenceImages: sourceImagesData,
+                styleImages: styleImagesData,
+              });
+              providerImages = [composite];
+              providerPrompt += `\n\n[POZN.: Vstupní obrázek je KOMPOZIT: levá polovina = reference (osoby/identita), pravá polovina = styl (kompozice, světlo, barevnost). Použij pravou polovinu jako stylovou/kompoziční šablonu pro výsledek.]`;
+            }
+
             const result = await provider.generateImage(
-              allImages,
-              enhancedPrompt,
+              providerImages,
+              providerPrompt,
               state.resolution,
               state.aspectRatio,
               useGrounding
