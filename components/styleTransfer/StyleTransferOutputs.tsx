@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Sparkles } from 'lucide-react';
+import { Download } from 'lucide-react';
 import type { OutputItem } from './utils';
 
 export function StyleTransferOutputs(props: {
@@ -12,11 +12,34 @@ export function StyleTransferOutputs(props: {
   if (outputs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-16 h-16 bg-[#0f1512]/50 rounded-lg flex items-center justify-center mb-4 border border-white/10">
-          <Sparkles className="w-8 h-8 text-white/30" />
+        <div className="w-24 h-24 mb-6">
+          <svg viewBox="0 0 100 100" className="w-full h-full">
+            <circle cx="50" cy="50" r="3" fill="currentColor" className="text-gray-300" />
+            <circle cx="50" cy="32" r="2.5" fill="currentColor" className="text-gray-400" />
+            <circle cx="63" cy="37" r="2.5" fill="currentColor" className="text-gray-400" />
+            <circle cx="68" cy="50" r="2.5" fill="currentColor" className="text-gray-400" />
+            <circle cx="63" cy="63" r="2.5" fill="currentColor" className="text-gray-400" />
+            <circle cx="50" cy="68" r="2.5" fill="currentColor" className="text-gray-400" />
+            <circle cx="37" cy="63" r="2.5" fill="currentColor" className="text-gray-400" />
+            <circle cx="32" cy="50" r="2.5" fill="currentColor" className="text-gray-400" />
+            <circle cx="37" cy="37" r="2.5" fill="currentColor" className="text-gray-400" />
+            <circle cx="50" cy="20" r="1.5" fill="currentColor" className="text-gray-700" />
+            <circle cx="70" cy="28" r="1.5" fill="currentColor" className="text-gray-700" />
+            <circle cx="80" cy="50" r="1.5" fill="currentColor" className="text-gray-700" />
+            <circle cx="70" cy="72" r="1.5" fill="currentColor" className="text-gray-700" />
+            <circle cx="50" cy="80" r="1.5" fill="currentColor" className="text-gray-700" />
+            <circle cx="30" cy="72" r="1.5" fill="currentColor" className="text-gray-700" />
+            <circle cx="20" cy="50" r="1.5" fill="currentColor" className="text-gray-700" />
+            <circle cx="30" cy="28" r="1.5" fill="currentColor" className="text-gray-700" />
+          </svg>
         </div>
-        <div className="text-[12px] font-black uppercase tracking-wider text-white/60">Zatím žádné výstupy</div>
-        <div className="text-[10px] text-white/35 mt-2">Nahraj Reference + Styl a klikni na Generovat.</div>
+
+        <span className="text-[10px] font-[900] uppercase tracking-[0.28em] text-gray-400 block">
+          Zatím žádné vygenerované obrázky
+        </span>
+        <p className="text-[9px] font-medium text-gray-600 mt-2">
+          Zadejte prompt v postranním panelu (vlevo) a začněte tvořit
+        </p>
       </div>
     );
   }

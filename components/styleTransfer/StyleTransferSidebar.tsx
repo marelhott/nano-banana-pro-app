@@ -153,9 +153,7 @@ export function StyleTransferSidebar(props: {
                   </>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                      <Plus className="w-5 h-5 text-gray-500" />
-                    </div>
+                    <Plus className="w-4 h-4 text-gray-600" />
                   </div>
                 )}
 
@@ -211,9 +209,7 @@ export function StyleTransferSidebar(props: {
                   <img src={style.dataUrl} alt="Styl" className="w-full h-full object-cover opacity-90" draggable={false} />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                      <Plus className="w-5 h-5 text-gray-500" />
-                    </div>
+                    <Plus className="w-4 h-4 text-gray-600" />
                   </div>
                 )}
 
