@@ -55,10 +55,13 @@ const App: React.FC = () => {
 
   // AI Provider state
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType>(AIProviderType.GEMINI);
-  const [providerSettings, setProviderSettings] = useState<ProviderSettings>({
+  const defaultProviderSettings: ProviderSettings = {
     [AIProviderType.GEMINI]: { apiKey: process.env.API_KEY || '', enabled: true },
+    [AIProviderType.CHATGPT]: { apiKey: '', enabled: false },
+    [AIProviderType.GROK]: { apiKey: '', enabled: false },
     [AIProviderType.REPLICATE]: { apiKey: '', enabled: false }
-  });
+  };
+  const [providerSettings, setProviderSettings] = useState<ProviderSettings>(defaultProviderSettings);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
@@ -87,7 +90,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const savedSettings = localStorage.getItem('providerSettings');
     if (savedSettings) {
-      setProviderSettings(JSON.parse(savedSettings));
+      try {
+        const parsed = JSON.parse(savedSettings);
+        setProviderSettings({ ...defaultProviderSettings, ...parsed });
+      } catch {
+        setProviderSettings(defaultProviderSettings);
+      }
     }
     const savedProvider = localStorage.getItem('selectedProvider');
     if (savedProvider && Object.values(AIProviderType).includes(savedProvider as AIProviderType)) {
@@ -2421,9 +2429,9 @@ ${extra}
     // Load provider settings
     const savedSettings = await SettingsDatabase.loadProviderSettings();
     if (savedSettings) {
-      setProviderSettings(savedSettings);
+      setProviderSettings({ ...defaultProviderSettings, ...savedSettings });
       try {
-        localStorage.setItem('providerSettings', JSON.stringify(savedSettings));
+        localStorage.setItem('providerSettings', JSON.stringify({ ...defaultProviderSettings, ...savedSettings }));
       } catch {
       }
     }
@@ -2454,10 +2462,11 @@ ${extra}
 
 
   const handleSaveSettings = async (newSettings: ProviderSettings) => {
-    setProviderSettings(newSettings);
-    await SettingsDatabase.saveProviderSettings(newSettings);
+    const merged = { ...defaultProviderSettings, ...newSettings };
+    setProviderSettings(merged);
+    await SettingsDatabase.saveProviderSettings(merged);
     try {
-      localStorage.setItem('providerSettings', JSON.stringify(newSettings));
+      localStorage.setItem('providerSettings', JSON.stringify(merged));
     } catch {
     }
     setToast({ message: 'Settings saved successfully!', type: 'success' });

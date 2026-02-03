@@ -84,7 +84,7 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
     [AIProviderType.GEMINI]: {
         type: AIProviderType.GEMINI,
         name: 'Gemini (Nano Banana Pro)',
-        icon: '🌟',
+        icon: 'gemini',
         requiresApiKey: true,
         supportsGrounding: true,
         maxImages: 10
@@ -92,22 +92,22 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
     [AIProviderType.GROK]: {
         type: AIProviderType.GROK,
         name: 'Grok (xAI)',
-        icon: '⚡',
+        icon: 'grok',
         requiresApiKey: true,
         supportsGrounding: false,
         maxImages: 1
     },
     [AIProviderType.CHATGPT]: {
         type: AIProviderType.CHATGPT,
-        name: 'DALL·E 3 (OpenAI)',
-        icon: '🎨',
+        name: 'ChatGPT (OpenAI)',
+        icon: 'chatgpt',
         requiresApiKey: true,
         supportsGrounding: false,
         maxImages: 1
     },
     [AIProviderType.REPLICATE]: {
         type: AIProviderType.REPLICATE,
-        name: 'Replicate',
+        name: 'FLUX (Replicate)',
         icon: 'replicate',
         requiresApiKey: true,
         supportsGrounding: false,

@@ -34,12 +34,12 @@ export class GrokProvider implements AIProvider {
                     'Authorization': `Bearer ${this.apiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'grok-beta',
+                    model: 'grok-4.1-fast',
                     messages: [{
                         role: 'user',
                         content: `You are a professional prompt engineer. Take the following short image generation prompt and expand it into a detailed, vivid description. Add specific details about visual style, lighting, colors, textures, and composition. Return ONLY the enhanced prompt.\n\nShort prompt: "${shortPrompt}"\n\nEnhanced prompt:`
                     }],
-                    temperature: 0.7
+                    temperature: 0.4
                 })
             });
 
@@ -68,7 +68,7 @@ export class GrokProvider implements AIProvider {
         useGrounding: boolean = false
     ): Promise<GenerateImageResult> {
         try {
-            console.log('[Grok] Generating image with grok-2-image-1212...');
+            console.log('[Grok] Generating image with grok-imagine-image...');
 
             // Grok uses a text-to-image endpoint
             const response = await fetch(`${this.baseUrl}/images/generations`, {
@@ -78,8 +78,8 @@ export class GrokProvider implements AIProvider {
                     'Authorization': `Bearer ${this.apiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'grok-2-image-1212',
-                    prompt: prompt,
+                    model: 'grok-imagine-image',
+                    prompt,
                     n: 1, // Number of images (1-10 supported)
                     response_format: 'b64_json' // Get base64 directly
                 })

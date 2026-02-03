@@ -148,7 +148,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12M6 12h12" />
                                             </svg>
                                         )}
-                                        {metadata.icon === 'dalle' && (
+                                        {metadata.icon === 'chatgpt' && (
                                             <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} />
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9h.01M15 9h.01M9 15h6" />

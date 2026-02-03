@@ -185,7 +185,7 @@ export class ReplicateProvider implements AIProvider {
   }
 
   getName(): string {
-    return 'Replicate (FLUX Kontext Pro)';
+    return 'FLUX (Replicate)';
   }
 
   getType(): AIProviderType {

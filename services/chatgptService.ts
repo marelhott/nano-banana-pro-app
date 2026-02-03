@@ -18,7 +18,7 @@ export class ChatGPTProvider implements AIProvider {
     }
 
     getName(): string {
-        return 'DALL·E 3 (OpenAI)';
+        return 'ChatGPT (OpenAI)';
     }
 
     getType(): AIProviderType {
@@ -34,7 +34,7 @@ export class ChatGPTProvider implements AIProvider {
                     'Authorization': `Bearer ${this.apiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'gpt-4',
+                    model: 'gpt-5.2-chat-latest',
                     messages: [{
                         role: 'user',
                         content: `You are a professional prompt engineer. Take the following short image generation prompt and expand it into a detailed, vivid description that will produce better AI-generated images.
@@ -52,8 +52,8 @@ Short prompt: "${shortPrompt}"
 
 Enhanced prompt:`
                     }],
-                    temperature: 0.7,
-                    max_tokens: 200
+                    temperature: 0.4,
+                    max_tokens: 350
                 })
             });
 
@@ -82,72 +82,56 @@ Enhanced prompt:`
         useGrounding: boolean = false
     ): Promise<GenerateImageResult> {
         try {
-            console.log('[ChatGPT] Generating image with DALL·E 3...');
+            console.log('[ChatGPT] Generating image with GPT Image...');
 
-            // DALL·E 3 doesn't support image editing in the same way as Gemini
-            // It generates from text prompts. If images are provided, we'll describe them first.
-            let finalPrompt = prompt;
+            const mapSize = (): string => {
+                if (aspectRatio === '9:16' || aspectRatio === '2:3' || aspectRatio === '4:5') return '1024x1536';
+                if (aspectRatio === '16:9' || aspectRatio === '3:2' || aspectRatio === '5:4') return '1536x1024';
+                return '1024x1024';
+            };
 
-            if (images.length > 0) {
-                // Use GPT-4 Vision to describe the input image first
-                const firstImage = images[0];
-                const visionResponse = await fetch(`${this.baseUrl}/chat/completions`, {
+            const size = mapSize();
+
+            const hasInputImage = images.length > 0;
+            const url = `${this.baseUrl}/images/${hasInputImage ? 'edits' : 'generations'}`;
+            const response = await fetch(url, hasInputImage
+                ? {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.apiKey}`
+                    },
+                    body: (() => {
+                        const form = new FormData();
+                        form.set('model', 'gpt-image-1.5');
+                        form.set('prompt', prompt);
+                        form.set('n', '1');
+                        form.set('size', size);
+                        form.set('quality', 'high');
+
+                        const first = images[0];
+                        const [header, b64] = first.data.split(',');
+                        const mime = first.mimeType || header.split(';')[0].split(':')[1] || 'image/png';
+                        const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+                        const blob = new Blob([bin], { type: mime });
+                        form.set('image', blob, `input.${mime.split('/')[1] || 'png'}`);
+                        return form;
+                    })()
+                }
+                : {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${this.apiKey}`
                     },
                     body: JSON.stringify({
-                        model: 'gpt-4-vision-preview',
-                        messages: [{
-                            role: 'user',
-                            content: [
-                                {
-                                    type: 'text',
-                                    text: `Describe this image in detail, then apply this transformation: ${prompt}`
-                                },
-                                {
-                                    type: 'image_url',
-                                    image_url: {
-                                        url: firstImage.data
-                                    }
-                                }
-                            ]
-                        }],
-                        max_tokens: 300
+                        model: 'gpt-image-1.5',
+                        prompt,
+                        n: 1,
+                        size,
+                        quality: 'high'
                     })
-                });
-
-                if (visionResponse.ok) {
-                    const visionData = await visionResponse.json();
-                    finalPrompt = visionData.choices?.[0]?.message?.content || prompt;
                 }
-            }
-
-            // Map resolution to DALL·E 3 sizes
-            let size = '1024x1024'; // default
-            if (resolution === '4K' || aspectRatio === '16:9') {
-                size = '1792x1024';
-            } else if (aspectRatio === '9:16') {
-                size = '1024x1792';
-            }
-
-            // Generate image with DALL·E 3
-            const response = await fetch(`${this.baseUrl}/images/generations`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'dall-e-3',
-                    prompt: finalPrompt,
-                    n: 1,
-                    size: size,
-                    quality: 'hd',
-                    response_format: 'b64_json'
-                })
-            });
+            );
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -155,7 +139,7 @@ Enhanced prompt:`
             }
 
             const data = await response.json();
-            const imageB64 = data.data?.[0]?.b64_json;
+            const imageB64 = data.data?.[0]?.b64_json || data.data?.[0]?.b64;
 
             if (!imageB64) {
                 throw new Error('No image data returned from DALL·E 3');
@@ -170,7 +154,7 @@ Enhanced prompt:`
         } catch (error: any) {
             console.error('[ChatGPT] API Error:', error);
             if (error instanceof Error) {
-                throw new Error(`Failed to generate image with DALL·E 3: ${error.message}`);
+                throw new Error(`Failed to generate image with OpenAI: ${error.message}`);
             }
             throw new Error('An unexpected error occurred while communicating with OpenAI.');
         }

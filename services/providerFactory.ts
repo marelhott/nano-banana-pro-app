@@ -81,9 +81,9 @@ export class ProviderFactory {
                 return apiKey.length > 20;
             case AIProviderType.CHATGPT:
                 // OpenAI keys start with "sk-"
-                return apiKey.startsWith('sk-') && apiKey.length > 20;
+                return (apiKey.startsWith('sk-') || apiKey.startsWith('sk-proj-')) && apiKey.length > 20;
             case AIProviderType.REPLICATE:
-                return apiKey.length > 20;
+                return (apiKey.startsWith('r8_') || apiKey.length > 20);
             default:
                 return false;
         }
