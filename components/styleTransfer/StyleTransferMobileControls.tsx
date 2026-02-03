@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import type { ImageSlot, StyleTransferAnalysis, StyleTransferEngine } from './utils';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -83,7 +83,7 @@ export function StyleTransferMobileControls(props: {
   const styleInputId = React.useMemo(() => `st-style-m-${Math.random().toString(36).slice(2)}`, []);
 
   return (
-    <div className="card-surface p-4 space-y-4">
+    <div className="card-surface p-3 space-y-4">
       <div className="flex items-center justify-between">
         <button
           type="button"
@@ -130,7 +130,7 @@ export function StyleTransferMobileControls(props: {
         <div className="space-y-1">
           <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Reference</div>
           <div
-            className="relative aspect-square rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--bg-panel)]/50 overflow-hidden"
+            className="relative aspect-[5/4] rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--bg-panel)]/50 overflow-hidden"
             onDragOver={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -161,9 +161,10 @@ export function StyleTransferMobileControls(props: {
                 </button>
               </>
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-2">
-                <Wand2 className="w-5 h-5 text-[#7ed957]" />
-                <div className="mt-1 text-[9px] font-black uppercase tracking-wider text-white/60">Klik/Drop</div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-gray-500" />
+                </div>
               </div>
             )}
             <input
@@ -172,11 +173,11 @@ export function StyleTransferMobileControls(props: {
               accept="image/*"
               className="hidden"
               onChange={async (e) => {
-                    const inputEl = e.currentTarget;
+                const inputEl = e.currentTarget;
                 const f = e.target.files?.[0];
                 if (!f) return;
                 await onSetReferenceFromFile(f);
-                    inputEl.value = '';
+                inputEl.value = '';
               }}
             />
           </div>
@@ -185,7 +186,7 @@ export function StyleTransferMobileControls(props: {
         <div className="space-y-1">
           <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Styl</div>
           <div
-            className="relative aspect-square rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--bg-panel)]/50 overflow-hidden"
+            className="relative aspect-[5/4] rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--bg-panel)]/50 overflow-hidden"
             onDragOver={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -216,9 +217,10 @@ export function StyleTransferMobileControls(props: {
                 </button>
               </>
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-2">
-                <Sparkles className="w-5 h-5 text-[#7ed957]" />
-                <div className="mt-1 text-[9px] font-black uppercase tracking-wider text-white/60">Klik/Drop</div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-gray-500" />
+                </div>
               </div>
             )}
             <input
@@ -227,11 +229,11 @@ export function StyleTransferMobileControls(props: {
               accept="image/*"
               className="hidden"
               onChange={async (e) => {
-                    const inputEl = e.currentTarget;
+                const inputEl = e.currentTarget;
                 const f = e.target.files?.[0];
                 if (!f) return;
                 await onSetStyleFromFile(f);
-                    inputEl.value = '';
+                inputEl.value = '';
               }}
             />
           </div>

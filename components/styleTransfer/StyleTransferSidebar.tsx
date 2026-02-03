@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import type { ImageSlot, StyleTransferAnalysis, StyleTransferEngine } from './utils';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -126,14 +126,12 @@ export function StyleTransferSidebar(props: {
           </div>
         </div>
 
-        <div className="card-surface p-4 space-y-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Vstupy</div>
-
+        <div className="card-surface p-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Reference</div>
               <div
-                className="relative aspect-square rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden"
+                className="relative aspect-[5/4] rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden"
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -154,12 +152,10 @@ export function StyleTransferSidebar(props: {
                     <img src={reference.dataUrl} alt="Reference" className="w-full h-full object-cover opacity-90" draggable={false} />
                   </>
                 ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-3">
-                    <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center mb-2">
-                      <Wand2 className="w-5 h-5 text-[#7ed957]" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-gray-500" />
                     </div>
-                    <div className="text-[10px] font-black uppercase tracking-wider text-white/70">Nahrát</div>
-                    <div className="text-[9px] text-white/35">Klik / Drop</div>
                   </div>
                 )}
 
@@ -195,7 +191,7 @@ export function StyleTransferSidebar(props: {
             <div className="space-y-1">
               <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Styl</div>
               <div
-                className="relative aspect-square rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden"
+                className="relative aspect-[5/4] rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden"
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -214,12 +210,10 @@ export function StyleTransferSidebar(props: {
                 {style ? (
                   <img src={style.dataUrl} alt="Styl" className="w-full h-full object-cover opacity-90" draggable={false} />
                 ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-3">
-                    <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center mb-2">
-                      <Sparkles className="w-5 h-5 text-[#7ed957]" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-gray-500" />
                     </div>
-                    <div className="text-[10px] font-black uppercase tracking-wider text-white/70">Nahrát</div>
-                    <div className="text-[9px] text-white/35">Klik / Drop</div>
                   </div>
                 )}
 
