@@ -95,14 +95,34 @@ export function StyleTransferSidebar(props: {
             Zpět
           </button>
 
-          <div className="card-surface p-4 space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-4 bg-[#7ed957] rounded-full"></div>
-              <div className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Style Transfer</div>
+          <div className="card-surface p-4 space-y-3">
+            <div className="space-y-2">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Počet výstupů</div>
+              <div className="flex p-1 rounded-lg control-surface">
+                {([1, 2, 3] as const).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setVariants(n)}
+                    className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${variants === n
+                      ? 'bg-white/10 text-white shadow-sm'
+                      : 'text-white/40 hover:text-white/70'
+                      }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="text-[10px] text-white/45">
-              Přenese malířský styl z obrázku B na obsah A.
-            </div>
+
+            <button
+              type="button"
+              onClick={onGenerate}
+              disabled={isGenerating}
+              className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+            >
+              {isGenerating ? 'Generuji…' : 'Generovat'}
+            </button>
           </div>
         </div>
 
@@ -348,25 +368,6 @@ export function StyleTransferSidebar(props: {
             </div>
           )}
 
-          <div className="space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Počet výstupů</div>
-            <div className="flex p-1 rounded-lg control-surface">
-              {([1, 2, 3] as const).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setVariants(n)}
-                  className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${variants === n
-                    ? 'bg-white/10 text-white shadow-sm'
-                    : 'text-white/40 hover:text-white/70'
-                    }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {engine === 'gemini' && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -408,15 +409,6 @@ export function StyleTransferSidebar(props: {
               </div>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={isGenerating}
-            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
-          >
-            {isGenerating ? 'Generuji…' : 'Generovat'}
-          </button>
 
           {!hasGeminiKey && (
             <button

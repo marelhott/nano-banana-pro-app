@@ -9,32 +9,6 @@ export function StyleTransferOutputs(props: {
 }) {
   const { outputs, onDownload, onOpenLightbox } = props;
 
-  const startedAtRef = React.useRef<Map<string, number>>(new Map());
-  const [, forceTick] = React.useState(0);
-  React.useEffect(() => {
-    const now = Date.now();
-    for (const o of outputs) {
-      if (o.status === 'loading' && !startedAtRef.current.has(o.id)) {
-        startedAtRef.current.set(o.id, now);
-      }
-      if (o.status !== 'loading' && startedAtRef.current.has(o.id)) {
-        startedAtRef.current.delete(o.id);
-      }
-    }
-  }, [outputs]);
-
-  React.useEffect(() => {
-    const i = window.setInterval(() => forceTick((v) => v + 1), 1000);
-    return () => window.clearInterval(i);
-  }, []);
-
-  const formatTime = (seconds: number): string => {
-    if (seconds < 60) return `${Math.floor(seconds)}s`;
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${minutes}m ${secs}s`;
-  };
-
   if (outputs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -52,44 +26,29 @@ export function StyleTransferOutputs(props: {
       {outputs.map((o, idx) => (
         <div key={o.id} className="group relative aspect-square rounded-lg overflow-hidden border border-white/10 bg-[var(--bg-panel)]/60">
           {o.status === 'loading' && (
-            <div className="absolute inset-0 flex items-center justify-center p-4">
-              <div className="w-full max-w-[420px] bg-[#0f1512] border border-[#7ed957]/30 rounded-lg shadow-2xl p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-[#7ed957] animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <div className="flex-1">
-                    <div className="font-black text-sm text-[#e0e0e0]">Generuji obrázek</div>
-                    <div className="text-[10px] text-gray-400 font-medium">0 / 1 dokončeno</div>
-                  </div>
-                  <div className="text-xl font-[900] text-[#7ed957]">0%</div>
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md px-6 transition-all duration-300">
+              <div className="w-full max-w-[200px] space-y-3">
+                <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"
+                    style={{
+                      width: '0%',
+                      animation: 'growWidth 10s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+                    }}
+                  />
+                  <style>{`
+                    @keyframes growWidth {
+                      0% { width: 0%; }
+                      10% { width: 15%; }
+                      40% { width: 50%; }
+                      70% { width: 80%; }
+                      100% { width: 95%; }
+                    }
+                  `}</style>
                 </div>
-
-                <div className="mt-3 relative w-full h-2.5 bg-gray-800 rounded-full overflow-hidden" />
-
-                {(() => {
-                  const startedAt = startedAtRef.current.get(o.id) || Date.now();
-                  const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-                  const estimate = 25;
-                  const remaining = Math.max(0, estimate - elapsed);
-                  return (
-                    <div className="mt-3 flex items-center justify-between text-[9px] text-gray-500 uppercase tracking-widest font-black">
-                      <div className="flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span>UPLYNULO: {formatTime(elapsed)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                        </svg>
-                        <span>ZBÝVÁ: ~{formatTime(remaining)}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
+                <div className="text-center">
+                  <span className="text-[10px] text-[#7ed957] font-bold tracking-widest uppercase animate-pulse">Generuji...</span>
+                </div>
               </div>
             </div>
           )}
