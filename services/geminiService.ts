@@ -343,9 +343,7 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
 
       const response = await this.ai.models.generateContent({
         model: modelName,
-        contents: {
-          parts: parts,
-        },
+        contents: parts,
         config: config,
       });
 
@@ -367,19 +365,29 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         throw new Error('Generování zablokováno bezpečnostním filtrem (Safety).');
       }
 
-      // Attempt to find image part
-      const generatedPart = candidate?.content?.parts?.find((p: any) => p.inlineData);
+      const partsFromCandidates: any[] = (response.candidates || [])
+        .flatMap((c: any) => c?.content?.parts || [])
+        .filter(Boolean);
+      const partsFallback: any[] = (response as any).parts || [];
+      const allParts: any[] = [...partsFromCandidates, ...partsFallback];
 
-      if (generatedPart?.inlineData?.data) {
-        const imageBytes = generatedPart.inlineData.data;
+      const imagePart = allParts.find((p: any) => p?.inlineData?.data);
+
+      if (imagePart?.inlineData?.data) {
+        const imageBytes = imagePart.inlineData.data;
+        const mime = imagePart.inlineData.mimeType || 'image/jpeg';
         return {
-          imageBase64: `data:image/jpeg;base64,${imageBytes}`,
+          imageBase64: `data:${mime};base64,${imageBytes}`,
           groundingMetadata
         };
       }
 
-      // Fallback: check executable code or other outputs if model differs
-      throw new Error("Model nevrátil žádná data obrázku. Zkuste upravit prompt.");
+      const textOut = response.text?.trim();
+      if (textOut) {
+        throw new Error(`Model nevrátil žádná data obrázku. Model odpověděl textem: ${textOut}`);
+      }
+
+      throw new Error('Model nevrátil žádná data obrázku. Zkuste upravit prompt nebo model.');
 
     } catch (error: any) {
       console.error('[Gemini] Image generation error:', error);
