@@ -42,7 +42,7 @@ const RESOLUTIONS = [
   { value: '2K', label: '2K (~2048px)' },
   { value: '4K', label: '4K (~4096px)' }
 ];
-const MAX_IMAGES = 14;
+const MAX_GENERATED_IMAGES = 14;
 
 const App: React.FC = () => {
   // PIN Autentizace state
@@ -373,10 +373,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleImagesSelected = useCallback((files: File[]) => {
-    const remainingSlots = MAX_IMAGES - state.sourceImages.length;
-    if (remainingSlots <= 0) return;
-
-    files.slice(0, remainingSlots).forEach(file => {
+    files.forEach(file => {
       const reader = new FileReader();
       reader.onload = async (e) => {
         if (e.target?.result && typeof e.target.result === 'string') {
@@ -405,10 +402,7 @@ const App: React.FC = () => {
   }, [state.sourceImages]);
 
   const handleStyleImagesSelected = useCallback((files: File[]) => {
-    const remainingSlots = MAX_IMAGES - state.styleImages.length;
-    if (remainingSlots <= 0) return;
-
-    files.slice(0, remainingSlots).forEach(file => {
+    files.forEach(file => {
       const reader = new FileReader();
       reader.onload = async (e) => {
         if (e.target?.result && typeof e.target.result === 'string') {
@@ -1081,7 +1075,7 @@ const App: React.FC = () => {
     setState(prev => {
       const newImages = [...imagesToGenerate, ...prev.generatedImages];
       // FIFO: Keep only last 14 images (remove oldest)
-      const limitedImages = newImages.length > MAX_IMAGES ? newImages.slice(0, MAX_IMAGES) : newImages;
+      const limitedImages = newImages.length > MAX_GENERATED_IMAGES ? newImages.slice(0, MAX_GENERATED_IMAGES) : newImages;
       return {
         ...prev,
         generatedImages: limitedImages,
@@ -1861,10 +1855,7 @@ ${extra}
   };
 
   const addInlineReferenceImages = (imageId: string, files: File[]) => {
-    const remainingSlots = MAX_IMAGES - (inlineEditStates[imageId]?.referenceImages?.length || 0);
-    if (remainingSlots <= 0) return;
-
-    files.slice(0, remainingSlots).forEach(file => {
+    files.forEach(file => {
       const reader = new FileReader();
       reader.onload = (e) => {
         if (e.target?.result && typeof e.target.result === 'string') {
@@ -2272,7 +2263,7 @@ ${extra}
       <div className="space-y-1">
         <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center justify-between">
           <span>Referenční Obrázky</span>
-          <span className="text-[9px] text-[var(--text-secondary)]">{state.sourceImages.length}/{MAX_IMAGES}</span>
+          <span className="text-[9px] text-[var(--text-secondary)]">{state.sourceImages.length}</span>
         </h3>
 
         {state.sourceImages.length > 1 && (
@@ -2311,7 +2302,11 @@ ${extra}
                 multiple
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => e.target.files && handleImagesSelected(Array.from(e.target.files))}
+                onChange={(e) => {
+                  const inputEl = e.currentTarget;
+                  if (e.target.files) handleImagesSelected(Array.from(e.target.files));
+                  inputEl.value = '';
+                }}
               />
             </div>
           ) : (
@@ -2339,12 +2334,20 @@ ${extra}
                   </button>
                 </div>
               ))}
-              {state.sourceImages.length < MAX_IMAGES && (
-                <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
-                  <span className="text-[var(--text-secondary)]">+</span>
-                  <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => e.target.files && handleImagesSelected(Array.from(e.target.files))} />
-                </label>
-              )}
+              <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
+                <span className="text-[var(--text-secondary)]">+</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const inputEl = e.currentTarget;
+                    if (e.target.files) handleImagesSelected(Array.from(e.target.files));
+                    inputEl.value = '';
+                  }}
+                />
+              </label>
             </div>
           )}
         </div>
@@ -2354,7 +2357,7 @@ ${extra}
       <div className="space-y-1">
         <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center justify-between">
           <span>Stylové Obrázky</span>
-          <span className="text-[9px] text-[var(--text-secondary)]">{state.styleImages.length}/{MAX_IMAGES}</span>
+          <span className="text-[9px] text-[var(--text-secondary)]">{state.styleImages.length}</span>
         </h3>
         <div
           className={`relative min-h-[60px] border border-dashed rounded-lg transition-all ${dragOverTarget === 'style' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50'}`}
@@ -2371,7 +2374,11 @@ ${extra}
                 multiple
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => e.target.files && handleStyleImagesSelected(Array.from(e.target.files))}
+                onChange={(e) => {
+                  const inputEl = e.currentTarget;
+                  if (e.target.files) handleStyleImagesSelected(Array.from(e.target.files));
+                  inputEl.value = '';
+                }}
               />
             </div>
           ) : (
@@ -2387,12 +2394,20 @@ ${extra}
                   </button>
                 </div>
               ))}
-              {state.styleImages.length < MAX_IMAGES && (
-                <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
-                  <span className="text-[var(--text-secondary)]">+</span>
-                  <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => e.target.files && handleStyleImagesSelected(Array.from(e.target.files))} />
-                </label>
-              )}
+              <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
+                <span className="text-[var(--text-secondary)]">+</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const inputEl = e.currentTarget;
+                    if (e.target.files) handleStyleImagesSelected(Array.from(e.target.files));
+                    inputEl.value = '';
+                  }}
+                />
+              </label>
             </div>
           )}
         </div>
@@ -2945,24 +2960,24 @@ ${extra}
                                   </button>
                                 </div>
                               ))}
-                              {(inlineEditStates[image.id]?.referenceImages?.length || 0) < MAX_IMAGES && (
-                                <label className="flex items-center justify-center aspect-square rounded border border-dashed border-gray-700 hover:border-gray-600 hover:bg-gray-900/50 cursor-pointer transition-colors">
-                                  <span className="text-gray-500">+</span>
-                                  <input
-                                    type="file"
-                                    multiple
-                                    accept="image/*"
-                                    className="hidden"
-                                    onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      if (e.target.files) {
-                                        addInlineReferenceImages(image.id, Array.from(e.target.files));
-                                      }
-                                    }}
-                                  />
-                                </label>
-                              )}
+                              <label className="flex items-center justify-center aspect-square rounded border border-dashed border-gray-700 hover:border-gray-600 hover:bg-gray-900/50 cursor-pointer transition-colors">
+                                <span className="text-gray-500">+</span>
+                                <input
+                                  type="file"
+                                  multiple
+                                  accept="image/*"
+                                  className="hidden"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const inputEl = e.currentTarget;
+                                    if (e.target.files) {
+                                      addInlineReferenceImages(image.id, Array.from(e.target.files));
+                                    }
+                                    inputEl.value = '';
+                                  }}
+                                />
+                              </label>
                             </div>
                           )}
 
