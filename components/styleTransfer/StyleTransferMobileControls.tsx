@@ -273,7 +273,7 @@ export function StyleTransferMobileControls(props: {
           value={strength}
           onChange={(e) => setStrength(Number(e.target.value))}
           disabled={!style}
-          className="w-full accent-[#7ed957] disabled:opacity-40"
+          className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
         />
       </div>
 
@@ -291,7 +291,7 @@ export function StyleTransferMobileControls(props: {
               step={0.1}
               value={cfgScale}
               onChange={(e) => setCfgScale(Number(e.target.value))}
-              className="w-full accent-[#7ed957]"
+              className="w-full h-1 accent-[#7ed957]"
             />
           </div>
 
@@ -307,7 +307,7 @@ export function StyleTransferMobileControls(props: {
               step={0.01}
               value={denoise}
               onChange={(e) => setDenoise(Number(e.target.value))}
-              className="w-full accent-[#7ed957]"
+              className="w-full h-1 accent-[#7ed957]"
             />
           </div>
 
@@ -323,7 +323,7 @@ export function StyleTransferMobileControls(props: {
               step={1}
               value={steps}
               onChange={(e) => setSteps(Number(e.target.value))}
-              className="w-full accent-[#7ed957]"
+              className="w-full h-1 accent-[#7ed957]"
             />
           </div>
 

@@ -150,6 +150,13 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  useEffect(() => {
+    if (window.location.pathname === '/style-transfer') {
+      window.history.replaceState({}, '', '/');
+      setRoutePath('/');
+    }
+  }, []);
+
   const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
 
   // Nové state pro featury
@@ -1917,25 +1924,6 @@ ${extra}
 
   const renderSidebarControls = (isMobileView: boolean = false) => (
     <div className="space-y-4">
-      {!isMobileView && (
-        <button
-          type="button"
-          onClick={() => navigate('/style-transfer')}
-          className="w-full card-surface card-surface-hover p-4 text-left"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-4 bg-[#7ed957] rounded-full"></div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-white/75">Style Transfer</div>
-            </div>
-            <Sparkles className="w-4 h-4 text-[#7ed957]" />
-          </div>
-          <div className="mt-2 text-[9px] text-white/40">
-            Přenést malířský styl z jednoho obrázku na druhý.
-          </div>
-        </button>
-      )}
-
       {/* 1. Generate Button Section */}
       <div className="space-y-2">
         <div className="flex justify-between items-baseline">
@@ -2449,6 +2437,8 @@ ${extra}
       {/* Top Header */}
       <Header
         onSettingsClick={() => setIsSettingsModalOpen(true)}
+        onStyleTransferClick={() => navigate('/style-transfer')}
+        isStyleTransferActive={isStyleTransferRoute}
       />
 
 

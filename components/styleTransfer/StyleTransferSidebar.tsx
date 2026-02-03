@@ -254,9 +254,7 @@ export function StyleTransferSidebar(props: {
           </div>
         </div>
 
-        <div className="card-surface p-4 space-y-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Nastavení</div>
-
+        <div className="card-surface p-4 space-y-2">
           <div className="space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Engine</div>
             <div className="flex p-1 rounded-lg control-surface">
@@ -292,7 +290,7 @@ export function StyleTransferSidebar(props: {
               value={strength}
               onChange={(e) => setStrength(Number(e.target.value))}
               disabled={!style}
-              className="w-full accent-[#7ed957] disabled:opacity-40"
+              className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
             />
             {!style && <div className="text-[9px] text-white/35">Nahraj stylový obrázek pro aktivaci.</div>}
           </div>
@@ -311,7 +309,7 @@ export function StyleTransferSidebar(props: {
                   step={0.1}
                   value={cfgScale}
                   onChange={(e) => setCfgScale(Number(e.target.value))}
-                  className="w-full accent-[#7ed957]"
+                  className="w-full h-1 accent-[#7ed957]"
                 />
               </div>
 
@@ -327,7 +325,7 @@ export function StyleTransferSidebar(props: {
                   step={0.01}
                   value={denoise}
                   onChange={(e) => setDenoise(Number(e.target.value))}
-                  className="w-full accent-[#7ed957]"
+                  className="w-full h-1 accent-[#7ed957]"
                 />
               </div>
 
@@ -343,7 +341,7 @@ export function StyleTransferSidebar(props: {
                   step={1}
                   value={steps}
                   onChange={(e) => setSteps(Number(e.target.value))}
-                  className="w-full accent-[#7ed957]"
+                  className="w-full h-1 accent-[#7ed957]"
                 />
               </div>
 

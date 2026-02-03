@@ -59,6 +59,38 @@ export function StyleTransferScreen(props: {
 
   const replicateUrlCacheRef = React.useRef<Map<string, string>>(new Map());
 
+  const estimateSaturation = React.useCallback(async (dataUrl: string) => {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Nepodařilo se načíst obrázek.'));
+      i.src = dataUrl;
+    });
+
+    const canvas = document.createElement('canvas');
+    const w = 64;
+    const h = 64;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return 0;
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+    let sum = 0;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 16) {
+      const r = data[i] / 255;
+      const g = data[i + 1] / 255;
+      const b = data[i + 2] / 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const s = max === 0 ? 0 : (max - min) / max;
+      sum += s;
+      count += 1;
+    }
+    return count ? sum / count : 0;
+  }, []);
+
   const shrinkForReplicate = React.useCallback(async (dataUrl: string) => {
     const estimateBytes = (url: string) => {
       const commaIdx = url.indexOf(',');
@@ -277,22 +309,36 @@ export function StyleTransferScreen(props: {
         const width = round64(dims.w * s);
         const height = round64(dims.h * s);
 
+        const contentSat = await estimateSaturation(reference.dataUrl);
+        const styleSat = await estimateSaturation(style.dataUrl);
+        const shouldColorize = contentSat < 0.06 && styleSat > 0.12;
+        const strength01 = Math.max(0, Math.min(1, strengthValue / 100));
+        const denoiseFromStrength = 0.15 + strength01 * 0.75;
+        const denoiseEffective = Math.max(denoise, denoiseFromStrength, shouldColorize ? 0.72 : 0);
+
         const proPrompt = [
           'High-quality style transfer.',
           'Keep the subject identity and original composition from the input image.',
           'Apply the painting style from the style reference image.',
+          'Transfer the color palette from the style reference image.',
+          shouldColorize ? 'If the input image is monochrome, colorize it using the style palette.' : '',
           `Style strength: ${strengthValue}/100.`,
           'No text.'
         ].join('\n');
+
+        const negativeWithColor = [
+          negativeText,
+          shouldColorize ? 'monochrome, grayscale, desaturated' : ''
+        ].filter(Boolean).join(', ');
 
         const results = await runProSdxlStyleTransfer({
           token: replicateToken!,
           contentImage: contentUrl,
           styleImage: styleUrl,
           prompt: proPrompt,
-          negativePrompt: negativeText,
+          negativePrompt: negativeWithColor,
           cfgScale,
-          denoise,
+          denoise: denoiseEffective,
           steps,
           numOutputs: variants,
           width,
@@ -360,6 +406,8 @@ export function StyleTransferScreen(props: {
 
               const fluxPrompt = [
                 'Restyle this image to match the painting style described below (derived from a reference painting).',
+                'Transfer the color palette from the painting style.',
+                'If the input image is monochrome, colorize it using the style palette.',
                 styleTraits ? `Style traits: ${styleTraits}` : '',
                 `Style strength: ${strengthValue}/100 (${strengthLabel}).`,
                 'Preserve the subject identity and the original composition.',
@@ -409,7 +457,7 @@ export function StyleTransferScreen(props: {
     } finally {
       if (mountedRef.current) setIsGenerating(false);
     }
-  }, [analysis, cfgScale, denoise, engine, ensureReplicateImageInput, geminiKey, onOpenSettings, onToast, providerSettings, reference, replicateToken, steps, strength, style, styleOnly, useAgenticVision, variants]);
+  }, [analysis, cfgScale, denoise, engine, ensureReplicateImageInput, estimateSaturation, geminiKey, onOpenSettings, onToast, providerSettings, reference, replicateToken, steps, strength, style, styleOnly, useAgenticVision, variants]);
 
   return (
     <>
