@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 import type { ImageSlot, StyleTransferAnalysis, StyleTransferEngine } from './utils';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -163,7 +163,7 @@ export function StyleTransferMobileControls(props: {
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-gray-500" />
+                  <Plus className="w-5 h-5 text-gray-500" />
                 </div>
               </div>
             )}
@@ -219,7 +219,7 @@ export function StyleTransferMobileControls(props: {
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-gray-500" />
+                  <Plus className="w-5 h-5 text-gray-500" />
                 </div>
               </div>
             )}
