@@ -20,6 +20,33 @@ function persistUserId(userId: string | null): void {
   localStorage.removeItem(USER_ID_STORAGE_KEY);
 }
 
+function createFallbackUserId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.random() * 16 | 0;
+    const value = char === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
+async function ensureLegacyFallbackUser(): Promise<string> {
+  const storedUserId = localStorage.getItem(USER_ID_STORAGE_KEY);
+  const userId = storedUserId || createFallbackUserId();
+
+  persistUserId(userId);
+
+  try {
+    await ensureLegacyUserProfile(userId);
+  } catch (error) {
+    // Fallback mode musí uživatele pustit dál i při dočasném výpadku DB.
+    console.warn('Legacy fallback user profile sync failed:', error);
+  }
+
+  return userId;
+}
+
 async function ensureLegacyUserProfile(userId: string): Promise<void> {
   const { error } = await supabase
     .from('users')
@@ -39,7 +66,10 @@ async function ensureLegacyUserProfile(userId: string): Promise<void> {
 
 if (typeof window !== 'undefined') {
   supabase.auth.onAuthStateChange((_event, session) => {
-    persistUserId(session?.user?.id ?? null);
+    const sessionUserId = session?.user?.id;
+    if (sessionUserId) {
+      persistUserId(sessionUserId);
+    }
   });
 }
 
@@ -47,9 +77,21 @@ if (typeof window !== 'undefined') {
  * Bootstrap anonymní Supabase session pro nekomerční provoz.
  */
 export async function ensureAnonymousSession(): Promise<string> {
+  const localUserId = localStorage.getItem(USER_ID_STORAGE_KEY);
+  if (localUserId) {
+    try {
+      await ensureLegacyUserProfile(localUserId);
+      persistUserId(localUserId);
+      return localUserId;
+    } catch (error) {
+      console.warn('Stored local user profile sync failed, trying Supabase auth:', error);
+    }
+  }
+
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) {
-    throw new Error(`Nepodařilo se načíst session: ${sessionError.message}`);
+    console.warn('Supabase getSession failed, using fallback user mode:', sessionError.message);
+    return ensureLegacyFallbackUser();
   }
 
   const existingUserId = sessionData.session?.user?.id;
@@ -61,7 +103,8 @@ export async function ensureAnonymousSession(): Promise<string> {
 
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error) {
-    throw new Error(`Nepodařilo se vytvořit anonymní session: ${error.message}`);
+    console.warn('Supabase anonymous sign-in failed, using fallback user mode:', error.message);
+    return ensureLegacyFallbackUser();
   }
 
   const userId = data.user?.id;
