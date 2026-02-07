@@ -32,7 +32,7 @@ import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
-import { ensureAnonymousSession, refreshSupabaseSession } from './utils/supabaseClient';
+import { ensureAnonymousSession, refreshSupabaseSession, SUPABASE_ANON_DISABLED_ERROR_MESSAGE } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 
@@ -50,6 +50,7 @@ const App: React.FC = () => {
   // Supabase auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(true);
+  const [authFailureMessage, setAuthFailureMessage] = useState<string | null>(null);
   // Theme state
   // Theme state - Enforced Dark Mode (v2)
   const isDark = true;
@@ -115,6 +116,7 @@ const App: React.FC = () => {
     let heartbeatTimer: number | null = null;
     let smokeExecuted = false;
     let lastAuthError = '';
+    let hasPermanentAuthFailure = false;
 
     const clearRetryTimer = () => {
       if (!retryTimer) return;
@@ -159,20 +161,32 @@ const App: React.FC = () => {
         await ensureAnonymousSession();
         if (cancelled) return;
 
+        hasPermanentAuthFailure = false;
         clearRetryTimer();
         lastAuthError = '';
+        setAuthFailureMessage(null);
         setIsAuthenticated(true);
         void ImageDatabase.getAll();
         void runSmokeIfRequested();
       } catch (error: any) {
         if (cancelled) return;
         const message = error?.message || 'Nepodařilo se inicializovat anonymní přihlášení.';
+        const isPermanentError =
+          message.includes('Anonymní přihlášení je v Supabase vypnuté') ||
+          message.includes('Supabase není nakonfigurovaná');
+
+        hasPermanentAuthFailure = isPermanentError;
         setIsAuthenticated(false);
+        setAuthFailureMessage(message);
         if (message !== lastAuthError) {
           setToast({ message, type: 'error' });
           lastAuthError = message;
         }
-        scheduleReconnect(5000);
+        if (isPermanentError) {
+          clearRetryTimer();
+        } else {
+          scheduleReconnect(5000);
+        }
       } finally {
         if (!cancelled && !isRetry) setIsAuthBootstrapping(false);
       }
@@ -181,19 +195,31 @@ const App: React.FC = () => {
     const startHeartbeat = () => {
       heartbeatTimer = window.setInterval(async () => {
         if (cancelled) return;
+        if (hasPermanentAuthFailure) return;
         try {
           await refreshSupabaseSession();
           if (cancelled) return;
+          setAuthFailureMessage(null);
           setIsAuthenticated(true);
         } catch (error: any) {
           if (cancelled) return;
           const message = error?.message || 'Spojení se Supabase bylo přerušeno.';
+          const isPermanentError =
+            message.includes('Anonymní přihlášení je v Supabase vypnuté') ||
+            message.includes('Supabase není nakonfigurovaná');
+
+          hasPermanentAuthFailure = isPermanentError;
           setIsAuthenticated(false);
+          setAuthFailureMessage(message);
           if (message !== lastAuthError) {
             setToast({ message: `${message} Obnovuji připojení…`, type: 'error' });
             lastAuthError = message;
           }
-          scheduleReconnect(2000);
+          if (isPermanentError) {
+            clearRetryTimer();
+          } else {
+            scheduleReconnect(2000);
+          }
         }
       }, 60_000);
     };
@@ -300,6 +326,13 @@ const App: React.FC = () => {
     current: number;
     total: number;
   } | null>(null);
+
+  const supabaseAuthSettingsUrl = useMemo(() => {
+    const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+    const match = rawSupabaseUrl?.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co/i);
+    if (!match?.[1]) return 'https://supabase.com/dashboard';
+    return `https://supabase.com/dashboard/project/${match[1]}/auth/providers`;
+  }, []);
 
   const isResizingRef = useRef(false);
   const isResizingRightRef = useRef(false);
@@ -2600,16 +2633,41 @@ ${extra}
   }
 
   if (!isAuthenticated) {
+    const isAnonDisabled = Boolean(
+      authFailureMessage &&
+      (authFailureMessage.includes('Anonymní přihlášení je v Supabase vypnuté') ||
+        authFailureMessage === SUPABASE_ANON_DISABLED_ERROR_MESSAGE)
+    );
+
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0f0d] text-white gap-4">
-        <p className="text-sm text-white/70">Nepodařilo se inicializovat anonymní přihlášení.</p>
-        <p className="text-xs text-white/45">Aplikace průběžně zkouší obnovit spojení se Supabase.</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 rounded-lg border border-white/20 hover:border-white/40 text-xs uppercase tracking-wider"
-        >
-          Zkusit znovu
-        </button>
+        <p className="text-sm text-white/70">{authFailureMessage || 'Nepodařilo se inicializovat anonymní přihlášení.'}</p>
+        {isAnonDisabled ? (
+          <div className="text-xs text-white/45 text-center max-w-md space-y-2">
+            <p>V Supabase je potřeba povolit anonymní přihlášení.</p>
+            <p>Authentication → Providers → Anonymous sign-ins → Enable</p>
+          </div>
+        ) : (
+          <p className="text-xs text-white/45">Aplikace průběžně zkouší obnovit spojení se Supabase.</p>
+        )}
+        <div className="flex items-center gap-2">
+          {isAnonDisabled && (
+            <a
+              href={supabaseAuthSettingsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2 rounded-lg border border-[#7ed957]/30 hover:border-[#7ed957]/60 text-xs uppercase tracking-wider text-[#a7eb89]"
+            >
+              Otevřít Supabase Auth
+            </a>
+          )}
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg border border-white/20 hover:border-white/40 text-xs uppercase tracking-wider"
+          >
+            Zkusit znovu
+          </button>
+        </div>
       </div>
     );
   }

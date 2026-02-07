@@ -5,6 +5,8 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const SAFE_PLACEHOLDER_SUPABASE_KEY = 'missing-supabase-anon-key';
 const SUPABASE_RETRY_ATTEMPTS = 4;
 const SUPABASE_RETRY_BASE_DELAY_MS = 650;
+export const SUPABASE_ANON_DISABLED_ERROR_MESSAGE =
+  'Anonymní přihlášení je v Supabase vypnuté. V Supabase Dashboard zapněte Authentication → Providers → Anonymous sign-ins.';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
 
@@ -35,6 +37,19 @@ function ensureSupabaseConfigured(): void {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function isAnonymousSignInDisabledError(error: unknown): boolean {
+  const message = String((error as any)?.message || '').toLowerCase();
+  const code = String((error as any)?.code || '').toLowerCase();
+  const status = Number((error as any)?.status || 0);
+
+  return (
+    message.includes('anonymous sign-ins are disabled') ||
+    message.includes('anonymous signups are disabled') ||
+    code.includes('anonymous') ||
+    (status === 422 && message.includes('anonymous'))
+  );
+}
+
 async function withRetry<T>(label: string, operation: () => Promise<T>): Promise<T> {
   let lastError: unknown;
 
@@ -42,6 +57,10 @@ async function withRetry<T>(label: string, operation: () => Promise<T>): Promise
     try {
       return await operation();
     } catch (error) {
+      if (isAnonymousSignInDisabledError(error)) {
+        throw new Error(SUPABASE_ANON_DISABLED_ERROR_MESSAGE);
+      }
+
       lastError = error;
       if (attempt === SUPABASE_RETRY_ATTEMPTS) break;
       const backoff = SUPABASE_RETRY_BASE_DELAY_MS * attempt;

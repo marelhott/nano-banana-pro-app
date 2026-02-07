@@ -48,6 +48,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
 ### Supabase requirements
 
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are required for runtime.
+- In Supabase Dashboard you must enable anonymous auth:
+  - `Authentication → Providers → Anonymous sign-ins → Enable`
 - App auth now automatically retries and reconnects to Supabase on transient failures.
 - Apply migrations in `supabase/migrations/` (including `20260207_user_settings_rls_policies.sql`) to keep `user_settings` accessible only to `auth.uid() = user_id`.
 
