@@ -4,10 +4,10 @@
 
 ---
 
-## SCREEN 1: PIN AUTHENTICATION
+## SCREEN 1: AUTH BOOTSTRAP
 
-**When**: User not authenticated (no userId in localStorage)  
-**Component**: `<PinAuth />`
+**When**: App startup (before anonymous Supabase session is ready)  
+**Component**: Loading bootstrap state in `<App />`
 
 ### Layout
 - **Container**: Full viewport height, centered  
@@ -19,21 +19,14 @@
    - App branding/name
    - Centered
 
-2. **PIN Input**
-   - 4-digit numeric input
-   - Input type: text or password
+2. **Loading Indicator**
+   - Spinner and loading text
    - Centered
-   - Focus state visible
-
-3. **Submit Button**
-   - Text: Action text (e.g., "Přihlásit" or "Pokračovat")
-   - Full width within card
-   - Below PIN input
 
 ### Behavior
-- On submit: creates/finds Supabase user
-- Success → stores userId + pin in localStorage → loads main app
-- Error → shows toast notification
+- On load: ensures anonymous Supabase session
+- Success → stores userId in localStorage → loads main app
+- Error → shows retry state
 
 ---
 

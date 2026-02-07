@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { logger } from "@/utils/logger";
+import { assertLocalFsApiEnabled, assertPathAllowed, sanitizeIdSegment } from "@/lib/security/localFs";
 
 export const maxDuration = 300; // 5 minute timeout for large image operations
 
@@ -14,6 +15,8 @@ export async function POST(request: NextRequest) {
   let imageId: string | undefined;
   let folder: string | undefined;
   try {
+    assertLocalFsApiEnabled();
+
     const body = await request.json();
     workflowPath = body.workflowPath;
     imageId = body.imageId;
@@ -44,12 +47,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const safeWorkflowPath = assertPathAllowed(workflowPath);
+    const safeImageId = sanitizeIdSegment(imageId);
+    if (!safeImageId) {
+      return NextResponse.json(
+        { success: false, error: "Invalid imageId format" },
+        { status: 400 }
+      );
+    }
+
     // Validate workflow directory exists
     try {
-      const stats = await fs.stat(workflowPath);
+      const stats = await fs.stat(safeWorkflowPath);
       if (!stats.isDirectory()) {
         logger.warn('file.error', 'Workflow image save failed: path is not a directory', {
-          workflowPath,
+          workflowPath: safeWorkflowPath,
         });
         return NextResponse.json(
           { success: false, error: "Workflow path is not a directory" },
@@ -58,7 +70,7 @@ export async function POST(request: NextRequest) {
       }
     } catch (dirError) {
       logger.warn('file.error', 'Workflow image save failed: directory does not exist', {
-        workflowPath,
+        workflowPath: safeWorkflowPath,
       });
       return NextResponse.json(
         { success: false, error: "Workflow directory does not exist" },
@@ -67,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create target folder if it doesn't exist
-    const targetFolder = path.join(workflowPath, folder);
+    const targetFolder = path.join(safeWorkflowPath, folder);
     try {
       await fs.mkdir(targetFolder, { recursive: true });
     } catch (mkdirError) {
@@ -81,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Construct file path
-    const filename = `${imageId}.png`;
+    const filename = `${safeImageId}.png`;
     const filePath = path.join(targetFolder, filename);
 
     // Extract base64 data and convert to buffer
@@ -99,10 +111,19 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      imageId,
+      imageId: safeImageId,
       filePath,
     });
   } catch (error) {
+    if (error instanceof Error && (
+      error.message === "Local filesystem API is disabled in production" ||
+      error.message === "Path is outside allowed roots"
+    )) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 403 }
+      );
+    }
     logger.error('file.error', 'Failed to save workflow image', {
       workflowPath,
       imageId,
@@ -141,9 +162,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    assertLocalFsApiEnabled();
+    const safeWorkflowPath = assertPathAllowed(workflowPath);
+    const safeImageId = sanitizeIdSegment(imageId);
+    if (!safeImageId) {
+      return NextResponse.json(
+        { success: false, error: "Invalid imageId format" },
+        { status: 400 }
+      );
+    }
+
     // Validate workflow directory exists
     try {
-      const stats = await fs.stat(workflowPath);
+      const stats = await fs.stat(safeWorkflowPath);
       if (!stats.isDirectory()) {
         return NextResponse.json(
           { success: false, error: "Workflow path is not a directory" },
@@ -158,10 +189,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Construct file path - check folders in order based on hint
-    const filename = `${imageId}.png`;
-    const inputsFolder = path.join(workflowPath, IMAGES_FOLDER);
-    const generationsFolder = path.join(workflowPath, "generations");
-    const legacyFolder = path.join(workflowPath, LEGACY_IMAGES_FOLDER);
+    const filename = `${safeImageId}.png`;
+    const inputsFolder = path.join(safeWorkflowPath, IMAGES_FOLDER);
+    const generationsFolder = path.join(safeWorkflowPath, "generations");
+    const legacyFolder = path.join(safeWorkflowPath, LEGACY_IMAGES_FOLDER);
 
     // Build search order based on folder hint
     const searchOrder = folder === "generations"
@@ -214,10 +245,19 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      imageId,
-      image: dataUrl,
-    });
+        imageId,
+        image: dataUrl,
+      });
   } catch (error) {
+    if (error instanceof Error && (
+      error.message === "Local filesystem API is disabled in production" ||
+      error.message === "Path is outside allowed roots"
+    )) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 403 }
+      );
+    }
     logger.error('file.error', 'Failed to load workflow image', {
       workflowPath,
       imageId,

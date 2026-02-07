@@ -1,4 +1,4 @@
-import { createClient, AuthError } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://poregdcgfwokxgmhpvac.supabase.co';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -9,88 +9,98 @@ if (!supabaseKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-/**
- * Hash PIN pomocí SHA-256
- */
-export async function hashPin(pin: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(pin);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+const USER_ID_STORAGE_KEY = 'userId';
+const PIN_HASH_STORAGE_KEY = 'pinHash';
+
+function persistUserId(userId: string | null): void {
+  if (userId) {
+    localStorage.setItem(USER_ID_STORAGE_KEY, userId);
+    return;
+  }
+  localStorage.removeItem(USER_ID_STORAGE_KEY);
 }
 
-/**
- * Přihlášení s PINem
- * - Vytvoří uživatele pokud neexistuje
- * - Vrátí userId
- */
-export async function loginWithPin(pin: string): Promise<string> {
-  const pinHash = await hashPin(pin);
-
-  // Zkusit najít existujícího uživatele
-  const { data: existingUser } = await supabase
+async function ensureLegacyUserProfile(userId: string): Promise<void> {
+  const { error } = await supabase
     .from('users')
-    .select('id')
-    .eq('pin_hash', pinHash)
-    .single();
-
-  if (existingUser) {
-    // Uživatel existuje, aktualizovat last_login
-    await supabase
-      .from('users')
-      .update({ last_login: new Date().toISOString() })
-      .eq('id', existingUser.id);
-
-    // Uložit do localStorage
-    localStorage.setItem('userId', existingUser.id);
-    localStorage.setItem('pin', pin); // Pro zapamatování
-
-    return existingUser.id;
-  }
-
-  // Vytvořit nového uživatele
-  const { data: newUser, error } = await supabase
-    .from('users')
-    .insert({ pin_hash: pinHash })
-    .select('id')
-    .single();
+    .upsert(
+      {
+        id: userId,
+        pin_hash: `anon:${userId}`,
+        last_login: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
 
   if (error) {
-    console.error('Login error:', error);
-    throw new Error('Nepodařilo se přihlásit. Zkuste jiný PIN.');
+    throw new Error(`Nepodařilo se synchronizovat profil uživatele: ${error.message}`);
   }
+}
 
-  // Uložit do localStorage
-  localStorage.setItem('userId', newUser.id);
-  localStorage.setItem('pin', pin);
-
-  return newUser.id;
+if (typeof window !== 'undefined') {
+  supabase.auth.onAuthStateChange((_event, session) => {
+    persistUserId(session?.user?.id ?? null);
+  });
 }
 
 /**
- * Automatické přihlášení z uloženého PINu
+ * Bootstrap anonymní Supabase session pro nekomerční provoz.
+ */
+export async function ensureAnonymousSession(): Promise<string> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    throw new Error(`Nepodařilo se načíst session: ${sessionError.message}`);
+  }
+
+  const existingUserId = sessionData.session?.user?.id;
+  if (existingUserId) {
+    await ensureLegacyUserProfile(existingUserId);
+    persistUserId(existingUserId);
+    return existingUserId;
+  }
+
+  const { data, error } = await supabase.auth.signInAnonymously();
+  if (error) {
+    throw new Error(`Nepodařilo se vytvořit anonymní session: ${error.message}`);
+  }
+
+  const userId = data.user?.id;
+  if (!userId) {
+    throw new Error('Anonymní session byla vytvořena bez user id.');
+  }
+
+  await ensureLegacyUserProfile(userId);
+  persistUserId(userId);
+  return userId;
+}
+
+/**
+ * Kompatibilita se starým PIN flow.
+ * PIN ignorujeme a vracíme anonymní session userId.
+ */
+export async function loginWithPin(_pin: string): Promise<string> {
+  return ensureAnonymousSession();
+}
+
+/**
+ * Automatické přihlášení (anonymní session).
  */
 export async function autoLogin(): Promise<string | null> {
-  const savedPin = localStorage.getItem('pin');
-  if (savedPin) {
-    try {
-      return await loginWithPin(savedPin);
-    } catch (error) {
-      console.error('Auto-login failed:', error);
-      logout();
-      return null;
-    }
+  try {
+    return await ensureAnonymousSession();
+  } catch (error) {
+    console.error('Auto-login failed:', error);
+    return null;
   }
-  return null;
 }
 
 /**
  * Odhlášení
  */
 export function logout() {
-  localStorage.removeItem('userId');
-  localStorage.removeItem('pin');
+  void supabase.auth.signOut();
+  persistUserId(null);
+  localStorage.removeItem(PIN_HASH_STORAGE_KEY);
   window.location.reload();
 }
 
@@ -98,24 +108,12 @@ export function logout() {
  * Získat aktuálního uživatele
  */
 export function getCurrentUserId(): string | null {
-  return localStorage.getItem('userId');
+  return localStorage.getItem(USER_ID_STORAGE_KEY);
 }
 
 /**
- * Simulace Supabase auth.uid() pro RLS
- * Protože používáme vlastní PIN autentizaci, musíme nastavit userId manuálně
+ * Legacy helper - zachováno pro kompatibilitu.
  */
-export async function setAuthContext(userId: string) {
-  // Pro RLS policies nastavíme JWT claim
-  // V produkci by toto mělo být řešeno přes Supabase Auth
-  // Pro jednoduchost použijeme service role v queries
-
-  // Alternative: použít Supabase Anonymous Auth
-  const { data, error } = await supabase.auth.signInAnonymously();
-
-  if (error) {
-    console.error('Auth context error:', error);
-  }
-
-  return data?.user?.id;
+export async function setAuthContext(_userId: string) {
+  return ensureAnonymousSession();
 }

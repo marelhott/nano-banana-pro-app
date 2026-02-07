@@ -12,7 +12,6 @@ function resolveWorkflowDir() {
   const candidates = [
     process.env.WORKFLOW_DIR,
     path.resolve(process.cwd(), 'workflow'),
-    '/Users/mulenmara/Documents/node-banana-master',
   ].filter(Boolean)
 
   for (const dir of candidates) {
@@ -38,6 +37,14 @@ function startWorkflowApp(workflowDir) {
   return child
 }
 
+function extractReplicateToken(req, bodyToken) {
+  const headerToken =
+    req.header('x-replicate-token') ||
+    req.header('authorization')?.replace(/^Bearer\s+/i, '')
+
+  return headerToken || bodyToken || null
+}
+
 async function start() {
   const workflowDir = resolveWorkflowDir()
   if (!workflowDir) {
@@ -54,7 +61,8 @@ async function start() {
 
   app.post('/api/replicate/predictions', async (req, res) => {
     try {
-      const { token, version, input } = req.body || {}
+      const { token: bodyToken, version, input } = req.body || {}
+      const token = extractReplicateToken(req, bodyToken)
       if (!token || typeof token !== 'string') {
         return res.status(400).json({ error: 'Missing Replicate token' })
       }
@@ -82,9 +90,10 @@ async function start() {
 
   app.get('/api/replicate/predictions/:id', async (req, res) => {
     try {
-      const token = req.header('x-replicate-token')
+      const token = extractReplicateToken(req)
       if (!token) return res.status(400).json({ error: 'Missing Replicate token' })
-      const id = req.params.id
+      const id = req.params.id?.trim()
+      if (!id) return res.status(400).json({ error: 'Missing prediction id' })
       const upstream = await fetch(`https://api.replicate.com/v1/predictions/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,

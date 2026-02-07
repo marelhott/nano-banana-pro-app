@@ -58,6 +58,12 @@ export function StyleTransferScreen(props: {
   }, [outputs]);
 
   const replicateUrlCacheRef = React.useRef<Map<string, string>>(new Map());
+  const buildReplicateCacheKey = React.useCallback((role: string, dataUrl: string) => {
+    // Compact fingerprint to avoid stale-cache collisions after image changes.
+    const head = dataUrl.slice(0, 64);
+    const tail = dataUrl.slice(-64);
+    return `${role}:${dataUrl.length}:${head}:${tail}`;
+  }, []);
 
   const estimateSaturation = React.useCallback(async (dataUrl: string) => {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -129,7 +135,8 @@ export function StyleTransferScreen(props: {
     return canvas.toDataURL('image/jpeg', 0.35);
   }, []);
 
-  const ensureReplicateImageInput = React.useCallback(async (dataUrl: string, cacheKey: string) => {
+  const ensureReplicateImageInput = React.useCallback(async (dataUrl: string, role: string) => {
+    const cacheKey = buildReplicateCacheKey(role, dataUrl);
     const cached = replicateUrlCacheRef.current.get(cacheKey);
     if (cached) return cached;
 
@@ -144,10 +151,11 @@ export function StyleTransferScreen(props: {
       replicateUrlCacheRef.current.set(cacheKey, small);
       return small;
     }
-  }, [shrinkForReplicate]);
+  }, [buildReplicateCacheKey, shrinkForReplicate]);
 
   const setReferenceFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
+    replicateUrlCacheRef.current.clear();
     setReference({ file, dataUrl });
     setAnalysis(null);
     try {
@@ -158,6 +166,7 @@ export function StyleTransferScreen(props: {
 
   const setStyleFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
+    replicateUrlCacheRef.current.clear();
     setStyle({ file, dataUrl });
     setAnalysis(null);
     try {
@@ -167,10 +176,12 @@ export function StyleTransferScreen(props: {
   }, []);
 
   const clearReference = React.useCallback(() => {
+    replicateUrlCacheRef.current.clear();
     setReference(null);
   }, []);
 
   const clearStyle = React.useCallback(() => {
+    replicateUrlCacheRef.current.clear();
     setStyle(null);
     setAnalysis(null);
   }, []);
@@ -279,7 +290,6 @@ export function StyleTransferScreen(props: {
     const outputIds = Array.from({ length: variants }).map((_, i) => `st-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`);
     setOutputs(outputIds.map((id) => ({ id, status: 'loading' })));
 
-      const negativeText = negative ? `${negative}` : 'text, watermark, logo, blur, artifacts';
     setIsGenerating(true);
     try {
       const negativeText = negative ? `Vyhni se: ${negative}` : 'Vyhni se: text, watermark, logo, rozmazání, artefakty';

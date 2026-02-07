@@ -4,41 +4,18 @@ import { promisify } from "util";
 import { writeFile, unlink } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
+import { assertLocalFsApiEnabled, assertPathAllowed } from "@/lib/security/localFs";
+import { normalizeSelectedPath } from "./normalizeSelectedPath";
 
 const execAsync = promisify(exec);
-
-/**
- * Normalize a path returned by native directory pickers.
- * On macOS, osascript can return hostname-prefixed paths for network volumes
- * (e.g. "HOSTNAME/Users/..." instead of "/Users/..."). This strips the
- * hostname prefix and cleans up trailing slashes.
- */
-export function normalizeSelectedPath(selectedPath: string, platform: string): string {
-  // On macOS/Linux, ensure the path is absolute.
-  // osascript can return hostname-prefixed paths for network volumes
-  // e.g. "AT-ALGKG9VR/Users/guy/Desktop" instead of "/Users/guy/Desktop"
-  if ((platform === "darwin" || platform === "linux") && !selectedPath.startsWith("/")) {
-    const firstSlash = selectedPath.indexOf("/");
-    if (firstSlash >= 0) {
-      selectedPath = selectedPath.substring(firstSlash);
-    }
-  }
-
-  // Remove trailing slash/backslash (except root paths like "/" or "C:\")
-  if (selectedPath.length > 1 && (selectedPath.endsWith("/") || selectedPath.endsWith("\\"))) {
-    if (!(platform === "win32" && /^[A-Za-z]:[\\\/]$/.test(selectedPath))) {
-      selectedPath = selectedPath.slice(0, -1);
-    }
-  }
-
-  return selectedPath;
-}
 
 // GET: Open native directory picker and return the selected path
 export async function GET() {
   const platform = process.platform;
 
   try {
+    assertLocalFsApiEnabled();
+
     let selectedPath: string | null = null;
 
     if (platform === "darwin") {
@@ -149,6 +126,7 @@ if ($result) { Write-Output $result }
     }
 
     selectedPath = normalizeSelectedPath(selectedPath, platform);
+    selectedPath = assertPathAllowed(selectedPath);
 
     return NextResponse.json({
       success: true,
@@ -156,6 +134,15 @@ if ($result) { Write-Output $result }
       path: selectedPath,
     });
   } catch (error) {
+    if (error instanceof Error && (
+      error.message === "Local filesystem API is disabled in production" ||
+      error.message === "Path is outside allowed roots"
+    )) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 403 }
+      );
+    }
     // Check if user cancelled (osascript returns error code when cancelled)
     if (
       error instanceof Error &&

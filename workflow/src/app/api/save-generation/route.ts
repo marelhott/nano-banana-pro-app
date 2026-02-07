@@ -3,6 +3,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as crypto from "crypto";
 import { logger } from "@/utils/logger";
+import { assertLocalFsApiEnabled, assertPathAllowed, sanitizeIdSegment } from "@/lib/security/localFs";
 
 // Helper to get file extension from MIME type
 function getExtensionFromMime(mimeType: string): string {
@@ -65,6 +66,8 @@ async function findExistingFileByHash(
 export async function POST(request: NextRequest) {
   let directoryPath: string | undefined;
   try {
+    assertLocalFsApiEnabled();
+
     const body = await request.json();
     directoryPath = body.directoryPath;
     const image = body.image;
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
       directoryPath,
       hasImage: !!image,
       hasVideo: !!video,
-      prompt,
+      promptLength: typeof prompt === "string" ? prompt.length : 0,
       customFilename,
     });
 
@@ -96,12 +99,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const safeDirectoryPath = assertPathAllowed(directoryPath);
+    if (imageId && !sanitizeIdSegment(imageId)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid imageId format" },
+        { status: 400 }
+      );
+    }
+
     // Validate directory exists (or create if requested)
     try {
-      const stats = await fs.stat(directoryPath);
+      const stats = await fs.stat(safeDirectoryPath);
       if (!stats.isDirectory()) {
         logger.warn('file.error', 'Generation save failed: path is not a directory', {
-          directoryPath,
+          directoryPath: safeDirectoryPath,
         });
         return NextResponse.json(
           { success: false, error: "Path is not a directory" },
@@ -112,11 +123,11 @@ export async function POST(request: NextRequest) {
       // Directory doesn't exist - create it if requested
       if (createDirectory) {
         try {
-          await fs.mkdir(directoryPath, { recursive: true });
-          logger.info('file.save', 'Created output directory', { directoryPath });
+          await fs.mkdir(safeDirectoryPath, { recursive: true });
+          logger.info('file.save', 'Created output directory', { directoryPath: safeDirectoryPath });
         } catch (mkdirError) {
           logger.error('file.error', 'Failed to create output directory', {
-            directoryPath,
+            directoryPath: safeDirectoryPath,
           }, mkdirError instanceof Error ? mkdirError : undefined);
           return NextResponse.json(
             { success: false, error: "Failed to create output directory" },
@@ -125,7 +136,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         logger.warn('file.error', 'Generation save failed: directory does not exist', {
-          directoryPath,
+          directoryPath: safeDirectoryPath,
         });
         return NextResponse.json(
           { success: false, error: "Directory does not exist" },
@@ -202,9 +213,9 @@ export async function POST(request: NextRequest) {
     const contentHash = computeContentHash(buffer);
 
     // Check for existing file with same hash (deduplication)
-    const existingFile = await findExistingFileByHash(directoryPath, contentHash, extension);
+    const existingFile = await findExistingFileByHash(safeDirectoryPath, contentHash, extension);
     if (existingFile) {
-      const existingPath = path.join(directoryPath, existingFile);
+      const existingPath = path.join(safeDirectoryPath, existingFile);
       logger.info('file.save', 'Generation deduplicated: existing file found', {
         contentHash,
         existingFile,
@@ -240,7 +251,7 @@ export async function POST(request: NextRequest) {
         : "generation";
       filename = `${promptSnippet}_${contentHash}.${extension}`;
     }
-    const filePath = path.join(directoryPath, filename);
+    const filePath = path.join(safeDirectoryPath, filename);
 
     // Write the file
     await fs.writeFile(filePath, buffer);
@@ -261,6 +272,15 @@ export async function POST(request: NextRequest) {
       isDuplicate: false,
     });
   } catch (error) {
+    if (error instanceof Error && (
+      error.message === "Local filesystem API is disabled in production" ||
+      error.message === "Path is outside allowed roots"
+    )) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 403 }
+      );
+    }
     logger.error('file.error', 'Failed to save generation', {
       directoryPath,
     }, error instanceof Error ? error : undefined);

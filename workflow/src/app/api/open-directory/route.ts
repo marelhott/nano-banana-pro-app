@@ -4,11 +4,14 @@ import { promisify } from "util";
 import { stat } from "fs/promises";
 import path from "path";
 import os from "os";
+import { assertLocalFsApiEnabled, assertPathAllowed } from "@/lib/security/localFs";
 
 const execFileAsync = promisify(execFile);
 
 export async function POST(req: NextRequest) {
     try {
+        assertLocalFsApiEnabled();
+
         const body = await req.json();
         const { path: inputPath } = body;
 
@@ -20,7 +23,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Normalize and resolve the path to prevent traversal attacks
-        const normalizedPath = path.resolve(inputPath);
+        const normalizedPath = assertPathAllowed(path.resolve(inputPath));
 
         // Validate that the path exists and is a directory
         try {
@@ -65,6 +68,15 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        if (error instanceof Error && (
+            error.message === "Local filesystem API is disabled in production" ||
+            error.message === "Path is outside allowed roots"
+        )) {
+            return NextResponse.json(
+                { success: false, error: error.message },
+                { status: 403 }
+            );
+        }
         console.error("Failed to open directory:", error);
         return NextResponse.json(
             { success: false, error: "Failed to open directory" },

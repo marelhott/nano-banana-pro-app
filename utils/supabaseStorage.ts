@@ -85,6 +85,13 @@ export async function urlToDataUrl(url: string): Promise<string> {
   try {
     // Stáhnout obrázek z HTTP URL
     const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.startsWith('image/')) {
+      throw new Error('URL nevrátila obrázek');
+    }
     const blob = await response.blob();
 
     // Převést na base64

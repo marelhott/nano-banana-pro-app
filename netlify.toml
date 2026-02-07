@@ -7,6 +7,9 @@
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
 
+[functions]
+  directory = "netlify/functions"
+
 # Production deploy from main branch
 [context.production]
   command = "npm ci && npm run build"
@@ -19,6 +22,12 @@
 
 # SPA redirect - ensure all routes work
 [[redirects]]
+  from = "/nodes"
+  to = "https://mulennano-nodes.netlify.app/"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/nodes/*"
   to = "https://mulennano-nodes.netlify.app/:splat"
   status = 200
@@ -27,6 +36,18 @@
 [[redirects]]
   from = "/_next/*"
   to = "https://mulennano-nodes.netlify.app/_next/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/replicate/predictions"
+  to = "/.netlify/functions/replicate-predictions"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/replicate/predictions/*"
+  to = "/.netlify/functions/replicate-predictions/:splat"
   status = 200
   force = true
 

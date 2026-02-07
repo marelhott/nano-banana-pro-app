@@ -25,15 +25,14 @@ import { PromptHistory } from './utils/promptHistory';
 import { detectLanguage, enhancePromptQuality, getPromptSuggestion } from './utils/languageSupport';
 import { formatJsonPromptForImage } from './utils/jsonPrompting';
 import { ImageGalleryPanel } from './components/ImageGalleryPanel';
-import { PinAuth } from './components/PinAuth';
 import { SettingsModal } from './components/SettingsModal';
 import { ProviderSelector } from './components/ProviderSelector';
 import { AIProviderType, ProviderSettings } from './services/aiProvider';
 import { ProviderFactory } from './services/providerFactory';
-import { SettingsDatabase } from './utils/imageDatabase';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
+import { ensureAnonymousSession } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 
@@ -46,9 +45,9 @@ const RESOLUTIONS = [
 const MAX_GENERATED_IMAGES = 14;
 
 const App: React.FC = () => {
-  // PIN Autentizace state
+  // Supabase auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(true);
   // Theme state
   // Theme state - Enforced Dark Mode (v2)
   const isDark = true;
@@ -57,7 +56,7 @@ const App: React.FC = () => {
   // AI Provider state
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType>(AIProviderType.GEMINI);
   const defaultProviderSettings: ProviderSettings = {
-    [AIProviderType.GEMINI]: { apiKey: process.env.API_KEY || '', enabled: true },
+    [AIProviderType.GEMINI]: { apiKey: '', enabled: true },
     [AIProviderType.CHATGPT]: { apiKey: '', enabled: false },
     [AIProviderType.GROK]: { apiKey: '', enabled: false },
     [AIProviderType.REPLICATE]: { apiKey: '', enabled: false }
@@ -87,21 +86,55 @@ const App: React.FC = () => {
   const galleryPanelRef = useRef<any>(null);
   const [analyzingImageId, setAnalyzingImageId] = useState<string | null>(null);
 
-  // Load provider settings from localStorage
   useEffect(() => {
-    const savedSettings = localStorage.getItem('providerSettings');
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        setProviderSettings({ ...defaultProviderSettings, ...parsed });
-      } catch {
-        setProviderSettings(defaultProviderSettings);
-      }
-    }
+    localStorage.removeItem('providerSettings');
     const savedProvider = localStorage.getItem('selectedProvider');
     if (savedProvider && Object.values(AIProviderType).includes(savedProvider as AIProviderType)) {
       setSelectedProvider(savedProvider as AIProviderType);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrapAuth = async () => {
+      try {
+        const userId = await ensureAnonymousSession();
+        if (cancelled) return;
+
+        setIsAuthenticated(true);
+        void ImageDatabase.getAll();
+
+        if (new URLSearchParams(window.location.search).get('smoke') === '1') {
+          const result = await runSupabaseSmokeTests((message, data) => {
+            if (data !== undefined) {
+              console.log(`[Smoke] ${message}`, data);
+            } else {
+              console.log(`[Smoke] ${message}`);
+            }
+          });
+          if (cancelled) return;
+
+          if (result.ok) {
+            setToast({ message: '✅ Smoke test Supabase: OK', type: 'success' });
+          } else {
+            setToast({ message: `❌ Smoke test Supabase: ${result.failures[0]}`, type: 'error' });
+            console.error('[Smoke] Failures:', result.failures);
+          }
+        }
+      } catch (error: any) {
+        if (cancelled) return;
+        setIsAuthenticated(false);
+        setToast({ message: error?.message || 'Nepodařilo se inicializovat anonymní přihlášení.', type: 'error' });
+      } finally {
+        if (!cancelled) setIsAuthBootstrapping(false);
+      }
+    };
+
+    void bootstrapAuth();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -171,13 +204,6 @@ const App: React.FC = () => {
     const onPop = () => setRoutePath(window.location.pathname);
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  useEffect(() => {
-    if (window.location.pathname === '/style-transfer') {
-      window.history.replaceState({}, '', '/');
-      setRoutePath('/');
-    }
   }, []);
 
   const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
@@ -509,7 +535,7 @@ const App: React.FC = () => {
         console.log('[Drop Reference] Got internal data');
         imageData = JSON.parse(internalData);
       } else if (jsonData) {
-        console.log('[Drop Reference] Got JSON data:', jsonData);
+        console.log('[Drop Reference] Got JSON data payload');
         imageData = JSON.parse(jsonData);
       } else {
         const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
@@ -520,7 +546,7 @@ const App: React.FC = () => {
           imageData = { url, fileName: file.name, fileType: file.type };
         } else {
           const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-          console.log('[Drop Reference] Got text url:', url);
+          console.log('[Drop Reference] Got text url', { hasUrl: Boolean(url) });
           if (url) {
             imageData = {
               url: url,
@@ -567,7 +593,7 @@ const App: React.FC = () => {
           error: null,
         }));
 
-        console.log('[Drop Reference] Image added successfully', prompt ? `with prompt: ${prompt}` : 'without prompt');
+        console.log('[Drop Reference] Image added successfully', { hasPrompt: Boolean(prompt) });
       } catch (fetchError) {
         console.error('[Drop Reference] Failed to fetch image, using URL directly:', fetchError);
         if (typeof url === 'string' && url.startsWith('blob:')) {
@@ -609,7 +635,7 @@ const App: React.FC = () => {
         console.log('[Drop Style] Got internal data');
         imageData = JSON.parse(internalData);
       } else if (jsonData) {
-        console.log('[Drop Style] Got JSON data:', jsonData);
+        console.log('[Drop Style] Got JSON data payload');
         imageData = JSON.parse(jsonData);
       } else {
         const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
@@ -620,7 +646,7 @@ const App: React.FC = () => {
           imageData = { url, fileName: file.name, fileType: file.type };
         } else {
           const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-          console.log('[Drop Style] Got text url:', url);
+          console.log('[Drop Style] Got text url', { hasUrl: Boolean(url) });
           if (url) {
             imageData = {
               url: url,
@@ -868,7 +894,7 @@ const App: React.FC = () => {
       // 1. Generate 3 prompt variants using AI
       const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
 
-      console.log('[3 Variants] Generating variants for prompt:', state.prompt);
+      console.log('[3 Variants] Generating variants', { promptLength: state.prompt.length });
       setToast({ message: '🎨 Generating 3 sophisticated variants...', type: 'info' });
 
       const variants = await (provider as any).generate3PromptVariants(state.prompt);
@@ -1165,7 +1191,7 @@ ${extra}
               const imageWithPrompt = state.sourceImages.find(img => img.prompt);
               if (imageWithPrompt?.prompt) {
                 extraPrompt = imageWithPrompt.prompt;
-                console.log('[Generation] Using prompt from reference image:', extraPrompt);
+                console.log('[Generation] Using prompt from reference image', { promptLength: extraPrompt.length });
               }
             }
 
@@ -1425,7 +1451,7 @@ ${extra}
         ...validReferenceImages
       ];
 
-      console.log('[Edit] Sending request to Gemini...', { prompt: editPrompt, imageCount: sourceImages.length });
+      console.log('[Edit] Sending request to Gemini...', { promptLength: editPrompt.length, imageCount: sourceImages.length });
 
       const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
       const recipe: GenerationRecipe = {
@@ -1516,7 +1542,7 @@ ${extra}
   // Batch processing handler
   const handleBatchProcess = async (images: any[]) => {
     console.log('[Batch] Starting batch process with', images.length, 'images');
-    console.log('[Batch] Prompt:', state.prompt);
+    console.log('[Batch] Prompt metadata', { promptLength: state.prompt.length });
 
     const canRunFixedSimpleBatch =
       promptMode === 'simple' &&
@@ -2451,44 +2477,27 @@ ${extra}
     </label>
   );
 
-  // Handle PIN authentication
-  const handleAuth = async (userId: string) => {
-    setAuthUserId(userId);
-    setIsAuthenticated(true);
-    // Pre-load data from Supabase
-    ImageDatabase.getAll();
+  // Show auth bootstrap screen
+  if (isAuthBootstrapping) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0f0d]">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
-    // Load provider settings
-    const savedSettings = await SettingsDatabase.loadProviderSettings();
-    if (savedSettings) {
-      setProviderSettings({ ...defaultProviderSettings, ...savedSettings });
-      try {
-        localStorage.setItem('providerSettings', JSON.stringify({ ...defaultProviderSettings, ...savedSettings }));
-      } catch {
-      }
-    }
-
-    if (new URLSearchParams(window.location.search).get('smoke') === '1') {
-      const result = await runSupabaseSmokeTests((message, data) => {
-        if (data !== undefined) {
-          console.log(`[Smoke] ${message}`, data);
-        } else {
-          console.log(`[Smoke] ${message}`);
-        }
-      });
-
-      if (result.ok) {
-        setToast({ message: '✅ Smoke test Supabase: OK', type: 'success' });
-      } else {
-        setToast({ message: `❌ Smoke test Supabase: ${result.failures[0]}`, type: 'error' });
-        console.error('[Smoke] Failures:', result.failures);
-      }
-    }
-  };
-
-  // Show PIN auth screen if not authenticated
   if (!isAuthenticated) {
-    return <PinAuth onAuth={handleAuth} />;
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0f0d] text-white gap-4">
+        <p className="text-sm text-white/70">Nepodařilo se inicializovat anonymní přihlášení.</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 rounded-lg border border-white/20 hover:border-white/40 text-xs uppercase tracking-wider"
+        >
+          Zkusit znovu
+        </button>
+      </div>
+    );
   }
 
 
@@ -2496,12 +2505,7 @@ ${extra}
   const handleSaveSettings = async (newSettings: ProviderSettings) => {
     const merged = { ...defaultProviderSettings, ...newSettings };
     setProviderSettings(merged);
-    await SettingsDatabase.saveProviderSettings(merged);
-    try {
-      localStorage.setItem('providerSettings', JSON.stringify(merged));
-    } catch {
-    }
-    setToast({ message: 'Settings saved successfully!', type: 'success' });
+    setToast({ message: 'Settings applied for current session.', type: 'success' });
   };
 
   return (
@@ -3052,7 +3056,7 @@ ${extra}
             <ImageGalleryPanel
               ref={galleryPanelRef}
               onDragStart={(imageData, type) => {
-                console.log('[Drag] Started from gallery:', type, imageData);
+                console.log('[Drag] Started from gallery', { type });
               }}
               onBatchProcess={handleBatchProcess}
               view="sidebar"
@@ -3090,7 +3094,7 @@ ${extra}
               <div className="flex-1 min-h-0">
                 <ImageGalleryPanel
                   onDragStart={(imageData, type) => {
-                    console.log('[Drag] Started from gallery:', type, imageData);
+                    console.log('[Drag] Started from gallery', { type });
                   }}
                   onBatchProcess={handleBatchProcess}
                   view="expanded"

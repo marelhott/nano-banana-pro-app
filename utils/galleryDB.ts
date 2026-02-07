@@ -27,10 +27,22 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
   }
 
   try {
+    const fetchImageBlob = async (url: string): Promise<Blob> => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Nepodařilo se stáhnout obrázek (HTTP ${response.status})`);
+      }
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/')) {
+        throw new Error('URL neobsahuje obrázek.');
+      }
+      return await response.blob();
+    };
+
     // 1. Upload hlavního obrázku
     const imageBlob = image.url.startsWith('data:')
       ? await dataUrlToBlob(image.url)
-      : await (await fetch(image.url)).blob();
+      : await fetchImageBlob(image.url);
     const storagePath = await uploadImage(imageBlob, 'generated');
 
     // 2. Upload thumbnai (pokud existuje)
@@ -38,7 +50,7 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
     if (image.thumbnail) {
       const thumbnailBlob = image.thumbnail.startsWith('data:')
         ? await dataUrlToBlob(image.thumbnail)
-        : await (await fetch(image.thumbnail)).blob();
+        : await fetchImageBlob(image.thumbnail);
       thumbnailPath = await uploadImage(thumbnailBlob, 'generated');
     }
 
@@ -166,7 +178,7 @@ export const clearGallery = async (): Promise<void> => {
 
 // Vytvořit thumbnail z plného obrázku
 export const createThumbnail = (dataUrl: string, maxSize: number = 400): Promise<string> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
@@ -197,6 +209,7 @@ export const createThumbnail = (dataUrl: string, maxSize: number = 400): Promise
       // Zvýšit kvalitu JPEG komprese z 0.7 na 0.85
       resolve(canvas.toDataURL('image/jpeg', 0.85));
     };
+    img.onerror = () => reject(new Error('Nepodařilo se načíst obrázek pro thumbnail.'));
     img.src = dataUrl;
   });
 };

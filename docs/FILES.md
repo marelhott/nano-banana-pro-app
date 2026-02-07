@@ -54,7 +54,7 @@ createRoot(document.getElementById('root')!).render(
 
 ```
 App
-├── PinAuth (if not authenticated)
+├── Auth Bootstrap Screen (if session is initializing/failed)
 └── Main Application (if authenticated)
     ├── Header
     ├── Sidebar
@@ -86,11 +86,10 @@ App
 ## Components Directory
 
 ### Authentication
-**PinAuth.tsx** (6KB)
-- Purpose: PIN-based user authentication
-- Props: `onAuth: (userId: string) => void`
-- State: PIN input, loading, error
-- Supabase: Creates/finds user by PIN
+**App.tsx bootstrap auth state**
+- Purpose: initialize anonymous Supabase session
+- State: `isAuthenticated`, `isAuthBootstrapping`
+- Supabase: ensures anonymous auth and stores current `userId`
 
 ### Header
 **Header.tsx** (2KB)

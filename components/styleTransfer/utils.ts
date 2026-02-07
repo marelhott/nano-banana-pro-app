@@ -50,7 +50,13 @@ export async function resolveDropToFile(e: React.DragEvent): Promise<File | null
     const parsed = JSON.parse(internal) as { url: string; fileName?: string; fileType?: string };
     if (parsed?.url) {
       const resp = await fetch(parsed.url);
+      if (!resp.ok) {
+        throw new Error('Nepodařilo se stáhnout obrázek z interního odkazu.');
+      }
       const blob = await resp.blob();
+      if (!(blob.type || '').startsWith('image/')) {
+        throw new Error('Interní odkaz nevrátil obrázek.');
+      }
       return new File([blob], parsed.fileName || 'image.jpg', { type: parsed.fileType || blob.type || 'image/jpeg' });
     }
   }
@@ -61,7 +67,13 @@ export async function resolveDropToFile(e: React.DragEvent): Promise<File | null
   const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
   if (url) {
     const resp = await fetch(url);
+    if (!resp.ok) {
+      throw new Error('Nepodařilo se stáhnout obrázek z URL.');
+    }
     const blob = await resp.blob();
+    if (!(blob.type || '').startsWith('image/')) {
+      throw new Error('URL neobsahuje obrázek.');
+    }
     return new File([blob], 'image.jpg', { type: blob.type || 'image/jpeg' });
   }
 

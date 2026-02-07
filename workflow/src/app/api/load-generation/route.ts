@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { logger } from "@/utils/logger";
+import { assertLocalFsApiEnabled, assertPathAllowed, sanitizeIdSegment } from "@/lib/security/localFs";
 
 // Supported file extensions
 const SUPPORTED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov'];
@@ -26,6 +27,8 @@ export async function POST(request: NextRequest) {
   let directoryPath: string | undefined;
   let imageId: string | undefined;
   try {
+    assertLocalFsApiEnabled();
+
     const body = await request.json();
     directoryPath = body.directoryPath;
     imageId = body.imageId;
@@ -46,12 +49,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const safeDirectoryPath = assertPathAllowed(directoryPath);
+    const safeImageId = sanitizeIdSegment(imageId);
+    if (!safeImageId) {
+      return NextResponse.json(
+        { success: false, error: "Invalid imageId format" },
+        { status: 400 }
+      );
+    }
+
     // Validate directory exists
     try {
-      const stats = await fs.stat(directoryPath);
+      const stats = await fs.stat(safeDirectoryPath);
       if (!stats.isDirectory()) {
         logger.warn('file.error', 'Generation load failed: path is not a directory', {
-          directoryPath,
+          directoryPath: safeDirectoryPath,
         });
         return NextResponse.json(
           { success: false, error: "Path is not a directory" },
@@ -73,7 +85,7 @@ export async function POST(request: NextRequest) {
     let filePath: string | null = null;
 
     for (const ext of SUPPORTED_EXTENSIONS) {
-      const candidatePath = path.join(directoryPath, `${imageId}.${ext}`);
+      const candidatePath = path.join(safeDirectoryPath, `${safeImageId}.${ext}`);
       try {
         await fs.access(candidatePath);
         foundExtension = ext;
@@ -131,6 +143,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
+    if (error instanceof Error && (
+      error.message === "Local filesystem API is disabled in production" ||
+      error.message === "Path is outside allowed roots"
+    )) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 403 }
+      );
+    }
     logger.error('file.error', 'Failed to load generation', {
       directoryPath,
       imageId,
