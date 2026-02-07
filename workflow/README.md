@@ -31,6 +31,7 @@ Configure API keys in Project Settings to enable these providers.
 
 - `GET /api/health` - lightweight service health report.
 - `GET /api/metrics` - in-memory generation metrics (error rate, latency, provider breakdown).
+- Queue/metrics storage mode is currently `memory` (state resets after cold starts/redeploys).
 - Async queue mode for long provider jobs:
   - `POST /api/generate` with `{"asyncMode": true}` (or header `X-Generate-Async: 1`)
   - poll with `GET /api/generate?jobId=<id>`

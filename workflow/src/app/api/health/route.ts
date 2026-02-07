@@ -24,5 +24,10 @@ export async function GET() {
       avgDurationMs: recent.avgDurationMs,
     },
     jobs: getGenerationJobStats(),
+    storage: {
+      jobs: "memory",
+      metrics: "memory",
+      note: "State resets on cold starts/redeploys",
+    },
   });
 }

@@ -26,7 +26,6 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
 3. Configure environment variables in `.env.local`:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-   - `GEMINI_API_KEY` (optional fallback for Gemini)
 
 4. Configure provider API keys in app Settings (gear icon):
    - Gemini, OpenAI, Grok, Replicate
@@ -44,7 +43,6 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
 3. Set environment variables in Netlify dashboard:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-   - `GEMINI_API_KEY` (optional fallback)
 4. Deploy!
 
 ### Supabase requirements
@@ -60,6 +58,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
   - `/api/health`
   - `/api/metrics`
   - Async generation queue: `POST /api/generate` with `asyncMode=true`, then poll `/api/generate?jobId=...`.
+  - Current queue and metrics storage mode is `memory` (state resets after cold start/redeploy).
 
 
 ## Deployment Status

@@ -6,7 +6,8 @@
     "dev": "node server.js",
     "build": "next build",
     "start": "next start",
-    "lint": "npm run test:run",
+    "typecheck": "tsc --noEmit -p tsconfig.lint.json",
+    "lint": "npm run typecheck && npm run test:run",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"

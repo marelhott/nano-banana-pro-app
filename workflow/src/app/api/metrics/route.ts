@@ -11,5 +11,10 @@ export async function GET(request: NextRequest) {
     snapshot: getGenerateMetricsSnapshot(windowMinutes),
     overview: getGenerateMetricsOverview(),
     jobs: getGenerationJobStats(),
+    storage: {
+      jobs: "memory",
+      metrics: "memory",
+      note: "State resets on cold starts/redeploys",
+    },
   });
 }

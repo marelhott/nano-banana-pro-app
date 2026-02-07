@@ -54,17 +54,6 @@ export class ProviderFactory {
             return this.createProvider(AIProviderType.GEMINI, geminiConfig.apiKey);
         }
 
-        // Last resort: environment fallback only for Gemini-compatible key.
-        const envGeminiKey = process.env.GEMINI_API_KEY;
-        if (envGeminiKey) {
-            if (selectedType === AIProviderType.GEMINI) {
-                console.warn('Using environment Gemini API key');
-                return this.createProvider(AIProviderType.GEMINI, envGeminiKey);
-            }
-            console.warn(`No key for ${selectedType}, falling back to Gemini environment key`);
-            return this.createProvider(AIProviderType.GEMINI, envGeminiKey);
-        }
-
         throw new Error('No API key available for any provider');
     }
 
@@ -82,8 +71,8 @@ export class ProviderFactory {
                 // Gemini keys typically start with "AI"
                 return apiKey.length > 20;
             case AIProviderType.GROK:
-                // xAI keys format (placeholder)
-                return apiKey.length > 20;
+                // xAI keys usually start with xai-
+                return apiKey.startsWith('xai-') && apiKey.length > 20;
             case AIProviderType.CHATGPT:
                 // OpenAI keys start with "sk-"
                 return (apiKey.startsWith('sk-') || apiKey.startsWith('sk-proj-')) && apiKey.length > 20;
