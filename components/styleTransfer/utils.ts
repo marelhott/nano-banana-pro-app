@@ -20,6 +20,8 @@ export type OutputItem = {
   error?: string;
 };
 
+export const STYLE_REFERENCE_LIMIT = 3;
+
 export function getDataUrlMime(dataUrl: string): string {
   const header = dataUrl.split(',')[0] || '';
   const m = header.match(/data:(.*?);base64/);
@@ -114,4 +116,75 @@ export async function createStylePatches(styleDataUrl: string): Promise<string[]
   }
 
   return patches;
+}
+
+export async function composeStyleReferencesBoard(styleDataUrls: string[]): Promise<string> {
+  const refs = styleDataUrls.filter((url) => typeof url === 'string' && url.length > 0).slice(0, STYLE_REFERENCE_LIMIT);
+  if (refs.length === 0) {
+    throw new Error('Chybí stylové reference.');
+  }
+  if (refs.length === 1) {
+    return refs[0];
+  }
+
+  const loaded = await Promise.all(
+    refs.map(
+      (src) =>
+        new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Nepodařilo se načíst stylový obrázek.'));
+          img.src = src;
+        }),
+    ),
+  );
+
+  const tile = 512;
+  const boardWidth = refs.length === 2 ? tile * 2 : tile * 2;
+  const boardHeight = refs.length === 2 ? tile : tile * 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = boardWidth;
+  canvas.height = boardHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas není dostupný.');
+
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(0, 0, boardWidth, boardHeight);
+
+  const layout =
+    refs.length === 2
+      ? [
+          { x: 0, y: 0, w: tile, h: tile },
+          { x: tile, y: 0, w: tile, h: tile },
+        ]
+      : [
+          { x: 0, y: 0, w: tile, h: tile },
+          { x: tile, y: 0, w: tile, h: tile },
+          { x: 0, y: tile, w: tile * 2, h: tile },
+        ];
+
+  const drawCover = (img: HTMLImageElement, x: number, y: number, w: number, h: number) => {
+    const srcAspect = img.width / img.height;
+    const dstAspect = w / h;
+    let sx = 0;
+    let sy = 0;
+    let sw = img.width;
+    let sh = img.height;
+
+    if (srcAspect > dstAspect) {
+      sw = Math.round(img.height * dstAspect);
+      sx = Math.round((img.width - sw) / 2);
+    } else {
+      sh = Math.round(img.width / dstAspect);
+      sy = Math.round((img.height - sh) / 2);
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  };
+
+  loaded.forEach((img, idx) => {
+    const slot = layout[idx];
+    drawCover(img, slot.x, slot.y, slot.w, slot.h);
+  });
+
+  return canvas.toDataURL('image/jpeg', 0.92);
 }

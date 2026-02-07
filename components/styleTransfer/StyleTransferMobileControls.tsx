@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Plus } from 'lucide-react';
 import type { ImageSlot, StyleTransferAnalysis, StyleTransferEngine } from './utils';
+import { STYLE_REFERENCE_LIMIT } from './utils';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -9,7 +10,7 @@ export function StyleTransferMobileControls(props: {
   onOpenSettings: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
   reference: ImageSlot | null;
-  style: ImageSlot | null;
+  styles: Array<ImageSlot | null>;
   strength: number;
   setStrength: (v: number) => void;
   variants: 1 | 2 | 3;
@@ -35,18 +36,18 @@ export function StyleTransferMobileControls(props: {
   onAnalyze: () => void;
   onGenerate: () => void;
   onSetReferenceFromFile: (file: File) => Promise<void>;
-  onSetStyleFromFile: (file: File) => Promise<void>;
+  onSetStyleFromFile: (index: number, file: File) => Promise<void>;
   onClearReference: () => void;
-  onClearStyle: () => void;
+  onClearStyle: (index: number) => void;
   onDropToReference: (e: React.DragEvent) => Promise<void>;
-  onDropToStyle: (e: React.DragEvent) => Promise<void>;
+  onDropToStyle: (index: number, e: React.DragEvent) => Promise<void>;
 }) {
   const {
     onBack,
     onOpenSettings,
     onToast,
     reference,
-    style,
+    styles,
     strength,
     setStrength,
     variants,
@@ -80,7 +81,11 @@ export function StyleTransferMobileControls(props: {
   } = props;
 
   const refInputId = React.useMemo(() => `st-ref-m-${Math.random().toString(36).slice(2)}`, []);
-  const styleInputId = React.useMemo(() => `st-style-m-${Math.random().toString(36).slice(2)}`, []);
+  const styleInputIds = React.useMemo(
+    () => Array.from({ length: STYLE_REFERENCE_LIMIT }).map((_, idx) => `st-style-m-${idx}-${Math.random().toString(36).slice(2)}`),
+    [],
+  );
+  const styleCount = styles.filter(Boolean).length;
 
   return (
     <div className="card-surface p-3 space-y-4">
@@ -105,10 +110,9 @@ export function StyleTransferMobileControls(props: {
                 key={n}
                 type="button"
                 onClick={() => setVariants(n)}
-                className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${variants === n
-                  ? 'bg-white/10 text-white shadow-sm'
-                  : 'text-white/40 hover:text-white/70'
-                  }`}
+                className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${
+                  variants === n ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+                }`}
               >
                 {n}
               </button>
@@ -119,14 +123,14 @@ export function StyleTransferMobileControls(props: {
         <button
           type="button"
           onClick={onGenerate}
-          disabled={isGenerating}
+          disabled={!canGenerate}
           className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
         >
           {isGenerating ? 'Generuji…' : 'Generovat'}
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-3">
         <div className="space-y-1">
           <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Reference</div>
           <div
@@ -181,58 +185,70 @@ export function StyleTransferMobileControls(props: {
           </div>
         </div>
 
-        <div className="space-y-1">
-          <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Styl</div>
-          <div
-            className="relative aspect-[5/4] rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--bg-panel)]/50 overflow-hidden"
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onDrop={async (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              try {
-                await onDropToStyle(e);
-              } catch {
-                onToast({ message: 'Drop se nepodařil.', type: 'error' });
-              }
-            }}
-            onClick={() => document.getElementById(styleInputId)?.click()}
-          >
-            {style ? (
-              <>
-                <img src={style.dataUrl} alt="Styl" className="w-full h-full object-cover opacity-90" draggable={false} />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onClearStyle();
-                  }}
-                  className="absolute top-2 right-2 px-2 py-1 bg-black/60 text-white/80 rounded-md text-[9px] font-bold uppercase tracking-wider"
-                >
-                  Odebrat
-                </button>
-              </>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Plus className="w-4 h-4 text-gray-600" />
-              </div>
-            )}
-            <input
-              id={styleInputId}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={async (e) => {
-                const inputEl = e.currentTarget;
-                const f = e.target.files?.[0];
-                if (!f) return;
-                await onSetStyleFromFile(f);
-                inputEl.value = '';
-              }}
-            />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Stylové reference</div>
+            <div className="text-[9px] text-white/45">{styleCount}/{STYLE_REFERENCE_LIMIT}</div>
           </div>
+          <div className="grid grid-cols-3 gap-2">
+            {Array.from({ length: STYLE_REFERENCE_LIMIT }).map((_, idx) => {
+              const style = styles[idx];
+              return (
+                <div
+                  key={idx}
+                  className="relative aspect-square rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--bg-panel)]/50 overflow-hidden"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                      await onDropToStyle(idx, e);
+                    } catch {
+                      onToast({ message: 'Drop se nepodařil.', type: 'error' });
+                    }
+                  }}
+                  onClick={() => document.getElementById(styleInputIds[idx])?.click()}
+                >
+                  {style ? (
+                    <img src={style.dataUrl} alt={`Styl ${idx + 1}`} className="w-full h-full object-cover opacity-90" draggable={false} />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Plus className="w-4 h-4 text-gray-600" />
+                    </div>
+                  )}
+                  {style && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onClearStyle(idx);
+                      }}
+                      className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 text-white/80 rounded-md text-[8px] font-bold uppercase tracking-wider"
+                    >
+                      x
+                    </button>
+                  )}
+                  <input
+                    id={styleInputIds[idx]}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const inputEl = e.currentTarget;
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      await onSetStyleFromFile(idx, f);
+                      inputEl.value = '';
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-[9px] text-white/35">Použij 1 až 3 obrázky stylu. Při více stylech se styl složí do společné vizuální reference.</div>
         </div>
       </div>
 
@@ -248,10 +264,9 @@ export function StyleTransferMobileControls(props: {
               key={opt.id}
               type="button"
               onClick={() => setEngine(opt.id)}
-              className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${engine === opt.id
-                ? 'bg-white/10 text-white shadow-sm'
-                : 'text-white/40 hover:text-white/70'
-                }`}
+              className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${
+                engine === opt.id ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+              }`}
             >
               {opt.label}
             </button>
@@ -270,7 +285,7 @@ export function StyleTransferMobileControls(props: {
           max={100}
           value={strength}
           onChange={(e) => setStrength(Number(e.target.value))}
-          disabled={!style}
+          disabled={styleCount === 0}
           className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
         />
       </div>
@@ -330,10 +345,9 @@ export function StyleTransferMobileControls(props: {
             <button
               type="button"
               onClick={() => setStyleOnly(!styleOnly)}
-              className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${styleOnly
-                ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25'
-                : 'bg-white/5 text-white/50 border border-white/10'
-                }`}
+              className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+                styleOnly ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+              }`}
             >
               {styleOnly ? 'On' : 'Off'}
             </button>
@@ -342,24 +356,21 @@ export function StyleTransferMobileControls(props: {
       )}
 
       {engine === 'gemini' && (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Agentic Vision</div>
-          <button
-            type="button"
-            onClick={() => setUseAgenticVision(!useAgenticVision)}
-            className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${useAgenticVision
-              ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25'
-              : 'bg-white/5 text-white/50 border border-white/10'
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Agentic Vision</div>
+            <button
+              type="button"
+              onClick={() => setUseAgenticVision(!useAgenticVision)}
+              className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+                useAgenticVision ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
               }`}
-          >
-            {useAgenticVision ? 'On' : 'Off'}
-          </button>
+            >
+              {useAgenticVision ? 'On' : 'Off'}
+            </button>
+          </div>
+          <div className="text-[9px] text-white/35 leading-relaxed">Zlepší analýzu detailů a přidá stylové výřezy jako reference.</div>
         </div>
-        <div className="text-[9px] text-white/35 leading-relaxed">
-          Zlepší analýzu detailů a přidá stylové výřezy jako reference.
-        </div>
-      </div>
       )}
 
       <button

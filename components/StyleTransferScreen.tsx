@@ -2,14 +2,14 @@ import React from 'react';
 import { AIProviderType, ImageInput, ProviderSettings } from '../services/aiProvider';
 import { ProviderFactory } from '../services/providerFactory';
 import { analyzeStyleTransferWithAI } from '../services/geminiService';
-import { runFluxKontextProEdit, runProSdxlStyleTransfer } from '../services/replicateService';
+import { runFluxKontextProMultiImage, runProSdxlStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { StyleTransferSidebar } from './styleTransfer/StyleTransferSidebar';
 import { StyleTransferMobileControls } from './styleTransfer/StyleTransferMobileControls';
 import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
-import { createStylePatches, downloadDataUrl, fileToDataUrl, getDataUrlMime, resolveDropToFile } from './styleTransfer/utils';
+import { composeStyleReferencesBoard, createStylePatches, downloadDataUrl, fileToDataUrl, getDataUrlMime, resolveDropToFile, STYLE_REFERENCE_LIMIT } from './styleTransfer/utils';
 import type { ImageSlot, OutputItem, StyleTransferAnalysis, StyleTransferEngine } from './styleTransfer/utils';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -24,7 +24,9 @@ export function StyleTransferScreen(props: {
 }) {
   const { providerSettings, onOpenSettings, onBack, onToast, isHoveringGallery } = props;
   const [reference, setReference] = React.useState<ImageSlot | null>(null);
-  const [style, setStyle] = React.useState<ImageSlot | null>(null);
+  const [styles, setStyles] = React.useState<Array<ImageSlot | null>>(
+    () => Array.from({ length: STYLE_REFERENCE_LIMIT }, () => null),
+  );
   const [strength, setStrength] = React.useState(60);
   const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
   const [analysis, setAnalysis] = React.useState<StyleTransferAnalysis | null>(null);
@@ -50,12 +52,10 @@ export function StyleTransferScreen(props: {
   const marginRight = isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0';
   const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey?.trim();
   const replicateToken = providerSettings[AIProviderType.REPLICATE]?.apiKey?.trim();
-  const canAnalyze = engine === 'gemini' && !!reference && !!style && !!geminiKey && !isAnalyzing && !isGenerating;
-  const canGenerate = !!reference && !!style && (engine === 'gemini' ? !!geminiKey : !!replicateToken) && !isGenerating;
-
-  const completedCount = React.useMemo(() => {
-    return outputs.filter((o) => o.status === 'success').length;
-  }, [outputs]);
+  const activeStyles = React.useMemo(() => styles.filter((slot): slot is ImageSlot => !!slot), [styles]);
+  const primaryStyle = activeStyles[0] || null;
+  const canAnalyze = engine === 'gemini' && !!reference && activeStyles.length > 0 && !!geminiKey && !isAnalyzing && !isGenerating;
+  const canGenerate = !!reference && activeStyles.length > 0 && (engine === 'gemini' ? !!geminiKey : !!replicateToken) && !isGenerating;
 
   const replicateUrlCacheRef = React.useRef<Map<string, string>>(new Map());
   const buildReplicateCacheKey = React.useCallback((role: string, dataUrl: string) => {
@@ -164,10 +164,14 @@ export function StyleTransferScreen(props: {
     }
   }, []);
 
-  const setStyleFromFile = React.useCallback(async (file: File) => {
+  const setStyleFromFile = React.useCallback(async (index: number, file: File) => {
     const dataUrl = await fileToDataUrl(file);
     replicateUrlCacheRef.current.clear();
-    setStyle({ file, dataUrl });
+    setStyles((prev) => {
+      const next = [...prev];
+      next[index] = { file, dataUrl };
+      return next;
+    });
     setAnalysis(null);
     try {
       await ImageDatabase.add(file, dataUrl, 'style');
@@ -180,9 +184,13 @@ export function StyleTransferScreen(props: {
     setReference(null);
   }, []);
 
-  const clearStyle = React.useCallback(() => {
+  const clearStyle = React.useCallback((index: number) => {
     replicateUrlCacheRef.current.clear();
-    setStyle(null);
+    setStyles((prev) => {
+      const next = [...prev];
+      next[index] = null;
+      return next;
+    });
     setAnalysis(null);
   }, []);
 
@@ -199,21 +207,21 @@ export function StyleTransferScreen(props: {
     }
   }, [onToast, setReferenceFromFile]);
 
-  const dropToStyle = React.useCallback(async (e: React.DragEvent) => {
+  const dropToStyle = React.useCallback(async (index: number, e: React.DragEvent) => {
     try {
       const f = await resolveDropToFile(e);
       if (!f) {
         onToast({ message: 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
         return;
       }
-      await setStyleFromFile(f);
+      await setStyleFromFile(index, f);
     } catch (err: any) {
       onToast({ message: err?.message || 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
     }
   }, [onToast, setStyleFromFile]);
 
   const handleAnalyze = React.useCallback(async () => {
-    if (!reference || !style) return;
+    if (!reference || activeStyles.length === 0) return;
     if (!geminiKey) {
       onToast({ message: 'Chybí Gemini API klíč. Nastav ho v Settings.', type: 'error' });
       onOpenSettings();
@@ -221,7 +229,8 @@ export function StyleTransferScreen(props: {
     }
     setIsAnalyzing(true);
     try {
-      const res = await analyzeStyleTransferWithAI(reference.dataUrl, style.dataUrl, geminiKey, {
+      const styleBoard = await composeStyleReferencesBoard(activeStyles.map((s) => s.dataUrl));
+      const res = await analyzeStyleTransferWithAI(reference.dataUrl, styleBoard, geminiKey, {
         agenticVision: useAgenticVision,
         mediaResolution: useAgenticVision ? 'high' : undefined,
       });
@@ -234,11 +243,11 @@ export function StyleTransferScreen(props: {
     } finally {
       if (mountedRef.current) setIsAnalyzing(false);
     }
-  }, [geminiKey, onOpenSettings, onToast, reference, style, useAgenticVision]);
+  }, [activeStyles, geminiKey, onOpenSettings, onToast, reference, useAgenticVision]);
 
   const handleGenerate = React.useCallback(async () => {
-    if (!reference || !style) {
-      onToast({ message: 'Nahraj Reference + Styl.', type: 'error' });
+    if (!reference || activeStyles.length === 0) {
+      onToast({ message: 'Nahraj referenční fotku a alespoň 1 styl.', type: 'error' });
       return;
     }
     if (engine === 'gemini') {
@@ -267,15 +276,14 @@ export function StyleTransferScreen(props: {
     }
 
     const refMime = getDataUrlMime(reference.dataUrl);
-    const styleMime = getDataUrlMime(style.dataUrl);
-    const images: ImageInput[] = [
-      { data: reference.dataUrl, mimeType: refMime },
-      { data: style.dataUrl, mimeType: styleMime }
-    ];
+    const images: ImageInput[] = [{ data: reference.dataUrl, mimeType: refMime }];
+    activeStyles.forEach((styleSlot) => {
+      images.push({ data: styleSlot.dataUrl, mimeType: getDataUrlMime(styleSlot.dataUrl) });
+    });
 
-    if (useAgenticVision) {
+    if (useAgenticVision && primaryStyle) {
       try {
-        const patches = await createStylePatches(style.dataUrl);
+        const patches = await createStylePatches(primaryStyle.dataUrl);
         patches.forEach((p) => {
           images.push({ data: p, mimeType: getDataUrlMime(p) });
         });
@@ -292,6 +300,12 @@ export function StyleTransferScreen(props: {
 
     setIsGenerating(true);
     try {
+      const styleBoardDataUrl = await composeStyleReferencesBoard(activeStyles.map((s) => s.dataUrl));
+      const styleBoardInput =
+        engine === 'gemini'
+          ? null
+          : await ensureReplicateImageInput(styleBoardDataUrl, 'replicate-style-board');
+
       const negativeText = negative ? `Vyhni se: ${negative}` : 'Vyhni se: text, watermark, logo, rozmazání, artefakty';
       const basePrompt = [
         'Proveď style transfer: A=REFERENCE obsah, B=STYLE styl.',
@@ -304,7 +318,7 @@ export function StyleTransferScreen(props: {
 
       if (engine === 'replicate_pro_sdxl') {
         const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'replicate-content');
-        const styleUrl = await ensureReplicateImageInput(style.dataUrl, 'replicate-style');
+        const styleUrl = styleBoardInput!;
 
         const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
           const img = new Image();
@@ -320,7 +334,7 @@ export function StyleTransferScreen(props: {
         const height = round64(dims.h * s);
 
         const contentSat = await estimateSaturation(reference.dataUrl);
-        const styleSat = await estimateSaturation(style.dataUrl);
+        const styleSat = await estimateSaturation(styleBoardDataUrl);
         const shouldColorize = contentSat < 0.06 && styleSat > 0.12;
         const strength01 = Math.max(0, Math.min(1, strengthValue / 100));
         const denoiseFromStrength = 0.15 + strength01 * 0.75;
@@ -376,6 +390,7 @@ export function StyleTransferScreen(props: {
                 styleDescription: styleDesc || null,
                 negativePrompt: negative || null,
                 engine,
+                styleReferences: activeStyles.length,
                 cfgScale,
                 denoise,
                 steps,
@@ -398,36 +413,20 @@ export function StyleTransferScreen(props: {
               url = res.imageBase64;
             } else {
               const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'replicate-content');
-              const strengthLabel = strengthValue <= 33 ? 'subtle' : strengthValue <= 66 ? 'medium' : 'strong';
-
-              let styleTraits = styleDesc;
-              let negativeTraits = negative;
-              if (!styleTraits) {
-                if (!geminiKey) {
-                  throw new Error('Pro FLUX engine je potřeba Gemini klíč pro analýzu stylu.');
-                }
-                const res = await analyzeStyleTransferWithAI(reference.dataUrl, style.dataUrl, geminiKey, {
-                  agenticVision: true,
-                  mediaResolution: 'high',
-                });
-                styleTraits = res.styleDescription?.trim();
-                negativeTraits = res.negativePrompt?.trim();
-              }
-
               const fluxPrompt = [
-                'Restyle this image to match the painting style described below (derived from a reference painting).',
-                'Transfer the color palette from the painting style.',
-                'If the input image is monochrome, colorize it using the style palette.',
-                styleTraits ? `Style traits: ${styleTraits}` : '',
-                `Style strength: ${strengthValue}/100 (${strengthLabel}).`,
+                'Style transfer from reference style image(s).',
+                'Image 1 is content, image 2 is style reference board.',
+                'Apply brush texture, paint structure and palette from image 2.',
+                `Style strength target: ${strengthValue}/100.`,
                 'Preserve the subject identity and the original composition.',
-                negativeTraits ? `Avoid: ${negativeTraits}` : 'Avoid: text, watermark, logo, blur, artifacts.',
+                negative ? `Avoid: ${negative}` : 'Avoid: text, watermark, logo, blur, artifacts.',
                 'Do not add any text.'
               ].filter(Boolean).join('\n');
 
-              url = await runFluxKontextProEdit({
+              url = await runFluxKontextProMultiImage({
                 token: replicateToken!,
-                inputImage: contentUrl,
+                image1: contentUrl,
+                image2: styleBoardInput!,
                 prompt: fluxPrompt,
                 aspect_ratio: 'match_input_image'
               });
@@ -446,6 +445,7 @@ export function StyleTransferScreen(props: {
                   styleDescription: styleDesc || null,
                   negativePrompt: negative || null,
                   engine,
+                  styleReferences: activeStyles.length,
                   variant: i + 1,
                   variants
                 }
@@ -467,7 +467,7 @@ export function StyleTransferScreen(props: {
     } finally {
       if (mountedRef.current) setIsGenerating(false);
     }
-  }, [analysis, cfgScale, denoise, engine, ensureReplicateImageInput, estimateSaturation, geminiKey, onOpenSettings, onToast, providerSettings, reference, replicateToken, steps, strength, style, styleOnly, useAgenticVision, variants]);
+  }, [activeStyles, analysis, cfgScale, denoise, engine, ensureReplicateImageInput, estimateSaturation, geminiKey, onOpenSettings, onToast, primaryStyle, providerSettings, reference, replicateToken, steps, strength, styleOnly, useAgenticVision, variants]);
 
   return (
     <>
@@ -476,7 +476,7 @@ export function StyleTransferScreen(props: {
         onOpenSettings={onOpenSettings}
         onToast={onToast}
         reference={reference}
-        style={style}
+        styles={styles}
         strength={strength}
         setStrength={setStrength}
         variants={variants}
@@ -521,7 +521,7 @@ export function StyleTransferScreen(props: {
                 onOpenSettings={onOpenSettings}
                 onToast={onToast}
                 reference={reference}
-                style={style}
+                styles={styles}
                 strength={strength}
                 setStrength={setStrength}
                 variants={variants}
