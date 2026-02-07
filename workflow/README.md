@@ -27,6 +27,15 @@ In addition to Google Gemini, Node Banana now supports:
 
 Configure API keys in Project Settings to enable these providers.
 
+## Operations and Reliability
+
+- `GET /api/health` - lightweight service health report.
+- `GET /api/metrics` - in-memory generation metrics (error rate, latency, provider breakdown).
+- Async queue mode for long provider jobs:
+  - `POST /api/generate` with `{"asyncMode": true}` (or header `X-Generate-Async: 1`)
+  - poll with `GET /api/generate?jobId=<id>`
+  - optional webhook callback via `webhookUrl` (HTTPS only)
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
@@ -53,6 +62,9 @@ GEMINI_API_KEY=your_gemini_api_key
 OPENAI_API_KEY=your_openai_api_key      # Optional, for OpenAI LLM provider
 REPLICATE_API_KEY=your_replicate_api_key  # Optional, beta
 FAL_API_KEY=your_fal_api_key              # Optional, beta
+ALERT_WEBHOOK_URL=https://your-webhook.example.com/generate-alert  # Optional
+ERROR_ALERT_THRESHOLD=0.35                # Optional
+ERROR_ALERT_MIN_REQUESTS=20               # Optional
 ```
 
 ### Installation

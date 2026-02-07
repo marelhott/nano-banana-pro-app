@@ -55,7 +55,7 @@ export class ProviderFactory {
         }
 
         // Last resort: environment fallback only for Gemini-compatible key.
-        const envGeminiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+        const envGeminiKey = process.env.GEMINI_API_KEY;
         if (envGeminiKey) {
             if (selectedType === AIProviderType.GEMINI) {
                 console.warn('Using environment Gemini API key');

@@ -25,6 +25,10 @@ export interface GenerateResponse {
   video?: string;
   videoUrl?: string; // For large videos, return URL directly
   contentType?: "image" | "video";
+  jobId?: string;
+  status?: "queued" | "running" | "succeeded" | "failed";
+  queuedAt?: string;
+  updatedAt?: string;
   error?: string;
 }
 

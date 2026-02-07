@@ -45,6 +45,42 @@ function extractReplicateToken(req, bodyToken) {
   return headerToken || bodyToken || null
 }
 
+async function requestWithTimeout(url, init = {}, timeoutMs = 12000) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+async function testProviderKey(provider, apiKey) {
+  switch (provider) {
+    case 'gemini': {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
+      return requestWithTimeout(endpoint, { method: 'GET' })
+    }
+    case 'chatgpt':
+      return requestWithTimeout('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+    case 'grok':
+      return requestWithTimeout('https://api.x.ai/v1/models', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+    case 'replicate':
+      return requestWithTimeout('https://api.replicate.com/v1/models', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+    default:
+      return null
+  }
+}
+
 async function start() {
   const workflowDir = resolveWorkflowDir()
   if (!workflowDir) {
@@ -85,6 +121,37 @@ async function start() {
       return res.send(text)
     } catch (err) {
       return res.status(500).json({ error: 'Replicate proxy failed' })
+    }
+  })
+
+  app.post('/api/provider-key-test', async (req, res) => {
+    try {
+      const provider = String(req.body?.provider || '').trim().toLowerCase()
+      const apiKey = String(req.body?.apiKey || '').trim()
+
+      if (!provider || !apiKey) {
+        return res.status(400).json({ success: false, error: 'Missing provider or API key' })
+      }
+
+      const upstream = await testProviderKey(provider, apiKey)
+      if (!upstream) {
+        return res.status(400).json({ success: false, error: 'Unsupported provider' })
+      }
+
+      if (!upstream.ok) {
+        let detail = upstream.statusText || `HTTP ${upstream.status}`
+        try {
+          const data = await upstream.json()
+          detail = data?.error?.message || data?.detail || detail
+        } catch {
+          // Keep status text fallback.
+        }
+        return res.status(upstream.status).json({ success: false, error: detail })
+      }
+
+      return res.status(200).json({ success: true })
+    } catch {
+      return res.status(500).json({ success: false, error: 'Provider key probe failed' })
     }
   })
 

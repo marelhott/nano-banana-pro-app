@@ -53,59 +53,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowKeys({ ...showKeys, [provider]: !showKeys[provider] });
     };
 
-    const requestWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs = 12000) => {
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    const runServerApiProbe = async (provider: AIProviderType, apiKey: string): Promise<void> => {
+        const response = await fetch('/api/provider-key-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider, apiKey }),
+        });
+
+        let payload: any = null;
         try {
-            return await fetch(url, { ...init, signal: controller.signal });
-        } finally {
-            window.clearTimeout(timeoutId);
-        }
-    };
-
-    const runLiveApiProbe = async (provider: AIProviderType, apiKey: string): Promise<void> => {
-        let response: Response;
-
-        switch (provider) {
-            case AIProviderType.GEMINI: {
-                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
-                response = await requestWithTimeout(endpoint, { method: 'GET' });
-                break;
-            }
-            case AIProviderType.CHATGPT: {
-                response = await requestWithTimeout('https://api.openai.com/v1/models', {
-                    method: 'GET',
-                    headers: { Authorization: `Bearer ${apiKey}` },
-                });
-                break;
-            }
-            case AIProviderType.GROK: {
-                response = await requestWithTimeout('https://api.x.ai/v1/models', {
-                    method: 'GET',
-                    headers: { Authorization: `Bearer ${apiKey}` },
-                });
-                break;
-            }
-            case AIProviderType.REPLICATE: {
-                response = await requestWithTimeout('https://api.replicate.com/v1/models', {
-                    method: 'GET',
-                    headers: { Authorization: `Bearer ${apiKey}` },
-                });
-                break;
-            }
-            default:
-                throw new Error('Unsupported provider');
+            payload = await response.json();
+        } catch {
+            // keep payload null, fallback to status text
         }
 
-        if (!response.ok) {
-            let detail = response.statusText;
-            try {
-                const data = await response.json();
-                detail = data?.error?.message || data?.detail || detail;
-            } catch {
-                // Ignore JSON parse failures and keep status text.
-            }
-            throw new Error(`${response.status} ${detail}`.trim());
+        if (!response.ok || payload?.success === false) {
+            const detail = payload?.error || response.statusText || `HTTP ${response.status}`;
+            throw new Error(detail);
         }
     };
 
@@ -128,7 +92,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 return;
             }
 
-            await runLiveApiProbe(provider, config.apiKey.trim());
+            await runServerApiProbe(provider, config.apiKey.trim());
             setTestResults({ ...testResults, [provider]: 'success' });
         } catch (error) {
             console.error(`Test failed for ${provider}:`, error);

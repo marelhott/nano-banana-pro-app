@@ -16,6 +16,8 @@ import { GoogleGenAI } from "@google/genai";
 import { GenerateRequest, GenerateResponse, ModelType, SelectedModel, ProviderType } from "@/types";
 import { GenerationInput, GenerationOutput, ProviderModel } from "@/lib/providers/types";
 import { uploadImageForUrl, shouldUseImageUrl, deleteImages } from "@/lib/images";
+import { enqueueGenerationJob, getGenerationJob } from "@/lib/generation/jobQueue";
+import { recordGenerateMetric } from "@/lib/observability/generateMetrics";
 
 export const maxDuration = 600; // 10 minute timeout for video generation (Vercel only)
 export const dynamic = 'force-dynamic'; // Ensure this route is always dynamic
@@ -34,6 +36,10 @@ interface MultiProviderGenerateRequest extends GenerateRequest {
   parameters?: Record<string, unknown>;
   /** Dynamic inputs from schema-based connections (e.g., image_url, tail_image_url, prompt) */
   dynamicInputs?: Record<string, string | string[]>;
+  /** Run provider generation in background queue and poll later. */
+  asyncMode?: boolean;
+  /** Optional webhook callback URL for async mode. Must be HTTPS. */
+  webhookUrl?: string;
 }
 
 /**
@@ -1250,9 +1256,105 @@ async function generateWithFalQueue(
   }
 }
 
+function toGenerateResponse(result: GenerationOutput): GenerateResponse {
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error || "Generation failed",
+    };
+  }
+
+  const output = result.outputs?.[0];
+  if (!output?.data) {
+    return {
+      success: false,
+      error: "No output in generation result",
+    };
+  }
+
+  if (output.type === "video") {
+    const isUrl = output.data.startsWith("http");
+    return {
+      success: true,
+      video: isUrl ? undefined : output.data,
+      videoUrl: isUrl ? output.data : undefined,
+      contentType: "video",
+    };
+  }
+
+  return {
+    success: true,
+    image: output.data,
+    contentType: "image",
+  };
+}
+
+function isAsyncRequested(request: NextRequest, body: MultiProviderGenerateRequest): boolean {
+  if (body.asyncMode === true) return true;
+  const header = request.headers.get("X-Generate-Async") || request.headers.get("x-generate-async");
+  return header === "1" || header === "true";
+}
+
+export async function GET(request: NextRequest) {
+  const jobId = request.nextUrl.searchParams.get("jobId");
+  if (!jobId) {
+    return NextResponse.json<GenerateResponse>(
+      {
+        success: false,
+        error: "Missing jobId query parameter",
+      },
+      { status: 400 }
+    );
+  }
+
+  const job = getGenerationJob(jobId);
+  if (!job) {
+    return NextResponse.json<GenerateResponse>(
+      {
+        success: false,
+        jobId,
+        status: "failed",
+        error: "Job not found or expired",
+      },
+      { status: 404 }
+    );
+  }
+
+  if (job.status === "succeeded" && job.result) {
+    return NextResponse.json<GenerateResponse>({
+      ...job.result,
+      jobId: job.id,
+      status: job.status,
+      queuedAt: job.createdAt,
+      updatedAt: job.updatedAt,
+    });
+  }
+
+  return NextResponse.json<GenerateResponse>({
+    success: job.status !== "failed",
+    jobId: job.id,
+    status: job.status,
+    queuedAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    error: job.error,
+  });
+}
+
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7);
   console.log(`\n[API:${requestId}] ========== NEW GENERATE REQUEST ==========`);
+
+  const startedAt = Date.now();
+  let currentProvider: ProviderType | "unknown" = "unknown";
+  const send = (payload: GenerateResponse, status = 200) => {
+    recordGenerateMetric({
+      provider: currentProvider,
+      success: Boolean(payload.success),
+      statusCode: status,
+      durationMs: Date.now() - startedAt,
+    });
+    return NextResponse.json<GenerateResponse>(payload, { status });
+  };
 
   try {
     const body: MultiProviderGenerateRequest = await request.json();
@@ -1267,7 +1369,10 @@ export async function POST(request: NextRequest) {
       parameters,
       dynamicInputs,
       mediaType,
+      webhookUrl,
     } = body;
+
+    void mediaType;
 
     // Prompt is required unless:
     // - Provided via dynamicInputs
@@ -1284,30 +1389,32 @@ export async function POST(request: NextRequest) {
     );
 
     if (!hasPrompt && !hasImages && !hasImageInputs) {
-      return NextResponse.json<GenerateResponse>(
+      return send(
         {
           success: false,
           error: "Prompt or image input is required",
         },
-        { status: 400 }
+        400
       );
     }
 
     // Determine which provider to use
     const provider: ProviderType = selectedModel?.provider || "gemini";
+    currentProvider = provider;
     console.log(`[API:${requestId}] Provider: ${provider}, Model: ${selectedModel?.modelId || model}`);
+    const asyncModeRequested = isAsyncRequested(request, body);
 
     // Route to appropriate provider
     if (provider === "replicate") {
       // User-provided key takes precedence over env variable
       const replicateApiKey = request.headers.get("X-Replicate-API-Key") || process.env.REPLICATE_API_KEY;
       if (!replicateApiKey) {
-        return NextResponse.json<GenerateResponse>(
+        return send(
           {
             success: false,
             error: "Replicate API key not configured. Add REPLICATE_API_KEY to .env.local or configure in Settings.",
           },
-          { status: 401 }
+          401
         );
       }
 
@@ -1347,47 +1454,39 @@ export async function POST(request: NextRequest) {
         dynamicInputs: processedDynamicInputs,
       };
 
-      const result = await generateWithReplicate(requestId, replicateApiKey, genInput);
-
-      if (!result.success) {
-        return NextResponse.json<GenerateResponse>(
-          {
-            success: false,
-            error: result.error || "Generation failed",
+      if (asyncModeRequested) {
+        const job = enqueueGenerationJob({
+          provider,
+          webhookUrl: typeof webhookUrl === "string" ? webhookUrl : undefined,
+          runner: async () => {
+            const asyncStartedAt = Date.now();
+            const result = await generateWithReplicate(requestId, replicateApiKey, genInput);
+            const payload = toGenerateResponse(result);
+            recordGenerateMetric({
+              provider,
+              success: Boolean(payload.success),
+              statusCode: payload.success ? 200 : 500,
+              durationMs: Date.now() - asyncStartedAt,
+            });
+            return payload;
           },
-          { status: 500 }
-        );
-      }
-
-      // Return first output (image or video)
-      const output = result.outputs?.[0];
-      if (!output?.data) {
-        return NextResponse.json<GenerateResponse>(
-          {
-            success: false,
-            error: "No output in generation result",
-          },
-          { status: 500 }
-        );
-      }
-
-      // Return appropriate fields based on output type
-      if (output.type === "video") {
-        // Check if data is a URL (for large videos) or base64
-        const isUrl = output.data.startsWith("http");
-        return NextResponse.json<GenerateResponse>({
-          success: true,
-          video: isUrl ? undefined : output.data,
-          videoUrl: isUrl ? output.data : undefined,
-          contentType: "video",
         });
+
+        return NextResponse.json<GenerateResponse>(
+          {
+            success: true,
+            jobId: job.id,
+            status: "queued",
+            queuedAt: job.createdAt,
+            updatedAt: job.updatedAt,
+          },
+          { status: 202 }
+        );
       }
 
-      return NextResponse.json<GenerateResponse>({
-        success: true,
-        image: output.data,
-        contentType: "image",
-      });
+      const result = await generateWithReplicate(requestId, replicateApiKey, genInput);
+      const payload = toGenerateResponse(result);
+      return send(payload, payload.success ? 200 : 500);
     }
 
     if (provider === "fal") {
@@ -1431,47 +1530,49 @@ export async function POST(request: NextRequest) {
         dynamicInputs: processedDynamicInputs,
       };
 
-      const result = await generateWithFal(requestId, falApiKey, genInput);
-
-      if (!result.success) {
-        return NextResponse.json<GenerateResponse>(
-          {
-            success: false,
-            error: result.error || "Generation failed",
+      if (asyncModeRequested) {
+        const job = enqueueGenerationJob({
+          provider,
+          webhookUrl: typeof webhookUrl === "string" ? webhookUrl : undefined,
+          runner: async () => {
+            const asyncStartedAt = Date.now();
+            const result = await generateWithFal(requestId, falApiKey, genInput);
+            const payload = toGenerateResponse(result);
+            recordGenerateMetric({
+              provider,
+              success: Boolean(payload.success),
+              statusCode: payload.success ? 200 : 500,
+              durationMs: Date.now() - asyncStartedAt,
+            });
+            return payload;
           },
-          { status: 500 }
-        );
-      }
-
-      // Return first output (image or video)
-      const output = result.outputs?.[0];
-      if (!output?.data) {
-        return NextResponse.json<GenerateResponse>(
-          {
-            success: false,
-            error: "No output in generation result",
-          },
-          { status: 500 }
-        );
-      }
-
-      // Return appropriate fields based on output type
-      if (output.type === "video") {
-        // Check if data is a URL (for large videos) or base64
-        const isUrl = output.data.startsWith("http");
-        return NextResponse.json<GenerateResponse>({
-          success: true,
-          video: isUrl ? undefined : output.data,
-          videoUrl: isUrl ? output.data : undefined,
-          contentType: "video",
         });
+
+        return NextResponse.json<GenerateResponse>(
+          {
+            success: true,
+            jobId: job.id,
+            status: "queued",
+            queuedAt: job.createdAt,
+            updatedAt: job.updatedAt,
+          },
+          { status: 202 }
+        );
       }
 
-      return NextResponse.json<GenerateResponse>({
-        success: true,
-        image: output.data,
-        contentType: "image",
-      });
+      const result = await generateWithFal(requestId, falApiKey, genInput);
+      const payload = toGenerateResponse(result);
+      return send(payload, payload.success ? 200 : 500);
+    }
+
+    if (asyncModeRequested) {
+      return send(
+        {
+          success: false,
+          error: "Async mode is currently supported only for Replicate and fal providers.",
+        },
+        400
+      );
     }
 
     // Default: Use Gemini
@@ -1479,19 +1580,19 @@ export async function POST(request: NextRequest) {
     const geminiApiKey = request.headers.get("X-Gemini-API-Key") || process.env.GEMINI_API_KEY;
 
     if (!geminiApiKey) {
-      return NextResponse.json<GenerateResponse>(
+      return send(
         {
           success: false,
           error: "API key not configured. Add GEMINI_API_KEY to .env.local or configure in Settings.",
         },
-        { status: 500 }
+        500
       );
     }
 
     // Use selectedModel.modelId if available (new format), fallback to legacy model field
     const geminiModel = (selectedModel?.modelId as ModelType) || model;
 
-    return await generateWithGemini(
+    const geminiResponse = await generateWithGemini(
       requestId,
       geminiApiKey,
       prompt,
@@ -1501,6 +1602,20 @@ export async function POST(request: NextRequest) {
       resolution,
       useGoogleSearch
     );
+    const cloned = geminiResponse.clone();
+    let payload: GenerateResponse | null = null;
+    try {
+      payload = await cloned.json();
+    } catch {
+      payload = null;
+    }
+    recordGenerateMetric({
+      provider: currentProvider,
+      success: Boolean(payload?.success),
+      statusCode: geminiResponse.status,
+      durationMs: Date.now() - startedAt,
+    });
+    return geminiResponse;
   } catch (error) {
     // Extract error information
     let errorMessage = "Generation failed";
@@ -1526,22 +1641,22 @@ export async function POST(request: NextRequest) {
 
     // Handle rate limiting
     if (errorMessage.includes("429")) {
-      return NextResponse.json<GenerateResponse>(
+      return send(
         {
           success: false,
           error: "Rate limit reached. Please wait and try again.",
         },
-        { status: 429 }
+        429
       );
     }
 
     console.error(`[API:${requestId}] Generation error: ${errorMessage}${errorDetails ? ` (${errorDetails.substring(0, 200)})` : ""}`);
-    return NextResponse.json<GenerateResponse>(
+    return send(
       {
         success: false,
         error: errorMessage,
       },
-      { status: 500 }
+      500
     );
   }
 }

@@ -6,7 +6,7 @@
     "dev": "node server.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "npm run test:run",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"

@@ -413,7 +413,7 @@ const getStoredApiKey = () => {
 };
 
 export const enhancePromptWithAI = async (shortPrompt: string, apiKey?: string): Promise<string> => {
-  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+  const keyToUse = apiKey || getStoredApiKey() || process.env.GEMINI_API_KEY || '';
 
   if (!keyToUse) {
     throw new Error('API Key missing. Please configure it in settings.');
@@ -431,7 +431,7 @@ export const editImageWithGemini = async (
   useGrounding: boolean = false,
   apiKey?: string
 ): Promise<GenerateImageResult> => {
-  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+  const keyToUse = apiKey || getStoredApiKey() || process.env.GEMINI_API_KEY || '';
 
   if (!keyToUse) {
     throw new Error('API Key missing. Please configure it in settings.');
@@ -442,7 +442,7 @@ export const editImageWithGemini = async (
 };
 
 export const analyzeImageForJsonWithAI = async (imageDataUrl: string, apiKey?: string): Promise<string> => {
-  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+  const keyToUse = apiKey || getStoredApiKey() || process.env.GEMINI_API_KEY || '';
 
   if (!keyToUse) {
     throw new Error('API Key missing. Please configure it in settings.');
@@ -458,7 +458,7 @@ export const analyzeStyleTransferWithAI = async (
   apiKey?: string,
   options?: { agenticVision?: boolean; mediaResolution?: string }
 ): Promise<{ recommendedStrength: number; styleDescription: string; negativePrompt: string }> => {
-  const keyToUse = apiKey || getStoredApiKey() || process.env.API_KEY || '';
+  const keyToUse = apiKey || getStoredApiKey() || process.env.GEMINI_API_KEY || '';
   if (!keyToUse) {
     throw new Error('API Key missing. Please configure it in settings.');
   }
