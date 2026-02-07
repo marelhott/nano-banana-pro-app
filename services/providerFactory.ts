@@ -54,10 +54,15 @@ export class ProviderFactory {
             return this.createProvider(AIProviderType.GEMINI, geminiConfig.apiKey);
         }
 
-        // Last resort: try environment variable
-        if (process.env.API_KEY) {
-            console.warn(`Using environment API key for ${selectedType}`);
-            return this.createProvider(selectedType, process.env.API_KEY);
+        // Last resort: environment fallback only for Gemini-compatible key.
+        const envGeminiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+        if (envGeminiKey) {
+            if (selectedType === AIProviderType.GEMINI) {
+                console.warn('Using environment Gemini API key');
+                return this.createProvider(AIProviderType.GEMINI, envGeminiKey);
+            }
+            console.warn(`No key for ${selectedType}, falling back to Gemini environment key`);
+            return this.createProvider(AIProviderType.GEMINI, envGeminiKey);
         }
 
         throw new Error('No API key available for any provider');

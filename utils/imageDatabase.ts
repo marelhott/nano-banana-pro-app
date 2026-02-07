@@ -245,9 +245,42 @@ export class ImageDatabase {
 /**
  * Provider Settings Management
  */
-import { ProviderSettings } from '../services/aiProvider';
+import { AIProviderType, ProviderSettings } from '../services/aiProvider';
 
 export class SettingsDatabase {
+  private static sanitizeProviderSettings(settings: ProviderSettings): Record<string, { enabled: boolean }> {
+    const sanitized: Record<string, { enabled: boolean }> = {};
+
+    for (const provider of Object.values(AIProviderType)) {
+      const config = settings[provider];
+      sanitized[provider] = {
+        enabled: Boolean(config?.enabled || config?.apiKey)
+      };
+    }
+
+    return sanitized;
+  }
+
+  private static deserializeProviderSettings(payload: unknown): ProviderSettings | null {
+    if (!payload || typeof payload !== 'object') return null;
+
+    const source = (payload as any).providers && typeof (payload as any).providers === 'object'
+      ? (payload as any).providers
+      : payload;
+
+    const restored: ProviderSettings = {};
+    for (const provider of Object.values(AIProviderType)) {
+      const entry = source?.[provider];
+      if (!entry || typeof entry !== 'object') continue;
+      restored[provider] = {
+        apiKey: '',
+        enabled: Boolean((entry as any).enabled)
+      };
+    }
+
+    return Object.keys(restored).length > 0 ? restored : null;
+  }
+
   /**
    * Save provider settings to Supabase
    */
@@ -262,7 +295,11 @@ export class SettingsDatabase {
         .from('user_settings')
         .upsert({
           user_id: userId,
-          settings: settings,  // Changed from provider_settings to settings
+          settings: {
+            providers: this.sanitizeProviderSettings(settings),
+            storedAt: new Date().toISOString(),
+            includesSecrets: false
+          },
           updated_at: new Date().toISOString()
         });
 
@@ -294,7 +331,7 @@ export class SettingsDatabase {
 
       if (data?.settings) {
         console.log('[Settings] Provider settings loaded from Supabase');
-        return data.settings as ProviderSettings;
+        return this.deserializeProviderSettings(data.settings);
       }
 
       return null;
@@ -304,4 +341,3 @@ export class SettingsDatabase {
     }
   }
 }
-

@@ -2,15 +2,56 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://poregdcgfwokxgmhpvac.supabase.co';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const SAFE_PLACEHOLDER_SUPABASE_KEY = 'missing-supabase-anon-key';
+const SUPABASE_RETRY_ATTEMPTS = 4;
+const SUPABASE_RETRY_BASE_DELAY_MS = 650;
 
-if (!supabaseKey) {
-  console.warn('⚠️ VITE_SUPABASE_ANON_KEY není nastavená. Vytvořte .env soubor.');
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+
+if (!isSupabaseConfigured) {
+  console.error(
+    '❌ Supabase není nakonfigurovaná. Nastavte VITE_SUPABASE_URL a VITE_SUPABASE_ANON_KEY.'
+  );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey || SAFE_PLACEHOLDER_SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 const USER_ID_STORAGE_KEY = 'userId';
 const PIN_HASH_STORAGE_KEY = 'pinHash';
+
+function ensureSupabaseConfigured(): void {
+  if (!isSupabaseConfigured) {
+    throw new Error(
+      'Supabase není nakonfigurovaná. Doplňte VITE_SUPABASE_URL a VITE_SUPABASE_ANON_KEY v prostředí.'
+    );
+  }
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withRetry<T>(label: string, operation: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= SUPABASE_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt === SUPABASE_RETRY_ATTEMPTS) break;
+      const backoff = SUPABASE_RETRY_BASE_DELAY_MS * attempt;
+      console.warn(`[Supabase] ${label} failed (attempt ${attempt}/${SUPABASE_RETRY_ATTEMPTS}), retry in ${backoff}ms`, error);
+      await wait(backoff);
+    }
+  }
+
+  throw lastError;
+}
 
 function persistUserId(userId: string | null): void {
   if (userId) {
@@ -20,34 +61,8 @@ function persistUserId(userId: string | null): void {
   localStorage.removeItem(USER_ID_STORAGE_KEY);
 }
 
-function createFallbackUserId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const random = Math.random() * 16 | 0;
-    const value = char === 'x' ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
-
-async function ensureLegacyFallbackUser(): Promise<string> {
-  const storedUserId = localStorage.getItem(USER_ID_STORAGE_KEY);
-  const userId = storedUserId || createFallbackUserId();
-
-  persistUserId(userId);
-
-  try {
-    await ensureLegacyUserProfile(userId);
-  } catch (error) {
-    // Fallback mode musí uživatele pustit dál i při dočasném výpadku DB.
-    console.warn('Legacy fallback user profile sync failed:', error);
-  }
-
-  return userId;
-}
-
 async function ensureLegacyUserProfile(userId: string): Promise<void> {
+  ensureSupabaseConfigured();
   const { error } = await supabase
     .from('users')
     .upsert(
@@ -73,48 +88,54 @@ if (typeof window !== 'undefined') {
   });
 }
 
+async function getOrCreateSessionUserId(): Promise<string> {
+  ensureSupabaseConfigured();
+
+  const { data: sessionData, error: sessionError } = await withRetry('auth.getSession', async () => {
+    const response = await supabase.auth.getSession();
+    if (response.error) throw response.error;
+    return response;
+  });
+
+  const existingUserId = sessionData.session?.user?.id;
+  if (existingUserId) {
+    return existingUserId;
+  }
+
+  const { data: signInData, error: signInError } = await withRetry('auth.signInAnonymously', async () => {
+    const response = await supabase.auth.signInAnonymously();
+    if (response.error) throw response.error;
+    return response;
+  });
+
+  if (sessionError || signInError) {
+    throw sessionError || signInError;
+  }
+
+  const createdUserId = signInData.user?.id;
+  if (!createdUserId) {
+    throw new Error('Anonymní session byla vytvořena bez user id.');
+  }
+
+  return createdUserId;
+}
+
 /**
  * Bootstrap anonymní Supabase session pro nekomerční provoz.
  */
 export async function ensureAnonymousSession(): Promise<string> {
-  const localUserId = localStorage.getItem(USER_ID_STORAGE_KEY);
-  if (localUserId) {
-    try {
-      await ensureLegacyUserProfile(localUserId);
-      persistUserId(localUserId);
-      return localUserId;
-    } catch (error) {
-      console.warn('Stored local user profile sync failed, trying Supabase auth:', error);
-    }
-  }
-
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError) {
-    console.warn('Supabase getSession failed, using fallback user mode:', sessionError.message);
-    return ensureLegacyFallbackUser();
-  }
-
-  const existingUserId = sessionData.session?.user?.id;
-  if (existingUserId) {
-    await ensureLegacyUserProfile(existingUserId);
-    persistUserId(existingUserId);
-    return existingUserId;
-  }
-
-  const { data, error } = await supabase.auth.signInAnonymously();
-  if (error) {
-    console.warn('Supabase anonymous sign-in failed, using fallback user mode:', error.message);
-    return ensureLegacyFallbackUser();
-  }
-
-  const userId = data.user?.id;
-  if (!userId) {
-    throw new Error('Anonymní session byla vytvořena bez user id.');
-  }
-
-  await ensureLegacyUserProfile(userId);
+  ensureSupabaseConfigured();
+  const userId = await getOrCreateSessionUserId();
+  await withRetry('users.upsert', () => ensureLegacyUserProfile(userId));
   persistUserId(userId);
   return userId;
+}
+
+/**
+ * Aktivně obnoví session; vrací userId pokud je spojení zdravé.
+ */
+export async function refreshSupabaseSession(): Promise<string> {
+  return ensureAnonymousSession();
 }
 
 /**
@@ -141,7 +162,9 @@ export async function autoLogin(): Promise<string | null> {
  * Odhlášení
  */
 export function logout() {
-  void supabase.auth.signOut();
+  if (isSupabaseConfigured) {
+    void supabase.auth.signOut();
+  }
   persistUserId(null);
   localStorage.removeItem(PIN_HASH_STORAGE_KEY);
   window.location.reload();

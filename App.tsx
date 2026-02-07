@@ -32,7 +32,7 @@ import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
-import { ensureAnonymousSession } from './utils/supabaseClient';
+import { ensureAnonymousSession, refreshSupabaseSession } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 
@@ -43,6 +43,8 @@ const RESOLUTIONS = [
   { value: '4K', label: '4K (~4096px)' }
 ];
 const MAX_GENERATED_IMAGES = 14;
+const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
+const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
 
 const App: React.FC = () => {
   // Supabase auth state
@@ -87,53 +89,128 @@ const App: React.FC = () => {
   const [analyzingImageId, setAnalyzingImageId] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.removeItem('providerSettings');
-    const savedProvider = localStorage.getItem('selectedProvider');
+    try {
+      const rawSettings = localStorage.getItem(PROVIDER_SETTINGS_STORAGE_KEY);
+      if (rawSettings) {
+        const parsed = JSON.parse(rawSettings) as ProviderSettings;
+        setProviderSettings({ ...defaultProviderSettings, ...parsed });
+      }
+    } catch (error) {
+      console.warn('Failed to load provider settings from localStorage:', error);
+    }
+
+    const savedProvider = localStorage.getItem(SELECTED_PROVIDER_STORAGE_KEY);
     if (savedProvider && Object.values(AIProviderType).includes(savedProvider as AIProviderType)) {
       setSelectedProvider(savedProvider as AIProviderType);
     }
   }, []);
 
   useEffect(() => {
+    localStorage.setItem(SELECTED_PROVIDER_STORAGE_KEY, selectedProvider);
+  }, [selectedProvider]);
+
+  useEffect(() => {
     let cancelled = false;
+    let retryTimer: number | null = null;
+    let heartbeatTimer: number | null = null;
+    let smokeExecuted = false;
+    let lastAuthError = '';
 
-    const bootstrapAuth = async () => {
-      try {
-        const userId = await ensureAnonymousSession();
-        if (cancelled) return;
+    const clearRetryTimer = () => {
+      if (!retryTimer) return;
+      window.clearTimeout(retryTimer);
+      retryTimer = null;
+    };
 
-        setIsAuthenticated(true);
-        void ImageDatabase.getAll();
+    const scheduleReconnect = (delayMs = 5000) => {
+      if (cancelled || retryTimer) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        void bootstrapAuth(true);
+      }, delayMs);
+    };
 
-        if (new URLSearchParams(window.location.search).get('smoke') === '1') {
-          const result = await runSupabaseSmokeTests((message, data) => {
-            if (data !== undefined) {
-              console.log(`[Smoke] ${message}`, data);
-            } else {
-              console.log(`[Smoke] ${message}`);
-            }
-          });
-          if (cancelled) return;
+    const runSmokeIfRequested = async () => {
+      if (smokeExecuted) return;
+      if (new URLSearchParams(window.location.search).get('smoke') !== '1') return;
+      smokeExecuted = true;
 
-          if (result.ok) {
-            setToast({ message: '✅ Smoke test Supabase: OK', type: 'success' });
-          } else {
-            setToast({ message: `❌ Smoke test Supabase: ${result.failures[0]}`, type: 'error' });
-            console.error('[Smoke] Failures:', result.failures);
-          }
+      const result = await runSupabaseSmokeTests((message, data) => {
+        if (data !== undefined) {
+          console.log(`[Smoke] ${message}`, data);
+        } else {
+          console.log(`[Smoke] ${message}`);
         }
-      } catch (error: any) {
-        if (cancelled) return;
-        setIsAuthenticated(false);
-        setToast({ message: error?.message || 'Nepodařilo se inicializovat anonymní přihlášení.', type: 'error' });
-      } finally {
-        if (!cancelled) setIsAuthBootstrapping(false);
+      });
+      if (cancelled) return;
+
+      if (result.ok) {
+        setToast({ message: '✅ Smoke test Supabase: OK', type: 'success' });
+      } else {
+        setToast({ message: `❌ Smoke test Supabase: ${result.failures[0]}`, type: 'error' });
+        console.error('[Smoke] Failures:', result.failures);
       }
     };
 
-    void bootstrapAuth();
+    const bootstrapAuth = async (isRetry = false) => {
+      if (!isRetry) setIsAuthBootstrapping(true);
+
+      try {
+        await ensureAnonymousSession();
+        if (cancelled) return;
+
+        clearRetryTimer();
+        lastAuthError = '';
+        setIsAuthenticated(true);
+        void ImageDatabase.getAll();
+        void runSmokeIfRequested();
+      } catch (error: any) {
+        if (cancelled) return;
+        const message = error?.message || 'Nepodařilo se inicializovat anonymní přihlášení.';
+        setIsAuthenticated(false);
+        if (message !== lastAuthError) {
+          setToast({ message, type: 'error' });
+          lastAuthError = message;
+        }
+        scheduleReconnect(5000);
+      } finally {
+        if (!cancelled && !isRetry) setIsAuthBootstrapping(false);
+      }
+    };
+
+    const startHeartbeat = () => {
+      heartbeatTimer = window.setInterval(async () => {
+        if (cancelled) return;
+        try {
+          await refreshSupabaseSession();
+          if (cancelled) return;
+          setIsAuthenticated(true);
+        } catch (error: any) {
+          if (cancelled) return;
+          const message = error?.message || 'Spojení se Supabase bylo přerušeno.';
+          setIsAuthenticated(false);
+          if (message !== lastAuthError) {
+            setToast({ message: `${message} Obnovuji připojení…`, type: 'error' });
+            lastAuthError = message;
+          }
+          scheduleReconnect(2000);
+        }
+      }, 60_000);
+    };
+
+    void bootstrapAuth(false);
+    startHeartbeat();
+
+    const onOnline = () => {
+      void bootstrapAuth(true);
+    };
+    window.addEventListener('online', onOnline);
+
     return () => {
       cancelled = true;
+      clearRetryTimer();
+      if (heartbeatTimer) window.clearInterval(heartbeatTimer);
+      window.removeEventListener('online', onOnline);
     };
   }, []);
 
@@ -499,6 +576,19 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const blobToDataUrl = useCallback((blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('Nepodařilo se převést Blob na data URL.'));
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
+  const fileToDataUrl = useCallback((file: File): Promise<string> => {
+    return blobToDataUrl(file);
+  }, [blobToDataUrl]);
+
   // Drag & Drop handlery pro pravý panel
   const handleDragOverReference = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -541,9 +631,8 @@ const App: React.FC = () => {
         const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
         if (files.length > 0) {
           const file = files[0];
-          const url = URL.createObjectURL(file);
           console.log('[Drop Reference] Got file drop:', file.name);
-          imageData = { url, fileName: file.name, fileType: file.type };
+          imageData = { file, fileName: file.name, fileType: file.type };
         } else {
           const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
           console.log('[Drop Reference] Got text url', { hasUrl: Boolean(url) });
@@ -557,12 +646,30 @@ const App: React.FC = () => {
         }
       }
 
-      if (!imageData || !imageData.url) {
+      const hasDroppedFile = imageData?.file instanceof File;
+      if (!imageData || (!imageData.url && !hasDroppedFile)) {
         console.warn('[Drop Reference] No valid image data found');
         return;
       }
 
-      const { url, fileName, fileType, prompt } = imageData;
+      const { url, fileName, fileType, prompt, file: droppedFile } = imageData;
+
+      if (droppedFile instanceof File) {
+        const dataUrl = await fileToDataUrl(droppedFile);
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: dataUrl,
+          file: droppedFile,
+          prompt: prompt
+        };
+
+        setState(prev => ({
+          ...prev,
+          sourceImages: [...prev.sourceImages, newImage],
+          error: null,
+        }));
+        return;
+      }
 
       // Kontrola jestli už není v seznamu
       if (state.sourceImages.some(img => img.url === url)) {
@@ -576,13 +683,11 @@ const App: React.FC = () => {
         const blob = await response.blob();
         const file = new File([blob], fileName, { type: fileType });
 
-        if (typeof url === 'string' && url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
+        const dataUrl = await blobToDataUrl(blob);
 
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
-          url: url,
+          url: dataUrl,
           file: file,
           prompt: prompt // Uložit prompt pokud existuje
         };
@@ -596,9 +701,6 @@ const App: React.FC = () => {
         console.log('[Drop Reference] Image added successfully', { hasPrompt: Boolean(prompt) });
       } catch (fetchError) {
         console.error('[Drop Reference] Failed to fetch image, using URL directly:', fetchError);
-        if (typeof url === 'string' && url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
         // Fallback - použij URL přímo bez File objektu
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
@@ -616,7 +718,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('[Drop Reference] Drop failed:', error);
     }
-  }, [state.sourceImages]);
+  }, [blobToDataUrl, state.sourceImages]);
 
   const handleDropStyle = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -641,9 +743,8 @@ const App: React.FC = () => {
         const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
         if (files.length > 0) {
           const file = files[0];
-          const url = URL.createObjectURL(file);
           console.log('[Drop Style] Got file drop:', file.name);
-          imageData = { url, fileName: file.name, fileType: file.type };
+          imageData = { file, fileName: file.name, fileType: file.type };
         } else {
           const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
           console.log('[Drop Style] Got text url', { hasUrl: Boolean(url) });
@@ -657,12 +758,29 @@ const App: React.FC = () => {
         }
       }
 
-      if (!imageData || !imageData.url) {
+      const hasDroppedFile = imageData?.file instanceof File;
+      if (!imageData || (!imageData.url && !hasDroppedFile)) {
         console.warn('[Drop Style] No valid image data found');
         return;
       }
 
-      const { url, fileName, fileType } = imageData;
+      const { url, fileName, fileType, file: droppedFile } = imageData;
+
+      if (droppedFile instanceof File) {
+        const dataUrl = await fileToDataUrl(droppedFile);
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: dataUrl,
+          file: droppedFile
+        };
+
+        setState(prev => ({
+          ...prev,
+          styleImages: [...prev.styleImages, newImage],
+          error: null,
+        }));
+        return;
+      }
 
       // Kontrola jestli už není v seznamu
       if (state.styleImages.some(img => img.url === url)) {
@@ -676,13 +794,11 @@ const App: React.FC = () => {
         const blob = await response.blob();
         const file = new File([blob], fileName, { type: fileType });
 
-        if (typeof url === 'string' && url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
+        const dataUrl = await blobToDataUrl(blob);
 
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
-          url: url,
+          url: dataUrl,
           file: file
         };
 
@@ -695,9 +811,6 @@ const App: React.FC = () => {
         console.log('[Drop Style] Image added successfully');
       } catch (fetchError) {
         console.error('[Drop Style] Failed to fetch image, using URL directly:', fetchError);
-        if (typeof url === 'string' && url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
         // Fallback - použij URL přímo bez File objektu
         const newImage: SourceImage = {
           id: Math.random().toString(36).substr(2, 9),
@@ -714,7 +827,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('[Drop Style] Drop failed:', error);
     }
-  }, [state.styleImages]);
+  }, [blobToDataUrl, state.styleImages]);
 
   // Auto-generate effect
   useEffect(() => {
@@ -2490,6 +2603,7 @@ ${extra}
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0f0d] text-white gap-4">
         <p className="text-sm text-white/70">Nepodařilo se inicializovat anonymní přihlášení.</p>
+        <p className="text-xs text-white/45">Aplikace průběžně zkouší obnovit spojení se Supabase.</p>
         <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 rounded-lg border border-white/20 hover:border-white/40 text-xs uppercase tracking-wider"
@@ -2505,6 +2619,7 @@ ${extra}
   const handleSaveSettings = async (newSettings: ProviderSettings) => {
     const merged = { ...defaultProviderSettings, ...newSettings };
     setProviderSettings(merged);
+    localStorage.setItem(PROVIDER_SETTINGS_STORAGE_KEY, JSON.stringify(merged));
     setToast({ message: 'Settings applied for current session.', type: 'success' });
   };
 

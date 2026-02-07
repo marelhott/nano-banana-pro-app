@@ -23,11 +23,16 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
    cp .env.local.example .env.local
    ```
 
-3. Set your Gemini API key in `.env.local`:
-   - Get your API key from: https://aistudio.google.com/apikey
-   - Open `.env.local` and replace `your_api_key_here` with your actual API key
+3. Configure environment variables in `.env.local`:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `GEMINI_API_KEY` (optional fallback for Gemini)
 
-4. Run the app:
+4. Configure provider API keys in app Settings (gear icon):
+   - Gemini, OpenAI, Grok, Replicate
+   - Keys are stored only in browser localStorage (not in Supabase)
+
+5. Run the app:
    ```bash
    npm run dev
    ```
@@ -36,9 +41,17 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
 
 1. Push your code to GitHub
 2. Connect your repository to Netlify
-3. Set environment variable in Netlify dashboard:
-   - `GEMINI_API_KEY` = your Gemini API key
+3. Set environment variables in Netlify dashboard:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `GEMINI_API_KEY` (optional fallback)
 4. Deploy!
+
+### Supabase requirements
+
+- `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are required for runtime.
+- App auth now automatically retries and reconnects to Supabase on transient failures.
+- Apply migrations in `supabase/migrations/` (including `20260207_user_settings_rls_policies.sql`) to keep `user_settings` accessible only to `auth.uid() = user_id`.
 
 
 ## Deployment Status

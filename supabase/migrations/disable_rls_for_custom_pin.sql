@@ -2,7 +2,8 @@
 
 ALTER TABLE IF EXISTS public.saved_images DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.generated_images DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.user_settings DISABLE ROW LEVEL SECURITY;
+-- Keep RLS on user_settings because it may contain sensitive configuration metadata.
+ALTER TABLE IF EXISTS public.user_settings ENABLE ROW LEVEL SECURITY;
 
 -- Storage: allow the frontend (anon key) to upload/delete in the public 'images' bucket
 DROP POLICY IF EXISTS "Users upload own images" ON storage.objects;
