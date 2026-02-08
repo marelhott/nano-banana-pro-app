@@ -20,6 +20,16 @@ function json(statusCode, payload) {
   };
 }
 
+async function requestWithTimeout(url, init = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 exports.handler = async (event) => {
   try {
     const method = event.httpMethod || 'GET';
@@ -43,12 +53,14 @@ exports.handler = async (event) => {
         return json(400, { error: 'Missing Replicate model/version' });
       }
 
-      const upstream = await fetch('https://api.replicate.com/v1/predictions', {
+      // IMPORTANT: Do NOT use `Prefer: wait=60` here.
+      // Netlify Functions can time out if Replicate waits for completion.
+      // The frontend already polls /predictions/:id until succeeded/failed.
+      const upstream = await requestWithTimeout('https://api.replicate.com/v1/predictions', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
-          Prefer: 'wait=60',
         },
         body: JSON.stringify({ version, input: input || {} }),
       });
@@ -75,7 +87,7 @@ exports.handler = async (event) => {
         return json(400, { error: 'Missing prediction id' });
       }
 
-      const upstream = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+      const upstream = await requestWithTimeout(`https://api.replicate.com/v1/predictions/${predictionId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
