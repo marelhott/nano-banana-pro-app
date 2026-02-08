@@ -32,12 +32,13 @@ import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
-import { ensureAnonymousSession, refreshSupabaseSession, SUPABASE_ANON_DISABLED_ERROR_MESSAGE } from './utils/supabaseClient';
+import { ensureAnonymousSession, refreshSupabaseSession, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, getCurrentUserId } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
 import { LoraSdGeneratorScreen } from './components/LoraSdGeneratorScreen';
 import { NodesScreen } from './components/NodesScreen';
+import { PinAuth } from './components/PinAuth';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -50,10 +51,11 @@ const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
 
 const App: React.FC = () => {
-  // Supabase auth state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Supabase connectivity state (separate from app identity)
+  const [isSupabaseReady, setIsSupabaseReady] = useState(false);
   const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(true);
   const [authFailureMessage, setAuthFailureMessage] = useState<string | null>(null);
+  const [appUserId, setAppUserId] = useState<string | null>(() => getCurrentUserId());
   // Theme state
   // Theme state - Enforced Dark Mode (v2)
   const isDark = true;
@@ -168,7 +170,7 @@ const App: React.FC = () => {
         clearRetryTimer();
         lastAuthError = '';
         setAuthFailureMessage(null);
-        setIsAuthenticated(true);
+        setIsSupabaseReady(true);
         void ImageDatabase.getAll();
         void runSmokeIfRequested();
       } catch (error: any) {
@@ -179,7 +181,7 @@ const App: React.FC = () => {
           message.includes('Supabase není nakonfigurovaná');
 
         hasPermanentAuthFailure = isPermanentError;
-        setIsAuthenticated(false);
+        setIsSupabaseReady(false);
         setAuthFailureMessage(message);
         if (message !== lastAuthError) {
           setToast({ message, type: 'error' });
@@ -203,7 +205,7 @@ const App: React.FC = () => {
           await refreshSupabaseSession();
           if (cancelled) return;
           setAuthFailureMessage(null);
-          setIsAuthenticated(true);
+          setIsSupabaseReady(true);
         } catch (error: any) {
           if (cancelled) return;
           const message = error?.message || 'Spojení se Supabase bylo přerušeno.';
@@ -212,7 +214,7 @@ const App: React.FC = () => {
             message.includes('Supabase není nakonfigurovaná');
 
           hasPermanentAuthFailure = isPermanentError;
-          setIsAuthenticated(false);
+          setIsSupabaseReady(false);
           setAuthFailureMessage(message);
           if (message !== lastAuthError) {
             setToast({ message: `${message} Obnovuji připojení…`, type: 'error' });
@@ -2637,7 +2639,7 @@ ${extra}
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isSupabaseReady) {
     const isAnonDisabled = Boolean(
       authFailureMessage &&
       (authFailureMessage.includes('Anonymní přihlášení je v Supabase vypnuté') ||
@@ -2674,6 +2676,18 @@ ${extra}
           </button>
         </div>
       </div>
+    );
+  }
+
+  if (!appUserId) {
+    return (
+      <PinAuth
+        onAuth={(userId) => {
+          setAppUserId(userId);
+          setToast({ message: 'PIN přihlášení OK. Načítám data…', type: 'success' });
+          void ImageDatabase.getAll();
+        }}
+      />
     );
   }
 
