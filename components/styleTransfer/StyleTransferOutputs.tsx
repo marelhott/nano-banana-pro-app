@@ -38,7 +38,7 @@ export function StyleTransferOutputs(props: {
           Zatím žádné vygenerované obrázky
         </span>
         <p className="text-[9px] font-medium text-gray-600 mt-2">
-          Zadejte prompt v postranním panelu (vlevo) a začněte tvořit
+          Nahraj referenční fotku a 1 až 3 stylové předlohy vlevo a spusť generování
         </p>
       </div>
     );

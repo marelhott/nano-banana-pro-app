@@ -63,18 +63,34 @@ EOS
 chmod 700 "$askpass"
 
 echo "==> Ensuring target repo exists: $TARGET_REPO_ID"
-create_repo() {
-  local payload="$1"
-  # Print body to stdout and http status to stderr-friendly marker.
-  curl -sS --retry 12 --retry-all-errors --retry-delay 1 \
-    -X POST "${API_BASE}/api/repos/create" \
-    -H "Authorization: Bearer ${HF_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "$payload" \
-    -w "\n__HTTP_STATUS__=%{http_code}\n"
-}
+repo_exists=0
+if [[ "${HF_SKIP_CREATE:-0}" == "1" ]]; then
+  repo_exists=1
+fi
+for attempt in 1 2 3 4 5; do
+  [[ "$repo_exists" == "1" ]] && break
+  if curl -sS -I "${API_BASE}/${TARGET_REPO_ID}" | head -n 1 | grep -q " 200 "; then
+    repo_exists=1
+    break
+  fi
+  sleep 1
+done
 
-create_payload_org="$(python3 - <<PY
+if [[ "$repo_exists" == "1" ]]; then
+  echo "==> Repo exists, skipping create."
+else
+  create_repo() {
+    local payload="$1"
+    # Print body to stdout and http status to stderr-friendly marker.
+    curl -sS --retry 12 --retry-all-errors --retry-delay 1 \
+      -X POST "${API_BASE}/api/repos/create" \
+      -H "Authorization: Bearer ${HF_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "$payload" \
+      -w "\n__HTTP_STATUS__=%{http_code}\n"
+  }
+
+  create_payload_org="$(python3 - <<PY
 import json
 print(json.dumps({
   "type": "model",
@@ -83,8 +99,8 @@ print(json.dumps({
   "private": False
 }))
 PY
-)"
-create_payload_user="$(python3 - <<PY
+  )"
+  create_payload_user="$(python3 - <<PY
 import json
 print(json.dumps({
   "type": "model",
@@ -92,53 +108,64 @@ print(json.dumps({
   "private": False
 }))
 PY
-)"
+  )"
 
-set +e
-create_out="$(create_repo "$create_payload_org" 2>&1)"
-create_ec=$?
-set -e
-if [[ $create_ec -ne 0 ]]; then
-  echo "ERROR: Failed to call HF create repo endpoint."
-  echo "$create_out" | sed -n '1,160p'
-  exit 1
-fi
-
-status="$(echo "$create_out" | awk -F= '/__HTTP_STATUS__/ {print $2}' | tail -n 1)"
-body="$(echo "$create_out" | sed '/__HTTP_STATUS__/d')"
-if [[ "$status" == "200" || "$status" == "201" ]]; then
-  : # created ok
-elif [[ "$status" == "409" || "$body" == *"already exists"* ]]; then
-  : # exists ok
-else
-  # Some accounts are not orgs; retry without "organization".
   set +e
-  create_out2="$(create_repo "$create_payload_user" 2>&1)"
-  create_ec2=$?
+  create_out="$(create_repo "$create_payload_org" 2>&1)"
+  create_ec=$?
   set -e
-  if [[ $create_ec2 -ne 0 ]]; then
-    echo "ERROR: Failed to call HF create repo endpoint (user retry)."
-    echo "$create_out2" | sed -n '1,160p'
+  if [[ $create_ec -ne 0 ]]; then
+    echo "ERROR: Failed to call HF create repo endpoint."
+    echo "$create_out" | sed -n '1,160p'
     exit 1
   fi
-  status2="$(echo "$create_out2" | awk -F= '/__HTTP_STATUS__/ {print $2}' | tail -n 1)"
-  body2="$(echo "$create_out2" | sed '/__HTTP_STATUS__/d')"
-  if [[ "$status2" == "200" || "$status2" == "201" ]]; then
-    :
-  elif [[ "$status2" == "409" || "$body2" == *"already exists"* ]]; then
-    :
+
+  status="$(echo "$create_out" | awk -F= '/__HTTP_STATUS__/ {print $2}' | tail -n 1)"
+  body="$(echo "$create_out" | sed '/__HTTP_STATUS__/d')"
+  if [[ "$status" == "200" || "$status" == "201" ]]; then
+    : # created ok
+  elif [[ "$status" == "409" || "$body" == *"already exists"* ]]; then
+    : # exists ok
   else
-    echo "ERROR: Unexpected HF response while creating repo."
-    echo "$body2" | sed -n '1,160p'
-    exit 1
+    # Some accounts are not orgs; retry without "organization".
+    set +e
+    create_out2="$(create_repo "$create_payload_user" 2>&1)"
+    create_ec2=$?
+    set -e
+    if [[ $create_ec2 -ne 0 ]]; then
+      echo "ERROR: Failed to call HF create repo endpoint (user retry)."
+      echo "$create_out2" | sed -n '1,160p'
+      exit 1
+    fi
+    status2="$(echo "$create_out2" | awk -F= '/__HTTP_STATUS__/ {print $2}' | tail -n 1)"
+    body2="$(echo "$create_out2" | sed '/__HTTP_STATUS__/d')"
+    if [[ "$status2" == "200" || "$status2" == "201" ]]; then
+      :
+    elif [[ "$status2" == "409" || "$body2" == *"already exists"* ]]; then
+      :
+    else
+      echo "ERROR: Unexpected HF response while creating repo."
+      echo "$body2" | sed -n '1,160p'
+      exit 1
+    fi
   fi
 fi
 
 echo "==> Cloning: $TARGET_REPO_ID"
-set +e
-clone_out="$(GIT_TERMINAL_PROMPT=0 GIT_ASKPASS="$askpass" git clone "https://huggingface.co/${TARGET_REPO_ID}" "$tmp/repo" 2>&1)"
-clone_ec=$?
-set -e
+clone_ec=1
+clone_out=""
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  set +e
+  clone_out="$(GIT_TERMINAL_PROMPT=0 GIT_ASKPASS="$askpass" git clone "https://huggingface.co/${TARGET_REPO_ID}" "$tmp/repo" 2>&1)"
+  clone_ec=$?
+  set -e
+  if [[ $clone_ec -eq 0 ]]; then
+    break
+  fi
+  echo "WARN: git clone attempt ${attempt}/10 failed; retrying in 2s..."
+  echo "$clone_out" | sed -n '1,20p'
+  sleep 2
+done
 if [[ $clone_ec -ne 0 ]]; then
   echo "ERROR: git clone failed."
   echo "$clone_out" | sed -n '1,120p'
@@ -245,7 +272,25 @@ else
 fi
 
 echo "==> Pushing to Hugging Face (this can take a while for large files)"
-GIT_TERMINAL_PROMPT=0 GIT_ASKPASS="$askpass" git push >/dev/null
+push_ec=1
+push_out=""
+for attempt in 1 2 3; do
+  set +e
+  push_out="$(GIT_TERMINAL_PROMPT=0 GIT_ASKPASS="$askpass" git push 2>&1)"
+  push_ec=$?
+  set -e
+  if [[ $push_ec -eq 0 ]]; then
+    break
+  fi
+  echo "WARN: git push attempt ${attempt}/3 failed; retrying in 5s..."
+  echo "$push_out" | sed -n '1,60p'
+  sleep 5
+done
+if [[ $push_ec -ne 0 ]]; then
+  echo "ERROR: git push failed."
+  echo "$push_out" | sed -n '1,160p'
+  exit 1
+fi
 
 echo "==> Upload done: https://huggingface.co/${TARGET_REPO_ID}"
 

@@ -1,19 +1,16 @@
 import React from 'react';
-import { AIProviderType, ImageInput, ProviderSettings } from '../services/aiProvider';
-import { ProviderFactory } from '../services/providerFactory';
-import { analyzeStyleTransferWithAI } from '../services/geminiService';
-import { runFluxKontextProMultiImage, runProSdxlStyleTransfer } from '../services/replicateService';
+import { AIProviderType, ProviderSettings } from '../services/aiProvider';
+import { runNeuralNeighborStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { StyleTransferSidebar } from './styleTransfer/StyleTransferSidebar';
 import { StyleTransferMobileControls } from './styleTransfer/StyleTransferMobileControls';
 import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
-import { composeStyleReferencesBoard, createStylePatches, downloadDataUrl, fileToDataUrl, getDataUrlMime, resolveDropToFile, STYLE_REFERENCE_LIMIT } from './styleTransfer/utils';
-import type { ImageSlot, OutputItem, StyleTransferAnalysis, StyleTransferEngine } from './styleTransfer/utils';
+import { downloadDataUrl, fileToDataUrl, getDataUrlMime, resolveDropToFile, STYLE_REFERENCE_LIMIT, composeStylePatchwork } from './styleTransfer/utils';
+import type { ImageSlot, OutputItem } from './styleTransfer/utils';
 
 type ToastType = 'success' | 'error' | 'info';
-
 
 export function StyleTransferScreen(props: {
   providerSettings: ProviderSettings;
@@ -23,21 +20,16 @@ export function StyleTransferScreen(props: {
   isHoveringGallery: boolean;
 }) {
   const { providerSettings, onOpenSettings, onBack, onToast, isHoveringGallery } = props;
+
   const [reference, setReference] = React.useState<ImageSlot | null>(null);
   const [styles, setStyles] = React.useState<Array<ImageSlot | null>>(
     () => Array.from({ length: STYLE_REFERENCE_LIMIT }, () => null),
   );
   const [strength, setStrength] = React.useState(60);
   const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
-  const [analysis, setAnalysis] = React.useState<StyleTransferAnalysis | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [useAgenticVision, setUseAgenticVision] = React.useState(true);
-  const [engine, setEngine] = React.useState<StyleTransferEngine>('replicate_pro_sdxl');
-  const [cfgScale, setCfgScale] = React.useState(7);
-  const [denoise, setDenoise] = React.useState(0.55);
-  const [steps, setSteps] = React.useState(30);
-  const [styleOnly, setStyleOnly] = React.useState(true);
+  const [highRes, setHighRes] = React.useState(true);
+  const [colorize, setColorize] = React.useState(true);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
   const mountedRef = React.useRef(true);
@@ -50,51 +42,15 @@ export function StyleTransferScreen(props: {
   }, []);
 
   const marginRight = isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0';
-  const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey?.trim();
   const replicateToken = providerSettings[AIProviderType.REPLICATE]?.apiKey?.trim();
   const activeStyles = React.useMemo(() => styles.filter((slot): slot is ImageSlot => !!slot), [styles]);
-  const primaryStyle = activeStyles[0] || null;
-  const canAnalyze = engine === 'gemini' && !!reference && activeStyles.length > 0 && !!geminiKey && !isAnalyzing && !isGenerating;
-  const canGenerate = !!reference && activeStyles.length > 0 && (engine === 'gemini' ? !!geminiKey : !!replicateToken) && !isGenerating;
+  const canGenerate = !!reference && activeStyles.length > 0 && !!replicateToken && !isGenerating;
 
   const replicateUrlCacheRef = React.useRef<Map<string, string>>(new Map());
   const buildReplicateCacheKey = React.useCallback((role: string, dataUrl: string) => {
-    // Compact fingerprint to avoid stale-cache collisions after image changes.
     const head = dataUrl.slice(0, 64);
     const tail = dataUrl.slice(-64);
     return `${role}:${dataUrl.length}:${head}:${tail}`;
-  }, []);
-
-  const estimateSaturation = React.useCallback(async (dataUrl: string) => {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error('Nepodařilo se načíst obrázek.'));
-      i.src = dataUrl;
-    });
-
-    const canvas = document.createElement('canvas');
-    const w = 64;
-    const h = 64;
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return 0;
-    ctx.drawImage(img, 0, 0, w, h);
-    const data = ctx.getImageData(0, 0, w, h).data;
-    let sum = 0;
-    let count = 0;
-    for (let i = 0; i < data.length; i += 16) {
-      const r = data[i] / 255;
-      const g = data[i + 1] / 255;
-      const b = data[i + 2] / 255;
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      const s = max === 0 ? 0 : (max - min) / max;
-      sum += s;
-      count += 1;
-    }
-    return count ? sum / count : 0;
   }, []);
 
   const shrinkForReplicate = React.useCallback(async (dataUrl: string) => {
@@ -157,7 +113,6 @@ export function StyleTransferScreen(props: {
     const dataUrl = await fileToDataUrl(file);
     replicateUrlCacheRef.current.clear();
     setReference({ file, dataUrl });
-    setAnalysis(null);
     try {
       await ImageDatabase.add(file, dataUrl, 'reference');
     } catch {
@@ -172,7 +127,6 @@ export function StyleTransferScreen(props: {
       next[index] = { file, dataUrl };
       return next;
     });
-    setAnalysis(null);
     try {
       await ImageDatabase.add(file, dataUrl, 'style');
     } catch {
@@ -191,271 +145,93 @@ export function StyleTransferScreen(props: {
       next[index] = null;
       return next;
     });
-    setAnalysis(null);
   }, []);
 
   const dropToReference = React.useCallback(async (e: React.DragEvent) => {
-    try {
-      const f = await resolveDropToFile(e);
-      if (!f) {
-        onToast({ message: 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
-        return;
-      }
-      await setReferenceFromFile(f);
-    } catch (err: any) {
-      onToast({ message: err?.message || 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
-    }
-  }, [onToast, setReferenceFromFile]);
+    const f = await resolveDropToFile(e);
+    if (!f) throw new Error('Nepodařilo se načíst obrázek z dropu.');
+    await setReferenceFromFile(f);
+  }, [setReferenceFromFile]);
 
   const dropToStyle = React.useCallback(async (index: number, e: React.DragEvent) => {
-    try {
-      const f = await resolveDropToFile(e);
-      if (!f) {
-        onToast({ message: 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
-        return;
-      }
-      await setStyleFromFile(index, f);
-    } catch (err: any) {
-      onToast({ message: err?.message || 'Nepodařilo se načíst obrázek z dropu.', type: 'error' });
-    }
-  }, [onToast, setStyleFromFile]);
+    const f = await resolveDropToFile(e);
+    if (!f) throw new Error('Nepodařilo se načíst obrázek z dropu.');
+    await setStyleFromFile(index, f);
+  }, [setStyleFromFile]);
 
-  const handleAnalyze = React.useCallback(async () => {
-    if (!reference || activeStyles.length === 0) return;
-    if (!geminiKey) {
-      onToast({ message: 'Chybí Gemini API klíč. Nastav ho v Settings.', type: 'error' });
+  const handleDownload = React.useCallback((dataUrl: string, index: number) => {
+    downloadDataUrl(dataUrl, `style-transfer-${index + 1}.png`);
+  }, []);
+
+  const handleGenerate = React.useCallback(async () => {
+    if (!reference) {
+      onToast({ message: 'Nahraj Reference obrázek.', type: 'info' });
+      return;
+    }
+    if (activeStyles.length === 0) {
+      onToast({ message: 'Nahraj aspoň jednu stylovou referenci.', type: 'info' });
+      return;
+    }
+    if (!replicateToken) {
+      onToast({ message: 'Chybí Replicate API token. Nastav ho v Settings.', type: 'error' });
       onOpenSettings();
       return;
     }
-    setIsAnalyzing(true);
-    try {
-      const styleBoard = await composeStyleReferencesBoard(activeStyles.map((s) => s.dataUrl));
-      const res = await analyzeStyleTransferWithAI(reference.dataUrl, styleBoard, geminiKey, {
-        agenticVision: useAgenticVision,
-        mediaResolution: useAgenticVision ? 'high' : undefined,
-      });
-      if (!mountedRef.current) return;
-      setAnalysis(res);
-      setStrength(Math.max(0, Math.min(100, Math.round(res.recommendedStrength))));
-      onToast({ message: 'Analýza hotová.', type: 'success' });
-    } catch (e: any) {
-      onToast({ message: e?.message || 'Analýza selhala.', type: 'error' });
-    } finally {
-      if (mountedRef.current) setIsAnalyzing(false);
-    }
-  }, [activeStyles, geminiKey, onOpenSettings, onToast, reference, useAgenticVision]);
 
-  const handleGenerate = React.useCallback(async () => {
-    if (!reference || activeStyles.length === 0) {
-      onToast({ message: 'Nahraj referenční fotku a alespoň 1 styl.', type: 'error' });
-      return;
-    }
-    if (engine === 'gemini') {
-      if (!geminiKey) {
-        onToast({ message: 'Chybí Gemini API klíč. Nastav ho v Settings.', type: 'error' });
-        onOpenSettings();
-        return;
-      }
-    } else {
-      if (!replicateToken) {
-        onToast({ message: 'Chybí Replicate API token. Nastav ho v Settings.', type: 'error' });
-        onOpenSettings();
-        return;
-      }
-    }
-
-    let provider: any = null;
-    if (engine === 'gemini') {
-      try {
-        provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
-      } catch {
-        onToast({ message: 'Gemini provider není nakonfigurovaný.', type: 'error' });
-        onOpenSettings();
-        return;
-      }
-    }
-
-    const refMime = getDataUrlMime(reference.dataUrl);
-    const images: ImageInput[] = [{ data: reference.dataUrl, mimeType: refMime }];
-    activeStyles.forEach((styleSlot) => {
-      images.push({ data: styleSlot.dataUrl, mimeType: getDataUrlMime(styleSlot.dataUrl) });
-    });
-
-    if (useAgenticVision && primaryStyle) {
-      try {
-        const patches = await createStylePatches(primaryStyle.dataUrl);
-        patches.forEach((p) => {
-          images.push({ data: p, mimeType: getDataUrlMime(p) });
-        });
-      } catch {
-      }
-    }
-
-    const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
-    const styleDesc = analysis?.styleDescription?.trim();
-    const negative = analysis?.negativePrompt?.trim();
-
-    const outputIds = Array.from({ length: variants }).map((_, i) => `st-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`);
+    const outputIds = Array.from({ length: variants }).map((_, i) => `nst-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`);
     setOutputs(outputIds.map((id) => ({ id, status: 'loading' })));
-
     setIsGenerating(true);
+
     try {
-      const styleBoardDataUrl = await composeStyleReferencesBoard(activeStyles.map((s) => s.dataUrl));
-      const styleBoardInput =
-        engine === 'gemini'
-          ? null
-          : await ensureReplicateImageInput(styleBoardDataUrl, 'replicate-style-board');
+      const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
+      // NNST alpha is reversed: alpha=1 -> preserve content (weak stylization).
+      const alpha = Math.max(0.02, Math.min(0.98, 1 - strengthValue / 100));
 
-      const negativeText = negative ? `Vyhni se: ${negative}` : 'Vyhni se: text, watermark, logo, rozmazání, artefakty';
-      const basePrompt = [
-        'Proveď style transfer: A=REFERENCE obsah, B=STYLE styl.',
-        'Zachovej identitu, tvary a kompozici z A (póza, silueta, perspektiva).',
-        'Aplikuj vizuální styl z B na A. Styl ber přímo z obrázku B (neopisuj ho do textu).',
-        `Síla stylu: ${strengthValue}/100.`,
-        negativeText,
-        'Nevytvářej žádný text.'
-      ].filter(Boolean).join('\n');
+      const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'nst-content');
 
-      if (engine === 'replicate_pro_sdxl') {
-        const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'replicate-content');
-        const styleUrl = styleBoardInput!;
+      for (let i = 0; i < variants; i++) {
+        try {
+          // Mix 1-3 styles into a single texture board (different seed per variant).
+          const patchwork = await composeStylePatchwork(activeStyles.map((s) => s.dataUrl), {
+            size: highRes ? 1024 : 768,
+            seed: (Date.now() + i * 9973) | 0,
+          });
+          const styleUrl = await ensureReplicateImageInput(patchwork, `nst-style-${i}`);
 
-        const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve({ w: img.width, h: img.height });
-          img.onerror = () => reject(new Error('Nepodařilo se načíst Reference obrázek.'));
-          img.src = reference.dataUrl;
-        });
+          const url = await runNeuralNeighborStyleTransfer({
+            token: replicateToken,
+            contentImage: contentUrl,
+            styleImage: styleUrl,
+            alpha,
+            highRes,
+            colorize,
+          });
 
-        const maxSide = 1024;
-        const s = Math.min(1, maxSide / Math.max(dims.w, dims.h));
-        const round64 = (n: number) => Math.max(64, Math.round(n / 64) * 64);
-        const width = round64(dims.w * s);
-        const height = round64(dims.h * s);
-
-        const contentSat = await estimateSaturation(reference.dataUrl);
-        const styleSat = await estimateSaturation(styleBoardDataUrl);
-        const shouldColorize = contentSat < 0.06 && styleSat > 0.12;
-        const strength01 = Math.max(0, Math.min(1, strengthValue / 100));
-        const denoiseFromStrength = 0.15 + strength01 * 0.75;
-        const denoiseEffective = Math.max(denoise, denoiseFromStrength, shouldColorize ? 0.72 : 0);
-
-        const proPrompt = [
-          'High-quality style transfer.',
-          'Keep the subject identity and original composition from the input image.',
-          'Apply the painting style from the style reference image.',
-          'Transfer the color palette from the style reference image.',
-          shouldColorize ? 'If the input image is monochrome, colorize it using the style palette.' : '',
-          `Style strength: ${strengthValue}/100.`,
-          'No text.'
-        ].join('\n');
-
-        const negativeWithColor = [
-          negativeText,
-          shouldColorize ? 'monochrome, grayscale, desaturated' : ''
-        ].filter(Boolean).join(', ');
-
-        const results = await runProSdxlStyleTransfer({
-          token: replicateToken!,
-          contentImage: contentUrl,
-          styleImage: styleUrl,
-          prompt: proPrompt,
-          negativePrompt: negativeWithColor,
-          cfgScale,
-          denoise: denoiseEffective,
-          steps,
-          numOutputs: variants,
-          width,
-          height,
-          styleOnly,
-        });
-
-        for (let i = 0; i < variants; i++) {
-          const url = results[i];
-          if (!url) {
-            setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'error', error: 'Replicate nevrátil výstup.' }) : p));
-            continue;
-          }
           const thumb = await createThumbnail(url, 420);
           try {
             await saveToGallery({
               url,
               thumbnail: thumb,
-              prompt: `Style Transfer | strength=${strengthValue}`,
-              resolution: '1K',
+              prompt: `Style Transfer (NST) | strength=${strengthValue}`,
+              resolution: highRes ? '1024' : '768',
               aspectRatio: 'Original',
               params: {
-                mode: 'style-transfer',
+                mode: 'style-transfer-nst',
                 strength: strengthValue,
-                styleDescription: styleDesc || null,
-                negativePrompt: negative || null,
-                engine,
+                alpha,
+                highRes,
+                colorize,
                 styleReferences: activeStyles.length,
-                cfgScale,
-                denoise,
-                steps,
-                styleOnly,
                 variant: i + 1,
-                variants
-              }
+                variants,
+              },
             });
           } catch {
           }
-          setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'success', url }) : p));
-        }
-      } else {
-        for (let i = 0; i < variants; i++) {
-          const variantPrompt = `${basePrompt}\nVarianta: ${i + 1}/${variants}.`;
-          try {
-            let url: string;
-            if (engine === 'gemini') {
-              const res = await provider.generateImage(images, variantPrompt, '1K', 'Original', false);
-              url = res.imageBase64;
-            } else {
-              const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'replicate-content');
-              const fluxPrompt = [
-                'Style transfer from reference style image(s).',
-                'Image 1 is content, image 2 is style reference board.',
-                'Apply brush texture, paint structure and palette from image 2.',
-                `Style strength target: ${strengthValue}/100.`,
-                'Preserve the subject identity and the original composition.',
-                negative ? `Avoid: ${negative}` : 'Avoid: text, watermark, logo, blur, artifacts.',
-                'Do not add any text.'
-              ].filter(Boolean).join('\n');
 
-              url = await runFluxKontextProMultiImage({
-                token: replicateToken!,
-                image1: contentUrl,
-                image2: styleBoardInput!,
-                prompt: fluxPrompt,
-                aspect_ratio: 'match_input_image'
-              });
-            }
-            const thumb = await createThumbnail(url, 420);
-            try {
-              await saveToGallery({
-                url,
-                thumbnail: thumb,
-                prompt: `Style Transfer | strength=${strengthValue}`,
-                resolution: '1K',
-                aspectRatio: 'Original',
-                params: {
-                  mode: 'style-transfer',
-                  strength: strengthValue,
-                  styleDescription: styleDesc || null,
-                  negativePrompt: negative || null,
-                  engine,
-                  styleReferences: activeStyles.length,
-                  variant: i + 1,
-                  variants
-                }
-              });
-            } catch {
-            }
-            setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'success', url }) : p));
-          } catch (e: any) {
-            setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' }) : p));
-          }
+          setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'success', url }) : p));
+        } catch (e: any) {
+          setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' }) : p));
         }
       }
 
@@ -467,7 +243,7 @@ export function StyleTransferScreen(props: {
     } finally {
       if (mountedRef.current) setIsGenerating(false);
     }
-  }, [activeStyles, analysis, cfgScale, denoise, engine, ensureReplicateImageInput, estimateSaturation, geminiKey, onOpenSettings, onToast, primaryStyle, providerSettings, reference, replicateToken, steps, strength, styleOnly, useAgenticVision, variants]);
+  }, [activeStyles, colorize, ensureReplicateImageInput, highRes, onOpenSettings, onToast, reference, replicateToken, strength, variants]);
 
   return (
     <>
@@ -481,25 +257,13 @@ export function StyleTransferScreen(props: {
         setStrength={setStrength}
         variants={variants}
         setVariants={setVariants}
-        analysis={analysis}
-        isAnalyzing={isAnalyzing}
         isGenerating={isGenerating}
-        useAgenticVision={useAgenticVision}
-        setUseAgenticVision={setUseAgenticVision}
-        engine={engine}
-        setEngine={setEngine}
-        cfgScale={cfgScale}
-        setCfgScale={setCfgScale}
-        denoise={denoise}
-        setDenoise={setDenoise}
-        steps={steps}
-        setSteps={setSteps}
-        styleOnly={styleOnly}
-        setStyleOnly={setStyleOnly}
-        canAnalyze={canAnalyze}
         canGenerate={canGenerate}
-        hasGeminiKey={engine === 'gemini' ? !!geminiKey : !!replicateToken}
-        onAnalyze={handleAnalyze}
+        hasReplicateKey={!!replicateToken}
+        highRes={highRes}
+        setHighRes={setHighRes}
+        colorize={colorize}
+        setColorize={setColorize}
         onGenerate={handleGenerate}
         onSetReferenceFromFile={setReferenceFromFile}
         onSetStyleFromFile={setStyleFromFile}
@@ -526,25 +290,13 @@ export function StyleTransferScreen(props: {
                 setStrength={setStrength}
                 variants={variants}
                 setVariants={setVariants}
-                analysis={analysis}
-                isAnalyzing={isAnalyzing}
                 isGenerating={isGenerating}
-                useAgenticVision={useAgenticVision}
-                setUseAgenticVision={setUseAgenticVision}
-                engine={engine}
-                setEngine={setEngine}
-                cfgScale={cfgScale}
-                setCfgScale={setCfgScale}
-                denoise={denoise}
-                setDenoise={setDenoise}
-                steps={steps}
-                setSteps={setSteps}
-                styleOnly={styleOnly}
-                setStyleOnly={setStyleOnly}
-                canAnalyze={canAnalyze}
                 canGenerate={canGenerate}
-                hasGeminiKey={engine === 'gemini' ? !!geminiKey : !!replicateToken}
-                onAnalyze={handleAnalyze}
+                hasReplicateKey={!!replicateToken}
+                highRes={highRes}
+                setHighRes={setHighRes}
+                colorize={colorize}
+                setColorize={setColorize}
                 onGenerate={handleGenerate}
                 onSetReferenceFromFile={setReferenceFromFile}
                 onSetStyleFromFile={setStyleFromFile}
@@ -558,38 +310,37 @@ export function StyleTransferScreen(props: {
             <header className="hidden lg:flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
-                  <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Výstupy</h2>
+                  <div className="w-1 h-4 bg-[#7ed957] rounded-full" />
+                  <h2 className="text-[11px] font-[900] uppercase tracking-[0.28em] text-white/80">
+                    Style Transfer (NST)
+                  </h2>
                 </div>
-                <div className="text-[10px] text-white/40">1–3 varianty podle nastavení.</div>
+                <div className="text-[10px] text-white/45 max-w-[520px] leading-relaxed">
+                  Promptless přenos malířské textury ze stylových předloh na fotku. Pro 2–3 styly se udělá texturový patchwork.
+                </div>
               </div>
             </header>
 
-            <div className="card-surface p-4 md:p-6">
-              <StyleTransferOutputs
-                outputs={outputs}
-                onOpenLightbox={(u) => setLightboxUrl(u)}
-                onDownload={(u, idx) => downloadDataUrl(u, `style-transfer-${idx + 1}.jpg`)}
-              />
-            </div>
+            <StyleTransferOutputs
+              outputs={outputs}
+              onDownload={handleDownload}
+              onOpenLightbox={(url) => setLightboxUrl(url)}
+            />
           </div>
         </div>
-      </div>
 
-      {lightboxUrl && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/95 backdrop-blur-md p-4" onClick={() => setLightboxUrl(null)}>
-          <div className="relative max-w-7xl max-h-full flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setLightboxUrl(null)}
-              className="absolute top-3 right-3 px-3 py-1.5 bg-black/60 hover:bg-black/75 text-white/80 rounded-md text-[10px] font-bold uppercase tracking-widest"
-            >
-              Zavřít
-            </button>
-            <img src={lightboxUrl} alt="Output" className="max-w-full max-h-[90vh] object-contain rounded-lg" />
-          </div>
-        </div>
-      )}
+        {lightboxUrl && (
+          <button
+            type="button"
+            className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setLightboxUrl(null)}
+            title="Zavřít"
+          >
+            <img src={lightboxUrl} alt="Preview" className="max-w-[95vw] max-h-[92vh] rounded-lg shadow-2xl" />
+          </button>
+        )}
+      </div>
     </>
   );
 }
+

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Plus } from 'lucide-react';
-import type { ImageSlot, StyleTransferAnalysis, StyleTransferEngine } from './utils';
+import type { ImageSlot } from './utils';
 import { STYLE_REFERENCE_LIMIT } from './utils';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -15,25 +15,13 @@ export function StyleTransferMobileControls(props: {
   setStrength: (v: number) => void;
   variants: 1 | 2 | 3;
   setVariants: (v: 1 | 2 | 3) => void;
-  analysis: StyleTransferAnalysis | null;
-  isAnalyzing: boolean;
   isGenerating: boolean;
-  useAgenticVision: boolean;
-  setUseAgenticVision: (v: boolean) => void;
-  engine: StyleTransferEngine;
-  setEngine: (v: StyleTransferEngine) => void;
-  cfgScale: number;
-  setCfgScale: (v: number) => void;
-  denoise: number;
-  setDenoise: (v: number) => void;
-  steps: number;
-  setSteps: (v: number) => void;
-  styleOnly: boolean;
-  setStyleOnly: (v: boolean) => void;
-  canAnalyze: boolean;
   canGenerate: boolean;
-  hasGeminiKey: boolean;
-  onAnalyze: () => void;
+  hasReplicateKey: boolean;
+  highRes: boolean;
+  setHighRes: (v: boolean) => void;
+  colorize: boolean;
+  setColorize: (v: boolean) => void;
   onGenerate: () => void;
   onSetReferenceFromFile: (file: File) => Promise<void>;
   onSetStyleFromFile: (index: number, file: File) => Promise<void>;
@@ -52,25 +40,13 @@ export function StyleTransferMobileControls(props: {
     setStrength,
     variants,
     setVariants,
-    analysis,
-    isAnalyzing,
     isGenerating,
-    useAgenticVision,
-    setUseAgenticVision,
-    engine,
-    setEngine,
-    cfgScale,
-    setCfgScale,
-    denoise,
-    setDenoise,
-    steps,
-    setSteps,
-    styleOnly,
-    setStyleOnly,
-    canAnalyze,
     canGenerate,
-    hasGeminiKey,
-    onAnalyze,
+    hasReplicateKey,
+    highRes,
+    setHighRes,
+    colorize,
+    setColorize,
     onGenerate,
     onSetReferenceFromFile,
     onSetStyleFromFile,
@@ -188,7 +164,9 @@ export function StyleTransferMobileControls(props: {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Stylové reference</div>
-            <div className="text-[9px] text-white/45">{styleCount}/{STYLE_REFERENCE_LIMIT}</div>
+            <div className="text-[9px] text-white/45">
+              {styles.filter(Boolean).length}/{STYLE_REFERENCE_LIMIT}
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: STYLE_REFERENCE_LIMIT }).map((_, idx) => {
@@ -219,6 +197,7 @@ export function StyleTransferMobileControls(props: {
                       <Plus className="w-4 h-4 text-gray-600" />
                     </div>
                   )}
+
                   {style && (
                     <button
                       type="button"
@@ -226,11 +205,12 @@ export function StyleTransferMobileControls(props: {
                         e.stopPropagation();
                         onClearStyle(idx);
                       }}
-                      className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 text-white/80 rounded-md text-[8px] font-bold uppercase tracking-wider"
+                      className="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 hover:bg-black/75 text-white/80 rounded-md text-[8px] font-bold uppercase tracking-wider"
                     >
                       x
                     </button>
                   )}
+
                   <input
                     id={styleInputIds[idx]}
                     type="file"
@@ -248,159 +228,65 @@ export function StyleTransferMobileControls(props: {
               );
             })}
           </div>
-          <div className="text-[9px] text-white/35">Použij 1 až 3 obrázky stylu. Při více stylech se styl složí do společné vizuální reference.</div>
+          <div className="text-[9px] text-white/35">Použij 1 až 3 stylové obrázky. Pro mix se udělá texturový patchwork.</div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Engine</div>
-        <div className="flex p-1 rounded-lg control-surface">
-          {([
-            { id: 'replicate_pro_sdxl', label: 'PRO' },
-            { id: 'replicate_flux_kontext_pro', label: 'FLUX' },
-            { id: 'gemini', label: 'FLASH' },
-          ] as const).map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setEngine(opt.id)}
-              className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${
-                engine === opt.id ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Síla stylu</div>
-          <div className="text-[9px] font-black text-white/70">{Math.round(strength)}%</div>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={strength}
-          onChange={(e) => setStrength(Number(e.target.value))}
-          disabled={styleCount === 0}
-          className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
-        />
-      </div>
-
-      {engine === 'replicate_pro_sdxl' && (
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">CFG Scale</div>
-              <div className="text-[9px] font-black text-white/70">{cfgScale.toFixed(1)}</div>
-            </div>
-            <input
-              type="range"
-              min={0.1}
-              max={20}
-              step={0.1}
-              value={cfgScale}
-              onChange={(e) => setCfgScale(Number(e.target.value))}
-              className="w-full h-1 accent-[#7ed957]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Denoise</div>
-              <div className="text-[9px] font-black text-white/70">{denoise.toFixed(2)}</div>
-            </div>
-            <input
-              type="range"
-              min={0.1}
-              max={0.99}
-              step={0.01}
-              value={denoise}
-              onChange={(e) => setDenoise(Number(e.target.value))}
-              className="w-full h-1 accent-[#7ed957]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Steps</div>
-              <div className="text-[9px] font-black text-white/70">{Math.round(steps)}</div>
-            </div>
-            <input
-              type="range"
-              min={10}
-              max={80}
-              step={1}
-              value={steps}
-              onChange={(e) => setSteps(Number(e.target.value))}
-              className="w-full h-1 accent-[#7ed957]"
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Style Only</div>
-            <button
-              type="button"
-              onClick={() => setStyleOnly(!styleOnly)}
-              className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
-                styleOnly ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
-              }`}
-            >
-              {styleOnly ? 'On' : 'Off'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {engine === 'gemini' && (
+      <div className="card-surface p-4 space-y-3">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Agentic Vision</div>
-            <button
-              type="button"
-              onClick={() => setUseAgenticVision(!useAgenticVision)}
-              className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
-                useAgenticVision ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
-              }`}
-            >
-              {useAgenticVision ? 'On' : 'Off'}
-            </button>
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Síla stylu</div>
+            <div className="text-[9px] font-black text-white/70">{Math.round(strength)}%</div>
           </div>
-          <div className="text-[9px] text-white/35 leading-relaxed">Zlepší analýzu detailů a přidá stylové výřezy jako reference.</div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={strength}
+            onChange={(e) => setStrength(Number(e.target.value))}
+            disabled={styleCount === 0}
+            className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
+          />
+          {styleCount === 0 && <div className="text-[9px] text-white/35">Nahraj aspoň jeden stylový obrázek.</div>}
         </div>
-      )}
 
-      <button
-        type="button"
-        onClick={onAnalyze}
-        disabled={!canAnalyze}
-        className="w-full py-2 px-3 font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all bg-white/5 hover:bg-white/10 text-white/80 hover:text-white flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
-      >
-        {isAnalyzing ? 'Analyzuji…' : 'Analyzovat vstupy'}
-      </button>
-
-      {analysis && (
-        <div className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Doporučená síla</div>
-            <div className="text-[9px] font-black text-[#7ed957]">{Math.round(analysis.recommendedStrength)}%</div>
-          </div>
-          <div className="text-[9px] text-white/60 leading-relaxed">{analysis.styleDescription}</div>
+        <div className="flex items-center justify-between">
+          <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">High-res</div>
+          <button
+            type="button"
+            onClick={() => setHighRes(!highRes)}
+            className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+              highRes ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+            }`}
+          >
+            {highRes ? 'On' : 'Off'}
+          </button>
         </div>
-      )}
 
-      {!hasGeminiKey && (
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="w-full py-2 px-3 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all bg-white/5 hover:bg-white/10 text-white/70"
-        >
-          {engine === 'gemini' ? 'Nastavit Gemini klíč' : 'Nastavit Replicate token'}
-        </button>
-      )}
+        <div className="flex items-center justify-between">
+          <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Color correction</div>
+          <button
+            type="button"
+            onClick={() => setColorize(!colorize)}
+            className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+              colorize ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+            }`}
+          >
+            {colorize ? 'On' : 'Off'}
+          </button>
+        </div>
+
+        {!hasReplicateKey && (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="w-full py-2 px-3 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all bg-white/5 hover:bg-white/10 text-white/70"
+          >
+            Nastavit Replicate token
+          </button>
+        )}
+      </div>
     </div>
   );
 }
+

@@ -177,6 +177,41 @@ export async function runProSdxlStyleTransfer(params: {
   return results;
 }
 
+export async function runNeuralNeighborStyleTransfer(params: {
+  token: string;
+  contentImage: string;
+  styleImage: string;
+  alpha: number;
+  highRes: boolean;
+  colorize: boolean;
+  contentLoss?: boolean;
+}): Promise<string> {
+  const prediction = await runReplicatePrediction({
+    token: params.token,
+    model: 'nkolkin13/neuralneighborstyletransfer:bdeef1dec06f904a113feb7aca86a94ba31ed3c51c2cbdcfe66725597b3dcceb',
+    input: {
+      content: params.contentImage,
+      style: params.styleImage,
+      alpha: Math.max(0, Math.min(1, params.alpha)),
+      high_res: !!params.highRes,
+      colorize: !!params.colorize,
+      content_loss: !!params.contentLoss,
+    },
+    timeoutMs: 360_000,
+  });
+
+  if (prediction.status !== 'succeeded') {
+    throw new Error(prediction.error || 'Replicate generování selhalo.');
+  }
+
+  const output = prediction.output as any;
+  const url = Array.isArray(output) ? output[0] : output;
+  if (typeof url !== 'string' || url.length === 0) {
+    throw new Error('Replicate nevrátil URL obrázku.');
+  }
+  return await fetchAsDataUrl(url);
+}
+
 export class ReplicateProvider implements AIProvider {
   private apiKey: string;
 
