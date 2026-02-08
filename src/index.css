@@ -100,6 +100,21 @@
 }
 
 @layer utilities {
+  .toast-pop {
+    animation: toastPop 180ms ease-out;
+  }
+
+  @keyframes toastPop {
+    0% {
+      transform: translateY(-6px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
   .canvas-surface {
     position: relative;
     background-color: var(--bg-canvas);

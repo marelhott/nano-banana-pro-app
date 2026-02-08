@@ -121,14 +121,16 @@ export function StyleTransferScreen(props: {
 
       for (let i = 0; i < variants; i++) {
         try {
-          const seed = (Date.now() + i * 9973) | 0;
+          // Each click should produce a fresh variant even with identical inputs.
+          // (User can increase Variants to see several at once.)
+          const seed = ((Date.now() + i * 9973) ^ Math.floor(Math.random() * 1e9)) | 0;
           const { dataUrl } = await runArbitraryStyleTransferTfjs({
             contentDataUrl: reference.dataUrl,
             styleDataUrls: activeStyles.map((s) => s.dataUrl),
             strength01,
             maxDim: highRes ? 1024 : 512,
             preserveContentColors: preserveColors,
-            variantSeed: variants === 1 ? 0 : seed,
+            variantSeed: seed,
           });
 
           // Show instantly (local data URL), then upload+persist in background.
@@ -158,6 +160,7 @@ export function StyleTransferScreen(props: {
                 styleReferences: activeStyles.length,
                 variant: i + 1,
                 variants,
+                seed,
               },
             });
           } catch {
