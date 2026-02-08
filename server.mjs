@@ -81,6 +81,29 @@ async function testProviderKey(provider, apiKey) {
   }
 }
 
+function listSafetensors(dir) {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    return entries
+      .filter((e) => e.isFile())
+      .map((e) => e.name)
+      .filter((name) => !name.startsWith('._'))
+      .filter((name) => name.toLowerCase().endsWith('.safetensors'))
+      .map((name) => {
+        const p = path.join(dir, name)
+        let bytes = undefined
+        try {
+          bytes = fs.statSync(p).size
+        } catch {
+          // ignore
+        }
+        return { name, path: p, bytes }
+      })
+  } catch {
+    return []
+  }
+}
+
 async function start() {
   const workflowDir = resolveWorkflowDir()
   if (!workflowDir) {
@@ -107,6 +130,18 @@ async function start() {
     if (!token) return headers
     return { ...headers, Authorization: `Bearer ${token}` }
   }
+
+  // Local model library (dev only): list checkpoints/loras from disk so the UI can pick them.
+  // This does not perform inference; it only exposes filenames/paths for local workflows.
+  app.get('/api/local-models', (req, res) => {
+    const checkpointDir = String(process.env.LOCAL_CHECKPOINT_DIR || '/Volumes/Bez názvu/modely/modely').trim()
+    const loraDir = String(process.env.LOCAL_LORA_DIR || '/Volumes/Bez názvu/modely/lora').trim()
+
+    const checkpoints = listSafetensors(checkpointDir)
+    const loras = listSafetensors(loraDir)
+
+    return res.json({ checkpoints, loras, checkpointDir, loraDir })
+  })
 
   app.get('/api/comfy/object_info', async (req, res) => {
     try {

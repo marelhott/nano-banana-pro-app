@@ -1,6 +1,6 @@
 import React from 'react';
-import { comfyGetObjectInfo, extractComfyModelLists, runComfyImg2Img } from '../services/comfyService';
 import { runFalLoraImg2Img } from '../services/falService';
+import { getLocalModelLibrary, hfResolveUrl } from '../services/localModelLibraryService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { getPublicUrl, uploadImage, dataUrlToBlob } from '../utils/supabaseStorage';
 
@@ -11,10 +11,9 @@ type ImageSlot = {
   dataUrl: string;
 };
 
-const COMFY_MODEL_CACHE_KEY = 'comfyModelCache_v1';
 const FAL_LIBRARY_CACHE_KEY = 'falModelLibrary_v1';
 
-type BackendMode = 'fal' | 'comfy';
+type BackendMode = 'fal' | 'local';
 
 type FalLibrary = {
   models: string[];
@@ -75,7 +74,7 @@ export function LoraSdGeneratorScreen(props: {
 }) {
   const { onOpenSettings, onToast } = props;
 
-  const [backend, setBackend] = React.useState<BackendMode>('fal');
+  const [backend, setBackend] = React.useState<BackendMode>('local');
 
   const [input, setInput] = React.useState<ImageSlot | null>(null);
   const [prompt, setPrompt] = React.useState('');
@@ -92,31 +91,41 @@ export function LoraSdGeneratorScreen(props: {
   const [falLoraPath, setFalLoraPath] = React.useState<string>('');
   const [falLoraScale, setFalLoraScale] = React.useState<number>(0.85);
 
-  const [checkpoints, setCheckpoints] = React.useState<string[]>([]);
-  const [loras, setLoras] = React.useState<string[]>([]);
-  const [checkpointName, setCheckpointName] = React.useState<string>('');
-  const [loraName, setLoraName] = React.useState<string>('');
-  const [loraStrengthModel, setLoraStrengthModel] = React.useState(0.85);
-  const [loraStrengthClip, setLoraStrengthClip] = React.useState(0.85);
-
-  const [isRefreshingModels, setIsRefreshingModels] = React.useState(false);
+  const [localCheckpoints, setLocalCheckpoints] = React.useState<Array<{ name: string; path: string; bytes?: number }>>([]);
+  const [localLoras, setLocalLoras] = React.useState<Array<{ name: string; path: string; bytes?: number }>>([]);
+  const [selectedLocalCheckpoint, setSelectedLocalCheckpoint] = React.useState<string>('');
+  const [selectedLocalLora, setSelectedLocalLora] = React.useState<string>('');
+  const [localLoraScale, setLocalLoraScale] = React.useState<number>(0.85);
+  const [isScanningLocal, setIsScanningLocal] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [outputs, setOutputs] = React.useState<string[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
 
-  React.useEffect(() => {
+  const scanLocalLibrary = React.useCallback(async (opts?: { silent?: boolean }) => {
+    setIsScanningLocal(true);
     try {
-      const cached = localStorage.getItem(COMFY_MODEL_CACHE_KEY);
-      if (!cached) return;
-      const parsed = JSON.parse(cached) as { checkpoints?: string[]; loras?: string[] };
-      if (Array.isArray(parsed.checkpoints)) setCheckpoints(parsed.checkpoints);
-      if (Array.isArray(parsed.loras)) setLoras(parsed.loras);
-      if (!checkpointName && Array.isArray(parsed.checkpoints) && parsed.checkpoints[0]) {
-        setCheckpointName(parsed.checkpoints[0]);
+      const lib = await getLocalModelLibrary();
+      setLocalCheckpoints(lib.checkpoints || []);
+      setLocalLoras(lib.loras || []);
+      if (!selectedLocalCheckpoint && lib.checkpoints?.[0]?.name) {
+        setSelectedLocalCheckpoint(lib.checkpoints[0].name);
       }
-    } catch {
+      if (!opts?.silent) {
+        onToast({
+          message: `Lokální knihovna: ${lib.checkpoints?.length || 0} checkpointů, ${lib.loras?.length || 0} LoRA.`,
+          type: 'success',
+        });
+      }
+    } catch (e: any) {
+      onToast({ message: e?.message || 'Nepodařilo se načíst lokální knihovnu.', type: 'error' });
+    } finally {
+      setIsScanningLocal(false);
     }
+  }, [onToast, selectedLocalCheckpoint]);
+
+  React.useEffect(() => {
+    void scanLocalLibrary({ silent: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -170,30 +179,16 @@ export function LoraSdGeneratorScreen(props: {
     persistFalLibrary({ models: falModels, loras: next });
   }, [falLoras, falModels, persistFalLibrary]);
 
-  const refreshModels = React.useCallback(async () => {
-    setIsRefreshingModels(true);
-    try {
-      const info = await comfyGetObjectInfo();
-      const { checkpoints: ckpts, loras: lrs } = extractComfyModelLists(info);
-      setCheckpoints(ckpts);
-      setLoras(lrs);
-      if (!checkpointName && ckpts[0]) setCheckpointName(ckpts[0]);
-      try {
-        localStorage.setItem(COMFY_MODEL_CACHE_KEY, JSON.stringify({ checkpoints: ckpts, loras: lrs, storedAt: Date.now() }));
-      } catch {
-      }
-      onToast({ message: `Načteno: ${ckpts.length} checkpointů, ${lrs.length} LoRA.`, type: 'success' });
-    } catch (err: any) {
-      onToast({
-        message:
-          err?.message ||
-          'Nepodařilo se načíst modely z ComfyUI. Zkontroluj COMFY_BASE_URL v Netlify env (nebo backend není dostupný).',
-        type: 'error',
-      });
-    } finally {
-      setIsRefreshingModels(false);
-    }
-  }, [checkpointName, onToast]);
+  const applyLocalSelectionToFal = React.useCallback(() => {
+    const repo = 'mulenmara/style-library';
+    const ckpt = selectedLocalCheckpoint.trim();
+    if (ckpt) setFalModelName(hfResolveUrl(repo, `checkpoints/${ckpt}`));
+    const lora = selectedLocalLora.trim();
+    if (lora) setFalLoraPath(hfResolveUrl(repo, `loras/${lora}`));
+    if (!lora) setFalLoraPath('');
+    setFalLoraScale(localLoraScale);
+    onToast({ message: 'OK: výběr z lokální knihovny jsem propsal do fal.ai polí.', type: 'success' });
+  }, [localLoraScale, onToast, selectedLocalCheckpoint, selectedLocalLora]);
 
   const setInputFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
@@ -223,56 +218,47 @@ export function LoraSdGeneratorScreen(props: {
 
       let res: { images: string[]; usedSeed?: number } = { images: [] };
 
-      if (backend === 'fal') {
-        const modelName = falModelName.trim();
-        if (!modelName) {
-          onToast({ message: 'Vyber / zadej model (FAL).', type: 'error' });
-          setIsGenerating(false);
-          return;
-        }
+      const repo = 'mulenmara/style-library';
+      const modelName =
+        backend === 'local'
+          ? (selectedLocalCheckpoint.trim() ? hfResolveUrl(repo, `checkpoints/${selectedLocalCheckpoint.trim()}`) : '')
+          : falModelName.trim();
 
-        // Prefer URL (storage) to keep payload small and robust.
-        const blob = await dataUrlToBlob(inputDataUrl);
-        const storagePath = await uploadImage(blob, 'generated');
-        const publicUrl = getPublicUrl(storagePath);
-
-        const lorasPayload = falLoraPath.trim()
-          ? [{ path: falLoraPath.trim(), scale: Math.max(0, Math.min(2, falLoraScale)) }]
-          : [];
-
-        res = await runFalLoraImg2Img({
-          modelName,
-          imageUrlOrDataUrl: publicUrl,
-          prompt: prompt.trim(),
-          negativePrompt: negativePrompt.trim(),
-          cfg,
-          denoise,
-          steps,
-          seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
-          numImages: variants,
-          loras: lorasPayload,
+      if (!modelName) {
+        onToast({
+          message: backend === 'local' ? 'Vyber lokální checkpoint.' : 'Vyber / zadej model (fal.ai).',
+          type: 'error',
         });
-      } else {
-        if (!checkpointName) {
-          onToast({ message: 'Vyber SD checkpoint.', type: 'error' });
-          setIsGenerating(false);
-          return;
-        }
-        res = await runComfyImg2Img({
-          inputImageDataUrl: inputDataUrl,
-          checkpointName,
-          prompt: prompt.trim(),
-          negativePrompt: negativePrompt.trim(),
-          cfg,
-          denoise,
-          steps,
-          seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
-          variants,
-          loraName: loraName.trim() ? loraName.trim() : null,
-          loraStrengthModel,
-          loraStrengthClip,
-        });
+        setIsGenerating(false);
+        return;
       }
+
+      const lorasPayload =
+        backend === 'local'
+          ? (selectedLocalLora.trim()
+              ? [{ path: hfResolveUrl(repo, `loras/${selectedLocalLora.trim()}`), scale: Math.max(0, Math.min(2, localLoraScale)) }]
+              : [])
+          : (falLoraPath.trim()
+              ? [{ path: falLoraPath.trim(), scale: Math.max(0, Math.min(2, falLoraScale)) }]
+              : []);
+
+      // Prefer URL (storage) to keep payload small and robust.
+      const blob = await dataUrlToBlob(inputDataUrl);
+      const storagePath = await uploadImage(blob, 'generated');
+      const publicUrl = getPublicUrl(storagePath);
+
+      res = await runFalLoraImg2Img({
+        modelName,
+        imageUrlOrDataUrl: publicUrl,
+        prompt: prompt.trim(),
+        negativePrompt: negativePrompt.trim(),
+        cfg,
+        denoise,
+        steps,
+        seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
+        numImages: variants,
+        loras: lorasPayload,
+      });
 
       setLastSeed(typeof res.usedSeed === 'number' ? res.usedSeed : null);
       setOutputs(res.images);
@@ -280,6 +266,20 @@ export function LoraSdGeneratorScreen(props: {
 
       for (const out of res.images) {
         try {
+          const repo = 'mulenmara/style-library';
+          const usedModelName =
+            backend === 'local'
+              ? hfResolveUrl(repo, `checkpoints/${selectedLocalCheckpoint.trim()}`)
+              : falModelName.trim();
+          const usedLoraPath =
+            backend === 'local'
+              ? (selectedLocalLora.trim() ? hfResolveUrl(repo, `loras/${selectedLocalLora.trim()}`) : null)
+              : (falLoraPath.trim() ? falLoraPath.trim() : null);
+          const usedLoraScale =
+            backend === 'local'
+              ? (selectedLocalLora.trim() ? Math.max(0, Math.min(2, localLoraScale)) : null)
+              : (falLoraPath.trim() ? Math.max(0, Math.min(2, falLoraScale)) : null);
+
           const thumb = await createThumbnail(out, 420);
           await saveToGallery({
             url: out,
@@ -288,24 +288,17 @@ export function LoraSdGeneratorScreen(props: {
             resolution: undefined,
             aspectRatio: undefined,
             params: {
-              engine: backend === 'fal' ? 'fal_lora_img2img' : 'comfy_img2img',
-              checkpoint: backend === 'comfy' ? checkpointName : null,
-              modelName: backend === 'fal' ? falModelName.trim() : null,
-              lora:
-                backend === 'fal'
-                  ? (falLoraPath.trim() ? falLoraPath.trim() : null)
-                  : (loraName.trim() ? loraName.trim() : null),
+              engine: 'fal_lora_img2img',
+              library: backend,
+              modelName: usedModelName,
+              lora: usedLoraPath,
+              loraScale: usedLoraScale,
               cfg,
               denoise,
               steps,
               seed: typeof res.usedSeed === 'number' ? res.usedSeed : null,
               variants,
               negativePrompt: negativePrompt.trim() || null,
-              loraStrengthModel:
-                backend === 'fal'
-                  ? (falLoraPath.trim() ? Math.max(0, Math.min(2, falLoraScale)) : null)
-                  : (loraName.trim() ? loraStrengthModel : null),
-              loraStrengthClip: backend === 'comfy' && loraName.trim() ? loraStrengthClip : null,
             },
           });
         } catch {
@@ -319,12 +312,8 @@ export function LoraSdGeneratorScreen(props: {
     }
   }, [
     cfg,
-    checkpointName,
     denoise,
     input,
-    loraName,
-    loraStrengthClip,
-    loraStrengthModel,
     negativePrompt,
     onToast,
     prompt,
@@ -335,10 +324,9 @@ export function LoraSdGeneratorScreen(props: {
     falModelName,
     falLoraPath,
     falLoraScale,
-    checkpointName,
-    loraName,
-    loraStrengthModel,
-    loraStrengthClip,
+    selectedLocalCheckpoint,
+    selectedLocalLora,
+    localLoraScale,
   ]);
 
   return (
@@ -349,9 +337,16 @@ export function LoraSdGeneratorScreen(props: {
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
               <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">LoRA / SD Generátor</h2>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="ml-auto px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider"
+              >
+                Nastavení
+              </button>
             </div>
             <p className="text-sm text-white/70">
-              Img2Img generování přes vzdálený backend. Můžeš jet serverless (fal.ai) nebo vlastní ComfyUI.
+              Img2Img generování přes vzdálený backend s čistým UI. Umíme vybrat checkpoint/LoRA z lokální knihovny (disk) a poslat generování přes fal.ai.
             </p>
           </header>
 
@@ -359,12 +354,23 @@ export function LoraSdGeneratorScreen(props: {
             <div className="space-y-1">
               <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Backend</div>
               <div className="text-xs text-white/55">
-                {backend === 'fal'
-                  ? 'fal.ai (serverless, bez vlastního serveru)'
-                  : 'ComfyUI (vlastní server, plná kontrola workflow)'}
+                {backend === 'local'
+                  ? 'Lokální knihovna (disk) -> fal.ai'
+                  : 'fal.ai (serverless)'}
               </div>
             </div>
             <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setBackend('local')}
+                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                  backend === 'local'
+                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
+                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
+                }`}
+              >
+                Lokální
+              </button>
               <button
                 type="button"
                 onClick={() => setBackend('fal')}
@@ -376,41 +382,28 @@ export function LoraSdGeneratorScreen(props: {
               >
                 fal.ai
               </button>
-              <button
-                type="button"
-                onClick={() => setBackend('comfy')}
-                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
-                  backend === 'comfy'
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-                }`}
-              >
-                ComfyUI
-              </button>
             </div>
           </div>
 
           <div className="card-surface p-5 flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
-              <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Modely z backendu</div>
+              <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Knihovna modelů</div>
               <div className="text-xs text-white/55">
-                {backend === 'comfy'
-                  ? `${checkpoints.length ? `${checkpoints.length} checkpointů` : 'Checkpointy nenačtené'} · ${
-                      loras.length ? `${loras.length} LoRA` : 'LoRA nenačtené'
-                    }`
+                {backend === 'local'
+                  ? `${localCheckpoints.length} checkpointů · ${localLoras.length} LoRA (z disku)`
                   : `${falModels.length ? `${falModels.length} modelů` : 'Modely (knihovna prázdná)'} · ${
                       falLoras.length ? `${falLoras.length} LoRA` : 'LoRA (knihovna prázdná)'
-                    }`}
+                    } (fal)`}
               </div>
             </div>
-            {backend === 'comfy' ? (
+            {backend === 'local' ? (
               <button
                 type="button"
-                onClick={refreshModels}
-                disabled={isRefreshingModels}
+                onClick={() => void scanLocalLibrary()}
+                disabled={isScanningLocal}
                 className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70 disabled:opacity-60"
               >
-                {isRefreshingModels ? 'Načítám…' : 'Refresh'}
+                {isScanningLocal ? 'Skenuji…' : 'Skenovat disk'}
               </button>
             ) : (
               <button
@@ -490,24 +483,62 @@ export function LoraSdGeneratorScreen(props: {
 
               <div className="grid grid-cols-1 gap-3">
                 <div className="space-y-1">
-                  {backend === 'comfy' ? (
+                  {backend === 'local' ? (
                     <>
-                      <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Checkpoint</label>
+                      <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Lokální checkpoint</label>
                       <select
-                        value={checkpointName}
-                        onChange={(e) => setCheckpointName(e.target.value)}
+                        value={selectedLocalCheckpoint}
+                        onChange={(e) => setSelectedLocalCheckpoint(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
                       >
                         <option value="">(vyber)</option>
-                        {checkpoints.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
+                        {localCheckpoints.map((c) => (
+                          <option key={c.name} value={c.name}>
+                            {c.name}
                           </option>
                         ))}
                       </select>
-                      {!checkpoints.length && (
-                        <div className="text-xs text-white/40">Klikni Refresh (musí být nastavený ComfyUI backend).</div>
+                      {!localCheckpoints.length && (
+                        <div className="text-xs text-white/40">Nenalezeno. V dev režimu musí existovat `/api/local-models`.</div>
                       )}
+
+                      <div className="pt-3 space-y-2">
+                        <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Lokální LoRA (volitelné)</label>
+                        <select
+                          value={selectedLocalLora}
+                          onChange={(e) => setSelectedLocalLora(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                        >
+                          <option value="">(bez LoRA)</option>
+                          {localLoras.map((c) => (
+                            <option key={c.name} value={c.name}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedLocalLora.trim() && (
+                          <div className="space-y-1">
+                            <div className="text-xs text-white/45">LoRA váha</div>
+                            <input
+                              type="number"
+                              step="0.05"
+                              min="0"
+                              max="2"
+                              value={localLoraScale}
+                              onChange={(e) => setLocalLoraScale(Number(e.target.value))}
+                              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                            />
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={applyLocalSelectionToFal}
+                          className="w-full px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
+                        >
+                          Propsat do fal.ai
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -553,29 +584,17 @@ export function LoraSdGeneratorScreen(props: {
                         </div>
                       )}
                       <div className="text-xs text-white/40">
-                        fal.ai umí použít `model_name` jako HuggingFace ID nebo URL. Pokud to nepoběží na tvém checkpointu, přepneme to na ComfyUI.
+                        fal.ai umí použít `model_name` jako HuggingFace ID nebo URL na `.safetensors`.
                       </div>
                     </>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  {backend === 'comfy' ? (
-                    <>
-                      <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (volitelné)</label>
-                      <select
-                        value={loraName}
-                        onChange={(e) => setLoraName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                      >
-                        <option value="">(bez LoRA)</option>
-                        {loras.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                    </>
+                  {backend === 'local' ? (
+                    <div className="text-xs text-white/45">
+                      Lokální výběr najdeš nahoře. Pro generování se teď používá fal.ai, takže z lokální volby vytváříme cloudové odkazy a propsujeme je do fal.ai polí (soubor musí být nahraný v cloudu pod stejným názvem).
+                    </div>
                   ) : (
                     <>
                       <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (HF ID nebo URL)</label>
@@ -622,35 +641,6 @@ export function LoraSdGeneratorScreen(props: {
                     </>
                   )}
                 </div>
-
-                {backend === 'comfy' && loraName.trim() && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-xs font-bold text-white/50 uppercase tracking-wider">LoRA model</label>
-                      <input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="2"
-                        value={loraStrengthModel}
-                        onChange={(e) => setLoraStrengthModel(Number(e.target.value))}
-                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-xs font-bold text-white/50 uppercase tracking-wider">LoRA clip</label>
-                      <input
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="2"
-                        value={loraStrengthClip}
-                        onChange={(e) => setLoraStrengthClip(Number(e.target.value))}
-                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {backend === 'fal' && falLoraPath.trim() && (
                   <div className="space-y-1">
@@ -751,9 +741,7 @@ export function LoraSdGeneratorScreen(props: {
               </div>
 
               <div className="text-xs text-white/45">
-                {backend === 'comfy'
-                  ? 'Pozn.: ComfyUI backend musí mít nainstalované modely podle názvů v dropdownu.'
-                  : 'Pozn.: fal.ai běží přes API. Aby to fungovalo, musí být nastavený FAL_KEY v Netlify env.'}
+                Pozn.: fal.ai běží přes API. Aby to fungovalo, musí být nastavený `FAL_KEY` v Netlify env.
               </div>
             </div>
           </div>
