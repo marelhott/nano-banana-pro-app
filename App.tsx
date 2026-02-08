@@ -32,7 +32,7 @@ import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
-import { ensureAnonymousSession, refreshSupabaseSession, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, getCurrentUserId } from './utils/supabaseClient';
+import { ensureAnonymousSession, refreshSupabaseSession, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, autoLogin } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
@@ -55,7 +55,8 @@ const App: React.FC = () => {
   const [isSupabaseReady, setIsSupabaseReady] = useState(false);
   const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(true);
   const [authFailureMessage, setAuthFailureMessage] = useState<string | null>(null);
-  const [appUserId, setAppUserId] = useState<string | null>(() => getCurrentUserId());
+  const [appUserId, setAppUserId] = useState<string | null>(null);
+  const [isAppUserBootstrapping, setIsAppUserBootstrapping] = useState(true);
   // Theme state
   // Theme state - Enforced Dark Mode (v2)
   const isDark = true;
@@ -110,6 +111,28 @@ const App: React.FC = () => {
       setSelectedProvider(savedProvider as AIProviderType);
     }
   }, []);
+
+  // Resolve PIN-based app identity on every origin (prod + preview domains).
+  // If the stored identity is stale or missing, we will show the PIN screen.
+  useEffect(() => {
+    let cancelled = false;
+    if (!isSupabaseReady) return;
+
+    setIsAppUserBootstrapping(true);
+    autoLogin()
+      .then((userId) => {
+        if (cancelled) return;
+        setAppUserId(userId);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsAppUserBootstrapping(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupabaseReady]);
 
   useEffect(() => {
     localStorage.setItem(SELECTED_PROVIDER_STORAGE_KEY, selectedProvider);
@@ -2675,6 +2698,14 @@ ${extra}
             Zkusit znovu
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (isAppUserBootstrapping) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0f0d]">
+        <LoadingSpinner />
       </div>
     );
   }
