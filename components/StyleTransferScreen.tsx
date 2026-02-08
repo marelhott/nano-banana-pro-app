@@ -28,7 +28,7 @@ export function StyleTransferScreen(props: {
   const [strength, setStrength] = React.useState(60);
   const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [highRes, setHighRes] = React.useState(true);
+  const [highRes, setHighRes] = React.useState(false);
   const [colorize, setColorize] = React.useState(true);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
@@ -178,62 +178,72 @@ export function StyleTransferScreen(props: {
       return;
     }
 
-    const outputIds = Array.from({ length: variants }).map((_, i) => `nst-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`);
-    setOutputs(outputIds.map((id) => ({ id, status: 'loading' })));
-    setIsGenerating(true);
+      const outputIds = Array.from({ length: variants }).map((_, i) => `nst-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`);
+      setOutputs(outputIds.map((id) => ({ id, status: 'loading' })));
+      setIsGenerating(true);
 
-    try {
-      const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
-      // NNST alpha is reversed: alpha=1 -> preserve content (weak stylization).
-      const alpha = Math.max(0.02, Math.min(0.98, 1 - strengthValue / 100));
+      try {
+        onToast({ message: 'NST může trvat 1–10 minut podle fronty. U více variant běží max 2 současně.', type: 'info' });
+        const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
+        // NNST alpha is reversed: alpha=1 -> preserve content (weak stylization).
+        const alpha = Math.max(0.02, Math.min(0.98, 1 - strengthValue / 100));
 
       const contentUrl = await ensureReplicateImageInput(reference.dataUrl, 'nst-content');
 
-      for (let i = 0; i < variants; i++) {
-        try {
-          // Mix 1-3 styles into a single texture board (different seed per variant).
-          const patchwork = await composeStylePatchwork(activeStyles.map((s) => s.dataUrl), {
-            size: highRes ? 1024 : 768,
-            seed: (Date.now() + i * 9973) | 0,
-          });
-          const styleUrl = await ensureReplicateImageInput(patchwork, `nst-style-${i}`);
+      const concurrency = variants >= 3 ? 2 : 1;
+      const queue = Array.from({ length: variants }).map((_, i) => i);
+      let cursor = 0;
 
-          const url = await runNeuralNeighborStyleTransfer({
-            token: replicateToken,
-            contentImage: contentUrl,
-            styleImage: styleUrl,
-            alpha,
-            highRes,
-            colorize,
-          });
-
-          const thumb = await createThumbnail(url, 420);
+      const worker = async () => {
+        while (cursor < queue.length) {
+          const i = queue[cursor++];
           try {
-            await saveToGallery({
-              url,
-              thumbnail: thumb,
-              prompt: `Style Transfer (NST) | strength=${strengthValue}`,
-              resolution: highRes ? '1024' : '768',
-              aspectRatio: 'Original',
-              params: {
-                mode: 'style-transfer-nst',
-                strength: strengthValue,
-                alpha,
-                highRes,
-                colorize,
-                styleReferences: activeStyles.length,
-                variant: i + 1,
-                variants,
-              },
+            // Mix 1-3 styles into a single texture board (different seed per variant).
+            const patchwork = await composeStylePatchwork(activeStyles.map((s) => s.dataUrl), {
+              size: highRes ? 1024 : 512,
+              seed: (Date.now() + i * 9973) | 0,
             });
-          } catch {
-          }
+            const styleUrl = await ensureReplicateImageInput(patchwork, `nst-style-${i}`);
 
-          setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'success', url }) : p));
-        } catch (e: any) {
-          setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' }) : p));
+            const url = await runNeuralNeighborStyleTransfer({
+              token: replicateToken,
+              contentImage: contentUrl,
+              styleImage: styleUrl,
+              alpha,
+              highRes,
+              colorize,
+            });
+
+            const thumb = await createThumbnail(url, 420);
+            try {
+              await saveToGallery({
+                url,
+                thumbnail: thumb,
+                prompt: `Style Transfer (NST) | strength=${strengthValue}`,
+                resolution: highRes ? '1024' : '512',
+                aspectRatio: 'Original',
+                params: {
+                  mode: 'style-transfer-nst',
+                  strength: strengthValue,
+                  alpha,
+                  highRes,
+                  colorize,
+                  styleReferences: activeStyles.length,
+                  variant: i + 1,
+                  variants,
+                },
+              });
+            } catch {
+            }
+
+            setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'success', url }) : p));
+          } catch (e: any) {
+            setOutputs((prev) => prev.map((p, idx) => idx === i ? ({ id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' }) : p));
+          }
         }
-      }
+      };
+
+      await Promise.all(Array.from({ length: concurrency }).map(() => worker()));
 
       onToast({ message: 'Hotovo.', type: 'success' });
     } catch (e: any) {
@@ -343,4 +353,3 @@ export function StyleTransferScreen(props: {
     </>
   );
 }
-

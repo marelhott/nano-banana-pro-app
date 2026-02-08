@@ -47,7 +47,11 @@ export async function runReplicatePrediction(params: {
   let prediction = (await createRes.json()) as ReplicatePrediction;
 
   while (prediction.status === 'starting' || prediction.status === 'processing') {
-    if (Date.now() - start > timeoutMs) throw new Error('Replicate generování trvá příliš dlouho.');
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(
+        'Model je ve frontě nebo generuje příliš dlouho. Zkuste snížit High-res, počet variant, nebo to spustit znovu později.'
+      );
+    }
     await new Promise((r) => setTimeout(r, 1200));
     const pollRes = await fetch(`/api/replicate/predictions/${prediction.id}`, {
       headers: { 'x-replicate-token': token },
@@ -197,7 +201,7 @@ export async function runNeuralNeighborStyleTransfer(params: {
       colorize: !!params.colorize,
       content_loss: !!params.contentLoss,
     },
-    timeoutMs: 360_000,
+    timeoutMs: 900_000,
   });
 
   if (prediction.status !== 'succeeded') {
