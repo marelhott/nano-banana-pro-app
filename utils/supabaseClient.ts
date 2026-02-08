@@ -1,14 +1,24 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://poregdcgfwokxgmhpvac.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const SAFE_PLACEHOLDER_SUPABASE_KEY = 'missing-supabase-anon-key';
 const SUPABASE_RETRY_ATTEMPTS = 4;
 const SUPABASE_RETRY_BASE_DELAY_MS = 650;
 export const SUPABASE_ANON_DISABLED_ERROR_MESSAGE =
   'Anonymní přihlášení je v Supabase vypnuté. V Supabase Dashboard zapněte Authentication → Providers → Anonymous sign-ins.';
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+type SupabaseRuntimeConfig = {
+  url: string;
+  anonKey: string;
+};
+
+const DEFAULT_SUPABASE_URL = 'https://poregdcgfwokxgmhpvac.supabase.co';
+
+let runtimeConfig: SupabaseRuntimeConfig = {
+  url: import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL,
+  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+};
+
+export let isSupabaseConfigured = Boolean(runtimeConfig.url && runtimeConfig.anonKey);
 
 if (!isSupabaseConfigured) {
   console.error(
@@ -16,7 +26,7 @@ if (!isSupabaseConfigured) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey || SAFE_PLACEHOLDER_SUPABASE_KEY, {
+export let supabase: SupabaseClient = createClient(runtimeConfig.url, runtimeConfig.anonKey || SAFE_PLACEHOLDER_SUPABASE_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -30,10 +40,58 @@ const PIN_HASH_STORAGE_KEY = 'pinHash';
 // Supabase Auth identity (anonymous). Used only for connectivity and user_settings RLS.
 const SUPABASE_AUTH_USER_ID_STORAGE_KEY = 'supabaseAuthUserId';
 
-function ensureSupabaseConfigured(): void {
+let initPromise: Promise<void> | null = null;
+
+function applyRuntimeConfig(next: SupabaseRuntimeConfig) {
+  runtimeConfig = next;
+  isSupabaseConfigured = Boolean(runtimeConfig.url && runtimeConfig.anonKey);
+  supabase = createClient(runtimeConfig.url, runtimeConfig.anonKey || SAFE_PLACEHOLDER_SUPABASE_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
+
+  if (typeof window !== 'undefined') {
+    supabase.auth.onAuthStateChange((_event, session) => {
+      const sessionUserId = session?.user?.id;
+      if (sessionUserId) persistSupabaseAuthUserId(sessionUserId);
+    });
+  }
+}
+
+async function fetchRuntimeConfigFromNetlify(): Promise<SupabaseRuntimeConfig | null> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch('/api/public-config', { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    const url = String(json?.supabaseUrl || '').trim();
+    const anonKey = String(json?.supabaseAnonKey || '').trim();
+    if (!url || !anonKey) return null;
+    return { url, anonKey };
+  } catch {
+    return null;
+  }
+}
+
+export async function ensureSupabaseClient(): Promise<void> {
+  if (isSupabaseConfigured) return;
+  if (!initPromise) {
+    initPromise = (async () => {
+      // Attempt to fetch runtime config (Netlify Functions env) so deploys without local .env keep working.
+      const fetched = await fetchRuntimeConfigFromNetlify();
+      if (fetched) applyRuntimeConfig(fetched);
+    })();
+  }
+  await initPromise;
+
   if (!isSupabaseConfigured) {
     throw new Error(
-      'Supabase není nakonfigurovaná. Doplňte VITE_SUPABASE_URL a VITE_SUPABASE_ANON_KEY v prostředí.'
+      'Supabase není nakonfigurovaná. Doplňte VITE_SUPABASE_URL a VITE_SUPABASE_ANON_KEY v prostředí (nebo nastavte Netlify env pro public-config).'
     );
   }
 }
@@ -99,7 +157,7 @@ if (typeof window !== 'undefined') {
 }
 
 async function getOrCreateSupabaseAuthUserId(): Promise<string> {
-  ensureSupabaseConfigured();
+  await ensureSupabaseClient();
 
   const { data: sessionData, error: sessionError } = await withRetry('auth.getSession', async () => {
     const response = await supabase.auth.getSession();
@@ -164,7 +222,7 @@ async function buildPinHashCandidates(pin: string): Promise<string[]> {
 type UserRow = { id: string; pin_hash: string };
 
 async function findUserByPin(pin: string): Promise<UserRow | null> {
-  ensureSupabaseConfigured();
+  await ensureSupabaseClient();
   const candidates = await buildPinHashCandidates(pin);
   const { data, error } = await supabase
     .from('users')
@@ -181,7 +239,7 @@ async function findUserByPin(pin: string): Promise<UserRow | null> {
  * Bootstrap Supabase Auth session (anonymous). This is NOT the app identity.
  */
 export async function ensureAnonymousSession(): Promise<string> {
-  ensureSupabaseConfigured();
+  await ensureSupabaseClient();
   return await getOrCreateSupabaseAuthUserId();
 }
 
@@ -200,7 +258,7 @@ export async function refreshSupabaseSession(): Promise<string> {
  * - If users already exist, unknown PIN is rejected to prevent "accidental new empty account".
  */
 export async function loginWithPin(pin: string): Promise<string> {
-  ensureSupabaseConfigured();
+  await ensureSupabaseClient();
   const normalized = pin.replace(/\D/g, '');
   if (normalized.length < 4 || normalized.length > 6) {
     throw new Error('PIN musí mít 4–6 číslic');
@@ -251,7 +309,7 @@ export async function loginWithPin(pin: string): Promise<string> {
  */
 export async function autoLogin(): Promise<string | null> {
   try {
-    ensureSupabaseConfigured();
+    await ensureSupabaseClient();
 
     // Best-effort keep auth session alive.
     try {
