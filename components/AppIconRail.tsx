@@ -10,10 +10,11 @@ export function AppIconRail(props: {
   const { active, onNavigate } = props;
 
   const items: Array<{ id: RailRoute; label: string; icon: React.ReactNode }> = [
-    { id: 'mulen', label: 'Mulen Nano', icon: <Grid3X3 className="w-[18px] h-[18px]" strokeWidth={1.6} /> },
-    { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-[18px] h-[18px]" strokeWidth={1.6} /> },
-    { id: 'lora-sd', label: 'LoRA / SD', icon: <Sparkles className="w-[18px] h-[18px]" strokeWidth={1.6} /> },
-    { id: 'nodes', label: 'Nodes', icon: <Network className="w-[18px] h-[18px]" strokeWidth={1.6} /> },
+    // Icons reduced ~30% (18px -> 13px) and kept monochrome/neutral.
+    { id: 'mulen', label: 'Mulen Nano', icon: <Grid3X3 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'lora-sd', label: 'LoRA / SD', icon: <Sparkles className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'nodes', label: 'Nodes', icon: <Network className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
   ];
 
   return (
@@ -27,10 +28,9 @@ export function AppIconRail(props: {
             onClick={() => onNavigate(item.id)}
             title={item.label}
             aria-label={item.label}
-            className={`relative w-11 h-11 rounded-xl border transition-all flex items-center justify-center ${
-              isActive
-                ? 'border-zinc-500/80 text-zinc-100 bg-zinc-700/25'
-                : 'border-zinc-700/70 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500/60 hover:bg-zinc-700/15'
+            // Intentionally no "rounded frame" or border around the icon.
+            className={`relative w-11 h-11 transition-colors flex items-center justify-center ${
+              isActive ? 'text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             {item.icon}
