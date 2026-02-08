@@ -1,8 +1,8 @@
 import React from 'react';
 import { runFalLoraImg2Img } from '../services/falService';
+import { runHfGpuImg2Img } from '../services/hfGpuService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { getPublicUrl, uploadImage, dataUrlToBlob } from '../utils/supabaseStorage';
-import { hfResolveUrl } from '../services/localModelLibraryService';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -11,22 +11,17 @@ type ImageSlot = {
   dataUrl: string;
 };
 
-const FAL_LIBRARY_CACHE_KEY = 'falModelLibrary_v1';
-const LOCAL_LIBRARY_CACHE_KEY = 'localModelLibrary_v1';
+type OutputItem = {
+  id: string;
+  dataUrl: string;
+};
 
-type BackendMode = 'fal' | 'local';
+const FAL_LIBRARY_CACHE_KEY = 'falModelLibrary_v1';
+type BackendMode = 'fal' | 'hf';
 
 type FalLibrary = {
   models: string[];
   loras: string[];
-};
-
-type LocalLibraryCache = {
-  checkpoints: Array<{ name: string; path: string; bytes?: number }>;
-  loras: Array<{ name: string; path: string; bytes?: number }>;
-  selectedCheckpoint?: string;
-  selectedLora?: string;
-  localLoraScale?: number;
 };
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -83,7 +78,7 @@ export function LoraSdGeneratorScreen(props: {
 }) {
   const { onOpenSettings, onToast } = props;
 
-  const [backend, setBackend] = React.useState<BackendMode>('local');
+  const [backend, setBackend] = React.useState<BackendMode>('fal');
 
   const [input, setInput] = React.useState<ImageSlot | null>(null);
   const [cfg, setCfg] = React.useState(7);
@@ -98,102 +93,10 @@ export function LoraSdGeneratorScreen(props: {
   const [falLoraPath, setFalLoraPath] = React.useState<string>('');
   const [falLoraScale, setFalLoraScale] = React.useState<number>(0.85);
 
-  const [localCheckpoints, setLocalCheckpoints] = React.useState<Array<{ name: string; path: string; bytes?: number }>>([]);
-  const [localLoras, setLocalLoras] = React.useState<Array<{ name: string; path: string; bytes?: number }>>([]);
-  const [selectedLocalCheckpoint, setSelectedLocalCheckpoint] = React.useState<string>('');
-  const [selectedLocalLora, setSelectedLocalLora] = React.useState<string>('');
-  const [localLoraScale, setLocalLoraScale] = React.useState<number>(0.85);
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [outputs, setOutputs] = React.useState<string[]>([]);
+  const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
-
-  const localCheckpointFileInputId = React.useMemo(() => `local-ckpt-${Math.random().toString(36).slice(2)}`, []);
-  const localLoraFileInputId = React.useMemo(() => `local-lora-${Math.random().toString(36).slice(2)}`, []);
-  const localFolderInputId = React.useMemo(() => `local-folder-${Math.random().toString(36).slice(2)}`, []);
-
-  const ingestLocalSafetensors = React.useCallback(
-    (kind: 'checkpoint' | 'lora' | 'auto', fileList: FileList | null) => {
-      const files = Array.from(fileList || []).filter((f) => (f.name || '').toLowerCase().endsWith('.safetensors'));
-      if (!files.length) {
-        onToast({ message: 'Nevybral jsi žádný .safetensors soubor.', type: 'info' });
-        return;
-      }
-
-      const toEntries = (fs: File[]) =>
-        fs
-          .map((f) => ({ name: f.name, path: (f as any).webkitRelativePath || f.name, bytes: (f as any).size as number | undefined }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-      if (kind === 'checkpoint') {
-        const next = toEntries(files);
-        setLocalCheckpoints(next);
-        if (next[0]?.name) setSelectedLocalCheckpoint(next[0].name);
-        onToast({ message: `Přidáno: ${next.length} checkpointů z Finderu.`, type: 'success' });
-        return;
-      }
-
-      if (kind === 'lora') {
-        const next = toEntries(files);
-        setLocalLoras(next);
-        onToast({ message: `Přidáno: ${next.length} LoRA z Finderu.`, type: 'success' });
-        return;
-      }
-
-      // auto: split by folder name if possible (very rough heuristic)
-      const lower = (s: string) => (s || '').toLowerCase();
-      const ckpt = files.filter((f) => lower((f as any).webkitRelativePath || '').includes('model') || lower((f as any).webkitRelativePath || '').includes('checkpoint'));
-      const lora = files.filter((f) => lower((f as any).webkitRelativePath || '').includes('lora'));
-      const unknown = files.filter((f) => !ckpt.includes(f) && !lora.includes(f));
-
-      const ckptEntries = toEntries(ckpt.length ? ckpt : unknown);
-      const loraEntries = toEntries(lora.length ? lora : []);
-
-      if (ckptEntries.length) {
-        setLocalCheckpoints(ckptEntries);
-        if (!selectedLocalCheckpoint && ckptEntries[0]?.name) setSelectedLocalCheckpoint(ckptEntries[0].name);
-      }
-      if (loraEntries.length) setLocalLoras(loraEntries);
-
-      onToast({
-        message: `Načteno ze složky: ${ckptEntries.length} checkpointů, ${loraEntries.length} LoRA.`,
-        type: 'success',
-      });
-    },
-    [onToast, selectedLocalCheckpoint],
-  );
-
-  // Restore previously added local library entries (so you don't have to pick them every time).
-  React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LOCAL_LIBRARY_CACHE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as LocalLibraryCache;
-      if (Array.isArray(parsed.checkpoints)) setLocalCheckpoints(parsed.checkpoints);
-      if (Array.isArray(parsed.loras)) setLocalLoras(parsed.loras);
-      if (typeof parsed.selectedCheckpoint === 'string') setSelectedLocalCheckpoint(parsed.selectedCheckpoint);
-      if (typeof parsed.selectedLora === 'string') setSelectedLocalLora(parsed.selectedLora);
-      if (typeof parsed.localLoraScale === 'number' && Number.isFinite(parsed.localLoraScale)) setLocalLoraScale(parsed.localLoraScale);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Persist local library and selections to localStorage.
-  React.useEffect(() => {
-    try {
-      const payload: LocalLibraryCache = {
-        checkpoints: localCheckpoints,
-        loras: localLoras,
-        selectedCheckpoint: selectedLocalCheckpoint || undefined,
-        selectedLora: selectedLocalLora || undefined,
-        localLoraScale,
-      };
-      localStorage.setItem(LOCAL_LIBRARY_CACHE_KEY, JSON.stringify(payload));
-    } catch {
-      // ignore
-    }
-  }, [localCheckpoints, localLoras, localLoraScale, selectedLocalCheckpoint, selectedLocalLora]);
 
   React.useEffect(() => {
     try {
@@ -251,7 +154,6 @@ export function LoraSdGeneratorScreen(props: {
   const setInputFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
     setInput({ file, dataUrl });
-    setOutputs([]);
   }, []);
 
   const generate = React.useCallback(async () => {
@@ -261,7 +163,6 @@ export function LoraSdGeneratorScreen(props: {
     }
 
     setIsGenerating(true);
-    setOutputs([]);
     setLightbox(null);
 
     try {
@@ -271,16 +172,11 @@ export function LoraSdGeneratorScreen(props: {
       const seedNum = seed.trim() ? Number(seed.trim()) : undefined;
 
       let res: { images: string[]; usedSeed?: number } = { images: [] };
-
-      const repo = 'mulenmara/style-library';
-      const modelName =
-        backend === 'local'
-          ? (selectedLocalCheckpoint.trim() ? hfResolveUrl(repo, `checkpoints/${selectedLocalCheckpoint.trim()}`) : '')
-          : falModelName.trim();
+      const modelName = falModelName.trim();
 
       if (!modelName) {
         onToast({
-          message: backend === 'local' ? 'Vyber checkpoint (přidej přes Finder).' : 'Vyber / zadej model (fal.ai).',
+          message: 'Vyber / zadej model (Hugging Face ID nebo URL).',
           type: 'error',
         });
         setIsGenerating(false);
@@ -288,51 +184,56 @@ export function LoraSdGeneratorScreen(props: {
       }
 
       const lorasPayload =
-        backend === 'local'
-          ? (selectedLocalLora.trim()
-              ? [{ path: hfResolveUrl(repo, `loras/${selectedLocalLora.trim()}`), scale: Math.max(0, Math.min(2, localLoraScale)) }]
-              : [])
-          : (falLoraPath.trim()
-              ? [{ path: falLoraPath.trim(), scale: Math.max(0, Math.min(2, falLoraScale)) }]
-              : []);
+        falLoraPath.trim()
+          ? [{ path: falLoraPath.trim(), scale: Math.max(0, Math.min(2, falLoraScale)) }]
+          : [];
 
       // Prefer URL (storage) to keep payload small and robust.
       const blob = await dataUrlToBlob(inputDataUrl);
       const storagePath = await uploadImage(blob, 'generated');
       const publicUrl = getPublicUrl(storagePath);
 
-      res = await runFalLoraImg2Img({
-        modelName,
-        imageUrlOrDataUrl: publicUrl,
-        // Promptless mode: we keep the UI clean; fal.ai still expects a prompt field.
-        prompt: '',
-        cfg,
-        denoise,
-        steps,
-        seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
-        numImages: variants,
-        loras: lorasPayload,
-      });
+      if (backend === 'fal') {
+        res = await runFalLoraImg2Img({
+          modelName,
+          imageUrlOrDataUrl: publicUrl,
+          // Promptless mode: we keep the UI clean; fal.ai still expects a prompt field.
+          prompt: '',
+          cfg,
+          denoise,
+          steps,
+          seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
+          numImages: variants,
+          loras: lorasPayload,
+        });
+      } else {
+        res = await runHfGpuImg2Img({
+          modelName,
+          imageUrl: publicUrl,
+          cfg,
+          denoise,
+          steps,
+          seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
+          numImages: variants,
+          loras: lorasPayload,
+        });
+      }
 
       setLastSeed(typeof res.usedSeed === 'number' ? res.usedSeed : null);
-      setOutputs(res.images);
+      setOutputs((prev) => [
+        ...prev,
+        ...res.images.map((dataUrl) => ({
+          id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+          dataUrl,
+        })),
+      ]);
       onToast({ message: `Hotovo (${res.images.length}x). Ukládám do galerie…`, type: 'success' });
 
       for (const out of res.images) {
         try {
-          const repo = 'mulenmara/style-library';
-          const usedModelName =
-            backend === 'local'
-              ? hfResolveUrl(repo, `checkpoints/${selectedLocalCheckpoint.trim()}`)
-              : falModelName.trim();
-          const usedLoraPath =
-            backend === 'local'
-              ? (selectedLocalLora.trim() ? hfResolveUrl(repo, `loras/${selectedLocalLora.trim()}`) : null)
-              : (falLoraPath.trim() ? falLoraPath.trim() : null);
-          const usedLoraScale =
-            backend === 'local'
-              ? (selectedLocalLora.trim() ? Math.max(0, Math.min(2, localLoraScale)) : null)
-              : (falLoraPath.trim() ? Math.max(0, Math.min(2, falLoraScale)) : null);
+          const usedModelName = falModelName.trim();
+          const usedLoraPath = falLoraPath.trim() ? falLoraPath.trim() : null;
+          const usedLoraScale = falLoraPath.trim() ? Math.max(0, Math.min(2, falLoraScale)) : null;
 
           const thumb = await createThumbnail(out, 420);
           await saveToGallery({
@@ -342,8 +243,7 @@ export function LoraSdGeneratorScreen(props: {
             resolution: undefined,
             aspectRatio: undefined,
             params: {
-              engine: 'fal_lora_img2img',
-              library: backend,
+              engine: backend === 'fal' ? 'fal_lora_img2img' : 'hf_gpu_img2img',
               modelName: usedModelName,
               lora: usedLoraPath,
               loraScale: usedLoraScale,
@@ -376,9 +276,6 @@ export function LoraSdGeneratorScreen(props: {
     falModelName,
     falLoraPath,
     falLoraScale,
-    selectedLocalCheckpoint,
-    selectedLocalLora,
-    localLoraScale,
   ]);
 
   return (
@@ -398,7 +295,7 @@ export function LoraSdGeneratorScreen(props: {
               </button>
             </div>
             <p className="text-sm text-white/70">
-              Img2Img generování přes vzdálený backend s čistým UI. Umíme přidat checkpoint/LoRA přes Finder a generovat přes fal.ai.
+              Img2Img generování přes vzdálený backend s čistým UI. Vybereš checkpoint/LoRA jako HF ID nebo URL a generuješ přes fal.ai nebo HF GPU endpoint.
             </p>
           </header>
 
@@ -406,23 +303,10 @@ export function LoraSdGeneratorScreen(props: {
             <div className="space-y-1">
               <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Backend</div>
               <div className="text-xs text-white/55">
-                {backend === 'local'
-                  ? 'Lokální knihovna (disk) -> fal.ai'
-                  : 'fal.ai (serverless)'}
+                {backend === 'fal' ? 'fal.ai (serverless)' : 'Hugging Face GPU endpoint'}
               </div>
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setBackend('local')}
-                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
-                  backend === 'local'
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-                }`}
-              >
-                Lokální
-              </button>
               <button
                 type="button"
                 onClick={() => setBackend('fal')}
@@ -434,6 +318,17 @@ export function LoraSdGeneratorScreen(props: {
               >
                 fal.ai
               </button>
+              <button
+                type="button"
+                onClick={() => setBackend('hf')}
+                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                  backend === 'hf'
+                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
+                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
+                }`}
+              >
+                HF GPU
+              </button>
             </div>
           </div>
 
@@ -441,84 +336,18 @@ export function LoraSdGeneratorScreen(props: {
             <div className="space-y-1">
               <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Knihovna modelů</div>
               <div className="text-xs text-white/55">
-                {backend === 'local'
-                  ? `${localCheckpoints.length} checkpointů · ${localLoras.length} LoRA (z Finderu)`
-                  : `${falModels.length ? `${falModels.length} modelů` : 'Modely (knihovna prázdná)'} · ${
-                      falLoras.length ? `${falLoras.length} LoRA` : 'LoRA (knihovna prázdná)'
-                    } (fal)`}
+                {`${falModels.length ? `${falModels.length} modelů` : 'Modely (knihovna prázdná)'} · ${
+                  falLoras.length ? `${falLoras.length} LoRA` : 'LoRA (knihovna prázdná)'
+                }`}
               </div>
             </div>
-            {backend === 'local' ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => document.getElementById(localCheckpointFileInputId)?.click()}
-                  className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
-                >
-                  Přidat checkpoint
-                </button>
-                <button
-                  type="button"
-                  onClick={() => document.getElementById(localLoraFileInputId)?.click()}
-                  className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
-                >
-                  Přidat LoRA
-                </button>
-                <button
-                  type="button"
-                  onClick={() => document.getElementById(localFolderInputId)?.click()}
-                  className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
-                  title="Vyber složku ve Finderu (načteme názvy .safetensors)"
-                >
-                  Přidat složku
-                </button>
-
-                <input
-                  id={localCheckpointFileInputId}
-                  type="file"
-                  accept=".safetensors"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    ingestLocalSafetensors('checkpoint', e.currentTarget.files);
-                    e.currentTarget.value = '';
-                  }}
-                />
-                <input
-                  id={localLoraFileInputId}
-                  type="file"
-                  accept=".safetensors"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    ingestLocalSafetensors('lora', e.currentTarget.files);
-                    e.currentTarget.value = '';
-                  }}
-                />
-                <input
-                  id={localFolderInputId}
-                  type="file"
-                  multiple
-                  // @ts-expect-error - webkitdirectory is supported in Chromium browsers (Finder folder pick).
-                  webkitdirectory="true"
-                  // @ts-expect-error - directory is legacy but harmless where supported.
-                  directory="true"
-                  className="hidden"
-                  onChange={(e) => {
-                    ingestLocalSafetensors('auto', e.currentTarget.files);
-                    e.currentTarget.value = '';
-                  }}
-                />
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onToast({ message: 'U fal.ai se modely nečtou automaticky: přidej si je do knihovny.', type: 'info' })}
-                className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
-              >
-                Info
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onToast({ message: 'Přidej si modely/LoRA do knihovny pomocí + u polí níže.', type: 'info' })}
+              className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
+            >
+              Info
+            </button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -574,158 +403,99 @@ export function LoraSdGeneratorScreen(props: {
 
               <div className="grid grid-cols-1 gap-3">
                 <div className="space-y-1">
-                  {backend === 'local' ? (
-                    <>
-                      <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Lokální checkpoint</label>
-                      <select
-                        value={selectedLocalCheckpoint}
-                        onChange={(e) => setSelectedLocalCheckpoint(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                      >
-                        <option value="">(vyber)</option>
-                        {localCheckpoints.map((c) => (
-                          <option key={c.name} value={c.name}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                      {!localCheckpoints.length && (
-                        <div className="text-xs text-white/40">Zatím nic. Přidej checkpointy přes Finder tlačítky nahoře.</div>
-                      )}
-
-                      <div className="pt-3 space-y-2">
-                        <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Lokální LoRA (volitelné)</label>
-                        <select
-                          value={selectedLocalLora}
-                          onChange={(e) => setSelectedLocalLora(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                        >
-                          <option value="">(bez LoRA)</option>
-                          {localLoras.map((c) => (
-                            <option key={c.name} value={c.name}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedLocalLora.trim() && (
-                          <div className="space-y-1">
-                            <div className="text-xs text-white/45">LoRA váha</div>
-                            <input
-                              type="number"
-                              step="0.05"
-                              min="0"
-                              max="2"
-                              value={localLoraScale}
-                              onChange={(e) => setLocalLoraScale(Number(e.target.value))}
-                              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Model (HF ID nebo URL)</label>
-                      <div className="flex gap-2">
-                        <input
-                          value={falModelName}
-                          onChange={(e) => setFalModelName(e.target.value)}
-                          placeholder="např. mulenmara/models nebo URL na .safetensors"
-                          className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-                        />
-                        <button
-                          type="button"
-                          onClick={addFalModel}
-                          className="px-3 py-2 rounded-lg text-xs font-bold border bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60"
-                          title="Uložit do knihovny"
-                        >
-                          +
-                        </button>
-                      </div>
-                      {falModels.length > 0 && (
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {falModels.slice(0, 8).map((m) => (
-                            <div key={m} className="flex items-center gap-2 px-2 py-1 rounded-lg border border-zinc-700/70 bg-zinc-900/20">
-                              <button
-                                type="button"
-                                onClick={() => setFalModelName(m)}
-                                className="text-xs text-zinc-200 hover:text-white"
-                                title={m}
-                              >
-                                {m.length > 26 ? `${m.slice(0, 26)}…` : m}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeFromFalLibrary('model', m)}
-                                className="text-xs text-white/35 hover:text-white/70"
-                                title="Smazat z knihovny"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
+                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Model (HF ID nebo URL)</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={falModelName}
+                      onChange={(e) => setFalModelName(e.target.value)}
+                      placeholder="např. stabilityai/stable-diffusion-xl-base-1.0 nebo URL na .safetensors"
+                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                    />
+                    <button
+                      type="button"
+                      onClick={addFalModel}
+                      className="px-3 py-2 rounded-lg text-xs font-bold border bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60"
+                      title="Uložit do knihovny"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {falModels.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {falModels.slice(0, 8).map((m) => (
+                        <div key={m} className="flex items-center gap-2 px-2 py-1 rounded-lg border border-zinc-700/70 bg-zinc-900/20">
+                          <button
+                            type="button"
+                            onClick={() => setFalModelName(m)}
+                            className="text-xs text-zinc-200 hover:text-white"
+                            title={m}
+                          >
+                            {m.length > 26 ? `${m.slice(0, 26)}…` : m}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeFromFalLibrary('model', m)}
+                            className="text-xs text-white/35 hover:text-white/70"
+                            title="Smazat z knihovny"
+                          >
+                            ×
+                          </button>
                         </div>
-                      )}
-                      <div className="text-xs text-white/40">
-                        fal.ai umí použít `model_name` jako HuggingFace ID nebo URL na `.safetensors`.
-                      </div>
-                    </>
+                      ))}
+                    </div>
                   )}
+                  <div className="text-xs text-white/40">
+                    {backend === 'fal'
+                      ? 'fal.ai umí použít model jako HuggingFace ID nebo URL na .safetensors.'
+                      : 'HF GPU endpoint musí umět stáhnout model podle zadaného HF ID/URL (implementace endpointu).'}
+                  </div>
                 </div>
 
                 <div className="space-y-1">
-                  {backend === 'local' ? (
-                    <div className="text-xs text-white/45">
-                      Lokální výběr najdeš nahoře. Pro generování se teď používá fal.ai, takže z lokální volby vytváříme cloudové odkazy a propsujeme je do fal.ai polí (soubor musí být nahraný v cloudu pod stejným názvem).
-                    </div>
-                  ) : (
-                    <>
-                      <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (HF ID nebo URL)</label>
-                      <div className="flex gap-2">
-                        <input
-                          value={falLoraPath}
-                          onChange={(e) => setFalLoraPath(e.target.value)}
-                          placeholder="např. mulenmara/datasets (lora) nebo URL na .safetensors"
-                          className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-                        />
-                        <button
-                          type="button"
-                          onClick={addFalLora}
-                          className="px-3 py-2 rounded-lg text-xs font-bold border bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60"
-                          title="Uložit do knihovny"
-                        >
-                          +
-                        </button>
-                      </div>
-                      {falLoras.length > 0 && (
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {falLoras.slice(0, 8).map((m) => (
-                            <div key={m} className="flex items-center gap-2 px-2 py-1 rounded-lg border border-zinc-700/70 bg-zinc-900/20">
-                              <button
-                                type="button"
-                                onClick={() => setFalLoraPath(m)}
-                                className="text-xs text-zinc-200 hover:text-white"
-                                title={m}
-                              >
-                                {m.length > 26 ? `${m.slice(0, 26)}…` : m}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeFromFalLibrary('lora', m)}
-                                className="text-xs text-white/35 hover:text-white/70"
-                                title="Smazat z knihovny"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
+                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (HF ID nebo URL)</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={falLoraPath}
+                      onChange={(e) => setFalLoraPath(e.target.value)}
+                      placeholder="např. mulenmara/style-library/resolve/main/loras/xxx.safetensors"
+                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                    />
+                    <button
+                      type="button"
+                      onClick={addFalLora}
+                      className="px-3 py-2 rounded-lg text-xs font-bold border bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60"
+                      title="Uložit do knihovny"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {falLoras.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {falLoras.slice(0, 8).map((m) => (
+                        <div key={m} className="flex items-center gap-2 px-2 py-1 rounded-lg border border-zinc-700/70 bg-zinc-900/20">
+                          <button
+                            type="button"
+                            onClick={() => setFalLoraPath(m)}
+                            className="text-xs text-zinc-200 hover:text-white"
+                            title={m}
+                          >
+                            {m.length > 26 ? `${m.slice(0, 26)}…` : m}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeFromFalLibrary('lora', m)}
+                            className="text-xs text-white/35 hover:text-white/70"
+                            title="Smazat z knihovny"
+                          >
+                            ×
+                          </button>
                         </div>
-                      )}
-                    </>
+                      ))}
+                    </div>
                   )}
                 </div>
 
-                {backend === 'fal' && falLoraPath.trim() && (
+                {falLoraPath.trim() && (
                   <div className="space-y-1">
                     <label className="block text-xs font-bold text-white/50 uppercase tracking-wider">LoRA scale</label>
                     <input
@@ -824,7 +594,7 @@ export function LoraSdGeneratorScreen(props: {
               </div>
 
               <div className="text-xs text-white/45">
-                Pozn.: fal.ai běží přes API. Aby to fungovalo, musí být nastavený `FAL_KEY` v Netlify env.
+                Pozn.: fal.ai vyžaduje `FAL_KEY` v Netlify env. HF režim vyžaduje `HF_IMG2IMG_URL` (a případně `HF_TOKEN`).
               </div>
             </div>
           </div>
@@ -838,13 +608,13 @@ export function LoraSdGeneratorScreen(props: {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {outputs.map((o, idx) => (
                   <button
-                    key={`${idx}-${o.length}`}
+                    key={o.id}
                     type="button"
                     className="border border-zinc-700/70 bg-black/20 rounded-xl overflow-hidden hover:border-zinc-500/60 transition-colors"
-                    onClick={() => setLightbox(o)}
+                    onClick={() => setLightbox(o.dataUrl)}
                     title="Otevřít"
                   >
-                    <img src={o} alt={`Output ${idx + 1}`} className="w-full h-[260px] object-contain" />
+                    <img src={o.dataUrl} alt={`Output ${idx + 1}`} className="w-full h-[260px] object-contain" />
                   </button>
                 ))}
               </div>

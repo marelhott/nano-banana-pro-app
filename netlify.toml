@@ -70,6 +70,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/hf/img2img"
+  to = "/.netlify/functions/hf-img2img"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/public-config"
   to = "/.netlify/functions/public-config"
   status = 200
