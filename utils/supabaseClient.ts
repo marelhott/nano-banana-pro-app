@@ -278,7 +278,23 @@ export async function autoLogin(): Promise<string | null> {
     }
 
     // Fallback: keep whatever app identity was previously stored.
-    if (existingAppUserId) return existingAppUserId;
+    if (existingAppUserId) {
+      // Validate the stored app user id still exists in DB.
+      const { data, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', existingAppUserId)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.id) {
+        persistAppUserId(existingAppUserId);
+        return existingAppUserId;
+      }
+      // Stale/invalid id -> force PIN screen.
+      persistAppUserId(null);
+      localStorage.removeItem(PIN_HASH_STORAGE_KEY);
+    }
     return null;
   } catch (error) {
     console.error('Auto-login failed:', error);
