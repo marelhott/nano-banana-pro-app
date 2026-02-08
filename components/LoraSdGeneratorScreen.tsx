@@ -122,11 +122,10 @@ export function LoraSdGeneratorScreen(props: {
           'Nepodařilo se načíst modely z ComfyUI. Zkontroluj COMFY_BASE_URL v Netlify env (nebo backend není dostupný).',
         type: 'error',
       });
-      onOpenSettings();
     } finally {
       setIsRefreshingModels(false);
     }
-  }, [checkpointName, onOpenSettings, onToast]);
+  }, [checkpointName, onToast]);
 
   const setInputFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
