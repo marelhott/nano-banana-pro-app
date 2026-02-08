@@ -124,10 +124,60 @@ export function LoraSdGeneratorScreen(props: {
     }
   }, [onToast, selectedLocalCheckpoint]);
 
-  React.useEffect(() => {
-    void scanLocalLibrary({ silent: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const localCheckpointFileInputId = React.useMemo(() => `local-ckpt-${Math.random().toString(36).slice(2)}`, []);
+  const localLoraFileInputId = React.useMemo(() => `local-lora-${Math.random().toString(36).slice(2)}`, []);
+  const localFolderInputId = React.useMemo(() => `local-folder-${Math.random().toString(36).slice(2)}`, []);
+
+  const ingestLocalSafetensors = React.useCallback(
+    (kind: 'checkpoint' | 'lora' | 'auto', fileList: FileList | null) => {
+      const files = Array.from(fileList || []).filter((f) => (f.name || '').toLowerCase().endsWith('.safetensors'));
+      if (!files.length) {
+        onToast({ message: 'Nevybral jsi žádný .safetensors soubor.', type: 'info' });
+        return;
+      }
+
+      const toEntries = (fs: File[]) =>
+        fs
+          .map((f) => ({ name: f.name, path: (f as any).webkitRelativePath || f.name, bytes: (f as any).size as number | undefined }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+      if (kind === 'checkpoint') {
+        const next = toEntries(files);
+        setLocalCheckpoints(next);
+        if (next[0]?.name) setSelectedLocalCheckpoint(next[0].name);
+        onToast({ message: `Přidáno: ${next.length} checkpointů z Finderu.`, type: 'success' });
+        return;
+      }
+
+      if (kind === 'lora') {
+        const next = toEntries(files);
+        setLocalLoras(next);
+        onToast({ message: `Přidáno: ${next.length} LoRA z Finderu.`, type: 'success' });
+        return;
+      }
+
+      // auto: split by folder name if possible (very rough heuristic)
+      const lower = (s: string) => (s || '').toLowerCase();
+      const ckpt = files.filter((f) => lower((f as any).webkitRelativePath || '').includes('model') || lower((f as any).webkitRelativePath || '').includes('checkpoint'));
+      const lora = files.filter((f) => lower((f as any).webkitRelativePath || '').includes('lora'));
+      const unknown = files.filter((f) => !ckpt.includes(f) && !lora.includes(f));
+
+      const ckptEntries = toEntries(ckpt.length ? ckpt : unknown);
+      const loraEntries = toEntries(lora.length ? lora : []);
+
+      if (ckptEntries.length) {
+        setLocalCheckpoints(ckptEntries);
+        if (!selectedLocalCheckpoint && ckptEntries[0]?.name) setSelectedLocalCheckpoint(ckptEntries[0].name);
+      }
+      if (loraEntries.length) setLocalLoras(loraEntries);
+
+      onToast({
+        message: `Načteno ze složky: ${ckptEntries.length} checkpointů, ${loraEntries.length} LoRA.`,
+        type: 'success',
+      });
+    },
+    [onToast, selectedLocalCheckpoint],
+  );
 
   React.useEffect(() => {
     try {
@@ -397,14 +447,67 @@ export function LoraSdGeneratorScreen(props: {
               </div>
             </div>
             {backend === 'local' ? (
-              <button
-                type="button"
-                onClick={() => void scanLocalLibrary()}
-                disabled={isScanningLocal}
-                className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70 disabled:opacity-60"
-              >
-                {isScanningLocal ? 'Skenuji…' : 'Skenovat disk'}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById(localCheckpointFileInputId)?.click()}
+                  className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
+                >
+                  Přidat checkpoint
+                </button>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById(localLoraFileInputId)?.click()}
+                  className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
+                >
+                  Přidat LoRA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById(localFolderInputId)?.click()}
+                  className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
+                  title="Vyber složku ve Finderu (načteme názvy .safetensors)"
+                >
+                  Přidat složku
+                </button>
+
+                <input
+                  id={localCheckpointFileInputId}
+                  type="file"
+                  accept=".safetensors"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    ingestLocalSafetensors('checkpoint', e.currentTarget.files);
+                    e.currentTarget.value = '';
+                  }}
+                />
+                <input
+                  id={localLoraFileInputId}
+                  type="file"
+                  accept=".safetensors"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    ingestLocalSafetensors('lora', e.currentTarget.files);
+                    e.currentTarget.value = '';
+                  }}
+                />
+                <input
+                  id={localFolderInputId}
+                  type="file"
+                  multiple
+                  // @ts-expect-error - webkitdirectory is supported in Chromium browsers (Finder folder pick).
+                  webkitdirectory="true"
+                  // @ts-expect-error - directory is legacy but harmless where supported.
+                  directory="true"
+                  className="hidden"
+                  onChange={(e) => {
+                    ingestLocalSafetensors('auto', e.currentTarget.files);
+                    e.currentTarget.value = '';
+                  }}
+                />
+              </div>
             ) : (
               <button
                 type="button"
@@ -499,7 +602,7 @@ export function LoraSdGeneratorScreen(props: {
                         ))}
                       </select>
                       {!localCheckpoints.length && (
-                        <div className="text-xs text-white/40">Nenalezeno. V dev režimu musí existovat `/api/local-models`.</div>
+                        <div className="text-xs text-white/40">Zatím nic. Přidej checkpointy přes Finder tlačítky nahoře.</div>
                       )}
 
                       <div className="pt-3 space-y-2">

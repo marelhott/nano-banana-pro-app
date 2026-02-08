@@ -12,6 +12,9 @@ export function StyleTransferMobileControls(props: {
   styles: Array<ImageSlot | null>;
   strength: number;
   setStrength: (v: number) => void;
+  merge: number;
+  setMerge: (v: number) => void;
+  mergePasses: number;
   variants: 1 | 2 | 3;
   setVariants: (v: 1 | 2 | 3) => void;
   isGenerating: boolean;
@@ -35,6 +38,9 @@ export function StyleTransferMobileControls(props: {
     styles,
     strength,
     setStrength,
+    merge,
+    setMerge,
+    mergePasses,
     variants,
     setVariants,
     isGenerating,
@@ -244,6 +250,23 @@ export function StyleTransferMobileControls(props: {
             className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
           />
           {styleCount === 0 && <div className="text-[9px] text-white/35">Nahraj aspoň jeden stylový obrázek.</div>}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Míra merge (struktura)</div>
+            <div className="text-[9px] font-black text-white/70">{Math.round(merge)}%</div>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={merge}
+            onChange={(e) => setMerge(Number(e.target.value))}
+            disabled={styleCount === 0}
+            className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
+          />
+          <div className="text-[9px] text-white/35">Iterace: {mergePasses}x (víc = víc struktury stylu, pomalejší)</div>
         </div>
 
         <div className="flex items-center justify-between">

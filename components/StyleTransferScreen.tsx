@@ -21,15 +21,24 @@ export function StyleTransferScreen(props: {
 }) {
   const { onOpenSettings, onBack, onToast, isHoveringGallery } = props;
 
+  const getMergePasses = React.useCallback((mergeValue: number, isHighRes: boolean) => {
+    const v = Math.max(0, Math.min(100, Math.round(mergeValue)));
+    const maxPasses = isHighRes ? 2 : 4;
+    // 0..100 -> 1..(maxPasses) passes
+    const passes = 1 + Math.floor(v / 34);
+    return Math.max(1, Math.min(maxPasses, passes));
+  }, []);
+
   const [reference, setReference] = React.useState<ImageSlot | null>(null);
   const [styles, setStyles] = React.useState<Array<ImageSlot | null>>(
     () => Array.from({ length: STYLE_REFERENCE_LIMIT }, () => null),
   );
   const [strength, setStrength] = React.useState(60);
+  const [merge, setMerge] = React.useState(55);
   const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [highRes, setHighRes] = React.useState(false);
-  const [preserveColors, setPreserveColors] = React.useState(true);
+  const [preserveColors, setPreserveColors] = React.useState(false);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
   const mountedRef = React.useRef(true);
@@ -118,20 +127,27 @@ export function StyleTransferScreen(props: {
 
       const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
       const strength01 = strengthValue / 100;
+      const mergeValue = Math.max(0, Math.min(100, Math.round(merge)));
+      const passes = getMergePasses(mergeValue, highRes);
 
       for (let i = 0; i < variants; i++) {
         try {
           // Each click should produce a fresh variant even with identical inputs.
           // (User can increase Variants to see several at once.)
           const seed = ((Date.now() + i * 9973) ^ Math.floor(Math.random() * 1e9)) | 0;
-          const { dataUrl } = await runArbitraryStyleTransferTfjs({
-            contentDataUrl: reference.dataUrl,
-            styleDataUrls: activeStyles.map((s) => s.dataUrl),
-            strength01,
-            maxDim: highRes ? 1024 : 512,
-            preserveContentColors: preserveColors,
-            variantSeed: seed,
-          });
+          let contentDataUrl = reference.dataUrl;
+          for (let pass = 0; pass < passes; pass++) {
+            const { dataUrl } = await runArbitraryStyleTransferTfjs({
+              contentDataUrl,
+              styleDataUrls: activeStyles.map((s) => s.dataUrl),
+              strength01,
+              maxDim: highRes ? 1024 : 512,
+              preserveContentColors: preserveColors,
+              variantSeed: seed + pass * 1337,
+            });
+            contentDataUrl = dataUrl;
+          }
+          const dataUrl = contentDataUrl;
 
           // Show instantly (local data URL), then upload+persist in background.
           setOutputs((prev) => prev.map((p, idx) => (idx === i ? { id: outputIds[i], status: 'success', url: dataUrl } : p)));
@@ -149,12 +165,14 @@ export function StyleTransferScreen(props: {
             await saveToGallery({
               url: publicUrl,
               thumbnail: thumb,
-              prompt: `Style Transfer | strength=${strengthValue}`,
+              prompt: `Style Transfer | strength=${strengthValue} merge=${mergeValue} passes=${passes}`,
               resolution: highRes ? '1024' : '512',
               aspectRatio: 'Original',
               params: {
                 mode: 'style-transfer-arbitrary-tfjs',
                 strength: strengthValue,
+                merge: mergeValue,
+                passes,
                 highRes,
                 preserveColors,
                 styleReferences: activeStyles.length,
@@ -183,7 +201,7 @@ export function StyleTransferScreen(props: {
     } finally {
       if (mountedRef.current) setIsGenerating(false);
     }
-  }, [activeStyles, highRes, onToast, preserveColors, reference, strength, variants]);
+  }, [activeStyles, getMergePasses, highRes, merge, onToast, preserveColors, reference, strength, variants]);
 
   return (
     <>
@@ -194,6 +212,9 @@ export function StyleTransferScreen(props: {
         styles={styles}
         strength={strength}
         setStrength={setStrength}
+        merge={merge}
+        setMerge={setMerge}
+        mergePasses={getMergePasses(merge, highRes)}
         variants={variants}
         setVariants={setVariants}
         isGenerating={isGenerating}
@@ -225,6 +246,9 @@ export function StyleTransferScreen(props: {
                 styles={styles}
                 strength={strength}
                 setStrength={setStrength}
+                merge={merge}
+                setMerge={setMerge}
+                mergePasses={getMergePasses(merge, highRes)}
                 variants={variants}
                 setVariants={setVariants}
                 isGenerating={isGenerating}
