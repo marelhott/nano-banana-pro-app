@@ -64,6 +64,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/fal/lora-img2img"
+  to = "/.netlify/functions/fal-lora-img2img"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "https://mulennano-nodes.netlify.app/api/:splat"
   status = 200
