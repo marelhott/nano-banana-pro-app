@@ -259,8 +259,15 @@ export async function autoLogin(): Promise<string | null> {
     } catch {
     }
 
-    const existingAppUserId = localStorage.getItem(APP_USER_ID_STORAGE_KEY);
     const storedPinHash = localStorage.getItem(PIN_HASH_STORAGE_KEY);
+
+    // Without a stored PIN hash, we do not trust any cached app user id.
+    // This guarantees the PIN screen shows up on new origins (e.g. mulennano.netlify.app),
+    // and prevents silently landing on the wrong UUID.
+    if (!storedPinHash) {
+      persistAppUserId(null);
+      return null;
+    }
 
     if (storedPinHash) {
       const { data, error } = await supabase
@@ -277,24 +284,9 @@ export async function autoLogin(): Promise<string | null> {
       }
     }
 
-    // Fallback: keep whatever app identity was previously stored.
-    if (existingAppUserId) {
-      // Validate the stored app user id still exists in DB.
-      const { data, error } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', existingAppUserId)
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      if (data?.id) {
-        persistAppUserId(existingAppUserId);
-        return existingAppUserId;
-      }
-      // Stale/invalid id -> force PIN screen.
-      persistAppUserId(null);
-      localStorage.removeItem(PIN_HASH_STORAGE_KEY);
-    }
+    // Stored pinHash is present but doesn't resolve -> force PIN screen.
+    persistAppUserId(null);
+    localStorage.removeItem(PIN_HASH_STORAGE_KEY);
     return null;
   } catch (error) {
     console.error('Auto-login failed:', error);

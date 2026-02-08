@@ -31,3 +31,8 @@ dist-ssr
 .trae/
 
 .vercel/
+
+# Local virtualenvs (avoid accidentally committing large envs)
+.venv/
+.venv_*/
+.venv*
