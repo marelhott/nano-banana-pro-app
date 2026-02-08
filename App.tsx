@@ -37,6 +37,7 @@ import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
 import { LoraSdGeneratorScreen } from './components/LoraSdGeneratorScreen';
+import { NodesScreen } from './components/NodesScreen';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -313,6 +314,7 @@ const App: React.FC = () => {
 
   const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
   const isLoraSdRoute = routePath === '/lora-sd' || routePath.startsWith('/lora-sd/');
+  const isNodesHubRoute = routePath === '/nodes-hub' || routePath.startsWith('/nodes-hub/');
 
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
@@ -2696,7 +2698,9 @@ ${extra}
       />
 
       <AppIconRail
-        active={isStyleTransferRoute ? 'style-transfer' : isLoraSdRoute ? 'lora-sd' : 'mulen'}
+        active={
+          isNodesHubRoute ? 'nodes' : isStyleTransferRoute ? 'style-transfer' : isLoraSdRoute ? 'lora-sd' : 'mulen'
+        }
         onNavigate={(route) => {
           if (route === 'mulen') {
             navigate('/');
@@ -2711,7 +2715,7 @@ ${extra}
             return;
           }
           if (route === 'nodes') {
-            window.location.assign('/nodes');
+            navigate('/nodes-hub');
           }
         }}
       />
@@ -2732,6 +2736,8 @@ ${extra}
               onToast={(t) => setToast(t)}
               isHoveringGallery={isHoveringGallery}
             />
+          ) : isNodesHubRoute ? (
+            <NodesScreen onToast={(t) => setToast(t)} />
           ) : isLoraSdRoute ? (
             <LoraSdGeneratorScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}

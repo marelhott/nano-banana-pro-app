@@ -10,14 +10,14 @@ export function AppIconRail(props: {
   const { active, onNavigate } = props;
 
   const items: Array<{ id: RailRoute; label: string; icon: React.ReactNode }> = [
-    { id: 'mulen', label: 'Mulen Nano', icon: <Grid3X3 className="w-5 h-5" /> },
-    { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-5 h-5" /> },
-    { id: 'lora-sd', label: 'LoRA / SD', icon: <Sparkles className="w-5 h-5" /> },
-    { id: 'nodes', label: 'Nodes', icon: <Network className="w-5 h-5" /> },
+    { id: 'mulen', label: 'Mulen Nano', icon: <Grid3X3 className="w-[18px] h-[18px]" strokeWidth={1.6} /> },
+    { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-[18px] h-[18px]" strokeWidth={1.6} /> },
+    { id: 'lora-sd', label: 'LoRA / SD', icon: <Sparkles className="w-[18px] h-[18px]" strokeWidth={1.6} /> },
+    { id: 'nodes', label: 'Nodes', icon: <Network className="w-[18px] h-[18px]" strokeWidth={1.6} /> },
   ];
 
   return (
-    <nav className="flex w-[68px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col items-center py-4 gap-2 z-30">
+    <nav className="flex w-[68px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col items-center justify-center py-6 gap-3 z-30">
       {items.map((item) => {
         const isActive = item.id === active;
         return (
@@ -29,12 +29,12 @@ export function AppIconRail(props: {
             aria-label={item.label}
             className={`relative w-11 h-11 rounded-xl border transition-all flex items-center justify-center ${
               isActive
-                ? 'border-[#7ed957]/45 text-[#7ed957] bg-[#7ed957]/10 shadow-[0_0_12px_rgba(126,217,87,0.22)]'
-                : 'border-white/10 text-white/55 hover:text-white/90 hover:border-white/30 hover:bg-white/5'
+                ? 'border-zinc-500/80 text-zinc-100 bg-zinc-700/25'
+                : 'border-zinc-700/70 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500/60 hover:bg-zinc-700/15'
             }`}
           >
             {item.icon}
-            {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-6 bg-[#7ed957] rounded-r-full" />}
+            {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-6 bg-zinc-300 rounded-r-full" />}
           </button>
         );
       })}

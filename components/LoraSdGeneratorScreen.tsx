@@ -7,11 +7,22 @@ export function LoraSdGeneratorScreen(props: {
   onToast: (toast: { message: string; type: ToastType }) => void;
 }) {
   const { onOpenSettings, onToast } = props;
+  const workflowSteps = [
+    'Nahraj vstupní fotku',
+    'Vyber SD model nebo LoRA',
+    'Nastav CFG, denoise, steps',
+    'Vygeneruj 1-3 varianty',
+  ];
+  const uploadFlow = [
+    'Vyber cloud úložiště modelů (bez limitu 6.8 GB na soubor).',
+    'Nahraj SD/LoRA jednou a ulož cestu do katalogu modelů.',
+    'Při generaci jen vybereš model a appka pošle job na GPU endpoint.',
+  ];
 
   return (
     <div className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar">
       <div className="p-6 lg:p-10 pb-24 w-full">
-        <div className="space-y-6 w-full max-w-5xl">
+        <div className="space-y-8 w-full max-w-6xl mx-auto">
           <header className="space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
@@ -22,26 +33,33 @@ export function LoraSdGeneratorScreen(props: {
             </p>
           </header>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="card-surface p-5 space-y-3">
-              <h3 className="text-xs uppercase tracking-widest text-white/80 font-bold">Cílový workflow</h3>
-              <ul className="text-xs text-white/60 space-y-2">
-                <li>1. Nahrát vstupní fotku.</li>
-                <li>2. Vybrat SD model nebo LoRA preset.</li>
-                <li>3. Nastavit CFG, denoise, steps, strength.</li>
-                <li>4. Vygenerovat 1-3 varianty.</li>
-              </ul>
+          <div className="card-surface p-6 min-h-[220px] flex flex-col justify-center">
+            <h3 className="text-xs uppercase tracking-widest text-white/75 font-bold text-center mb-4">Průběh práce</h3>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {workflowSteps.map((step, idx) => (
+                <div
+                  key={step}
+                  className="px-3 py-2 rounded-lg border border-zinc-700/80 bg-zinc-800/35 text-xs text-zinc-200 min-w-[160px] text-center"
+                >
+                  <span className="text-zinc-400 mr-1">{idx + 1}.</span>
+                  {step}
+                </div>
+              ))}
             </div>
+          </div>
 
-            <div className="card-surface p-5 space-y-3">
-              <h3 className="text-xs uppercase tracking-widest text-white/80 font-bold">Co doplníme</h3>
-              <ul className="text-xs text-white/60 space-y-2">
-                <li>1. Správa profilů modelů/LoRA v appce.</li>
-                <li>2. Queue + status jobů pro cloud GPU.</li>
-                <li>3. Ukládání výstupů do galerie s metadaty.</li>
-                <li>4. Přímé ladění parametrů bez Comfy UI.</li>
-              </ul>
+          <div className="card-surface p-5 space-y-4">
+            <h3 className="text-xs uppercase tracking-widest text-white/80 font-bold">Nahrávání modelů (asistence přes appku)</h3>
+            <div className="space-y-2">
+              {uploadFlow.map((line, idx) => (
+                <div key={line} className="text-xs text-white/65">
+                  {idx + 1}. {line}
+                </div>
+              ))}
             </div>
+            <p className="text-xs text-white/50">
+              Pro jeden soubor 6.8 GB je vhodné objektové úložiště (S3/R2/B2) + GPU endpoint, bez lokálního GPU.
+            </p>
           </div>
 
           <div className="card-surface p-4 flex flex-wrap items-center gap-2">
@@ -55,11 +73,10 @@ export function LoraSdGeneratorScreen(props: {
             >
               Otevřít Settings
             </button>
-            <span className="text-xs text-white/45">UI je připravené, inference backend napojíme v dalším kroku.</span>
+            <span className="text-xs text-white/45">UI je připravené, backend napojím na tvé modely v dalším kroku.</span>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
