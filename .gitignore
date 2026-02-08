@@ -32,6 +32,9 @@ dist-ssr
 
 .vercel/
 
+# Hugging Face CLI auth/cache (keep tokens out of git)
+.hf/
+
 # Local virtualenvs (avoid accidentally committing large envs)
 .venv/
 .venv_*/

@@ -13,6 +13,7 @@
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@supabase/supabase-js": "^2.89.0",
+    "@tensorflow/tfjs": "^4.22.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.563.0",
     "express": "^4.21.2",

@@ -7,7 +7,6 @@ type ToastType = 'success' | 'error' | 'info';
 
 export function StyleTransferMobileControls(props: {
   onBack: () => void;
-  onOpenSettings: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
   reference: ImageSlot | null;
   styles: Array<ImageSlot | null>;
@@ -17,7 +16,6 @@ export function StyleTransferMobileControls(props: {
   setVariants: (v: 1 | 2 | 3) => void;
   isGenerating: boolean;
   canGenerate: boolean;
-  hasReplicateKey: boolean;
   highRes: boolean;
   setHighRes: (v: boolean) => void;
   colorize: boolean;
@@ -32,7 +30,6 @@ export function StyleTransferMobileControls(props: {
 }) {
   const {
     onBack,
-    onOpenSettings,
     onToast,
     reference,
     styles,
@@ -42,7 +39,6 @@ export function StyleTransferMobileControls(props: {
     setVariants,
     isGenerating,
     canGenerate,
-    hasReplicateKey,
     highRes,
     setHighRes,
     colorize,
@@ -264,7 +260,7 @@ export function StyleTransferMobileControls(props: {
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Color correction</div>
+          <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Zachovat barvy fotky</div>
           <button
             type="button"
             onClick={() => setColorize(!colorize)}
@@ -275,18 +271,7 @@ export function StyleTransferMobileControls(props: {
             {colorize ? 'On' : 'Off'}
           </button>
         </div>
-
-        {!hasReplicateKey && (
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="w-full py-2 px-3 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all bg-white/5 hover:bg-white/10 text-white/70"
-          >
-            Nastavit Replicate token
-          </button>
-        )}
       </div>
     </div>
   );
 }
-
