@@ -216,6 +216,58 @@ export async function runNeuralNeighborStyleTransfer(params: {
   return await fetchAsDataUrl(url);
 }
 
+export async function runFofrStyleTransfer(params: {
+  token: string;
+  // URLs are strongly recommended (data URLs can be huge and slow).
+  styleImage: string;
+  structureImage?: string;
+  prompt: string;
+  negativePrompt?: string;
+  width: number;
+  height: number;
+  model: 'fast' | 'high-quality' | 'realistic' | 'cinematic' | 'animated';
+  numberOfImages: number; // 1..10
+  structureDepthStrength: number; // 0..2
+  structureDenoisingStrength: number; // 0..1
+  outputFormat: 'webp' | 'jpg' | 'png';
+  outputQuality: number; // 0..100
+  seed?: number;
+}): Promise<string[]> {
+  const prediction = await runReplicatePrediction({
+    token: params.token,
+    model: 'fofr/style-transfer:f1023890703bc0a5a3a2c21b5e498833be5f6ef6e70e9daf6b9b3a4fd8309cf0',
+    input: {
+      style_image: params.styleImage,
+      structure_image: params.structureImage,
+      prompt: params.prompt || '',
+      negative_prompt: params.negativePrompt || '',
+      width: Math.max(256, Math.min(2048, Math.round(params.width))),
+      height: Math.max(256, Math.min(2048, Math.round(params.height))),
+      model: params.model,
+      number_of_images: Math.max(1, Math.min(10, Math.round(params.numberOfImages))),
+      structure_depth_strength: Math.max(0, Math.min(2, params.structureDepthStrength)),
+      structure_denoising_strength: Math.max(0, Math.min(1, params.structureDenoisingStrength)),
+      output_format: params.outputFormat,
+      output_quality: Math.max(0, Math.min(100, Math.round(params.outputQuality))),
+      seed: params.seed,
+    },
+    timeoutMs: 240_000,
+  });
+
+  if (prediction.status !== 'succeeded') {
+    throw new Error(prediction.error || 'Replicate generování selhalo.');
+  }
+
+  const output = prediction.output as any;
+  const urls = Array.isArray(output) ? output : [output];
+  const results: string[] = [];
+  for (const u of urls) {
+    if (typeof u === 'string' && u.length > 0) results.push(await fetchAsDataUrl(u));
+  }
+  if (results.length === 0) throw new Error('Replicate nevrátil žádný výstupní obrázek.');
+  return results;
+}
+
 export class ReplicateProvider implements AIProvider {
   private apiKey: string;
 

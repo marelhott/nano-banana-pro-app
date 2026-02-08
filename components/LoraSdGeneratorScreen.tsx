@@ -1,8 +1,8 @@
 import React from 'react';
 import { runFalLoraImg2Img } from '../services/falService';
-import { getLocalModelLibrary, hfResolveUrl } from '../services/localModelLibraryService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { getPublicUrl, uploadImage, dataUrlToBlob } from '../utils/supabaseStorage';
+import { hfResolveUrl } from '../services/localModelLibraryService';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -96,33 +96,10 @@ export function LoraSdGeneratorScreen(props: {
   const [selectedLocalCheckpoint, setSelectedLocalCheckpoint] = React.useState<string>('');
   const [selectedLocalLora, setSelectedLocalLora] = React.useState<string>('');
   const [localLoraScale, setLocalLoraScale] = React.useState<number>(0.85);
-  const [isScanningLocal, setIsScanningLocal] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [outputs, setOutputs] = React.useState<string[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
-
-  const scanLocalLibrary = React.useCallback(async (opts?: { silent?: boolean }) => {
-    setIsScanningLocal(true);
-    try {
-      const lib = await getLocalModelLibrary();
-      setLocalCheckpoints(lib.checkpoints || []);
-      setLocalLoras(lib.loras || []);
-      if (!selectedLocalCheckpoint && lib.checkpoints?.[0]?.name) {
-        setSelectedLocalCheckpoint(lib.checkpoints[0].name);
-      }
-      if (!opts?.silent) {
-        onToast({
-          message: `Lokální knihovna: ${lib.checkpoints?.length || 0} checkpointů, ${lib.loras?.length || 0} LoRA.`,
-          type: 'success',
-        });
-      }
-    } catch (e: any) {
-      onToast({ message: e?.message || 'Nepodařilo se načíst lokální knihovnu.', type: 'error' });
-    } finally {
-      setIsScanningLocal(false);
-    }
-  }, [onToast, selectedLocalCheckpoint]);
 
   const localCheckpointFileInputId = React.useMemo(() => `local-ckpt-${Math.random().toString(36).slice(2)}`, []);
   const localLoraFileInputId = React.useMemo(() => `local-lora-${Math.random().toString(36).slice(2)}`, []);
@@ -229,16 +206,8 @@ export function LoraSdGeneratorScreen(props: {
     persistFalLibrary({ models: falModels, loras: next });
   }, [falLoras, falModels, persistFalLibrary]);
 
-  const applyLocalSelectionToFal = React.useCallback(() => {
-    const repo = 'mulenmara/style-library';
-    const ckpt = selectedLocalCheckpoint.trim();
-    if (ckpt) setFalModelName(hfResolveUrl(repo, `checkpoints/${ckpt}`));
-    const lora = selectedLocalLora.trim();
-    if (lora) setFalLoraPath(hfResolveUrl(repo, `loras/${lora}`));
-    if (!lora) setFalLoraPath('');
-    setFalLoraScale(localLoraScale);
-    onToast({ message: 'OK: výběr z lokální knihovny jsem propsal do fal.ai polí.', type: 'success' });
-  }, [localLoraScale, onToast, selectedLocalCheckpoint, selectedLocalLora]);
+  // NOTE: "local" mode currently only manages selection. To run inference without HF,
+  // we will connect this to a local bridge + GPU inference API (phase 2).
 
   const setInputFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
@@ -276,7 +245,7 @@ export function LoraSdGeneratorScreen(props: {
 
       if (!modelName) {
         onToast({
-          message: backend === 'local' ? 'Vyber lokální checkpoint.' : 'Vyber / zadej model (fal.ai).',
+          message: backend === 'local' ? 'Vyber checkpoint (přidej přes Finder).' : 'Vyber / zadej model (fal.ai).',
           type: 'error',
         });
         setIsGenerating(false);
@@ -396,7 +365,7 @@ export function LoraSdGeneratorScreen(props: {
               </button>
             </div>
             <p className="text-sm text-white/70">
-              Img2Img generování přes vzdálený backend s čistým UI. Umíme vybrat checkpoint/LoRA z lokální knihovny (disk) a poslat generování přes fal.ai.
+              Img2Img generování přes vzdálený backend s čistým UI. Umíme přidat checkpoint/LoRA přes Finder a generovat přes fal.ai.
             </p>
           </header>
 
@@ -440,7 +409,7 @@ export function LoraSdGeneratorScreen(props: {
               <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Knihovna modelů</div>
               <div className="text-xs text-white/55">
                 {backend === 'local'
-                  ? `${localCheckpoints.length} checkpointů · ${localLoras.length} LoRA (z disku)`
+                  ? `${localCheckpoints.length} checkpointů · ${localLoras.length} LoRA (z Finderu)`
                   : `${falModels.length ? `${falModels.length} modelů` : 'Modely (knihovna prázdná)'} · ${
                       falLoras.length ? `${falLoras.length} LoRA` : 'LoRA (knihovna prázdná)'
                     } (fal)`}
@@ -633,14 +602,6 @@ export function LoraSdGeneratorScreen(props: {
                             />
                           </div>
                         )}
-
-                        <button
-                          type="button"
-                          onClick={applyLocalSelectionToFal}
-                          className="w-full px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
-                        >
-                          Propsat do fal.ai
-                        </button>
                       </div>
                     </>
                   ) : (

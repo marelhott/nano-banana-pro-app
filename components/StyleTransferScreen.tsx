@@ -1,13 +1,14 @@
 import React from 'react';
-import { ProviderSettings } from '../services/aiProvider';
+import { AIProviderType, ProviderSettings } from '../services/aiProvider';
 import { runArbitraryStyleTransferTfjs } from '../services/arbitraryStyleTransferTfjs';
+import { runFofrStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { StyleTransferSidebar } from './styleTransfer/StyleTransferSidebar';
 import { StyleTransferMobileControls } from './styleTransfer/StyleTransferMobileControls';
 import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
-import { downloadDataUrl, fileToDataUrl, getDataUrlMime, resolveDropToFile, STYLE_REFERENCE_LIMIT } from './styleTransfer/utils';
+import { downloadDataUrl, fileToDataUrl, resolveDropToFile, STYLE_REFERENCE_LIMIT, composeStylePatchwork } from './styleTransfer/utils';
 import type { ImageSlot, OutputItem } from './styleTransfer/utils';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -19,7 +20,7 @@ export function StyleTransferScreen(props: {
   onToast: (toast: { message: string; type: ToastType }) => void;
   isHoveringGallery: boolean;
 }) {
-  const { onOpenSettings, onBack, onToast, isHoveringGallery } = props;
+  const { providerSettings, onOpenSettings, onBack, onToast, isHoveringGallery } = props;
 
   const getMergePasses = React.useCallback((mergeValue: number, isHighRes: boolean) => {
     const v = Math.max(0, Math.min(100, Math.round(mergeValue)));
@@ -28,6 +29,9 @@ export function StyleTransferScreen(props: {
     const passes = 1 + Math.floor(v / 34);
     return Math.max(1, Math.min(maxPasses, passes));
   }, []);
+
+  type Engine = 'fofr' | 'quick';
+  const [engine, setEngine] = React.useState<Engine>('fofr');
 
   const [reference, setReference] = React.useState<ImageSlot | null>(null);
   const [styles, setStyles] = React.useState<Array<ImageSlot | null>>(
@@ -42,6 +46,18 @@ export function StyleTransferScreen(props: {
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
   const mountedRef = React.useRef(true);
+
+  // Replicate (fofr/style-transfer) controls
+  const [fofrModel, setFofrModel] = React.useState<'fast' | 'high-quality' | 'realistic' | 'cinematic' | 'animated'>('high-quality');
+  const [fofrNumImages, setFofrNumImages] = React.useState<number>(1);
+  const [fofrUseStructure, setFofrUseStructure] = React.useState<boolean>(true);
+  const [fofrWidth, setFofrWidth] = React.useState<number>(1024);
+  const [fofrHeight, setFofrHeight] = React.useState<number>(1024);
+  const [fofrStructureDepthStrength, setFofrStructureDepthStrength] = React.useState<number>(1.2);
+  const [fofrStructureDenoisingStrength, setFofrStructureDenoisingStrength] = React.useState<number>(0.75);
+  const [fofrOutputFormat, setFofrOutputFormat] = React.useState<'webp' | 'jpg' | 'png'>('webp');
+  const [fofrOutputQuality, setFofrOutputQuality] = React.useState<number>(90);
+  const [fofrSeed, setFofrSeed] = React.useState<string>('');
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -113,17 +129,98 @@ export function StyleTransferScreen(props: {
       onToast({ message: 'Nahraj aspoň jednu stylovou referenci.', type: 'info' });
       return;
     }
-    const outputIds = Array.from({ length: variants }).map(
-      (_, i) => `st-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`,
-    );
+
+    const count = engine === 'fofr' ? Math.max(1, Math.min(10, Math.round(fofrNumImages))) : variants;
+    const outputIds = Array.from({ length: count }).map((_, i) => `st-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`);
     setOutputs(outputIds.map((id) => ({ id, status: 'loading' })));
     setIsGenerating(true);
 
     try {
-      onToast({
-        message: 'Styl transfer běží lokálně v prohlížeči. První běh může chvíli načítat model, potom je to rychlé.',
-        type: 'info',
-      });
+      if (engine === 'quick') {
+        onToast({
+          message: 'Quick styl transfer běží lokálně v prohlížeči. První běh může chvíli načítat model, potom je to rychlé.',
+          type: 'info',
+        });
+      } else {
+        onToast({ message: 'FOFR styl transfer běží přes Replicate (cloud).', type: 'info' });
+      }
+
+      if (engine === 'fofr') {
+        const token = providerSettings?.[AIProviderType.REPLICATE]?.apiKey;
+        if (!token) {
+          throw new Error('Chybí Replicate API klíč. Otevři Nastavení a vlož klíč pro Replicate.');
+        }
+
+        // Build a single "style image" from up to 3 refs.
+        const seedBase = (Date.now() ^ Math.floor(Math.random() * 1e9)) | 0;
+        const stylePatch = await composeStylePatchwork(activeStyles.map((s) => s.dataUrl), { size: 1024, seed: seedBase });
+
+        // Upload inputs to storage and pass URLs to Replicate (much more robust than base64).
+        const [refBlob, styleBlob] = await Promise.all([dataUrlToBlob(reference.dataUrl), dataUrlToBlob(stylePatch)]);
+        const [refPath, stylePath] = await Promise.all([uploadImage(refBlob, 'generated'), uploadImage(styleBlob, 'generated')]);
+        const structureUrl = getPublicUrl(refPath);
+        const styleUrl = getPublicUrl(stylePath);
+
+        const seedNum = fofrSeed.trim() ? Number(fofrSeed.trim()) : undefined;
+        const results = await runFofrStyleTransfer({
+          token,
+          styleImage: styleUrl,
+          structureImage: fofrUseStructure ? structureUrl : undefined,
+          prompt: '',
+          negativePrompt: '',
+          width: fofrWidth,
+          height: fofrHeight,
+          model: fofrModel,
+          numberOfImages: count,
+          structureDepthStrength: fofrStructureDepthStrength,
+          structureDenoisingStrength: fofrStructureDenoisingStrength,
+          outputFormat: fofrOutputFormat,
+          outputQuality: fofrOutputQuality,
+          seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
+        });
+
+        for (let i = 0; i < results.length; i++) {
+          const dataUrl = results[i];
+          setOutputs((prev) => prev.map((p, idx) => (idx === i ? { id: outputIds[i], status: 'success', url: dataUrl } : p)));
+
+          const thumb = await createThumbnail(dataUrl, 420);
+          try {
+            const blob = await dataUrlToBlob(dataUrl);
+            const path = await uploadImage(blob, 'generated');
+            const publicUrl = getPublicUrl(path);
+
+            setOutputs((prev) => prev.map((p, idx) => (idx === i ? { id: outputIds[i], status: 'success', url: publicUrl } : p)));
+
+            await saveToGallery({
+              url: publicUrl,
+              thumbnail: thumb,
+              prompt: `Style Transfer (FOFR) | model=${fofrModel} denoise=${fofrStructureDenoisingStrength}`,
+              resolution: 'match',
+              aspectRatio: 'Original',
+              params: {
+                mode: 'style-transfer-fofr',
+                engine: 'replicate',
+                model: fofrModel,
+                number_of_images: count,
+                structure_depth_strength: fofrStructureDepthStrength,
+                structure_denoising_strength: fofrStructureDenoisingStrength,
+                output_format: fofrOutputFormat,
+                output_quality: fofrOutputQuality,
+                seed: seedNum ?? null,
+                prompt: null,
+                negative_prompt: null,
+                styleReferences: activeStyles.length,
+                useStructure: fofrUseStructure,
+              },
+            });
+          } catch {
+            // keep local result visible
+          }
+        }
+
+        onToast({ message: 'Hotovo.', type: 'success' });
+        return;
+      }
 
       const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
       const strength01 = strengthValue / 100;
@@ -201,11 +298,35 @@ export function StyleTransferScreen(props: {
     } finally {
       if (mountedRef.current) setIsGenerating(false);
     }
-  }, [activeStyles, getMergePasses, highRes, merge, onToast, preserveColors, reference, strength, variants]);
+  }, [
+    activeStyles,
+    engine,
+    fofrHeight,
+    fofrModel,
+    fofrNumImages,
+    fofrOutputFormat,
+    fofrOutputQuality,
+    fofrSeed,
+    fofrStructureDenoisingStrength,
+    fofrStructureDepthStrength,
+    fofrUseStructure,
+    fofrWidth,
+    getMergePasses,
+    highRes,
+    merge,
+    onToast,
+    preserveColors,
+    providerSettings,
+    reference,
+    strength,
+    variants,
+  ]);
 
   return (
     <>
       <StyleTransferSidebar
+        engine={engine}
+        setEngine={setEngine}
         onBack={onBack}
         onToast={onToast}
         reference={reference}
@@ -217,6 +338,26 @@ export function StyleTransferScreen(props: {
         mergePasses={getMergePasses(merge, highRes)}
         variants={variants}
         setVariants={setVariants}
+        fofrNumImages={fofrNumImages}
+        setFofrNumImages={setFofrNumImages}
+        fofrModel={fofrModel}
+        setFofrModel={setFofrModel}
+        fofrUseStructure={fofrUseStructure}
+        setFofrUseStructure={setFofrUseStructure}
+        fofrWidth={fofrWidth}
+        setFofrWidth={setFofrWidth}
+        fofrHeight={fofrHeight}
+        setFofrHeight={setFofrHeight}
+        fofrStructureDepthStrength={fofrStructureDepthStrength}
+        setFofrStructureDepthStrength={setFofrStructureDepthStrength}
+        fofrStructureDenoisingStrength={fofrStructureDenoisingStrength}
+        setFofrStructureDenoisingStrength={setFofrStructureDenoisingStrength}
+        fofrOutputFormat={fofrOutputFormat}
+        setFofrOutputFormat={setFofrOutputFormat}
+        fofrOutputQuality={fofrOutputQuality}
+        setFofrOutputQuality={setFofrOutputQuality}
+        fofrSeed={fofrSeed}
+        setFofrSeed={setFofrSeed}
         isGenerating={isGenerating}
         canGenerate={canGenerate}
         highRes={highRes}
@@ -240,6 +381,8 @@ export function StyleTransferScreen(props: {
           <div className="space-y-6 md:space-y-8 w-full">
             <div className="lg:hidden">
               <StyleTransferMobileControls
+                engine={engine}
+                setEngine={setEngine}
                 onBack={onBack}
                 onToast={onToast}
                 reference={reference}
@@ -251,6 +394,26 @@ export function StyleTransferScreen(props: {
                 mergePasses={getMergePasses(merge, highRes)}
                 variants={variants}
                 setVariants={setVariants}
+                fofrNumImages={fofrNumImages}
+                setFofrNumImages={setFofrNumImages}
+                fofrModel={fofrModel}
+                setFofrModel={setFofrModel}
+                fofrUseStructure={fofrUseStructure}
+                setFofrUseStructure={setFofrUseStructure}
+                fofrWidth={fofrWidth}
+                setFofrWidth={setFofrWidth}
+                fofrHeight={fofrHeight}
+                setFofrHeight={setFofrHeight}
+                fofrStructureDepthStrength={fofrStructureDepthStrength}
+                setFofrStructureDepthStrength={setFofrStructureDepthStrength}
+                fofrStructureDenoisingStrength={fofrStructureDenoisingStrength}
+                setFofrStructureDenoisingStrength={setFofrStructureDenoisingStrength}
+                fofrOutputFormat={fofrOutputFormat}
+                setFofrOutputFormat={setFofrOutputFormat}
+                fofrOutputQuality={fofrOutputQuality}
+                setFofrOutputQuality={setFofrOutputQuality}
+                fofrSeed={fofrSeed}
+                setFofrSeed={setFofrSeed}
                 isGenerating={isGenerating}
                 canGenerate={canGenerate}
                 highRes={highRes}
