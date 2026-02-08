@@ -35,6 +35,8 @@ import { runSupabaseSmokeTests } from './utils/smokeTests';
 import { ensureAnonymousSession, refreshSupabaseSession, SUPABASE_ANON_DISABLED_ERROR_MESSAGE } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
+import { AppIconRail } from './components/AppIconRail';
+import { LoraSdGeneratorScreen } from './components/LoraSdGeneratorScreen';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -310,6 +312,7 @@ const App: React.FC = () => {
   }, []);
 
   const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
+  const isLoraSdRoute = routePath === '/lora-sd' || routePath.startsWith('/lora-sd/');
 
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
@@ -2682,7 +2685,7 @@ ${extra}
   };
 
   return (
-    <div className="min-h-screen transition-colors duration-300 bg-[var(--bg-main)] text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen transition-colors duration-300 bg-[var(--bg-main)] text-[var(--text-primary)] font-sans flex">
 
       {/* Settings Modal */}
       <SettingsModal
@@ -2692,26 +2695,50 @@ ${extra}
         onSave={handleSaveSettings}
       />
 
-      {/* Top Header */}
-      <Header
-        onSettingsClick={() => setIsSettingsModalOpen(true)}
-        onStyleTransferClick={() => navigate('/style-transfer')}
-        isStyleTransferActive={isStyleTransferRoute}
+      <AppIconRail
+        active={isStyleTransferRoute ? 'style-transfer' : isLoraSdRoute ? 'lora-sd' : 'mulen'}
+        onNavigate={(route) => {
+          if (route === 'mulen') {
+            navigate('/');
+            return;
+          }
+          if (route === 'style-transfer') {
+            navigate('/style-transfer');
+            return;
+          }
+          if (route === 'lora-sd') {
+            navigate('/lora-sd');
+            return;
+          }
+          if (route === 'nodes') {
+            window.location.assign('/nodes');
+          }
+        }}
       />
 
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Top Header */}
+        <Header
+          onSettingsClick={() => setIsSettingsModalOpen(true)}
+          showNodesLink={false}
+        />
 
-
-      <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
-        {isStyleTransferRoute ? (
-          <StyleTransferScreen
-            providerSettings={providerSettings}
-            onOpenSettings={() => setIsSettingsModalOpen(true)}
-            onBack={() => navigate('/')}
-            onToast={(t) => setToast(t)}
-            isHoveringGallery={isHoveringGallery}
-          />
-        ) : (
-          <>
+        <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
+          {isStyleTransferRoute ? (
+            <StyleTransferScreen
+              providerSettings={providerSettings}
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onBack={() => navigate('/')}
+              onToast={(t) => setToast(t)}
+              isHoveringGallery={isHoveringGallery}
+            />
+          ) : isLoraSdRoute ? (
+            <LoraSdGeneratorScreen
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onToast={(t) => setToast(t)}
+            />
+          ) : (
+            <>
             {/* Left Sidebar - Fixed Width (Hidden on Mobile) */}
             <div className="hidden lg:flex w-[340px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20">
               <div className="p-6 flex flex-col gap-6 min-h-full">
@@ -3341,6 +3368,7 @@ ${extra}
           />
         )
       }
+      </div>
     </div >
   );
 };
