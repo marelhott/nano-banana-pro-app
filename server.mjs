@@ -221,7 +221,6 @@ async function start() {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
-          Prefer: 'wait=60',
         },
         body: JSON.stringify({ version, input: input || {} }),
       })
