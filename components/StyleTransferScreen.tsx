@@ -22,6 +22,41 @@ export function StyleTransferScreen(props: {
 }) {
   const { providerSettings, onOpenSettings, onBack, onToast, isHoveringGallery } = props;
 
+  async function normalizeDataUrlPixels(
+    dataUrl: string,
+    opts?: { maxDim?: number; mime?: 'image/jpeg' | 'image/png'; quality?: number },
+  ): Promise<string> {
+    const maxDim = Math.max(256, Math.min(4096, Math.round(opts?.maxDim ?? 1600)));
+    const mime = opts?.mime ?? 'image/jpeg';
+    const quality = typeof opts?.quality === 'number' ? opts.quality : 0.92;
+
+    // Important: browsers render EXIF orientation here; canvas export bakes pixels (no EXIF).
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Nepodařilo se načíst obrázek pro normalizaci.'));
+      i.src = dataUrl;
+    });
+
+    const iw = img.naturalWidth || img.width;
+    const ih = img.naturalHeight || img.height;
+    const scale = Math.min(1, maxDim / Math.max(iw, ih));
+    const w = Math.max(1, Math.round(iw * scale));
+    const h = Math.max(1, Math.round(ih * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return dataUrl;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, w, h);
+
+    if (mime === 'image/png') return canvas.toDataURL('image/png');
+    return canvas.toDataURL('image/jpeg', Math.max(0.1, Math.min(1, quality)));
+  }
+
   const getMergePasses = React.useCallback((mergeValue: number, isHighRes: boolean) => {
     const v = Math.max(0, Math.min(100, Math.round(mergeValue)));
     const maxPasses = isHighRes ? 2 : 4;
@@ -55,9 +90,7 @@ export function StyleTransferScreen(props: {
   const [fofrHeight, setFofrHeight] = React.useState<number>(1024);
   const [fofrStructureDepthStrength, setFofrStructureDepthStrength] = React.useState<number>(1.2);
   const [fofrStructureDenoisingStrength, setFofrStructureDenoisingStrength] = React.useState<number>(0.75);
-  const [fofrOutputFormat, setFofrOutputFormat] = React.useState<'webp' | 'jpg' | 'png'>('webp');
-  const [fofrOutputQuality, setFofrOutputQuality] = React.useState<number>(90);
-  const [fofrSeed, setFofrSeed] = React.useState<string>('');
+  // keep outputs deterministic/random entirely on Replicate side; don't expose format/quality/seed in UI
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -131,8 +164,11 @@ export function StyleTransferScreen(props: {
     }
 
     const count = engine === 'fofr' ? Math.max(1, Math.min(10, Math.round(fofrNumImages))) : variants;
-    const outputIds = Array.from({ length: count }).map((_, i) => `st-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`);
-    setOutputs(outputIds.map((id) => ({ id, status: 'loading' })));
+    const outputIds = Array.from({ length: count }).map(
+      (_, i) => `st-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`,
+    );
+    // Append new run outputs so older results remain visible.
+    setOutputs((prev) => [...prev, ...outputIds.map((id) => ({ id, status: 'loading' as const }))]);
     setIsGenerating(true);
 
     try {
@@ -156,12 +192,13 @@ export function StyleTransferScreen(props: {
         const stylePatch = await composeStylePatchwork(activeStyles.map((s) => s.dataUrl), { size: 1024, seed: seedBase });
 
         // Upload inputs to storage and pass URLs to Replicate (much more robust than base64).
-        const [refBlob, styleBlob] = await Promise.all([dataUrlToBlob(reference.dataUrl), dataUrlToBlob(stylePatch)]);
+        // Normalize reference pixels to avoid EXIF orientation issues (Replicate often ignores EXIF).
+        const refNormalized = await normalizeDataUrlPixels(reference.dataUrl, { maxDim: 1800, mime: 'image/jpeg', quality: 0.94 });
+        const [refBlob, styleBlob] = await Promise.all([dataUrlToBlob(refNormalized), dataUrlToBlob(stylePatch)]);
         const [refPath, stylePath] = await Promise.all([uploadImage(refBlob, 'generated'), uploadImage(styleBlob, 'generated')]);
         const structureUrl = getPublicUrl(refPath);
         const styleUrl = getPublicUrl(stylePath);
 
-        const seedNum = fofrSeed.trim() ? Number(fofrSeed.trim()) : undefined;
         const results = await runFofrStyleTransfer({
           token,
           styleImage: styleUrl,
@@ -174,14 +211,15 @@ export function StyleTransferScreen(props: {
           numberOfImages: count,
           structureDepthStrength: fofrStructureDepthStrength,
           structureDenoisingStrength: fofrStructureDenoisingStrength,
-          outputFormat: fofrOutputFormat,
-          outputQuality: fofrOutputQuality,
-          seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
+          outputFormat: 'webp',
+          outputQuality: 90,
         });
 
         for (let i = 0; i < results.length; i++) {
           const dataUrl = results[i];
-          setOutputs((prev) => prev.map((p, idx) => (idx === i ? { id: outputIds[i], status: 'success', url: dataUrl } : p)));
+          setOutputs((prev) =>
+            prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: dataUrl } : p)),
+          );
 
           const thumb = await createThumbnail(dataUrl, 420);
           try {
@@ -189,7 +227,9 @@ export function StyleTransferScreen(props: {
             const path = await uploadImage(blob, 'generated');
             const publicUrl = getPublicUrl(path);
 
-            setOutputs((prev) => prev.map((p, idx) => (idx === i ? { id: outputIds[i], status: 'success', url: publicUrl } : p)));
+            setOutputs((prev) =>
+              prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: publicUrl } : p)),
+            );
 
             await saveToGallery({
               url: publicUrl,
@@ -204,9 +244,9 @@ export function StyleTransferScreen(props: {
                 number_of_images: count,
                 structure_depth_strength: fofrStructureDepthStrength,
                 structure_denoising_strength: fofrStructureDenoisingStrength,
-                output_format: fofrOutputFormat,
-                output_quality: fofrOutputQuality,
-                seed: seedNum ?? null,
+                output_format: 'webp',
+                output_quality: 90,
+                seed: null,
                 prompt: null,
                 negative_prompt: null,
                 styleReferences: activeStyles.length,
@@ -247,7 +287,9 @@ export function StyleTransferScreen(props: {
           const dataUrl = contentDataUrl;
 
           // Show instantly (local data URL), then upload+persist in background.
-          setOutputs((prev) => prev.map((p, idx) => (idx === i ? { id: outputIds[i], status: 'success', url: dataUrl } : p)));
+          setOutputs((prev) =>
+            prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: dataUrl } : p)),
+          );
 
           const thumb = await createThumbnail(dataUrl, 420);
           try {
@@ -256,7 +298,7 @@ export function StyleTransferScreen(props: {
             const publicUrl = getPublicUrl(path);
 
             setOutputs((prev) =>
-              prev.map((p, idx) => (idx === i ? { id: outputIds[i], status: 'success', url: publicUrl } : p)),
+              prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: publicUrl } : p)),
             );
 
             await saveToGallery({
@@ -283,9 +325,7 @@ export function StyleTransferScreen(props: {
           }
         } catch (e: any) {
           setOutputs((prev) =>
-            prev.map((p, idx) =>
-              idx === i ? { id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' } : p,
-            ),
+            prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' } : p)),
           );
         }
       }
@@ -293,7 +333,10 @@ export function StyleTransferScreen(props: {
       onToast({ message: 'Hotovo.', type: 'success' });
     } catch (e: any) {
       const msg = e?.message || 'Chyba generování.';
-      setOutputs((prev) => prev.map((p) => (p.status === 'loading' ? { ...p, status: 'error', error: msg } : p)));
+      const newIds = new Set(outputIds);
+      setOutputs((prev) =>
+        prev.map((p) => (newIds.has(p.id) && p.status === 'loading' ? { ...p, status: 'error', error: msg } : p)),
+      );
       onToast({ message: msg, type: 'error' });
     } finally {
       if (mountedRef.current) setIsGenerating(false);
@@ -304,9 +347,6 @@ export function StyleTransferScreen(props: {
     fofrHeight,
     fofrModel,
     fofrNumImages,
-    fofrOutputFormat,
-    fofrOutputQuality,
-    fofrSeed,
     fofrStructureDenoisingStrength,
     fofrStructureDepthStrength,
     fofrUseStructure,
@@ -352,12 +392,6 @@ export function StyleTransferScreen(props: {
         setFofrStructureDepthStrength={setFofrStructureDepthStrength}
         fofrStructureDenoisingStrength={fofrStructureDenoisingStrength}
         setFofrStructureDenoisingStrength={setFofrStructureDenoisingStrength}
-        fofrOutputFormat={fofrOutputFormat}
-        setFofrOutputFormat={setFofrOutputFormat}
-        fofrOutputQuality={fofrOutputQuality}
-        setFofrOutputQuality={setFofrOutputQuality}
-        fofrSeed={fofrSeed}
-        setFofrSeed={setFofrSeed}
         isGenerating={isGenerating}
         canGenerate={canGenerate}
         highRes={highRes}
@@ -408,12 +442,6 @@ export function StyleTransferScreen(props: {
                 setFofrStructureDepthStrength={setFofrStructureDepthStrength}
                 fofrStructureDenoisingStrength={fofrStructureDenoisingStrength}
                 setFofrStructureDenoisingStrength={setFofrStructureDenoisingStrength}
-                fofrOutputFormat={fofrOutputFormat}
-                setFofrOutputFormat={setFofrOutputFormat}
-                fofrOutputQuality={fofrOutputQuality}
-                setFofrOutputQuality={setFofrOutputQuality}
-                fofrSeed={fofrSeed}
-                setFofrSeed={setFofrSeed}
                 isGenerating={isGenerating}
                 canGenerate={canGenerate}
                 highRes={highRes}

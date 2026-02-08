@@ -34,12 +34,6 @@ export function StyleTransferSidebar(props: {
   setFofrStructureDepthStrength: (v: number) => void;
   fofrStructureDenoisingStrength: number;
   setFofrStructureDenoisingStrength: (v: number) => void;
-  fofrOutputFormat: 'webp' | 'jpg' | 'png';
-  setFofrOutputFormat: (v: 'webp' | 'jpg' | 'png') => void;
-  fofrOutputQuality: number;
-  setFofrOutputQuality: (v: number) => void;
-  fofrSeed: string;
-  setFofrSeed: (v: string) => void;
   isGenerating: boolean;
   canGenerate: boolean;
   highRes: boolean;
@@ -82,12 +76,6 @@ export function StyleTransferSidebar(props: {
     setFofrStructureDepthStrength,
     fofrStructureDenoisingStrength,
     setFofrStructureDenoisingStrength,
-    fofrOutputFormat,
-    setFofrOutputFormat,
-    fofrOutputQuality,
-    setFofrOutputQuality,
-    fofrSeed,
-    setFofrSeed,
     isGenerating,
     canGenerate,
     highRes,
@@ -449,43 +437,6 @@ export function StyleTransferSidebar(props: {
                   value={fofrStructureDepthStrength}
                   onChange={(e) => setFofrStructureDepthStrength(Number(e.target.value))}
                   className="w-full h-1 accent-[#7ed957]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Format</div>
-                  <select
-                    value={fofrOutputFormat}
-                    onChange={(e) => setFofrOutputFormat(e.target.value as any)}
-                    className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)]"
-                  >
-                    <option value="webp">webp</option>
-                    <option value="jpg">jpg</option>
-                    <option value="png">png</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Quality</div>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={fofrOutputQuality}
-                    onChange={(e) => setFofrOutputQuality(Number(e.target.value))}
-                    className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)]"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Seed</div>
-                <input
-                  value={fofrSeed}
-                  onChange={(e) => setFofrSeed(e.target.value)}
-                  placeholder="random"
-                  className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)] placeholder-white/25"
                 />
               </div>
             </div>
