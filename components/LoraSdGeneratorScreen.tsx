@@ -12,12 +12,21 @@ type ImageSlot = {
 };
 
 const FAL_LIBRARY_CACHE_KEY = 'falModelLibrary_v1';
+const LOCAL_LIBRARY_CACHE_KEY = 'localModelLibrary_v1';
 
 type BackendMode = 'fal' | 'local';
 
 type FalLibrary = {
   models: string[];
   loras: string[];
+};
+
+type LocalLibraryCache = {
+  checkpoints: Array<{ name: string; path: string; bytes?: number }>;
+  loras: Array<{ name: string; path: string; bytes?: number }>;
+  selectedCheckpoint?: string;
+  selectedLora?: string;
+  localLoraScale?: number;
 };
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -77,8 +86,6 @@ export function LoraSdGeneratorScreen(props: {
   const [backend, setBackend] = React.useState<BackendMode>('local');
 
   const [input, setInput] = React.useState<ImageSlot | null>(null);
-  const [prompt, setPrompt] = React.useState('');
-  const [negativePrompt, setNegativePrompt] = React.useState('');
   const [cfg, setCfg] = React.useState(7);
   const [denoise, setDenoise] = React.useState(0.55);
   const [steps, setSteps] = React.useState(30);
@@ -156,6 +163,38 @@ export function LoraSdGeneratorScreen(props: {
     [onToast, selectedLocalCheckpoint],
   );
 
+  // Restore previously added local library entries (so you don't have to pick them every time).
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LOCAL_LIBRARY_CACHE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as LocalLibraryCache;
+      if (Array.isArray(parsed.checkpoints)) setLocalCheckpoints(parsed.checkpoints);
+      if (Array.isArray(parsed.loras)) setLocalLoras(parsed.loras);
+      if (typeof parsed.selectedCheckpoint === 'string') setSelectedLocalCheckpoint(parsed.selectedCheckpoint);
+      if (typeof parsed.selectedLora === 'string') setSelectedLocalLora(parsed.selectedLora);
+      if (typeof parsed.localLoraScale === 'number' && Number.isFinite(parsed.localLoraScale)) setLocalLoraScale(parsed.localLoraScale);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist local library and selections to localStorage.
+  React.useEffect(() => {
+    try {
+      const payload: LocalLibraryCache = {
+        checkpoints: localCheckpoints,
+        loras: localLoras,
+        selectedCheckpoint: selectedLocalCheckpoint || undefined,
+        selectedLora: selectedLocalLora || undefined,
+        localLoraScale,
+      };
+      localStorage.setItem(LOCAL_LIBRARY_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }, [localCheckpoints, localLoras, localLoraScale, selectedLocalCheckpoint, selectedLocalLora]);
+
   React.useEffect(() => {
     try {
       const cached = localStorage.getItem(FAL_LIBRARY_CACHE_KEY);
@@ -220,10 +259,6 @@ export function LoraSdGeneratorScreen(props: {
       onToast({ message: 'Nahraj vstupní fotku.', type: 'error' });
       return;
     }
-    if (!prompt.trim()) {
-      onToast({ message: 'Napiš prompt (co má být výsledkem).', type: 'error' });
-      return;
-    }
 
     setIsGenerating(true);
     setOutputs([]);
@@ -269,8 +304,8 @@ export function LoraSdGeneratorScreen(props: {
       res = await runFalLoraImg2Img({
         modelName,
         imageUrlOrDataUrl: publicUrl,
-        prompt: prompt.trim(),
-        negativePrompt: negativePrompt.trim(),
+        // Promptless mode: we keep the UI clean; fal.ai still expects a prompt field.
+        prompt: '',
         cfg,
         denoise,
         steps,
@@ -303,7 +338,7 @@ export function LoraSdGeneratorScreen(props: {
           await saveToGallery({
             url: out,
             thumbnail: thumb,
-            prompt: prompt.trim(),
+            prompt: 'img2img',
             resolution: undefined,
             aspectRatio: undefined,
             params: {
@@ -317,7 +352,7 @@ export function LoraSdGeneratorScreen(props: {
               steps,
               seed: typeof res.usedSeed === 'number' ? res.usedSeed : null,
               variants,
-              negativePrompt: negativePrompt.trim() || null,
+              promptMode: 'auto',
             },
           });
         } catch {
@@ -333,9 +368,7 @@ export function LoraSdGeneratorScreen(props: {
     cfg,
     denoise,
     input,
-    negativePrompt,
     onToast,
-    prompt,
     seed,
     steps,
     variants,
@@ -530,23 +563,9 @@ export function LoraSdGeneratorScreen(props: {
               )}
 
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-white/70 uppercase tracking-wider">Prompt</label>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  rows={4}
-                  placeholder="Co má vzniknout? (např. převést fotku do malby, zachovat kompozici...)"
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Negative prompt</label>
-                <input
-                  value={negativePrompt}
-                  onChange={(e) => setNegativePrompt(e.target.value)}
-                  placeholder="volitelné (např. text, watermark...)"
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-                />
+                <div className="text-xs text-white/45">
+                  Prompt je v režimu <span className="text-white/70 font-bold">Auto</span> (nevyplňuje se).
+                </div>
               </div>
             </div>
 
