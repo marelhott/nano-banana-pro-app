@@ -611,9 +611,20 @@ export function LoraSdGeneratorScreen(props: {
                             };
                             xhr.onload = () => {
                               if (xhr.status >= 200 && xhr.status < 300) resolve();
-                              else reject(new Error(`Upload selhal (HTTP ${xhr.status})`));
+                              else if (xhr.status === 0) {
+                                reject(
+                                  new Error(
+                                    'Upload selhal (network/CORS). V Cloudflare R2 bucketu nastav CORS: Allowed Origins = https://mulennano.netlify.app (pripadne i unikatni deploy URL), Allowed Methods = PUT,GET,HEAD, Allowed Headers = *, Expose Headers = ETag.'
+                                  )
+                                );
+                              } else reject(new Error(`Upload selhal (HTTP ${xhr.status})`));
                             };
-                            xhr.onerror = () => reject(new Error('Upload selhal (network error)'));
+                            xhr.onerror = () =>
+                              reject(
+                                new Error(
+                                  'Upload selhal (network/CORS). V Cloudflare R2 bucketu nastav CORS: Allowed Origins = https://mulennano.netlify.app (pripadne i unikatni deploy URL), Allowed Methods = PUT,GET,HEAD, Allowed Headers = *, Expose Headers = ETag.'
+                                )
+                              );
                             xhr.send(file);
                           });
 
