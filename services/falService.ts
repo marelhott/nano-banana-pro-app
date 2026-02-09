@@ -2,6 +2,27 @@ type FalLoraConfig = { path: string; scale?: number };
 
 type FalImage = { url: string; content_type?: string; width?: number; height?: number };
 
+// These types mirror fal's documented schema loosely; we pass through only what UI exposes.
+type FalEmbedding = { path: string; token?: string };
+type FalControlNet = {
+  path: string;
+  image_url: string;
+  conditioning_scale?: number;
+  start_step?: number;
+  end_step?: number;
+};
+type FalIPAdapter = {
+  ip_adapter_image_url: string | string[];
+  ip_adapter_mask_url?: string;
+  path: string;
+  model_subfolder?: string;
+  weight_name?: string;
+  insight_face_model_path?: string;
+  scale?: number;
+  scale_json?: any;
+  unconditional_noising_factor?: number;
+};
+
 type FalLoraImg2ImgResponse = {
   images?: FalImage[];
   seed?: number;
@@ -52,6 +73,16 @@ export async function runFalLoraImg2Img(params: {
   seed?: number;
   numImages: 1 | 2 | 3;
   loras?: FalLoraConfig[];
+  embeddings?: FalEmbedding[];
+  controlnets?: FalControlNet[];
+  controlnetGuessMode?: boolean;
+  ipAdapter?: FalIPAdapter[];
+  imageEncoderPath?: string;
+  imageEncoderSubfolder?: string;
+  imageEncoderWeightName?: string;
+  icLightModelUrl?: string;
+  icLightModelBackgroundImageUrl?: string;
+  icLightImageUrl?: string;
 }): Promise<{ images: string[]; usedSeed?: number }> {
   const input: Record<string, any> = {
     model_name: params.modelName,
@@ -75,6 +106,16 @@ export async function runFalLoraImg2Img(params: {
     input.lora_urls = loras.map((l) => l.url);
     if (loras.length === 1) input.lora_url = loras[0].url;
   }
+  if (Array.isArray(params.embeddings) && params.embeddings.length > 0) input.embeddings = params.embeddings;
+  if (Array.isArray(params.controlnets) && params.controlnets.length > 0) input.controlnets = params.controlnets;
+  if (typeof params.controlnetGuessMode === 'boolean') input.controlnet_guess_mode = params.controlnetGuessMode;
+  if (Array.isArray(params.ipAdapter) && params.ipAdapter.length > 0) input.ip_adapter = params.ipAdapter;
+  if (params.imageEncoderPath?.trim()) input.image_encoder_path = params.imageEncoderPath.trim();
+  if (params.imageEncoderSubfolder?.trim()) input.image_encoder_subfolder = params.imageEncoderSubfolder.trim();
+  if (params.imageEncoderWeightName?.trim()) input.image_encoder_weight_name = params.imageEncoderWeightName.trim();
+  if (params.icLightModelUrl?.trim()) input.ic_light_model_url = params.icLightModelUrl.trim();
+  if (params.icLightModelBackgroundImageUrl?.trim()) input.ic_light_model_background_image_url = params.icLightModelBackgroundImageUrl.trim();
+  if (params.icLightImageUrl?.trim()) input.ic_light_image_url = params.icLightImageUrl.trim();
 
   const falKey = getFalKeyFromStorage();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -225,6 +266,16 @@ export async function runFalLoraImg2ImgQueued(params: {
   seed?: number;
   numImages: 1 | 2 | 3;
   loras?: FalLoraConfig[];
+  embeddings?: FalEmbedding[];
+  controlnets?: FalControlNet[];
+  controlnetGuessMode?: boolean;
+  ipAdapter?: FalIPAdapter[];
+  imageEncoderPath?: string;
+  imageEncoderSubfolder?: string;
+  imageEncoderWeightName?: string;
+  icLightModelUrl?: string;
+  icLightModelBackgroundImageUrl?: string;
+  icLightImageUrl?: string;
   maxWaitMs?: number;
 }): Promise<{ images: string[]; usedSeed?: number }> {
   const input: Record<string, any> = {
@@ -247,6 +298,16 @@ export async function runFalLoraImg2ImgQueued(params: {
     input.lora_urls = loras.map((l) => l.url);
     if (loras.length === 1) input.lora_url = loras[0].url;
   }
+  if (Array.isArray(params.embeddings) && params.embeddings.length > 0) input.embeddings = params.embeddings;
+  if (Array.isArray(params.controlnets) && params.controlnets.length > 0) input.controlnets = params.controlnets;
+  if (typeof params.controlnetGuessMode === 'boolean') input.controlnet_guess_mode = params.controlnetGuessMode;
+  if (Array.isArray(params.ipAdapter) && params.ipAdapter.length > 0) input.ip_adapter = params.ipAdapter;
+  if (params.imageEncoderPath?.trim()) input.image_encoder_path = params.imageEncoderPath.trim();
+  if (params.imageEncoderSubfolder?.trim()) input.image_encoder_subfolder = params.imageEncoderSubfolder.trim();
+  if (params.imageEncoderWeightName?.trim()) input.image_encoder_weight_name = params.imageEncoderWeightName.trim();
+  if (params.icLightModelUrl?.trim()) input.ic_light_model_url = params.icLightModelUrl.trim();
+  if (params.icLightModelBackgroundImageUrl?.trim()) input.ic_light_model_background_image_url = params.icLightModelBackgroundImageUrl.trim();
+  if (params.icLightImageUrl?.trim()) input.ic_light_image_url = params.icLightImageUrl.trim();
 
   const falKey = getFalKeyFromStorage();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };

@@ -23,6 +23,29 @@ type LoraItem = {
   scale: number;
 };
 
+type EmbeddingItem = {
+  id: string;
+  path: string;
+  token: string;
+};
+
+type ControlNetItem = {
+  id: string;
+  path: string;
+  imageUrl: string;
+  conditioningScale: number;
+  startStep: number;
+  endStep: number;
+};
+
+type IPAdapterItem = {
+  id: string;
+  path: string;
+  imageUrl: string;
+  maskUrl: string;
+  scale: number;
+};
+
 type OutputBatch = {
   id: string;
   createdAtMs: number;
@@ -147,6 +170,19 @@ export function LoraSdGeneratorScreen(props: {
   const [uploadLoraProgress, setUploadLoraProgress] = React.useState<number>(0);
   const loraUploadInputId = React.useMemo(() => `r2-lora-upload-${Math.random().toString(36).slice(2)}`, []);
 
+  const [embeddings, setEmbeddings] = React.useState<EmbeddingItem[]>([]);
+  const [controlnets, setControlnets] = React.useState<ControlNetItem[]>([]);
+  const [controlnetGuessMode, setControlnetGuessMode] = React.useState(false);
+  const [ipAdapters, setIpAdapters] = React.useState<IPAdapterItem[]>([]);
+
+  const [imageEncoderPath, setImageEncoderPath] = React.useState('');
+  const [imageEncoderSubfolder, setImageEncoderSubfolder] = React.useState('');
+  const [imageEncoderWeightName, setImageEncoderWeightName] = React.useState('pytorch_model.bin');
+
+  const [icLightModelUrl, setIcLightModelUrl] = React.useState('');
+  const [icLightModelBackgroundImageUrl, setIcLightModelBackgroundImageUrl] = React.useState('');
+  const [icLightImageUrl, setIcLightImageUrl] = React.useState('');
+
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [batches, setBatches] = React.useState<OutputBatch[]>([]);
   const [previewImages, setPreviewImages] = React.useState<OutputItem[]>([]);
@@ -166,6 +202,43 @@ export function LoraSdGeneratorScreen(props: {
     },
     [setLoras]
   );
+
+  const addEmbedding = React.useCallback((path?: string) => {
+    const p = String(path || '').trim();
+    setEmbeddings((prev) => {
+      if (prev.length >= 6) return prev;
+      const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      return [...prev, { id, path: p, token: '' }];
+    });
+  }, []);
+
+  const addControlNet = React.useCallback((path?: string) => {
+    const p = String(path || '').trim();
+    setControlnets((prev) => {
+      if (prev.length >= 3) return prev;
+      const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      return [
+        ...prev,
+        {
+          id,
+          path: p,
+          imageUrl: '',
+          conditioningScale: 0.8,
+          startStep: 0,
+          endStep: 1,
+        },
+      ];
+    });
+  }, []);
+
+  const addIpAdapter = React.useCallback((path?: string) => {
+    const p = String(path || '').trim();
+    setIpAdapters((prev) => {
+      if (prev.length >= 2) return prev;
+      const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      return [...prev, { id, path: p, imageUrl: '', maskUrl: '', scale: 0.6 }];
+    });
+  }, []);
 
   const setInputFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
@@ -279,6 +352,33 @@ export function LoraSdGeneratorScreen(props: {
         steps,
         numImages: variants,
         loras: resolvedLorasPayload,
+        embeddings: embeddings
+          .map((e) => ({ path: e.path.trim(), token: e.token.trim() || undefined }))
+          .filter((e) => !!e.path),
+        controlnets: controlnets
+          .map((c) => ({
+            path: c.path.trim(),
+            image_url: (c.imageUrl.trim() || inputDataUrl).trim(),
+            conditioning_scale: c.conditioningScale,
+            start_step: c.startStep,
+            end_step: c.endStep,
+          }))
+          .filter((c) => !!c.path),
+        controlnetGuessMode,
+        ipAdapter: ipAdapters
+          .map((a) => ({
+            path: a.path.trim(),
+            ip_adapter_image_url: (a.imageUrl.trim() || inputDataUrl).trim(),
+            ip_adapter_mask_url: a.maskUrl.trim() || undefined,
+            scale: a.scale,
+          }))
+          .filter((a) => !!a.path),
+        imageEncoderPath: imageEncoderPath.trim() || undefined,
+        imageEncoderSubfolder: imageEncoderSubfolder.trim() || undefined,
+        imageEncoderWeightName: imageEncoderWeightName.trim() || undefined,
+        icLightModelUrl: icLightModelUrl.trim() || undefined,
+        icLightModelBackgroundImageUrl: icLightModelBackgroundImageUrl.trim() || undefined,
+        icLightImageUrl: icLightImageUrl.trim() || undefined,
         maxWaitMs: 12 * 60_000,
       });
 
@@ -322,6 +422,8 @@ export function LoraSdGeneratorScreen(props: {
               seed: typeof res.usedSeed === 'number' ? res.usedSeed : null,
               variants,
               promptMode: 'auto',
+              controlnets: controlnets.length ? controlnets.map((c) => ({ path: c.path, conditioningScale: c.conditioningScale })) : null,
+              ipAdapter: ipAdapters.length ? ipAdapters.map((a) => ({ path: a.path, scale: a.scale })) : null,
             },
           });
         } catch {
@@ -351,6 +453,16 @@ export function LoraSdGeneratorScreen(props: {
     variants,
     loras,
     lorasEnabled,
+    embeddings,
+    controlnets,
+    controlnetGuessMode,
+    ipAdapters,
+    imageEncoderPath,
+    imageEncoderSubfolder,
+    imageEncoderWeightName,
+    icLightModelUrl,
+    icLightModelBackgroundImageUrl,
+    icLightImageUrl,
     setPreviewImages,
   ]);
 
@@ -756,7 +868,7 @@ export function LoraSdGeneratorScreen(props: {
       <section className="flex-1 min-w-0 h-full overflow-y-auto custom-scrollbar text-[11px]">
         <div className="sticky top-0 z-10 backdrop-blur-md bg-black/25 border-b border-zinc-800/60">
           <div className="p-4 flex flex-wrap items-center gap-3">
-            <div className="text-[11px] font-[900] uppercase tracking-[0.25em] text-white/70 mr-2">Nastavení vah</div>
+            <div className="text-[11px] font-[900] uppercase tracking-[0.25em] text-white/70 mr-2">fal.ai ovladače</div>
 
             <div className="flex items-center gap-2">
               <div className="text-[11px] text-white/45">Denoise</div>
@@ -767,7 +879,7 @@ export function LoraSdGeneratorScreen(props: {
                 step="0.01"
                 value={denoise}
                 onChange={(e) => setDenoise(Number(e.target.value))}
-                className="w-[140px] range-green"
+                className="w-[160px] range-green"
               />
               <input
                 type="number"
@@ -806,6 +918,74 @@ export function LoraSdGeneratorScreen(props: {
               />
             </div>
 
+            {/* LoRA quick list */}
+            <div className="flex items-center gap-2">
+              <div className="text-[11px] text-white/45">LoRA</div>
+              <button
+                type="button"
+                onClick={() => addLora(MULENMARA_LORAS[0]?.url || '')}
+                className="px-2 py-1 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-[10px] font-bold uppercase tracking-wider"
+                title="Přidat Tuymans LoRA"
+              >
+                + Tuymans
+              </button>
+              <div className="text-[10px] text-white/35 tabular-nums">{loras.length}×</div>
+            </div>
+
+            {/* Embeddings */}
+            <div className="flex items-center gap-2">
+              <div className="text-[11px] text-white/45">Embeddings</div>
+              <button
+                type="button"
+                onClick={() => addEmbedding()}
+                className="px-2 py-1 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-[10px] font-bold uppercase tracking-wider"
+                title="Přidat embedding"
+              >
+                + Add
+              </button>
+              <div className="text-[10px] text-white/35 tabular-nums">{embeddings.length}×</div>
+            </div>
+
+            {/* ControlNets */}
+            <div className="flex items-center gap-2">
+              <div className="text-[11px] text-white/45">ControlNets</div>
+              <button
+                type="button"
+                onClick={() => addControlNet()}
+                className="px-2 py-1 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-[10px] font-bold uppercase tracking-wider"
+              >
+                + Add
+              </button>
+              <label className="flex items-center gap-2 text-[10px] text-white/45 select-none">
+                <input
+                  type="checkbox"
+                  checked={controlnetGuessMode}
+                  onChange={(e) => setControlnetGuessMode(e.target.checked)}
+                />
+                guess
+              </label>
+              <div className="text-[10px] text-white/35 tabular-nums">{controlnets.length}×</div>
+            </div>
+
+            {/* IP-Adapter */}
+            <div className="flex items-center gap-2">
+              <div className="text-[11px] text-white/45">IP-Adapter</div>
+              <button
+                type="button"
+                onClick={() => addIpAdapter()}
+                className="px-2 py-1 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-[10px] font-bold uppercase tracking-wider"
+              >
+                + Add
+              </button>
+              <div className="text-[10px] text-white/35 tabular-nums">{ipAdapters.length}×</div>
+            </div>
+
+            {/* IC-Light */}
+            <div className="flex items-center gap-2">
+              <div className="text-[11px] text-white/45">IC-Light</div>
+              <div className="text-[10px] text-white/35">{icLightModelUrl.trim() ? 'ON' : 'OFF'}</div>
+            </div>
+
             <button
               type="button"
               onClick={() => setLorasEnabled((v) => !v)}
@@ -819,8 +999,198 @@ export function LoraSdGeneratorScreen(props: {
               LoRA {lorasEnabled ? 'ON' : 'OFF'}
             </button>
 
-            {/* ControlNet will be reintroduced later as part of the "robust" generator. */}
           </div>
+
+          {/* Inline editors (kept compact; still always visible) */}
+          {(embeddings.length > 0 || controlnets.length > 0 || ipAdapters.length > 0 || icLightModelUrl || imageEncoderPath) && (
+            <div className="px-4 pb-4 grid grid-cols-1 gap-3">
+              {embeddings.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {embeddings.map((e) => (
+                    <div key={e.id} className="flex items-center gap-2 border border-zinc-800/60 rounded-xl px-3 py-2 bg-zinc-950/20">
+                      <input
+                        value={e.path}
+                        onChange={(ev) => setEmbeddings((prev) => prev.map((x) => (x.id === e.id ? { ...x, path: ev.target.value } : x)))}
+                        placeholder="embedding path/url"
+                        className="w-[260px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                      />
+                      <input
+                        value={e.token}
+                        onChange={(ev) => setEmbeddings((prev) => prev.map((x) => (x.id === e.id ? { ...x, token: ev.target.value } : x)))}
+                        placeholder="token (volit.)"
+                        className="w-[140px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEmbeddings((prev) => prev.filter((x) => x.id !== e.id))}
+                        className="px-2 py-1 rounded-lg bg-zinc-900/30 text-white/60 border border-zinc-700/60 hover:text-white/80 hover:border-zinc-500/60 text-[10px] font-bold uppercase tracking-wider"
+                      >
+                        X
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {controlnets.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {controlnets.map((c) => (
+                    <div key={c.id} className="border border-zinc-800/60 rounded-xl p-3 bg-zinc-950/20 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={c.path}
+                          onChange={(ev) => setControlnets((prev) => prev.map((x) => (x.id === c.id ? { ...x, path: ev.target.value } : x)))}
+                          placeholder="controlnet path/url"
+                          className="w-[320px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                        />
+                        <input
+                          value={c.imageUrl}
+                          onChange={(ev) => setControlnets((prev) => prev.map((x) => (x.id === c.id ? { ...x, imageUrl: ev.target.value } : x)))}
+                          placeholder="image_url (prázdné = vstup)"
+                          className="w-[320px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setControlnets((prev) => prev.filter((x) => x.id !== c.id))}
+                          className="px-2 py-1 rounded-lg bg-zinc-900/30 text-white/60 border border-zinc-700/60 hover:text-white/80 hover:border-zinc-500/60 text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          X
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-[10px] text-white/45 w-20">scale</div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="0.05"
+                          value={c.conditioningScale}
+                          onChange={(ev) => setControlnets((prev) => prev.map((x) => (x.id === c.id ? { ...x, conditioningScale: Number(ev.target.value) } : x)))}
+                          className="w-[180px] range-green"
+                        />
+                        <div className="text-[10px] text-white/55 w-12 tabular-nums">{c.conditioningScale.toFixed(2)}</div>
+                        <div className="text-[10px] text-white/45">start</div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="1"
+                          value={c.startStep}
+                          onChange={(ev) => setControlnets((prev) => prev.map((x) => (x.id === c.id ? { ...x, startStep: Number(ev.target.value) } : x)))}
+                          className="w-20 px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                        />
+                        <div className="text-[10px] text-white/45">end</div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="1"
+                          value={c.endStep}
+                          onChange={(ev) => setControlnets((prev) => prev.map((x) => (x.id === c.id ? { ...x, endStep: Number(ev.target.value) } : x)))}
+                          className="w-20 px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {ipAdapters.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {ipAdapters.map((a) => (
+                    <div key={a.id} className="border border-zinc-800/60 rounded-xl p-3 bg-zinc-950/20 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={a.path}
+                          onChange={(ev) => setIpAdapters((prev) => prev.map((x) => (x.id === a.id ? { ...x, path: ev.target.value } : x)))}
+                          placeholder="ip-adapter path/url"
+                          className="w-[320px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                        />
+                        <input
+                          value={a.imageUrl}
+                          onChange={(ev) => setIpAdapters((prev) => prev.map((x) => (x.id === a.id ? { ...x, imageUrl: ev.target.value } : x)))}
+                          placeholder="image_url (prázdné = vstup)"
+                          className="w-[260px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                        />
+                        <input
+                          value={a.maskUrl}
+                          onChange={(ev) => setIpAdapters((prev) => prev.map((x) => (x.id === a.id ? { ...x, maskUrl: ev.target.value } : x)))}
+                          placeholder="mask_url (volit.)"
+                          className="w-[220px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIpAdapters((prev) => prev.filter((x) => x.id !== a.id))}
+                          className="px-2 py-1 rounded-lg bg-zinc-900/30 text-white/60 border border-zinc-700/60 hover:text-white/80 hover:border-zinc-500/60 text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          X
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-[10px] text-white/45 w-20">scale</div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="0.05"
+                          value={a.scale}
+                          onChange={(ev) => setIpAdapters((prev) => prev.map((x) => (x.id === a.id ? { ...x, scale: Number(ev.target.value) } : x)))}
+                          className="w-[180px] range-green"
+                        />
+                        <div className="text-[10px] text-white/55 w-12 tabular-nums">{a.scale.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <div className="border border-zinc-800/60 rounded-xl p-3 bg-zinc-950/20 flex flex-wrap items-center gap-2">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Image Encoder</div>
+                  <input
+                    value={imageEncoderPath}
+                    onChange={(e) => setImageEncoderPath(e.target.value)}
+                    placeholder="image_encoder_path"
+                    className="w-[260px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                  />
+                  <input
+                    value={imageEncoderSubfolder}
+                    onChange={(e) => setImageEncoderSubfolder(e.target.value)}
+                    placeholder="subfolder"
+                    className="w-[140px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                  />
+                  <input
+                    value={imageEncoderWeightName}
+                    onChange={(e) => setImageEncoderWeightName(e.target.value)}
+                    placeholder="weight_name"
+                    className="w-[160px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                  />
+                </div>
+
+                <div className="border border-zinc-800/60 rounded-xl p-3 bg-zinc-950/20 flex flex-wrap items-center gap-2">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">IC-Light</div>
+                  <input
+                    value={icLightModelUrl}
+                    onChange={(e) => setIcLightModelUrl(e.target.value)}
+                    placeholder="ic_light_model_url"
+                    className="w-[260px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                  />
+                  <input
+                    value={icLightModelBackgroundImageUrl}
+                    onChange={(e) => setIcLightModelBackgroundImageUrl(e.target.value)}
+                    placeholder="background image url"
+                    className="w-[220px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                  />
+                  <input
+                    value={icLightImageUrl}
+                    onChange={(e) => setIcLightImageUrl(e.target.value)}
+                    placeholder="ic_light_image_url"
+                    className="w-[220px] px-2 py-1 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-6">
