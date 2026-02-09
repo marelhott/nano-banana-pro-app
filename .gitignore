@@ -39,3 +39,7 @@ dist-ssr
 .venv/
 .venv_*/
 .venv*
+
+# Python bytecode
+__pycache__/
+*.pyc
