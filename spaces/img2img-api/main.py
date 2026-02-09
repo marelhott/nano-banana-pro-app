@@ -87,12 +87,26 @@ def _get_pipe(model_name: str) -> StableDiffusionXLImg2ImgPipeline:
         torch.cuda.empty_cache()
 
     torch_dtype = torch.float16
-    pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(
-        model_name,
-        torch_dtype=torch_dtype,
-        variant="fp16",
-        use_safetensors=True,
-    )
+    # Prefer fp16 + safetensors, but fall back across common repo layouts.
+    last_err: Optional[Exception] = None
+    for variant, use_safetensors in (
+        ("fp16", True),
+        (None, True),
+        ("fp16", False),
+        (None, False),
+    ):
+        try:
+            kwargs = {"torch_dtype": torch_dtype, "use_safetensors": use_safetensors}
+            if variant:
+                kwargs["variant"] = variant
+            pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(model_name, **kwargs)
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            pipe = None  # type: ignore[assignment]
+    if last_err is not None:
+        raise last_err
 
     pipe.to("cuda")
     pipe.set_progress_bar_config(disable=True)
@@ -236,4 +250,3 @@ async def img2img(request: Request) -> JSONResponse:
 @app.exception_handler(HTTPException)
 async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
-
