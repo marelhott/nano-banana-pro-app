@@ -176,6 +176,7 @@ function extractFalImageUrls(payload: any): string[] {
     payload?.response?.images,
     payload?.data?.images,
     payload?.outputs,
+    payload?.output?.output, // sometimes nested
   ];
   for (const b of blocks) {
     if (!b) continue;
@@ -186,6 +187,21 @@ function extractFalImageUrls(payload: any): string[] {
       if (urls.length) return urls;
     }
   }
+
+  // Support single-image shapes.
+  const singleCandidates = [
+    payload?.image,
+    payload?.output?.image,
+    payload?.result?.image,
+    payload?.response?.image,
+    payload?.data?.image,
+  ];
+  for (const c of singleCandidates) {
+    if (!c) continue;
+    const u = typeof c === 'string' ? c : c?.url;
+    if (typeof u === 'string' && u.length > 0) return [u];
+  }
+
   return [];
 }
 
@@ -228,13 +244,21 @@ export async function runFalLoraImg2ImgQueued(params: {
 
     // fal queue payloads vary; support common shapes.
     const status = String(payload?.status || payload?.state || '').toLowerCase();
-    if (status === 'completed' || status === 'succeeded' || payload?.images) {
+    if (status === 'completed' || status === 'succeeded' || payload?.images || payload?.output?.images) {
       let finalPayload: any = payload;
       let urls = extractFalImageUrls(finalPayload);
       if (urls.length === 0 && resultUrl) {
-        // Some queue status endpoints return only status metadata; fetch final result payload explicitly.
-        finalPayload = await pollFalJob(headers, resultUrl);
-        urls = extractFalImageUrls(finalPayload);
+        // Some queue status endpoints return only status metadata. The result payload may appear shortly after COMPLETED.
+        let attempts = 0;
+        let wait = 650;
+        while (attempts < 10 && Date.now() < deadline) {
+          attempts += 1;
+          finalPayload = await pollFalJob(headers, resultUrl);
+          urls = extractFalImageUrls(finalPayload);
+          if (urls.length > 0) break;
+          await sleep(wait);
+          wait = Math.min(2500, Math.floor(wait * 1.25));
+        }
       }
       if (urls.length === 0) {
         const info = {
