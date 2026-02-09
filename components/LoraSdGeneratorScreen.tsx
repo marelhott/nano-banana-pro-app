@@ -1,4 +1,5 @@
 import React from 'react';
+import { Plus } from 'lucide-react';
 import { runFalLoraImg2Img } from '../services/falService';
 import { runHfGpuImg2Img } from '../services/hfGpuService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
@@ -199,6 +200,7 @@ export function LoraSdGeneratorScreen(props: {
   const [batches, setBatches] = React.useState<OutputBatch[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
+  const inputFileId = React.useMemo(() => `hf-sd-input-${Math.random().toString(36).slice(2)}`, []);
 
   // If the user selects one of your HF presets, fill the model/LoRA inputs.
   React.useEffect(() => {
@@ -404,8 +406,8 @@ export function LoraSdGeneratorScreen(props: {
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
-      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-zinc-800/60 text-[11px]">
-        <div className="p-4 space-y-4">
+      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
+        <div className="p-6 flex flex-col gap-6 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
             <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">LoRA / SD Generátor</h2>
@@ -421,93 +423,116 @@ export function LoraSdGeneratorScreen(props: {
           <button
             type="button"
             onClick={generate}
-            disabled={isGenerating}
-            className="w-full px-5 py-3 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] text-[11px] font-[900] uppercase tracking-[0.25em] disabled:opacity-60"
+            disabled={!input || isGenerating}
+            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
           >
             {isGenerating ? 'Generuji…' : 'Generovat'}
           </button>
 
           <div className="card-surface p-4 space-y-3">
-            <div className="text-[10px] uppercase tracking-widest text-white/80 font-bold">Počet obrázků</div>
-            <div className="flex gap-2">
-              {[1, 2, 3].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setVariants(n as 1 | 2 | 3)}
-                  className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
-                    variants === n
-                      ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                      : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Počet obrázků</div>
+            <div className="border-b border-white/10">
+              <div className="flex">
+                {[1, 2, 3].map((n) => {
+                  const active = variants === n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setVariants(n as 1 | 2 | 3)}
+                      className={`relative flex-1 py-3 text-center text-[12px] font-black transition-colors ${
+                        active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
+                      }`}
+                      aria-label={`Počet obrázků: ${n}`}
+                    >
+                      {n}
+                      <span
+                        className={`absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full transition-colors ${
+                          active ? 'bg-[#7ed957]' : 'bg-transparent'
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          <div className="card-surface p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-[10px] uppercase tracking-widest text-white/80 font-bold">Zdrojový obrázek</div>
-              {input && (
-                <button type="button" className="text-[10px] text-white/45 hover:text-white/70" onClick={() => setInput(null)}>
-                  odebrat
-                </button>
-              )}
-            </div>
+          <div className="card-surface p-3 space-y-3">
+            <div className="space-y-1">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Referenční obrázek</div>
+              <div
+                className="relative aspect-[5/4] rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden cursor-pointer"
+                onClick={() => document.getElementById(inputFileId)?.click()}
+              >
+                {input ? (
+                  <img src={input.dataUrl} alt="Vstup" className="w-full h-full object-cover opacity-90" draggable={false} />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Plus className="w-5 h-5 text-gray-600" />
+                  </div>
+                )}
 
-            {!input ? (
-              <label className="block border border-zinc-700/70 bg-zinc-900/30 rounded-xl p-4 cursor-pointer hover:border-zinc-500/60 transition-colors">
-                <div className="text-[11px] text-white/70">Klikni a nahraj fotku</div>
-                <div className="text-[10px] text-white/40 mt-1">PNG/JPG.</div>
+                {input && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInput(null);
+                    }}
+                    className="absolute top-2 right-2 px-2 py-1 bg-black/60 hover:bg-black/75 text-white/80 rounded-md text-[9px] font-bold uppercase tracking-wider"
+                  >
+                    Odebrat
+                  </button>
+                )}
+
                 <input
+                  id={inputFileId}
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
+                    const inputEl = e.currentTarget;
                     const f = e.target.files?.[0];
                     if (!f) return;
-                    void setInputFromFile(f);
+                    await setInputFromFile(f);
+                    inputEl.value = '';
                   }}
                 />
-              </label>
-            ) : (
-              <button
-                type="button"
-                className="w-full border border-zinc-700/70 bg-black/20 rounded-xl overflow-hidden"
-                onClick={() => setLightbox(input.dataUrl)}
-                title="Zvětšit"
-              >
-                <img src={input.dataUrl} alt="Input" className="w-full h-[180px] object-cover" />
-              </button>
-            )}
+              </div>
+            </div>
           </div>
 
           <div className="card-surface p-4 space-y-3">
-            <div className="text-[10px] uppercase tracking-widest text-white/80 font-bold">Pipeline</div>
-            <div className="flex gap-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Pipeline</div>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setBackend('hf')}
-                className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
+                className={`rounded-xl p-3 text-left transition-all border ${
                   backend === 'hf'
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
+                    ? 'border-[#7ed957]/35 bg-[#7ed957]/10 shadow-[0_0_0_1px_rgba(126,217,87,0.10)]'
+                    : 'border-white/10 bg-white/5 hover:bg-white/8'
                 }`}
               >
-                HF (default)
+                <div className={`text-[10px] font-bold uppercase tracking-wider ${backend === 'hf' ? 'text-[#7ed957]' : 'text-white/60'}`}>
+                  HF
+                </div>
+                <div className="text-[9px] text-white/40 mt-1">Default (tvůj Space)</div>
               </button>
               <button
                 type="button"
                 onClick={() => setBackend('fal')}
-                className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
+                className={`rounded-xl p-3 text-left transition-all border ${
                   backend === 'fal'
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
+                    ? 'border-[#7ed957]/35 bg-[#7ed957]/10 shadow-[0_0_0_1px_rgba(126,217,87,0.10)]'
+                    : 'border-white/10 bg-white/5 hover:bg-white/8'
                 }`}
               >
-                fal.ai
+                <div className={`text-[10px] font-bold uppercase tracking-wider ${backend === 'fal' ? 'text-[#7ed957]' : 'text-white/60'}`}>
+                  fal.ai
+                </div>
+                <div className="text-[9px] text-white/40 mt-1">Serverless fallback</div>
               </button>
             </div>
           </div>
