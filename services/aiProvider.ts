@@ -30,6 +30,9 @@ export interface ProviderSettings {
     [AIProviderType.GROK]?: ProviderConfig;
     [AIProviderType.CHATGPT]?: ProviderConfig;
     [AIProviderType.REPLICATE]?: ProviderConfig;
+    // fal.ai is used for SDXL base + LoRA (img2img). It's not part of the AIProviderType set
+    // because it isn't used through ProviderFactory; we still store the key alongside providerSettings.
+    fal?: ProviderConfig;
 }
 
 /**

@@ -12,8 +12,22 @@ function assertOk(res: Response, message: string) {
   if (!res.ok) throw new Error(`${message} (HTTP ${res.status})`);
 }
 
+function getFalKeyFromStorage(): string {
+  try {
+    const raw = localStorage.getItem('providerSettings');
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    const v = String(parsed?.fal?.apiKey || '').trim();
+    return v;
+  } catch {
+    return '';
+  }
+}
+
 async function fetchAsDataUrl(url: string): Promise<string> {
-  const res = await fetch(url);
+  // Some upstreams may return http URLs; enforce https to avoid Mixed Content blocks.
+  const safeUrl = url.startsWith('http://') ? `https://${url.slice('http://'.length)}` : url;
+  const res = await fetch(safeUrl);
   assertOk(res, 'Nepodařilo se stáhnout výstup z fal.ai');
   const blob = await res.blob();
   const base64 = await new Promise<string>((resolve, reject) => {
@@ -51,9 +65,15 @@ export async function runFalLoraImg2Img(params: {
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
   if (Array.isArray(params.loras) && params.loras.length > 0) input.loras = params.loras;
 
+  const falKey = getFalKeyFromStorage();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // If present, we send the key to our Netlify function. That function can also
+  // fall back to server-side FAL_KEY env (more secure), but the user asked for UI entry.
+  if (falKey) headers['x-fal-key'] = falKey;
+
   const res = await fetch('/api/fal/lora-img2img', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ input }),
   });
 
@@ -68,4 +88,3 @@ export async function runFalLoraImg2Img(params: {
 
   return { images: out, usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined };
 }
-

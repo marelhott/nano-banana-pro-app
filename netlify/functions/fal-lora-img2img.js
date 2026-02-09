@@ -26,11 +26,13 @@ exports.handler = async (event) => {
       return json(405, { error: 'Method not allowed' });
     }
 
-    const falKey = String(process.env.FAL_KEY || '').trim();
+    // Prefer key provided by the app (user entered in Settings). Fallback to server env.
+    const headerKey = String(event?.headers?.['x-fal-key'] || event?.headers?.['X-Fal-Key'] || '').trim();
+    const falKey = headerKey || String(process.env.FAL_KEY || '').trim();
     if (!falKey) {
       return json(500, {
-        error: 'FAL_KEY není nastavený (Netlify env).',
-        hint: 'Vytvoř fal.ai API key a nastav ho jako FAL_KEY.',
+        error: 'Chybí fal.ai API key.',
+        hint: 'Otevři Nastavení a vlož fal.ai API key, nebo nastav Netlify env FAL_KEY.',
       });
     }
 
@@ -67,4 +69,3 @@ exports.handler = async (event) => {
     return json(500, { error: 'fal proxy failed', detail: String(err?.message || err) });
   }
 };
-

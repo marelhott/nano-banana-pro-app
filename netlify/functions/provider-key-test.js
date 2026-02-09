@@ -41,6 +41,16 @@ async function testProviderKey(provider, apiKey) {
         method: "GET",
         headers: { Authorization: `Bearer ${apiKey}` },
       });
+    case "fal":
+      // fal doesn't have a simple unauthenticated "models list" endpoint.
+      // We call the generation endpoint with an intentionally invalid payload:
+      // - If the key is invalid, we expect 401/403
+      // - If the key is valid, we expect 400/422 quickly (payload validation)
+      return requestWithTimeout("https://fal.run/fal-ai/lora/image-to-image", {
+        method: "POST",
+        headers: { Authorization: `Key ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ input: {} }),
+      });
     default:
       return null;
   }
@@ -68,6 +78,14 @@ exports.handler = async (event) => {
   const response = await testProviderKey(provider, apiKey);
   if (!response) {
     return json(400, { success: false, error: "Unsupported provider" });
+  }
+
+  // Special-case fal: 400/422 is "ok" (it means auth passed but payload is invalid).
+  if (provider === "fal") {
+    if (response.status === 401 || response.status === 403) {
+      return json(response.status, { success: false, error: "Unauthorized" });
+    }
+    return json(200, { success: true });
   }
 
   if (!response.ok) {

@@ -73,7 +73,8 @@ const App: React.FC = () => {
     [AIProviderType.GEMINI]: { apiKey: '', enabled: true },
     [AIProviderType.CHATGPT]: { apiKey: '', enabled: false },
     [AIProviderType.GROK]: { apiKey: '', enabled: false },
-    [AIProviderType.REPLICATE]: { apiKey: '', enabled: false }
+    [AIProviderType.REPLICATE]: { apiKey: '', enabled: false },
+    fal: { apiKey: '', enabled: false }
   };
   const [providerSettings, setProviderSettings] = useState<ProviderSettings>(defaultProviderSettings);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);

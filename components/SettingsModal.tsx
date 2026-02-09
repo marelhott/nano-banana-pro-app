@@ -23,13 +23,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         [AIProviderType.CHATGPT]: false,
         [AIProviderType.REPLICATE]: false
     });
+    const [showFalKey, setShowFalKey] = useState(false);
     const [testing, setTesting] = useState<AIProviderType | null>(null);
+    const [testingFal, setTestingFal] = useState(false);
     const [testResults, setTestResults] = useState<Record<AIProviderType, 'success' | 'error' | null>>({
         [AIProviderType.GEMINI]: null,
         [AIProviderType.GROK]: null,
         [AIProviderType.CHATGPT]: null,
         [AIProviderType.REPLICATE]: null
     });
+    const [falTestResult, setFalTestResult] = useState<'success' | 'error' | null>(null);
 
     useEffect(() => {
         setLocalSettings(settings);
@@ -53,7 +56,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setShowKeys({ ...showKeys, [provider]: !showKeys[provider] });
     };
 
-    const runServerApiProbe = async (provider: AIProviderType, apiKey: string): Promise<void> => {
+    const runServerApiProbe = async (provider: AIProviderType | 'fal', apiKey: string): Promise<void> => {
         const response = await fetch('/api/provider-key-test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -99,6 +102,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             setTestResults({ ...testResults, [provider]: 'error' });
         } finally {
             setTesting(null);
+        }
+    };
+
+    const handleFalApiKeyChange = (apiKey: string) => {
+        setLocalSettings({
+            ...localSettings,
+            fal: { apiKey, enabled: apiKey.trim() !== '' }
+        });
+        setFalTestResult(null);
+    };
+
+    const testFalConnection = async () => {
+        const apiKey = String(localSettings?.fal?.apiKey || '').trim();
+        if (!apiKey) {
+            setFalTestResult('error');
+            return;
+        }
+
+        setTestingFal(true);
+        setFalTestResult(null);
+        try {
+            // Keep validation permissive.
+            if (apiKey.length < 8) {
+                setFalTestResult('error');
+                return;
+            }
+            await runServerApiProbe('fal', apiKey);
+            setFalTestResult('success');
+        } catch (error) {
+            console.error('Test failed for fal:', error);
+            setFalTestResult('error');
+        } finally {
+            setTestingFal(false);
         }
     };
 
@@ -227,6 +263,59 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                         );
                     })}
+
+                    <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 bg-[var(--bg-input)] rounded flex items-center justify-center">
+                                <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z" />
+                                </svg>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-sm text-[var(--text-primary)] uppercase tracking-wider">fal.ai (SDXL + LoRA)</h3>
+                                <p className="text-xs text-[var(--text-secondary)] mt-1">Klíč se ukládá jen lokálně v tomto prohlížeči. Do Supabase se neukládá.</p>
+                            </div>
+                            {falTestResult === 'success' && (
+                                <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 text-green-500 text-xs font-bold rounded">
+                                    ✓ Platný
+                                </div>
+                            )}
+                            {falTestResult === 'error' && (
+                                <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold rounded">
+                                    ✗ Neplatný
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">API Klíč</label>
+                                <div className="relative">
+                                    <input
+                                        type={showFalKey ? 'text' : 'password'}
+                                        value={localSettings?.fal?.apiKey || ''}
+                                        onChange={(e) => handleFalApiKeyChange(e.target.value)}
+                                        placeholder="Zadejte fal.ai API key..."
+                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 pr-24 transition-colors"
+                                    />
+                                    <button
+                                        onClick={() => setShowFalKey(v => !v)}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                                    >
+                                        {showFalKey ? 'Skrýt' : 'Zobrazit'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={testFalConnection}
+                                disabled={!String(localSettings?.fal?.apiKey || '').trim() || testingFal}
+                                className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
+                            >
+                                {testingFal ? 'Testuji...' : 'Otestovat připojení'}
+                            </button>
+                        </div>
+                    </div>
                     <div className="h-4" />
                 </div>
 
