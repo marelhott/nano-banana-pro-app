@@ -7,6 +7,7 @@ type FalLoraImg2ImgResponse = {
   seed?: number;
   request_id?: string;
   statusUrl?: string;
+  resultUrl?: string;
 };
 
 function assertOk(res: Response, message: string) {
@@ -109,7 +110,10 @@ export async function runFalLoraImg2Img(params: {
   return { images: out, usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined };
 }
 
-async function submitFalJob(headers: Record<string, string>, input: Record<string, any>): Promise<{ statusUrl: string }> {
+async function submitFalJob(
+  headers: Record<string, string>,
+  input: Record<string, any>
+): Promise<{ statusUrl: string; resultUrl?: string }> {
   const res = await fetch('/api/fal/lora-img2img', {
     method: 'POST',
     headers,
@@ -132,8 +136,9 @@ async function submitFalJob(headers: Record<string, string>, input: Record<strin
     throw new Error('fal.ai submit vrátil neplatnou odpověď (není to JSON).');
   }
   const statusUrl = String(payload?.statusUrl || payload?.status_url || '').trim();
+  const resultUrl = String(payload?.resultUrl || payload?.result_url || payload?.response_url || payload?.responseUrl || '').trim();
   if (!statusUrl) throw new Error('fal.ai submit: chybí statusUrl (nelze pollovat).');
-  return { statusUrl };
+  return { statusUrl, resultUrl: resultUrl || undefined };
 }
 
 async function pollFalJob(headers: Record<string, string>, statusUrl: string): Promise<FalLoraImg2ImgResponse> {
@@ -214,7 +219,7 @@ export async function runFalLoraImg2ImgQueued(params: {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (falKey) headers['x-fal-key'] = falKey;
 
-  const { statusUrl } = await submitFalJob(headers, input);
+  const { statusUrl, resultUrl } = await submitFalJob(headers, input);
 
   const deadline = Date.now() + Math.max(30_000, Math.min(15 * 60_000, params.maxWaitMs ?? 12 * 60_000));
   let delayMs = 800;
@@ -224,11 +229,30 @@ export async function runFalLoraImg2ImgQueued(params: {
     // fal queue payloads vary; support common shapes.
     const status = String(payload?.status || payload?.state || '').toLowerCase();
     if (status === 'completed' || status === 'succeeded' || payload?.images) {
-      const urls = extractFalImageUrls(payload);
-      if (urls.length === 0) throw new Error(`fal.ai: job dokončen, ale nevrátil obrázky. (${JSON.stringify({ status: payload?.status || payload?.state, request_id: payload?.request_id || payload?.requestId || payload?.id }).slice(0, 240)})`);
+      let finalPayload: any = payload;
+      let urls = extractFalImageUrls(finalPayload);
+      if (urls.length === 0 && resultUrl) {
+        // Some queue status endpoints return only status metadata; fetch final result payload explicitly.
+        finalPayload = await pollFalJob(headers, resultUrl);
+        urls = extractFalImageUrls(finalPayload);
+      }
+      if (urls.length === 0) {
+        const info = {
+          status: finalPayload?.status || finalPayload?.state || payload?.status || payload?.state,
+          request_id: finalPayload?.request_id || finalPayload?.requestId || payload?.request_id || payload?.requestId || payload?.id,
+          has_resultUrl: Boolean(resultUrl),
+          keys: Object.keys(finalPayload || {}).slice(0, 25),
+        };
+        throw new Error(`fal.ai: job dokončen, ale nevrátil obrázky. (${JSON.stringify(info).slice(0, 320)})`);
+      }
       const out: string[] = [];
       for (const u of urls) out.push(await fetchAsDataUrl(u));
-      const usedSeed = typeof payload.seed === 'number' ? payload.seed : (typeof payload?.output?.seed === 'number' ? payload.output.seed : undefined);
+      const usedSeed =
+        typeof finalPayload.seed === 'number'
+          ? finalPayload.seed
+          : typeof finalPayload?.output?.seed === 'number'
+            ? finalPayload.output.seed
+            : undefined;
       return { images: out, usedSeed };
     }
     if (status === 'failed' || status === 'error') {

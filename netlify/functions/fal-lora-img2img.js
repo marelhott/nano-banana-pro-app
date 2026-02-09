@@ -20,23 +20,36 @@ async function requestWithTimeout(url, init = {}, timeoutMs = 180_000) {
   }
 }
 
-function pickStatusUrl(payload) {
+function pickFirstHttpUrl(payload, candidates) {
   if (!payload || typeof payload !== 'object') return '';
-  const candidates = [
-    payload.status_url,
-    payload.statusUrl,
-    payload?.urls?.get,
-    payload?.urls?.status,
-    payload?.response_url,
-    payload?.responseUrl,
-    payload?.result_url,
-    payload?.resultUrl,
-  ];
   for (const c of candidates) {
     const v = String(c || '').trim();
     if (v.startsWith('http')) return v;
   }
   return '';
+}
+
+function pickPollingUrl(payload) {
+  // Prefer a URL that represents job status (not the final result payload).
+  return pickFirstHttpUrl(payload, [
+    payload.status_url,
+    payload.statusUrl,
+    payload?.urls?.status,
+    payload?.urls?.get, // some SDKs put the polling URL here
+  ]);
+}
+
+function pickResultUrl(payload) {
+  // Prefer a URL that returns the final output payload (images).
+  return pickFirstHttpUrl(payload, [
+    payload.response_url,
+    payload.responseUrl,
+    payload.result_url,
+    payload.resultUrl,
+    payload?.urls?.get,
+    payload?.urls?.result,
+    payload?.urls?.response,
+  ]);
 }
 
 function extractImageUrls(payload) {
@@ -117,7 +130,7 @@ exports.handler = async (event) => {
         const status = String(payload?.status || payload?.state || '').toLowerCase();
         const hasImages = extractImageUrls(payload).length > 0;
         if ((status === 'completed' || status === 'succeeded') && !hasImages) {
-          const resultUrl = pickStatusUrl(payload);
+          const resultUrl = pickResultUrl(payload);
           if (resultUrl && resultUrl !== statusUrl) {
             const r2 = await requestWithTimeout(resultUrl, {
               method: 'GET',
@@ -162,9 +175,10 @@ exports.handler = async (event) => {
       // Normalize submit response: ensure we return statusUrl for polling.
       try {
         const payload = JSON.parse(text);
-        const statusUrl = pickStatusUrl(payload);
+        const statusUrl = pickPollingUrl(payload);
+        const resultUrl = pickResultUrl(payload);
         if (statusUrl) {
-          return json(200, { ...payload, statusUrl });
+          return json(200, { ...payload, statusUrl, resultUrl: resultUrl || undefined });
         }
       } catch {
         // fall through with raw response
