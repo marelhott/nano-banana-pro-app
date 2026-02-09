@@ -40,9 +40,23 @@ exports.handler = async (event) => {
     }
 
     // Netlify maps /api/hf/files/<name> -> /.netlify/functions/hf-files/<name>
+    // but `event.path` can be either of those depending on routing.
     const rawPath = String(event.path || '');
-    const prefix = '/.netlify/functions/hf-files/';
-    const splat = rawPath.includes(prefix) ? rawPath.split(prefix).slice(1).join(prefix) : '';
+    const prefixes = ['/.netlify/functions/hf-files/', '/api/hf/files/'];
+    let splat = '';
+    for (const p of prefixes) {
+      if (rawPath.includes(p)) {
+        splat = rawPath.split(p).slice(1).join(p);
+        break;
+      }
+    }
+    if (!splat) {
+      // Fallback: take last path segment.
+      const parts = rawPath.split('/').filter(Boolean);
+      splat = parts[parts.length - 1] || '';
+    }
+    // Strip query/hash if present.
+    splat = String(splat).split('?')[0].split('#')[0];
     const fileName = decodeURIComponent(splat || '').trim();
 
     if (!fileName) return json(400, { error: 'Missing file name' });
@@ -72,4 +86,3 @@ exports.handler = async (event) => {
     return json(500, { error: 'HF files proxy failed', detail: String(err?.message || err) });
   }
 };
-

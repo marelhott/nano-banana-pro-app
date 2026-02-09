@@ -67,7 +67,16 @@ exports.handler = async (event) => {
         if (payload && Array.isArray(payload.images)) {
           payload.images = payload.images.map((img) => {
             const u = String(img?.url || '');
-            const name = u.split('/').pop() || '';
+            // If upstream already returns our proxy URL, keep it.
+            if (u.startsWith('/api/hf/files/')) return img;
+            let name = '';
+            try {
+              const uu = new URL(u);
+              name = (uu.pathname || '').split('/').pop() || '';
+            } catch {
+              name = u.split('/').pop() || '';
+            }
+            name = String(name).split('?')[0].split('#')[0];
             if (!name) return img;
             return { ...img, url: `/api/hf/files/${encodeURIComponent(name)}` };
           });

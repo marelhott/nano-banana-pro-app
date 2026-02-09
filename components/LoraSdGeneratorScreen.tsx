@@ -228,6 +228,29 @@ export function LoraSdGeneratorScreen(props: {
     setInput({ file, dataUrl });
   }, []);
 
+  const setInputFromUrlOrData = React.useCallback(
+    async (urlOrDataUrl: string) => {
+      const v = String(urlOrDataUrl || '').trim();
+      if (!v) return;
+      try {
+        const blob = await dataUrlToBlob(v);
+        const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+        const file = new File([blob], `input.${ext}`, { type: blob.type || 'image/jpeg' });
+        await setInputFromFile(file);
+      } catch {
+        const res = await fetch(v);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.startsWith('image/')) throw new Error('URL není obrázek');
+        const blob = await res.blob();
+        const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+        const file = new File([blob], `input.${ext}`, { type: blob.type || 'image/jpeg' });
+        await setInputFromFile(file);
+      }
+    },
+    [setInputFromFile]
+  );
+
   React.useEffect(() => {
     if (!isGenerating) return;
     // Smooth-ish fake progress up to ~92% while we wait for the backend.
@@ -457,6 +480,23 @@ export function LoraSdGeneratorScreen(props: {
               <div
                 className="relative aspect-[16/9] rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden cursor-pointer"
                 onClick={() => document.getElementById(inputFileId)?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  try {
+                    const f = e.dataTransfer?.files?.[0];
+                    if (f) {
+                      await setInputFromFile(f);
+                      return;
+                    }
+                    const url = e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '';
+                    if (url.trim()) await setInputFromUrlOrData(url.trim());
+                  } catch (err: any) {
+                    onToast({ message: String(err?.message || 'Nepodařilo se načíst dropnutý obrázek.'), type: 'error' });
+                  }
+                }}
               >
                 {input ? (
                   <img src={input.dataUrl} alt="Vstup" className="w-full h-full object-cover opacity-90" draggable={false} />
@@ -610,7 +650,7 @@ export function LoraSdGeneratorScreen(props: {
                   const newId = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                   setLoras([{ id: newId, path: p.url, scale: 0.85 }]);
                 }}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[9px] text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
               >
                 <option value="">(žádná)</option>
                 {MULENMARA_LORAS.map((p) => (
@@ -644,7 +684,7 @@ export function LoraSdGeneratorScreen(props: {
                         const v = Number(e.target.value);
                         setLoras((prev) => (prev[0] ? [{ ...prev[0], scale: v }, ...prev.slice(1)] : prev));
                       }}
-                      className="flex-1"
+                      className="flex-1 accent-[#7ed957] h-1 cursor-pointer"
                     />
                     <div className="text-[11px] text-white/60 w-10 text-right">{loras[0].scale.toFixed(2)}</div>
                   </div>
@@ -668,7 +708,7 @@ export function LoraSdGeneratorScreen(props: {
                               setLoras((prev) => prev.map((x) => (x.id === l.id ? { ...x, path: e.target.value } : x)))
                             }
                             placeholder="URL na .safetensors"
-                            className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                            className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[9px] text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
                           />
                           <button
                             type="button"
@@ -692,7 +732,7 @@ export function LoraSdGeneratorScreen(props: {
                                 prev.map((x) => (x.id === l.id ? { ...x, scale: Number(e.target.value) } : x))
                               )
                             }
-                            className="flex-1"
+                            className="flex-1 accent-[#7ed957] h-1 cursor-pointer"
                           />
                           <div className="text-[11px] text-white/60 w-10 text-right">{l.scale.toFixed(2)}</div>
                         </div>
@@ -705,7 +745,7 @@ export function LoraSdGeneratorScreen(props: {
                   <select
                     value={newLoraPresetId}
                     onChange={(e) => setNewLoraPresetId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[9px] text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
                   >
                     <option value="">Přidat z mých LoRA…</option>
                     {MULENMARA_LORAS.map((p) => (
@@ -733,7 +773,7 @@ export function LoraSdGeneratorScreen(props: {
                     value={newLoraUrl}
                     onChange={(e) => setNewLoraUrl(e.target.value)}
                     placeholder="nebo vlož URL LoRA…"
-                    className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                    className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[9px] text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
                   />
                   <button
                     type="button"
@@ -767,7 +807,7 @@ export function LoraSdGeneratorScreen(props: {
                 step="0.01"
                 value={denoise}
                 onChange={(e) => setDenoise(Number(e.target.value))}
-                className="w-[140px]"
+                className="w-[140px] accent-[#7ed957] h-1 cursor-pointer"
               />
               <input
                 type="number"
@@ -872,12 +912,13 @@ export function LoraSdGeneratorScreen(props: {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[0, 1, 2].map((idx) => {
               const img = latestImages[idx];
-              const showProgress = isGenerating && !img;
+              const showProgress = isGenerating && !img && idx < variants;
+              const slotEnabled = idx < variants;
               return (
                 <button
                   key={idx}
                   type="button"
-                  disabled={!img}
+                  disabled={!img || !slotEnabled}
                   className={`card-surface p-2 border border-zinc-800/60 rounded-2xl overflow-hidden ${
                     img ? 'hover:border-zinc-500/60' : 'opacity-60 cursor-default'
                   }`}
@@ -885,7 +926,7 @@ export function LoraSdGeneratorScreen(props: {
                     if (!img) return;
                     setLightbox(img.dataUrl);
                   }}
-                  title={img ? 'Zvětšit' : 'Zatím prázdné'}
+                  title={img ? 'Zvětšit' : slotEnabled ? 'Zatím prázdné' : 'Vypnuto'}
                 >
                   <div className="relative">
                     {img ? (
@@ -896,7 +937,7 @@ export function LoraSdGeneratorScreen(props: {
                       />
                     ) : (
                       <div className="w-full aspect-square flex items-center justify-center text-[11px] text-white/35 bg-black/20 rounded-xl">
-                        Varianta {idx + 1}
+                        {slotEnabled ? `Varianta ${idx + 1}` : 'Vypnuto'}
                       </div>
                     )}
 
