@@ -97,6 +97,41 @@ export async function runFluxKontextProMultiImage(params: {
   return await fetchAsDataUrl(url);
 }
 
+export async function runFlux2Pro(params: {
+  token: string;
+  prompt: string;
+  inputImages?: string[]; // optional reference images (0..N)
+  seed?: number;
+  aspect_ratio?: string;
+}): Promise<string> {
+  const inputImages = (params.inputImages || []).filter((x) => typeof x === 'string' && x.length > 0);
+  const prediction = await runReplicatePrediction({
+    token: params.token,
+    model: 'black-forest-labs/flux-2-pro',
+    input: {
+      prompt: params.prompt,
+      input_images: inputImages,
+      aspect_ratio: params.aspect_ratio || (inputImages.length ? 'match_input_image' : '1:1'),
+      output_format: 'png',
+      output_quality: 90,
+      safety_tolerance: 2,
+      prompt_upsampling: false,
+      seed: params.seed,
+    },
+  });
+
+  if (prediction.status !== 'succeeded') {
+    throw new Error(prediction.error || 'Replicate generování selhalo.');
+  }
+
+  const output = prediction.output as any;
+  const url = Array.isArray(output) ? output[0] : output;
+  if (typeof url !== 'string' || url.length === 0) {
+    throw new Error('Replicate nevrátil URL obrázku.');
+  }
+  return await fetchAsDataUrl(url);
+}
+
 export async function runFluxKontextProEdit(params: {
   token: string;
   inputImage: string;
@@ -276,7 +311,7 @@ export class ReplicateProvider implements AIProvider {
   }
 
   getName(): string {
-    return 'FLUX (Replicate)';
+    return 'FLUX 2 (Replicate)';
   }
 
   getType(): AIProviderType {
@@ -294,41 +329,18 @@ export class ReplicateProvider implements AIProvider {
     _aspectRatio?: string,
     _useGrounding?: boolean
   ): Promise<GenerateImageResult> {
-    if (!images[0]?.data) throw new Error('Chybí vstupní obrázek.');
-
-    if (images[1]?.data) {
-      return {
-        imageBase64: await runFluxKontextProMultiImage({
-          token: this.apiKey,
-          image1: images[0].data,
-          image2: images[1].data,
-          prompt,
-        }),
-      };
+    // FLUX 2 can run with 0..N reference images.
+    // If the user provided no prompt and no images, it's undefined behavior.
+    if (!prompt?.trim() && !images?.length) {
+      throw new Error('Chybí prompt nebo vstupní obrázek.');
     }
 
-    const prediction = await runReplicatePrediction({
-      token: this.apiKey,
-      model: 'black-forest-labs/flux-kontext-pro',
-      input: {
-        prompt,
-        input_image: images[0].data,
-        aspect_ratio: 'match_input_image',
-        output_format: 'png',
-        safety_tolerance: 2,
-      },
-    });
-
-    if (prediction.status !== 'succeeded') {
-      throw new Error(prediction.error || 'Replicate generování selhalo.');
-    }
-
-    const output = prediction.output as any;
-    const url = Array.isArray(output) ? output[0] : output;
-    if (typeof url !== 'string' || url.length === 0) {
-      throw new Error('Replicate nevrátil URL obrázku.');
-    }
-
-    return { imageBase64: await fetchAsDataUrl(url) };
+    return {
+      imageBase64: await runFlux2Pro({
+        token: this.apiKey,
+        prompt: prompt || '',
+        inputImages: images.filter((x) => !!x?.data).map((x) => x.data),
+      }),
+    };
   }
 }

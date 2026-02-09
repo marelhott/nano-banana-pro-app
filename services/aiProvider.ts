@@ -107,10 +107,10 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
     },
     [AIProviderType.REPLICATE]: {
         type: AIProviderType.REPLICATE,
-        name: 'FLUX (Replicate)',
+        name: 'FLUX 2 (Replicate)',
         icon: 'replicate',
         requiresApiKey: true,
         supportsGrounding: false,
-        maxImages: 2
+        maxImages: 8
     }
 };
