@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { runFalLoraImg2Img } from '../services/falService';
+import { presignR2, isR2Ref, r2KeyFromRef } from '../services/r2Service';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob } from '../utils/supabaseStorage';
 
@@ -141,6 +142,9 @@ export function LoraSdGeneratorScreen(props: {
   const [loras, setLoras] = React.useState<LoraItem[]>([]);
   const [newLoraPresetId, setNewLoraPresetId] = React.useState<string>('');
   const [newLoraUrl, setNewLoraUrl] = React.useState<string>('');
+  const [uploadingLora, setUploadingLora] = React.useState(false);
+  const [uploadLoraProgress, setUploadLoraProgress] = React.useState<number>(0);
+  const loraUploadInputId = React.useMemo(() => `r2-lora-upload-${Math.random().toString(36).slice(2)}`, []);
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [batches, setBatches] = React.useState<OutputBatch[]>([]);
@@ -239,6 +243,19 @@ export function LoraSdGeneratorScreen(props: {
           : [];
       setLastSubmitInfo({ modelName, loras: lorasPayload });
 
+      // Resolve any r2:// refs into short-lived signed GET URLs so fal.ai can fetch them.
+      const resolvedLorasPayload =
+        lorasPayload.length > 0
+          ? await Promise.all(
+              lorasPayload.map(async (l) => {
+                if (!isR2Ref(l.path)) return l;
+                const key = r2KeyFromRef(l.path);
+                const signed = await presignR2({ op: 'get', key, expires: 3600 });
+                return { ...l, path: signed.signedUrl };
+              })
+            )
+          : [];
+
       const loraLabels = lorasPayload
         .map((l) => MULENMARA_LORAS.find((p) => p.url === l.path)?.label || l.path)
         .filter(Boolean);
@@ -260,7 +277,7 @@ export function LoraSdGeneratorScreen(props: {
         denoise,
         steps,
         numImages: variants,
-        loras: lorasPayload,
+        loras: resolvedLorasPayload,
       });
 
       setLastSeed(typeof res.usedSeed === 'number' ? res.usedSeed : null);
@@ -550,6 +567,83 @@ export function LoraSdGeneratorScreen(props: {
                 Advanced (multi‑LoRA)
               </summary>
               <div className="mt-3 space-y-3">
+                <div className="border border-zinc-800/60 rounded-xl p-3 bg-zinc-950/20">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-widest text-white/70 font-bold">R2 upload (rychlé)</div>
+                      <div className="mt-1 text-[10px] text-white/40">
+                        Nahraj LoRA do Cloudflare R2 a použij ji jako <span className="text-white/60 font-mono">r2://soubor.safetensors</span>.
+                      </div>
+                    </div>
+                    <label
+                      htmlFor={loraUploadInputId}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${
+                        uploadingLora
+                          ? 'bg-zinc-900/30 text-zinc-400 border-zinc-700/70 cursor-not-allowed opacity-60'
+                          : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60 cursor-pointer'
+                      }`}
+                      title="Nahrát .safetensors do R2"
+                    >
+                      {uploadingLora ? 'Nahrávám…' : 'Nahrát LoRA'}
+                    </label>
+                    <input
+                      id={loraUploadInputId}
+                      type="file"
+                      accept=".safetensors"
+                      className="hidden"
+                      disabled={uploadingLora}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.currentTarget.value = '';
+                        if (!file) return;
+                        try {
+                          setUploadingLora(true);
+                          setUploadLoraProgress(0);
+                          const key = file.name.replace(/[^A-Za-z0-9._-]/g, '_');
+                          const { signedUrl } = await presignR2({ op: 'put', key, expires: 3600 });
+
+                          await new Promise<void>((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('PUT', signedUrl, true);
+                            xhr.upload.onprogress = (evt) => {
+                              if (!evt.lengthComputable) return;
+                              setUploadLoraProgress(Math.max(0, Math.min(1, evt.loaded / evt.total)));
+                            };
+                            xhr.onload = () => {
+                              if (xhr.status >= 200 && xhr.status < 300) resolve();
+                              else reject(new Error(`Upload selhal (HTTP ${xhr.status})`));
+                            };
+                            xhr.onerror = () => reject(new Error('Upload selhal (network error)'));
+                            xhr.send(file);
+                          });
+
+                          addLora(`r2://${key}`);
+                          onToast({ message: `LoRA nahraná do R2: ${key}`, type: 'success' });
+                        } catch (err: any) {
+                          onToast({ message: String(err?.message || 'Upload selhal.'), type: 'error' });
+                        } finally {
+                          setUploadingLora(false);
+                          setUploadLoraProgress(0);
+                        }
+                      }}
+                    />
+                  </div>
+                  {uploadingLora && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-[10px] text-white/60">
+                        <span>Nahrávání</span>
+                        <span className="tabular-nums">{Math.round(uploadLoraProgress * 100)}%</span>
+                      </div>
+                      <div className="mt-2 h-[8px] rounded-full bg-white/10 overflow-hidden border border-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-[#7ed957]/35 via-[#7ed957] to-[#7ed957]/35 transition-[width] duration-150 ease-out"
+                          style={{ width: `${Math.round(uploadLoraProgress * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {loras.length > 0 && (
                   <div className="space-y-3">
                     {loras.map((l) => (
@@ -606,13 +700,18 @@ export function LoraSdGeneratorScreen(props: {
                         {p.label}
                       </option>
                     ))}
+                    <option value="__r2_tuymans">LoRA: Tuymans (R2, po uploadu)</option>
                   </select>
                   <button
                     type="button"
                     disabled={!newLoraPresetId || loras.length >= 4}
                     onClick={() => {
-                      const p = MULENMARA_LORAS.find((x) => x.id === newLoraPresetId);
-                      if (p) addLora(p.url);
+                      if (newLoraPresetId === '__r2_tuymans') {
+                        addLora('r2://lora_tuymans_style.safetensors');
+                      } else {
+                        const p = MULENMARA_LORAS.find((x) => x.id === newLoraPresetId);
+                        if (p) addLora(p.url);
+                      }
                       setNewLoraPresetId('');
                     }}
                     className="px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
