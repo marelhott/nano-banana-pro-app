@@ -569,7 +569,7 @@ export function LoraSdGeneratorScreen(props: {
               <select
                 value={hfCheckpointPresetId}
                 onChange={(e) => setHfCheckpointPresetId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
               >
                 {MULENMARA_CHECKPOINTS.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -582,7 +582,7 @@ export function LoraSdGeneratorScreen(props: {
                 value={falModelName}
                 onChange={(e) => setFalModelName(e.target.value)}
                 placeholder="HF ID nebo URL na .safetensors"
-                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
               />
             )}
           </div>
