@@ -3,8 +3,8 @@ import './src/index.css'; // ENFORCE NEW STYLES
 import { Sun, Moon, Upload, X, FileJson, ArrowLeftRight, Folder, Sparkles } from 'lucide-react'; // Added icons for design
 import { ImageUpload } from './components/ImageUpload';
 import { LoadingSpinner } from './components/LoadingSpinner';
-import { analyzeImageForJsonWithAI, enhancePromptWithAI } from './services/geminiService';
-import { AppState, GeneratedImage, GenerationRecipe, SourceImage } from './types';
+import { analyzeImageForJsonWithAI, enhancePromptWithAI, analyzeStyleTransferWithAI } from './services/geminiService';
+import { AppState, GeneratedImage, GenerationRecipe, SourceImage, LineageEntry } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { Header } from './components/Header';
@@ -39,6 +39,11 @@ import { AppIconRail } from './components/AppIconRail';
 import { LoraSdGeneratorScreen } from './components/LoraSdGeneratorScreen';
 import { NodesScreen } from './components/NodesScreen';
 import { PinAuth } from './components/PinAuth';
+import { MaskCanvas } from './components/MaskCanvas';
+import { FreeComparisonModal } from './components/FreeComparisonModal';
+import { mapAspectRatio, type ProviderType } from './utils/aspectRatioMapping';
+import { buildStyleStrengthInstruction, buildStyleWeightsInstruction } from './utils/styleStrength';
+import { upscaleImage } from './utils/upscaling';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -90,6 +95,23 @@ const App: React.FC = () => {
   const [selectedGeneratedImages, setSelectedGeneratedImages] = useState<Set<string>>(new Set());
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [isHoveringGallery, setIsHoveringGallery] = useState(false);
+
+  // Nové umělecké funkce
+  const [styleStrength, setStyleStrength] = useState(50);
+  const [styleWeights, setStyleWeights] = useState<Record<string, number>>({});
+  const [isFreeComparisonOpen, setIsFreeComparisonOpen] = useState(false);
+  const [maskCanvasState, setMaskCanvasState] = useState<{
+    isOpen: boolean;
+    mode: 'inpaint' | 'outpaint';
+    imageId: string;
+    imageUrl: string;
+    width: number;
+    height: number;
+    outpaintDirection?: 'top' | 'bottom' | 'left' | 'right' | 'all';
+    outpaintPixels?: number;
+  } | null>(null);
+  const [upscalingImageId, setUpscalingImageId] = useState<string | null>(null);
+  const [styleAnalysisCache, setStyleAnalysisCache] = useState<{ description: string; strength: number } | null>(null);
 
   // Refs
   const galleryPanelRef = useRef<any>(null);
@@ -286,10 +308,12 @@ const App: React.FC = () => {
     generatedImages: [],
     prompt: '',
     aspectRatio: 'Original',
-    resolution: '1K', // Default to 1K
+    resolution: '1K',
     error: null,
-    numberOfImages: 1, // Default to 1 image only
+    numberOfImages: 1,
     multiRefMode: 'together',
+    styleStrength: 50,
+    styleWeights: {},
   });
 
   useEffect(() => {
@@ -927,6 +951,36 @@ const App: React.FC = () => {
     return () => window.removeEventListener('paste', handlePaste);
   }, [handleImagesSelected]);
 
+  // #1: Auto-analýza stylu, když jsou k dispozici referenční + stylový obrázek
+  useEffect(() => {
+    if (state.sourceImages.length === 0 || state.styleImages.length === 0) {
+      setStyleAnalysisCache(null);
+      return;
+    }
+    const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
+    if (!geminiKey) return;
+
+    let cancelled = false;
+    const analyze = async () => {
+      try {
+        const refUrl = state.sourceImages[0].url;
+        const styleUrl = state.styleImages[0].url;
+        const result = await analyzeStyleTransferWithAI(refUrl, styleUrl, geminiKey);
+        if (!cancelled) {
+          setStyleAnalysisCache({
+            description: result.styleDescription,
+            strength: result.recommendedStrength,
+          });
+          setStyleStrength(result.recommendedStrength);
+        }
+      } catch (error) {
+        console.warn('[Style Analysis] Auto-analysis failed:', error);
+      }
+    };
+    analyze();
+    return () => { cancelled = true; };
+  }, [state.sourceImages.length, state.styleImages.length]);
+
   const handleEnhancePrompt = async () => {
     if (!state.prompt.trim() || isEnhancingPrompt) return;
 
@@ -1408,9 +1462,37 @@ ${extra}
               if (referenceImageCount > 1 && state.multiRefMode !== 'batch') {
                 enhancedPrompt += `\n\n[KOMPOZICE & OBSAH: Vytvoř jednu výslednou scénu, která kombinuje obsah ze všech referenčních obrázků. Použij stylové obrázky také jako kompoziční šablonu (rozvržení, póza, framing) pro výslednou scénu. Zachovej maximálně obličejovou podobnost osob z referencí a zachovej jejich klíčové objekty/rekvizity (např. kytary).]`;
               }
+
+              // #1 + #6: Propojit analýzu stylu a sílu stylu do promptu
+              const styleStrengthVal = styleStrength ?? 50;
+              const cachedDesc = styleAnalysisCache?.description;
+              const strengthInstruction = buildStyleStrengthInstruction(styleStrengthVal, cachedDesc || undefined);
+              enhancedPrompt += `\n\n${strengthInstruction}`;
+
+              // #7: Patchwork váhový mix pro více stylových obrázků
+              if (styleImageCount > 1 && Object.keys(styleWeights).length > 0) {
+                const weightsInstruction = buildStyleWeightsInstruction(styleWeights, styleImageCount);
+                if (weightsInstruction) {
+                  enhancedPrompt += `\n\n${weightsInstruction}`;
+                }
+              }
             }
 
+            // #2: Aspect ratio normalizace pro provider
+            const providerTypeKey = selectedProvider as unknown as ProviderType;
+            const mappedRatio = mapAspectRatio(state.aspectRatio, providerTypeKey);
+            if (mappedRatio.warning) {
+              console.log(`[Aspect Ratio] ${mappedRatio.warning}`);
+              setToast({ message: mappedRatio.warning, type: 'info' });
+            }
 
+            // #13 + #14: Lineage tracking + kompletní recipe
+            const lineage: LineageEntry = {
+              sourceImageIds: state.sourceImages.map(img => img.id),
+              styleImageIds: state.styleImages.map(img => img.id),
+              sourceImageUrls: state.sourceImages.map(img => img.url),
+              styleImageUrls: state.styleImages.map(img => img.url),
+            };
 
             const recipe: GenerationRecipe = {
               provider: selectedProvider,
@@ -1427,10 +1509,21 @@ ${extra}
               sourceImageCount: state.sourceImages.length,
               styleImageCount: state.styleImages.length,
               createdAt: Date.now(),
+              styleStrength: state.styleImages.length > 0 ? styleStrength : undefined,
+              styleAnalysis: styleAnalysisCache ? {
+                recommendedStrength: styleAnalysisCache.strength,
+                styleDescription: styleAnalysisCache.description,
+                negativePrompt: '',
+              } : undefined,
+              lineage,
+              styleWeights: Object.keys(styleWeights).length > 0 ? styleWeights : undefined,
             };
 
             // Get selected AI provider
             const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
+
+            // #2: Použít mapovaný aspect ratio pro provider
+            const effectiveAspectRatio = mappedRatio.value;
 
             // Image generation
             let providerImages = allImages;
@@ -1453,7 +1546,7 @@ ${extra}
               providerImages,
               providerPrompt,
               state.resolution,
-              state.aspectRatio,
+              effectiveAspectRatio,
               useGrounding
             );
 
@@ -1462,7 +1555,7 @@ ${extra}
               ...prev,
               generatedImages: prev.generatedImages.map(img =>
                 img.id === imageData.id
-                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata, prompt: basePrompt, recipe }
+                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata, prompt: basePrompt, recipe, lineage }
                   : img
               ),
             }));
@@ -1654,21 +1747,19 @@ ${extra}
         ...prev,
         generatedImages: prev.generatedImages.map(img => {
           if (img.id === imageId) {
-            // Save current version to history
+            // #11: Save current version to history with full recipe
             const newVersions = [
               ...(img.versions || []),
-              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp }
+              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp, recipe: img.recipe }
             ];
 
-            // After new edit, set currentVersionIndex to the latest (newest) version
-            // This makes undo available but clears redo history
             return {
               ...img,
               url: result.imageBase64,
               prompt: editPrompt,
               timestamp: Date.now(),
               versions: newVersions,
-              currentVersionIndex: newVersions.length, // Point to the new current version (after all history)
+              currentVersionIndex: newVersions.length,
               isEditing: false,
               recipe,
             };
@@ -2015,6 +2106,225 @@ ${extra}
     });
   };
 
+  // #5: Upscaling
+  const handleUpscaleImage = async (imageId: string, factor: 2 | 4 = 2) => {
+    const image = state.generatedImages.find(img => img.id === imageId);
+    if (!image?.url) return;
+
+    const replicateKey = providerSettings[AIProviderType.REPLICATE]?.apiKey;
+    if (!replicateKey) {
+      setToast({ message: 'Pro upscaling je potřeba Replicate API klíč (nastavení)', type: 'error' });
+      return;
+    }
+
+    setUpscalingImageId(imageId);
+    setToast({ message: `Zvětšuji obrázek ${factor}×…`, type: 'info' });
+
+    try {
+      const result = await upscaleImage({
+        token: replicateKey,
+        imageDataUrl: image.url,
+        factor,
+      });
+
+      // Uložit starou verzi a nahradit zvětšeným
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img => {
+          if (img.id === imageId) {
+            const newVersions = [
+              ...(img.versions || []),
+              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp, recipe: img.recipe }
+            ];
+            return {
+              ...img,
+              url: result.imageDataUrl,
+              timestamp: Date.now(),
+              versions: newVersions,
+              currentVersionIndex: newVersions.length,
+              recipe: {
+                ...img.recipe!,
+                operation: 'upscale' as const,
+                upscaleFactor: factor,
+                createdAt: Date.now(),
+              },
+            };
+          }
+          return img;
+        }),
+      }));
+
+      // Uložit do galerie
+      try {
+        const thumbnail = await createThumbnail(result.imageDataUrl);
+        await saveToGallery({
+          url: result.imageDataUrl,
+          prompt: `[Upscaled ${factor}×] ${image.prompt}`,
+          resolution: `${result.newWidth}×${result.newHeight}`,
+          aspectRatio: image.aspectRatio,
+          thumbnail,
+          params: { ...image.recipe, operation: 'upscale', upscaleFactor: factor },
+        });
+      } catch (err) {
+        console.error('Failed to save upscaled image to gallery:', err);
+      }
+
+      setToast({ message: `Obrázek zvětšen ${factor}× (${result.newWidth}×${result.newHeight}px)`, type: 'success' });
+    } catch (err: any) {
+      console.error('[Upscale] Error:', err);
+      setToast({ message: `Upscaling selhal: ${err.message}`, type: 'error' });
+    } finally {
+      setUpscalingImageId(null);
+    }
+  };
+
+  // #3: Inpainting — otevřít mask canvas
+  const handleOpenInpaint = async (imageId: string) => {
+    const image = state.generatedImages.find(img => img.id === imageId);
+    if (!image?.url) return;
+
+    // Zjistit rozměry
+    const img = new Image();
+    img.src = image.url;
+    await new Promise<void>(resolve => { img.onload = () => resolve(); });
+
+    setMaskCanvasState({
+      isOpen: true,
+      mode: 'inpaint',
+      imageId,
+      imageUrl: image.url,
+      width: img.width,
+      height: img.height,
+    });
+  };
+
+  // #4: Outpainting — otevřít canvas s rozšířením
+  const handleOpenOutpaint = async (imageId: string, direction: 'all' | 'top' | 'bottom' | 'left' | 'right' = 'all', pixels = 256) => {
+    const image = state.generatedImages.find(img => img.id === imageId);
+    if (!image?.url) return;
+
+    const img = new Image();
+    img.src = image.url;
+    await new Promise<void>(resolve => { img.onload = () => resolve(); });
+
+    setMaskCanvasState({
+      isOpen: true,
+      mode: 'outpaint',
+      imageId,
+      imageUrl: image.url,
+      width: img.width,
+      height: img.height,
+      outpaintDirection: direction,
+      outpaintPixels: pixels,
+    });
+  };
+
+  // #3+4: Zpracovat masku a spustit generování
+  const handleMaskComplete = async (maskDataUrl: string) => {
+    if (!maskCanvasState) return;
+    const { imageId, mode, outpaintDirection, outpaintPixels } = maskCanvasState;
+    setMaskCanvasState(null);
+
+    const image = state.generatedImages.find(img => img.id === imageId);
+    if (!image?.url) return;
+
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img =>
+        img.id === imageId ? { ...img, isEditing: true } : img
+      ),
+    }));
+
+    setToast({ message: mode === 'inpaint' ? 'Zahajuji inpainting…' : 'Zahajuji outpainting…', type: 'info' });
+
+    try {
+      const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
+      const editPrompt = state.prompt.trim() || (mode === 'inpaint'
+        ? 'Domaluj zamaskované oblasti tak, aby přirozeně navazovaly na okolní kontext.'
+        : 'Rozšiř obrázek za jeho okraje. Domaluj chybějící oblasti tak, aby přirozeně navazovaly na existující scénu.');
+
+      const sourceImages = [
+        { data: image.url, mimeType: 'image/jpeg' },
+        { data: maskDataUrl, mimeType: 'image/png' },
+      ];
+
+      const maskPrompt = `${editPrompt}\n\n[MASKA: Druhý obrázek je maska. Bílé oblasti = regiony k ${mode === 'inpaint' ? 'přegenerování' : 'dogenerování'}. Černé oblasti = zachovat beze změn.]`;
+
+      const recipe: GenerationRecipe = {
+        provider: AIProviderType.GEMINI,
+        operation: mode,
+        prompt: editPrompt,
+        effectivePrompt: maskPrompt,
+        useGrounding: false,
+        promptMode,
+        resolution: image.resolution,
+        aspectRatio: image.aspectRatio,
+        sourceImageCount: 1,
+        styleImageCount: 0,
+        createdAt: Date.now(),
+        maskData: maskDataUrl,
+        outpaintDirection: mode === 'outpaint' ? outpaintDirection : undefined,
+        outpaintPixels: mode === 'outpaint' ? outpaintPixels : undefined,
+      };
+
+      const result = await provider.generateImage(
+        sourceImages,
+        maskPrompt,
+        image.resolution,
+        image.aspectRatio,
+        false
+      );
+
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img => {
+          if (img.id === imageId) {
+            const newVersions = [
+              ...(img.versions || []),
+              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp, recipe: img.recipe }
+            ];
+            return {
+              ...img,
+              url: result.imageBase64,
+              prompt: editPrompt,
+              timestamp: Date.now(),
+              versions: newVersions,
+              currentVersionIndex: newVersions.length,
+              isEditing: false,
+              recipe,
+            };
+          }
+          return img;
+        }),
+      }));
+
+      try {
+        const thumbnail = await createThumbnail(result.imageBase64);
+        await saveToGallery({
+          url: result.imageBase64,
+          prompt: editPrompt,
+          resolution: image.resolution,
+          aspectRatio: image.aspectRatio,
+          thumbnail,
+          params: recipe,
+        });
+      } catch (err) {
+        console.error(`Failed to save ${mode} result to gallery:`, err);
+      }
+
+      setToast({ message: mode === 'inpaint' ? 'Inpainting dokončen!' : 'Outpainting dokončen!', type: 'success' });
+    } catch (err: any) {
+      console.error(`[${mode}] Error:`, err);
+      setToast({ message: `${mode === 'inpaint' ? 'Inpainting' : 'Outpainting'} selhal: ${err.message}`, type: 'error' });
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img =>
+          img.id === imageId ? { ...img, isEditing: false } : img
+        ),
+      }));
+    }
+  };
+
   const handleImageContextMenu = (e: React.MouseEvent, imageId: string) => {
     e.preventDefault();
     setQuickActionsMenu({
@@ -2063,6 +2373,21 @@ ${extra}
         label: 'Generovat variace',
         icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
         onClick: () => handleGenerateVariations(image),
+      },
+      {
+        label: 'Inpainting (maska)',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>,
+        onClick: () => handleOpenInpaint(imageId),
+      },
+      {
+        label: 'Outpainting (rozšířit)',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>,
+        onClick: () => handleOpenOutpaint(imageId),
+      },
+      {
+        label: upscalingImageId === imageId ? 'Zvětšuji…' : 'Upscale 2×',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>,
+        onClick: () => handleUpscaleImage(imageId, 2),
       },
       {
         label: 'Smazat',
@@ -2630,7 +2955,68 @@ ${extra}
             </div>
           )}
         </div>
+
+        {/* #6: Slider síly stylu */}
+        {state.styleImages.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                Síla stylu
+              </label>
+              <span className="text-[10px] font-mono text-[var(--accent)]">{styleStrength}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={styleStrength}
+              onChange={(e) => setStyleStrength(Number(e.target.value))}
+              className="w-full h-1.5 bg-[var(--border-color)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]"
+            />
+            <div className="flex justify-between text-[8px] text-[var(--text-secondary)]">
+              <span>Jemný náznak</span>
+              <span>Kopírovat přesně</span>
+            </div>
+          </div>
+        )}
+
+        {/* #7: Váhy stylových obrázků */}
+        {state.styleImages.length > 1 && (
+          <div className="mt-2 space-y-1.5">
+            <label className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+              Mix stylů
+            </label>
+            {state.styleImages.map((img, idx) => (
+              <div key={img.id} className="flex items-center gap-2">
+                <img src={img.url} className="w-6 h-6 rounded object-cover border border-[var(--border-color)]" alt="" />
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={styleWeights[img.id] ?? Math.round(100 / state.styleImages.length)}
+                  onChange={(e) => setStyleWeights(prev => ({ ...prev, [img.id]: Number(e.target.value) }))}
+                  className="flex-1 h-1 bg-[var(--border-color)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]"
+                />
+                <span className="text-[9px] font-mono text-[var(--text-secondary)] w-8 text-right">
+                  {styleWeights[img.id] ?? Math.round(100 / state.styleImages.length)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* #12: Tlačítko pro volné porovnání */}
+      {state.generatedImages.filter(img => img.status === 'success').length >= 2 && (
+        <div className="pt-2">
+          <button
+            onClick={() => setIsFreeComparisonOpen(true)}
+            className="w-full py-2 px-3 text-[9px] font-bold uppercase tracking-wider bg-white/5 hover:bg-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-md transition-all border border-[var(--border-color)]"
+          >
+            Porovnat obrázky
+          </button>
+        </div>
+      )}
     </div >
   );
 
@@ -3370,6 +3756,9 @@ ${extra}
         onPrev={handlePrevImage}
         hasNext={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) < state.generatedImages.length - 1 : false}
         hasPrev={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) > 0 : false}
+        recipe={selectedImage?.recipe}
+        lineage={selectedImage?.lineage}
+        versions={selectedImage?.versions}
       />
 
       <GalleryModal
@@ -3408,6 +3797,27 @@ ${extra}
         position={quickActionsMenu.position}
         actions={quickActionsMenu.imageId ? getQuickActionsForImage(quickActionsMenu.imageId) : []}
       />
+
+      {/* #12: Free Comparison Modal */}
+      <FreeComparisonModal
+        isOpen={isFreeComparisonOpen}
+        onClose={() => setIsFreeComparisonOpen(false)}
+        images={state.generatedImages}
+      />
+
+      {/* #3+4: Mask Canvas (Inpainting/Outpainting) */}
+      {maskCanvasState && maskCanvasState.isOpen && (
+        <MaskCanvas
+          imageUrl={maskCanvasState.imageUrl}
+          width={maskCanvasState.width}
+          height={maskCanvasState.height}
+          mode={maskCanvasState.mode}
+          outpaintDirection={maskCanvasState.outpaintDirection}
+          outpaintPixels={maskCanvasState.outpaintPixels}
+          onMaskComplete={handleMaskComplete}
+          onCancel={() => setMaskCanvasState(null)}
+        />
+      )}
 
       {/* Toast Notification */}
       {

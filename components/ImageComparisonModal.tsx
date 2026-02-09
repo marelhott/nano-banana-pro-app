@@ -17,12 +17,16 @@ interface ImageComparisonModalProps {
   onPrev?: () => void;
   hasNext?: boolean;
   hasPrev?: boolean;
+  recipe?: any;
+  lineage?: { sourceImageIds: string[]; styleImageIds: string[]; sourceImageUrls: string[]; styleImageUrls: string[] };
+  versions?: Array<{ url: string; prompt: string; timestamp: number; recipe?: any }>;
 }
 
 export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
   isOpen, onClose, originalImage, generatedImage, prompt, timestamp,
   resolution, aspectRatio, styleCode, groundingMetadata,
-  onNext, onPrev, hasNext, hasPrev
+  onNext, onPrev, hasNext, hasPrev,
+  recipe, lineage, versions,
 }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
@@ -273,6 +277,69 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#7ed957]/10 text-[#7ed957] border border-[#7ed957]/20">
                   Enabled
                 </span>
+              </div>
+            )}
+
+            {/* #14: Full recipe details */}
+            {recipe && (
+              <div className="space-y-2 pt-2 border-t border-gray-800">
+                <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Recipe</h4>
+                <div className="grid grid-cols-2 gap-2 text-[9px]">
+                  <div><span className="text-gray-500">Provider:</span> <span className="text-gray-300">{recipe.provider}</span></div>
+                  <div><span className="text-gray-500">Operace:</span> <span className="text-gray-300">{recipe.operation}</span></div>
+                  <div><span className="text-gray-500">Režim:</span> <span className="text-gray-300">{recipe.promptMode}</span></div>
+                  {recipe.styleStrength != null && (
+                    <div><span className="text-gray-500">Styl:</span> <span className="text-gray-300">{recipe.styleStrength}%</span></div>
+                  )}
+                  {recipe.upscaleFactor && (
+                    <div><span className="text-gray-500">Upscale:</span> <span className="text-gray-300">{recipe.upscaleFactor}×</span></div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* #13: Lineage (rodokmen) */}
+            {lineage && (lineage.sourceImageUrls.length > 0 || lineage.styleImageUrls.length > 0) && (
+              <div className="space-y-2 pt-2 border-t border-gray-800">
+                <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Rodokmen</h4>
+                {lineage.sourceImageUrls.length > 0 && (
+                  <div>
+                    <div className="text-[8px] text-gray-500 uppercase mb-1">Reference ({lineage.sourceImageUrls.length})</div>
+                    <div className="flex gap-1 flex-wrap">
+                      {lineage.sourceImageUrls.map((url, i) => (
+                        <img key={i} src={url} className="w-8 h-8 rounded object-cover border border-gray-700" alt={`Ref ${i + 1}`} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {lineage.styleImageUrls.length > 0 && (
+                  <div>
+                    <div className="text-[8px] text-gray-500 uppercase mb-1">Styl ({lineage.styleImageUrls.length})</div>
+                    <div className="flex gap-1 flex-wrap">
+                      {lineage.styleImageUrls.map((url, i) => (
+                        <img key={i} src={url} className="w-8 h-8 rounded object-cover border border-gray-700" alt={`Style ${i + 1}`} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* #11: Version history */}
+            {versions && versions.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-gray-800">
+                <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Verze ({versions.length})</h4>
+                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                  {versions.map((v, i) => (
+                    <div key={i} className="flex items-center gap-2 p-1 rounded bg-gray-800/50 text-[8px]">
+                      <img src={v.url} className="w-6 h-6 rounded object-cover" alt={`V${i + 1}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-gray-400 truncate">{v.prompt}</div>
+                        <div className="text-gray-600">{new Date(v.timestamp).toLocaleString('cs')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

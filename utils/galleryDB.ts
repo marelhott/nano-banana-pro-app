@@ -5,13 +5,16 @@ import { uploadImage, getPublicUrl, deleteImage as deleteStorageImage, dataUrlTo
 
 export interface GalleryImage {
   id: string;
-  url: string; // Public URL z Supabase Storage
+  url: string;
   prompt: string;
   timestamp: number;
   resolution?: string;
   aspectRatio?: string;
-  thumbnail?: string; // URL thumbnailů z Storage
+  thumbnail?: string;
   params?: any;
+  // #11 + #13 + #14: Rozšířená metadata
+  versions?: Array<{ url: string; prompt: string; timestamp: number; recipe?: any }>;
+  lineage?: { sourceImageIds: string[]; styleImageIds: string[]; sourceImageUrls: string[]; styleImageUrls: string[] };
 }
 
 type SaveToGalleryInput = Omit<GalleryImage, 'id' | 'timestamp'> & {

@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { parsePromptToCategories, categoriesToPrompt, semanticRemix, CATEGORY_LABELS, type PromptCategories } from '../utils/semanticPromptRemix';
 
 interface PromptPart {
   id: string;
   text: string;
-  source: string; // Původní prompt
+  source: string;
 }
 
 interface PromptRemixModalProps {
   isOpen: boolean;
   onClose: () => void;
-  recentPrompts: string[]; // Historie promptů
+  recentPrompts: string[];
   onUseRemix: (remixedPrompt: string) => void;
 }
 
@@ -20,6 +21,16 @@ export const PromptRemixModal: React.FC<PromptRemixModalProps> = ({
   onUseRemix,
 }) => {
   const [selectedParts, setSelectedParts] = useState<PromptPart[]>([]);
+  const [remixMode, setRemixMode] = useState<'manual' | 'semantic'>('manual');
+  const [semanticPromptA, setSemanticPromptA] = useState(0);
+  const [semanticPromptB, setSemanticPromptB] = useState(1);
+  const [semanticMix, setSemanticMix] = useState<Partial<Record<keyof PromptCategories, 'A' | 'B'>>>({});
+
+  const promptA = recentPrompts[semanticPromptA] || '';
+  const promptB = recentPrompts[semanticPromptB] || '';
+  const catA = useMemo(() => parsePromptToCategories(promptA), [promptA]);
+  const catB = useMemo(() => parsePromptToCategories(promptB), [promptB]);
+  const semanticResult = useMemo(() => semanticRemix(promptA, promptB, semanticMix), [promptA, promptB, semanticMix]);
 
   // Rozdělit prompty na části (podle čárek a teček)
   const extractParts = (prompt: string): string[] => {
@@ -91,8 +102,99 @@ export const PromptRemixModal: React.FC<PromptRemixModalProps> = ({
           </button>
         </div>
 
+        {/* Mode tabs */}
+        <div className="flex border-b border-monstera-200 bg-monstera-50/50">
+          <button
+            onClick={() => setRemixMode('manual')}
+            className={`flex-1 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${remixMode === 'manual' ? 'bg-white text-ink border-b-2 border-ink' : 'text-monstera-500 hover:text-ink'}`}
+          >
+            Manuální remix
+          </button>
+          <button
+            onClick={() => setRemixMode('semantic')}
+            className={`flex-1 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${remixMode === 'semantic' ? 'bg-white text-ink border-b-2 border-ink' : 'text-monstera-500 hover:text-ink'}`}
+          >
+            Sémantický remix
+          </button>
+        </div>
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {remixMode === 'semantic' ? (
+            /* #9: Sémantický remix */
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Prompt A selector */}
+                <div>
+                  <label className="text-[9px] font-black text-monstera-600 uppercase tracking-widest mb-1 block">Prompt A</label>
+                  <select
+                    value={semanticPromptA}
+                    onChange={(e) => setSemanticPromptA(Number(e.target.value))}
+                    className="w-full px-2 py-1.5 text-[10px] border border-monstera-200 rounded-md bg-white"
+                  >
+                    {recentPrompts.map((p, i) => (
+                      <option key={i} value={i}>#{i + 1}: {p.slice(0, 60)}…</option>
+                    ))}
+                  </select>
+                </div>
+                {/* Prompt B selector */}
+                <div>
+                  <label className="text-[9px] font-black text-monstera-600 uppercase tracking-widest mb-1 block">Prompt B</label>
+                  <select
+                    value={semanticPromptB}
+                    onChange={(e) => setSemanticPromptB(Number(e.target.value))}
+                    className="w-full px-2 py-1.5 text-[10px] border border-monstera-200 rounded-md bg-white"
+                  >
+                    {recentPrompts.map((p, i) => (
+                      <option key={i} value={i}>#{i + 1}: {p.slice(0, 60)}…</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Category mix controls */}
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-monstera-600 uppercase tracking-widest">
+                  Zdroj pro každou kategorii
+                </label>
+                {(Object.keys(CATEGORY_LABELS) as (keyof PromptCategories)[]).map(cat => {
+                  const valA = catA[cat];
+                  const valB = catB[cat];
+                  if (!valA && !valB) return null;
+                  return (
+                    <div key={cat} className="flex items-center gap-2 p-2 bg-monstera-50 rounded-md border border-monstera-200">
+                      <span className="text-[9px] font-bold uppercase text-monstera-600 w-20">{CATEGORY_LABELS[cat]}</span>
+                      <button
+                        onClick={() => setSemanticMix(prev => ({ ...prev, [cat]: 'A' }))}
+                        className={`flex-1 px-2 py-1 text-[9px] rounded border transition-all ${semanticMix[cat] !== 'B' ? 'bg-monstera-400 text-ink border-ink font-bold' : 'bg-white text-monstera-500 border-monstera-200 hover:bg-monstera-100'}`}
+                      >
+                        A: {valA || '—'}
+                      </button>
+                      <button
+                        onClick={() => setSemanticMix(prev => ({ ...prev, [cat]: 'B' }))}
+                        className={`flex-1 px-2 py-1 text-[9px] rounded border transition-all ${semanticMix[cat] === 'B' ? 'bg-blue-200 text-ink border-ink font-bold' : 'bg-white text-monstera-500 border-monstera-200 hover:bg-monstera-100'}`}
+                      >
+                        B: {valB || '—'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Preview + use */}
+              <div className="bg-white border-2 border-monstera-300 rounded-md p-3">
+                <div className="text-[9px] font-black text-monstera-600 uppercase tracking-widest mb-2">Náhled</div>
+                <div className="text-sm text-ink leading-relaxed">{semanticResult || '(prázdný)'}</div>
+              </div>
+              <button
+                onClick={() => { onUseRemix(semanticResult); onClose(); }}
+                disabled={!semanticResult.trim()}
+                className="w-full px-4 py-3 bg-gradient-to-br from-monstera-300 to-monstera-400 hover:from-monstera-400 hover:to-monstera-500 text-ink font-black text-[11px] uppercase tracking-widest rounded-md border-2 border-ink shadow-md transition-all disabled:opacity-50"
+              >
+                Použít sémantický remix
+              </button>
+            </div>
+          ) : (
           <div className="grid grid-cols-2 h-full">
             {/* Left: Source Prompts */}
             <div className="border-r border-monstera-200 p-4 overflow-y-auto custom-scrollbar">
@@ -231,6 +333,7 @@ export const PromptRemixModal: React.FC<PromptRemixModalProps> = ({
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

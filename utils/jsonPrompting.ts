@@ -64,6 +64,48 @@ export async function enrichPromptWithJSON(
     }
 }
 
+/**
+ * Default sekce JSON promptu.
+ */
+export const DEFAULT_JSON_SECTIONS = ['subject', 'environment', 'lighting', 'camera', 'aesthetic', 'technical'];
+
+/**
+ * Přidá vlastní sekci do JSON promptu.
+ */
+export function addCustomSection(jsonString: string, sectionName: string, fields: Record<string, string>): string {
+  try {
+    const json = JSON.parse(jsonString);
+    json[sectionName] = fields;
+    return JSON.stringify(json, null, 2);
+  } catch {
+    return jsonString;
+  }
+}
+
+/**
+ * Odstraní sekci z JSON promptu.
+ */
+export function removeSection(jsonString: string, sectionName: string): string {
+  try {
+    const json = JSON.parse(jsonString);
+    delete json[sectionName];
+    return JSON.stringify(json, null, 2);
+  } catch {
+    return jsonString;
+  }
+}
+
+/**
+ * Vrátí seznam všech sekcí v JSON promptu (výchozí + vlastní).
+ */
+export function getSections(jsonString: string): string[] {
+  try {
+    return Object.keys(JSON.parse(jsonString));
+  } catch {
+    return DEFAULT_JSON_SECTIONS;
+  }
+}
+
 export function formatJsonPromptForImage(jsonString: string): string {
     try {
         const json = JSON.parse(jsonString);
@@ -142,6 +184,27 @@ export function formatJsonPromptForImage(jsonString: string): string {
             }
             if (json.technical.resolution_hint) {
                 parts.push(json.technical.resolution_hint);
+            }
+        }
+
+        // Custom sections — any key not in the default set
+        const knownSections = new Set(['subject', 'environment', 'lighting', 'camera', 'aesthetic', 'technical']);
+        for (const [key, value] of Object.entries(json)) {
+            if (knownSections.has(key)) continue;
+            if (typeof value === 'object' && value !== null) {
+                const customParts: string[] = [];
+                for (const [field, fieldValue] of Object.entries(value as Record<string, unknown>)) {
+                    if (typeof fieldValue === 'string' && fieldValue.trim()) {
+                        customParts.push(`${field}: ${fieldValue}`);
+                    } else if (Array.isArray(fieldValue)) {
+                        customParts.push(fieldValue.filter(v => typeof v === 'string').join(', '));
+                    }
+                }
+                if (customParts.length > 0) {
+                    parts.push(`[${key}] ${customParts.join(', ')}`);
+                }
+            } else if (typeof value === 'string' && (value as string).trim()) {
+                parts.push(`${key}: ${value}`);
             }
         }
 

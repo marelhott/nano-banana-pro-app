@@ -120,28 +120,102 @@ export class PromptTemplates {
   }
 
   /**
-   * Extrahovat proměnné ze šablony
+   * Extrahovat proměnné ze šablony (včetně variantních skupin a podmíněných proměnných)
    */
   static extractVariables(template: string): string[] {
-    const regex = /\[([A-Z_]+)\]/g;
-    const matches = template.match(regex);
+    const vars = new Set<string>();
 
-    if (!matches) return [];
+    // Standardní [VAR]
+    const simpleRegex = /\[([A-Z_]+)\]/g;
+    let match;
+    while ((match = simpleRegex.exec(template)) !== null) {
+      vars.add(match[1]);
+    }
 
-    return [...new Set(matches.map(m => m.slice(1, -1)))];
+    // Variantní skupiny [VAR: opt1|opt2]
+    const groupRegex = /\[([A-Z_]+):\s*[^\]]+\]/g;
+    while ((match = groupRegex.exec(template)) !== null) {
+      vars.add(match[1]);
+    }
+
+    // Podmíněné {if VAR=...}
+    const condRegex = /\{if\s+([A-Z_]+)/g;
+    while ((match = condRegex.exec(template)) !== null) {
+      vars.add(match[1]);
+    }
+
+    return Array.from(vars);
   }
 
   /**
-   * Naplnit šablonu hodnotami
+   * Naplnit šablonu hodnotami — podporuje podmíněné bloky a variantní skupiny.
+   *
+   * Podmíněné bloky: {if VARIABLE=value}text{/if}
+   * Negace: {if VARIABLE!=value}text{/if}
+   * Variantní skupiny: [WEATHER: sunny|cloudy|rainy] — uživatel vybere jednu z možností
    */
   static fillTemplate(template: string, values: Record<string, string>): string {
     let result = template;
 
+    // 1. Zpracovat podmíněné bloky: {if VAR=val}...{/if} a {if VAR!=val}...{/if}
+    result = result.replace(/\{if\s+([A-Z_]+)\s*(!=|=)\s*([^}]+)\}([\s\S]*?)\{\/if\}/g,
+      (_match, varName, operator, condValue, content) => {
+        const actualValue = values[varName] || '';
+        const condMet = operator === '='
+          ? actualValue.toLowerCase() === condValue.trim().toLowerCase()
+          : actualValue.toLowerCase() !== condValue.trim().toLowerCase();
+        return condMet ? content : '';
+      }
+    );
+
+    // 2. Zpracovat variantní skupiny: [VAR: opt1|opt2|opt3]
+    // Tyto se substituují normálně — hodnota by měla být jedna z nabízených variant
+    result = result.replace(/\[([A-Z_]+):\s*([^\]]+)\]/g,
+      (_match, varName, _options) => {
+        return values[varName] || '';
+      }
+    );
+
+    // 3. Standardní substituce [VAR]
     Object.entries(values).forEach(([key, value]) => {
       result = result.replace(new RegExp(`\\[${key}\\]`, 'g'), value);
     });
 
+    // 4. Vyčistit prázdné řádky a nadbytečné mezery
+    result = result.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+
     return result;
+  }
+
+  /**
+   * Extrahovat variantní skupiny ze šablony.
+   * Vrací Record<variableName, string[]> pro zobrazení selectoru.
+   */
+  static extractVariantGroups(template: string): Record<string, string[]> {
+    const groups: Record<string, string[]> = {};
+    const regex = /\[([A-Z_]+):\s*([^\]]+)\]/g;
+    let match;
+    while ((match = regex.exec(template)) !== null) {
+      const varName = match[1];
+      const options = match[2].split('|').map(o => o.trim()).filter(o => o.length > 0);
+      if (options.length > 0) {
+        groups[varName] = options;
+      }
+    }
+    return groups;
+  }
+
+  /**
+   * Extrahovat podmíněné proměnné ze šablony.
+   */
+  static extractConditionalVariables(template: string): string[] {
+    const vars = new Set<string>();
+    const regex = /\{if\s+([A-Z_]+)/g;
+    let match;
+    while ((match = regex.exec(template)) !== null) {
+      vars.add(match[1]);
+    }
+    return Array.from(vars);
   }
 
   /**
