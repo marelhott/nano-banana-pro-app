@@ -7,9 +7,22 @@ export interface ImageVersion {
 
 export type ProviderId = 'gemini' | 'grok' | 'chatgpt';
 
+export interface StyleAnalysis {
+  recommendedStrength: number;
+  styleDescription: string;
+  negativePrompt: string;
+}
+
+export interface LineageEntry {
+  sourceImageIds: string[];
+  styleImageIds: string[];
+  sourceImageUrls: string[];
+  styleImageUrls: string[];
+}
+
 export interface GenerationRecipe {
   provider: ProviderId;
-  operation: 'generate' | 'edit' | 'variant' | 'batch';
+  operation: 'generate' | 'edit' | 'variant' | 'batch' | 'upscale' | 'inpaint' | 'outpaint';
   prompt: string;
   effectivePrompt?: string;
   useGrounding?: boolean;
@@ -22,6 +35,26 @@ export interface GenerationRecipe {
   sourceImageCount: number;
   styleImageCount: number;
   createdAt: number;
+  styleStrength?: number;
+  styleAnalysis?: StyleAnalysis;
+  lineage?: LineageEntry;
+  styleWeights?: Record<string, number>;
+  upscaleFactor?: number;
+  maskData?: string;
+  outpaintDirection?: 'top' | 'bottom' | 'left' | 'right' | 'all';
+  outpaintPixels?: number;
+  cfgScale?: number;
+  steps?: number;
+  denoise?: number;
+  seed?: number;
+  modelId?: string;
+}
+
+export interface ImageVersionEntry {
+  url: string;
+  prompt: string;
+  timestamp: number;
+  recipe?: GenerationRecipe;
 }
 
 export interface GeneratedImage {
@@ -35,22 +68,23 @@ export interface GeneratedImage {
   resolution?: string;
   aspectRatio?: string;
   styleCode?: number;
-  versions?: Array<{ url: string; prompt: string; timestamp: number }>;
-  currentVersionIndex?: number; // Track which version is currently displayed (for undo/redo)
+  versions?: ImageVersionEntry[];
+  currentVersionIndex?: number;
   isEditing?: boolean;
-  progress?: number; // 0-100 for generation progress tracking
+  progress?: number;
   recipe?: GenerationRecipe;
+  lineage?: LineageEntry;
 
   // Variant generation metadata
   variantInfo?: {
     isVariant: boolean;
-    variantNumber: number; // 1, 2, or 3
-    variant: string; // "Photorealistic", "Artistic", "Technical"
-    approach: string; // Detailed approach description
-    originalPrompt: string; // The simple prompt user entered
+    variantNumber: number;
+    variant: string;
+    approach: string;
+    originalPrompt: string;
   };
-  selected?: boolean; // Pro batch operations
-  collectionIds?: string[]; // ID kolekcí, do kterých patří
+  selected?: boolean;
+  collectionIds?: string[];
 }
 
 export interface SourceImage {
@@ -69,16 +103,18 @@ export interface SavedPrompt {
 }
 
 export interface AppState {
-  sourceImages: SourceImage[]; // Referenční obrázky - hlavní obsah k úpravě
-  styleImages: SourceImage[]; // Stylové obrázky - reference pro styl
+  sourceImages: SourceImage[];
+  styleImages: SourceImage[];
   generatedImages: GeneratedImage[];
   prompt: string;
-  aspectRatio: string; // 'Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'
-  resolution: string; // '1k', '2k', '4k'
-  error: string | null; // For global/upload errors
-  numberOfImages: number; // Number of images to generate at once (1-5)
+  aspectRatio: string;
+  resolution: string;
+  error: string | null;
+  numberOfImages: number;
   multiRefMode?: 'batch' | 'together';
   shouldAutoGenerate?: boolean;
+  styleStrength?: number; // 0-100 síla stylu
+  styleWeights?: Record<string, number>; // váhy pro individuální stylové obrázky
 }
 
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/heic' | 'image/heif';
