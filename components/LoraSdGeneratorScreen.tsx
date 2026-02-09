@@ -38,6 +38,28 @@ type HfPreset = {
 
 type BackendMode = 'fal' | 'hf';
 
+function artistHintFromModelLabel(label: string): string {
+  // "Tuymans SD model (checkpoint)" -> "Tuymans"
+  const base = String(label || '').split('(')[0].trim();
+  const cleaned = base
+    .replace(/\b(sd|model|checkpoint|style|library|max)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || base || 'fine art';
+}
+
+function buildAutoPrompt(modelLabel: string, loraLabels: string[]): { prompt: string; negative: string } {
+  const hints = [artistHintFromModelLabel(modelLabel), ...loraLabels.map(artistHintFromModelLabel)]
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const uniq = Array.from(new Set(hints)).slice(0, 3);
+  const style = uniq.length ? `in the style of ${uniq.join(', ')}` : 'fine art painting';
+  return {
+    prompt: `high quality, painterly, ${style}`,
+    negative: 'blurry, low quality, watermark, text, logo',
+  };
+}
+
 // Your HF library (uploaded weights).
 // We use direct file URLs so both backends (fal + HF GPU) can download the exact weights.
 const MULENMARA_CHECKPOINTS: HfPreset[] = [
@@ -188,6 +210,9 @@ export function LoraSdGeneratorScreen(props: {
     null
   );
   const [hfTransportInfo, setHfTransportInfo] = React.useState<{ transport: 'direct' | 'proxy'; endpoint: string } | null>(null);
+  const [lastSubmitInfo, setLastSubmitInfo] = React.useState<{ modelName: string; loras: Array<{ path: string; scale: number }> } | null>(
+    null
+  );
 
   const defaultCheckpointPresetId = MULENMARA_CHECKPOINTS[0]?.id || '';
   const [hfCheckpointPresetId, setHfCheckpointPresetId] = React.useState<string>(defaultCheckpointPresetId);
@@ -342,6 +367,15 @@ export function LoraSdGeneratorScreen(props: {
               .map((l) => ({ path: l.path.trim(), scale: Math.max(0, Math.min(2, l.scale)) }))
               .filter((l) => !!l.path)
           : [];
+      setLastSubmitInfo({ modelName, loras: lorasPayload });
+
+      const checkpointLabel = useCustomCheckpoint
+        ? modelName
+        : MULENMARA_CHECKPOINTS.find((x) => x.id === hfCheckpointPresetId)?.label || modelName;
+      const loraLabels = lorasPayload
+        .map((l) => MULENMARA_LORAS.find((p) => p.url === l.path)?.label || l.path)
+        .filter(Boolean);
+      const auto = buildAutoPrompt(checkpointLabel, loraLabels);
 
       if (controlNetEnabled) {
         onToast({ message: 'ControlNet zatím není na HF Space napojený (coming soon).', type: 'info' });
@@ -361,7 +395,8 @@ export function LoraSdGeneratorScreen(props: {
           modelName,
           imageUrlOrDataUrl: publicUrl,
           // Promptless mode: we keep the UI clean; fal.ai still expects a prompt field.
-          prompt: '',
+          prompt: auto.prompt,
+          negativePrompt: auto.negative,
           cfg,
           denoise,
           steps,
@@ -380,6 +415,8 @@ export function LoraSdGeneratorScreen(props: {
           cfg,
           denoise,
           steps,
+          prompt: auto.prompt,
+          negativePrompt: auto.negative,
           seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
           numImages: variants,
           loras: lorasPayload,
@@ -960,6 +997,17 @@ export function LoraSdGeneratorScreen(props: {
                   ) : null}
                   {hfTransportInfo?.endpoint ? <span className="text-white/25"> · </span> : null}
                   {hfTransportInfo?.endpoint ? <span className="text-white/40">{hfTransportInfo.endpoint}</span> : null}
+                </div>
+              )}
+              {lastSubmitInfo && (
+                <div className="mt-2 text-[10px] text-white/30">
+                  Model: <span className="text-white/50 break-all">{lastSubmitInfo.modelName}</span>
+                  {lastSubmitInfo.loras.length ? <span className="text-white/25"> · </span> : null}
+                  {lastSubmitInfo.loras.length ? (
+                    <span className="text-white/45">
+                      LoRA: {lastSubmitInfo.loras.map((l) => `${l.scale.toFixed(2)}×`).join(' ')}
+                    </span>
+                  ) : null}
                 </div>
               )}
             </div>

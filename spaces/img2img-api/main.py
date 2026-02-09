@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 import torch
-from diffusers import StableDiffusionXLImg2ImgPipeline
+from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionXLImg2ImgPipeline
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -41,16 +41,36 @@ def _as_float(v: Any, default: float) -> float:
         return default
 
 
-def _download(url: str, out_path: str, timeout: int = 60) -> None:
+def _download(url: str, out_path: str, timeout: int = 60, retries: int = 3) -> None:
     headers = {}
     if HF_HUB_TOKEN and ("huggingface.co" in url or "hf.co" in url):
         headers["Authorization"] = f"Bearer {HF_HUB_TOKEN}"
-    r = requests.get(url, headers=headers, stream=True, timeout=timeout)
-    r.raise_for_status()
-    with open(out_path, "wb") as f:
-        for chunk in r.iter_content(chunk_size=1024 * 1024):
-            if chunk:
-                f.write(chunk)
+    last_err: Optional[Exception] = None
+    for attempt in range(retries):
+        try:
+            # Use a tuple timeout so large downloads don't die on a single slow chunk.
+            connect_timeout = 20
+            read_timeout = max(60, int(timeout))
+            r = requests.get(url, headers=headers, stream=True, timeout=(connect_timeout, read_timeout))
+            r.raise_for_status()
+            tmp_path = f"{out_path}.part"
+            with open(tmp_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+            os.replace(tmp_path, out_path)
+            return
+        except Exception as e:
+            last_err = e
+            try:
+                if os.path.exists(f"{out_path}.part"):
+                    os.remove(f"{out_path}.part")
+            except Exception:
+                pass
+            # Exponential-ish backoff.
+            time.sleep(min(12.0, 0.8 * (2**attempt)))
+    if last_err is not None:
+        raise last_err
 
 
 def _sha256_of_str(s: str) -> str:
@@ -67,20 +87,21 @@ def _load_image_from_url(url: str) -> Image.Image:
 @dataclass
 class LoadedPipe:
     model_name: str
-    pipe: StableDiffusionXLImg2ImgPipeline
+    kind: str  # "sdxl" | "sd"
+    pipe: Any
 
 
 _loaded: Optional[LoadedPipe] = None
 
 
-def _get_pipe(model_name: str) -> StableDiffusionXLImg2ImgPipeline:
+def _get_pipe(model_name: str) -> LoadedPipe:
     global _loaded
     model_name = model_name.strip()
     if not model_name:
         raise ValueError("model_name missing")
 
     if _loaded and _loaded.model_name == model_name:
-        return _loaded.pipe
+        return _loaded
 
     # Free previous pipeline (VRAM).
     if _loaded:
@@ -100,6 +121,22 @@ def _get_pipe(model_name: str) -> StableDiffusionXLImg2ImgPipeline:
     is_url = model_name.startswith("http://") or model_name.startswith("https://")
     is_single_file = model_name.lower().endswith((".safetensors", ".ckpt"))
 
+    def _load_sdxl_single(local_ckpt: str) -> Any:
+        if hasattr(StableDiffusionXLImg2ImgPipeline, "from_single_file"):
+            return StableDiffusionXLImg2ImgPipeline.from_single_file(local_ckpt, torch_dtype=torch_dtype)
+        from diffusers import DiffusionPipeline  # type: ignore
+
+        base = DiffusionPipeline.from_single_file(local_ckpt, torch_dtype=torch_dtype)
+        return StableDiffusionXLImg2ImgPipeline(**base.components)  # type: ignore[arg-type]
+
+    def _load_sd_single(local_ckpt: str) -> Any:
+        if hasattr(StableDiffusionImg2ImgPipeline, "from_single_file"):
+            return StableDiffusionImg2ImgPipeline.from_single_file(local_ckpt, torch_dtype=torch_dtype)
+        from diffusers import DiffusionPipeline  # type: ignore
+
+        base = DiffusionPipeline.from_single_file(local_ckpt, torch_dtype=torch_dtype)
+        return StableDiffusionImg2ImgPipeline(**base.components)  # type: ignore[arg-type]
+
     if is_url or is_single_file:
         # If it's not a URL but looks like a file, assume user meant a URL and fail clearly.
         if not is_url:
@@ -109,47 +146,52 @@ def _get_pipe(model_name: str) -> StableDiffusionXLImg2ImgPipeline:
         ext = ".safetensors" if model_name.lower().endswith(".safetensors") else ".ckpt"
         local_ckpt = os.path.join(FILES_DIR, f"ckpt-{cache_key}{ext}")
         if not os.path.exists(local_ckpt):
-            _download(model_name, local_ckpt, timeout=600)
+            _download(model_name, local_ckpt, timeout=900, retries=3)
 
-        if hasattr(StableDiffusionXLImg2ImgPipeline, "from_single_file"):
-            pipe = StableDiffusionXLImg2ImgPipeline.from_single_file(local_ckpt, torch_dtype=torch_dtype)
-        else:
-            # Fallback for older diffusers: load a base pipeline and rebuild img2img from components.
-            from diffusers import DiffusionPipeline  # type: ignore
-
-            base = DiffusionPipeline.from_single_file(local_ckpt, torch_dtype=torch_dtype)
-            pipe = StableDiffusionXLImg2ImgPipeline(**base.components)  # type: ignore[arg-type]
+        # Try SDXL first (primary), fall back to SD 1.x/2.x if the weights don't match.
+        try:
+            pipe = _load_sdxl_single(local_ckpt)
+            kind = "sdxl"
+        except Exception:
+            pipe = _load_sd_single(local_ckpt)
+            kind = "sd"
     else:
-        # Prefer fp16 + safetensors, but fall back across common repo layouts.
-        last_err: Optional[Exception] = None
-        for variant, use_safetensors in (
-            ("fp16", True),
-            (None, True),
-            ("fp16", False),
-            (None, False),
-        ):
-            try:
-                kwargs = {"torch_dtype": torch_dtype, "use_safetensors": use_safetensors}
-                if variant:
-                    kwargs["variant"] = variant
-                pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(model_name, **kwargs)
-                last_err = None
-                break
-            except Exception as e:
-                last_err = e
-                pipe = None  # type: ignore[assignment]
-        if last_err is not None:
-            raise last_err
+        # Prefer SDXL, but allow SD repo ids too.
+        def _try_pretrained(cls: Any) -> Any:
+            last_err: Optional[Exception] = None
+            for variant, use_safetensors in (
+                ("fp16", True),
+                (None, True),
+                ("fp16", False),
+                (None, False),
+            ):
+                try:
+                    kwargs: Dict[str, Any] = {"torch_dtype": torch_dtype, "use_safetensors": use_safetensors}
+                    if variant:
+                        kwargs["variant"] = variant
+                    return cls.from_pretrained(model_name, **kwargs)
+                except Exception as e:
+                    last_err = e
+            if last_err is not None:
+                raise last_err
+            raise RuntimeError("from_pretrained failed")
+
+        try:
+            pipe = _try_pretrained(StableDiffusionXLImg2ImgPipeline)
+            kind = "sdxl"
+        except Exception:
+            pipe = _try_pretrained(StableDiffusionImg2ImgPipeline)
+            kind = "sd"
 
     pipe.to("cuda")
     pipe.set_progress_bar_config(disable=True)
     pipe.enable_vae_slicing()
 
-    _loaded = LoadedPipe(model_name=model_name, pipe=pipe)
-    return pipe
+    _loaded = LoadedPipe(model_name=model_name, kind=kind, pipe=pipe)
+    return _loaded
 
 
-def _prepare_loras(pipe: StableDiffusionXLImg2ImgPipeline, loras: List[Dict[str, Any]]) -> None:
+def _prepare_loras(pipe: Any, loras: List[Dict[str, Any]]) -> None:
     # Reset adapters to avoid leakage between requests.
     try:
         pipe.set_adapters([])
@@ -172,7 +214,7 @@ def _prepare_loras(pipe: StableDiffusionXLImg2ImgPipeline, loras: List[Dict[str,
         cache_key = _sha256_of_str(path)
         local_path = os.path.join(FILES_DIR, f"lora-{cache_key}.safetensors")
         if not os.path.exists(local_path):
-            _download(path, local_path, timeout=120)
+            _download(path, local_path, timeout=300, retries=3)
 
         adapter_name = f"lora_{idx}"
         pipe.load_lora_weights(local_path, adapter_name=adapter_name)
@@ -218,6 +260,12 @@ async def img2img(request: Request) -> JSONResponse:
     strength = _clamp(_as_float(input_obj.get("noise_strength", 0.55), 0.55), 0.01, 1.0)
     steps = _clamp(_as_int(input_obj.get("num_inference_steps", 30), 30), 1, 80)
     num_images = _clamp(_as_int(input_obj.get("num_images", 1), 1), 1, 3)
+    prompt = str(input_obj.get("prompt", "") or "").strip()
+    negative_prompt = str(input_obj.get("negative_prompt", "") or "").strip()
+    if not prompt:
+        prompt = "high quality, fine art painting"
+    if not negative_prompt:
+        negative_prompt = "blurry, low quality, watermark, text, logo"
     seed = input_obj.get("seed", None)
     seed_int: Optional[int] = None
     if seed is not None:
@@ -238,7 +286,8 @@ async def img2img(request: Request) -> JSONResponse:
         raise HTTPException(status_code=400, detail=f"Failed to load image_url: {e}")
 
     try:
-        pipe = _get_pipe(model_name)
+        loaded = _get_pipe(model_name)
+        pipe = loaded.pipe
         _prepare_loras(pipe, loras)
 
         if seed_int is None:
@@ -247,7 +296,8 @@ async def img2img(request: Request) -> JSONResponse:
 
         # SDXL img2img expects init_image and strength.
         out = pipe(
-            prompt="",
+            prompt=prompt,
+            negative_prompt=negative_prompt,
             image=img,
             strength=strength,
             guidance_scale=cfg,
@@ -272,6 +322,8 @@ async def img2img(request: Request) -> JSONResponse:
                 "seed": seed_int,
                 "request_id": request_id,
                 "elapsed_ms": elapsed_ms,
+                "pipeline": loaded.kind,
+                "model_name": model_name,
             }
         )
     except HTTPException:

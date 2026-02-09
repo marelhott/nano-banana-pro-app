@@ -22,6 +22,13 @@ function normalizeHfUrl(url: string): string {
   // Browsers block that as mixed content when our app is served over HTTPS.
   try {
     const u = new URL(url);
+    // If HF Space is private or doesn't send CORS headers, browser fetch() will fail.
+    // In that case, route file downloads through our Netlify proxy (same-origin),
+    // which can attach HF_TOKEN server-side.
+    if (u.hostname.endsWith('.hf.space') && u.pathname.startsWith('/files/')) {
+      const name = (u.pathname.split('/').pop() || '').trim();
+      if (name) return `/api/hf/files/${encodeURIComponent(name)}`;
+    }
     if (
       u.protocol === 'http:' &&
       (u.hostname.endsWith('.hf.space') ||
@@ -58,6 +65,8 @@ export async function runHfGpuImg2Img(params: {
   cfg: number;
   denoise: number;
   steps: number;
+  prompt?: string;
+  negativePrompt?: string;
   seed?: number;
   numImages: 1 | 2 | 3;
   loras?: Array<{ path: string; scale?: number }>;
@@ -78,6 +87,8 @@ export async function runHfGpuImg2Img(params: {
     num_images: params.numImages,
   };
 
+  if (params.prompt?.trim()) input.prompt = params.prompt.trim();
+  if (params.negativePrompt?.trim()) input.negative_prompt = params.negativePrompt.trim();
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
   if (Array.isArray(params.loras) && params.loras.length > 0) input.loras = params.loras;
 
