@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
-import { runFalLoraImg2Img } from '../services/falService';
+import { runFalLoraImg2ImgQueued } from '../services/falService';
 import { presignR2, isR2Ref, r2KeyFromRef } from '../services/r2Service';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob } from '../utils/supabaseStorage';
@@ -268,7 +268,7 @@ export function LoraSdGeneratorScreen(props: {
       setGenPhase('Spouštím fal.ai…');
       setGenProgress((p) => Math.max(p, 0.34));
       setGenPhase('Generuji…');
-      res = await runFalLoraImg2Img({
+      res = await runFalLoraImg2ImgQueued({
         modelName,
         imageUrlOrDataUrl: inputDataUrl,
         // Promptless UI: prompt is generated automatically in the background.
@@ -279,6 +279,7 @@ export function LoraSdGeneratorScreen(props: {
         steps,
         numImages: variants,
         loras: resolvedLorasPayload,
+        maxWaitMs: 12 * 60_000,
       });
 
       setLastSeed(typeof res.usedSeed === 'number' ? res.usedSeed : null);
