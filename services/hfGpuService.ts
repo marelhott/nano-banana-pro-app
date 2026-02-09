@@ -4,6 +4,7 @@ type HfImg2ImgResponse = {
   images?: HfImage[];
   seed?: number;
   request_id?: string;
+  elapsed_ms?: number;
   error?: string;
 };
 
@@ -55,7 +56,7 @@ export async function runHfGpuImg2Img(params: {
   seed?: number;
   numImages: 1 | 2 | 3;
   loras?: Array<{ path: string; scale?: number }>;
-}): Promise<{ images: string[]; usedSeed?: number }> {
+}): Promise<{ images: string[]; usedSeed?: number; requestId?: string; elapsedMs?: number }> {
   const input: Record<string, any> = {
     model_name: params.modelName,
     image_url: params.imageUrl,
@@ -87,5 +88,10 @@ export async function runHfGpuImg2Img(params: {
   const out: string[] = [];
   for (const u of urls) out.push(await fetchAsDataUrl(u));
 
-  return { images: out, usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined };
+  return {
+    images: out,
+    usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined,
+    requestId: typeof payload.request_id === 'string' ? payload.request_id : undefined,
+    elapsedMs: typeof payload.elapsed_ms === 'number' ? payload.elapsed_ms : undefined,
+  };
 }

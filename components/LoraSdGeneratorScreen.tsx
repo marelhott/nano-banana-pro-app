@@ -184,6 +184,9 @@ export function LoraSdGeneratorScreen(props: {
   const [genProgress, setGenProgress] = React.useState<number>(0);
   const [genError, setGenError] = React.useState<string>('');
   const [genCompletedAtMs, setGenCompletedAtMs] = React.useState<number>(0);
+  const [lastRequestInfo, setLastRequestInfo] = React.useState<{ backend: BackendMode; requestId?: string; elapsedMs?: number } | null>(
+    null
+  );
 
   const defaultCheckpointPresetId = MULENMARA_CHECKPOINTS[0]?.id || '';
   const [hfCheckpointPresetId, setHfCheckpointPresetId] = React.useState<string>(defaultCheckpointPresetId);
@@ -324,7 +327,7 @@ export function LoraSdGeneratorScreen(props: {
       if (backend === 'fal') {
         setGenProgress((p) => Math.max(p, 0.34));
         setGenPhase('Generuji…');
-        res = await runFalLoraImg2Img({
+        const falRes = await runFalLoraImg2Img({
           modelName,
           imageUrlOrDataUrl: publicUrl,
           // Promptless mode: we keep the UI clean; fal.ai still expects a prompt field.
@@ -336,10 +339,12 @@ export function LoraSdGeneratorScreen(props: {
           numImages: variants,
           loras: lorasPayload,
         });
+        setLastRequestInfo({ backend: 'fal' });
+        res = falRes;
       } else {
         setGenProgress((p) => Math.max(p, 0.34));
         setGenPhase('Generuji…');
-        res = await runHfGpuImg2Img({
+        const hfRes = await runHfGpuImg2Img({
           modelName,
           imageUrl: publicUrl,
           cfg,
@@ -349,6 +354,8 @@ export function LoraSdGeneratorScreen(props: {
           numImages: variants,
           loras: lorasPayload,
         });
+        setLastRequestInfo({ backend: 'hf', requestId: hfRes.requestId, elapsedMs: hfRes.elapsedMs });
+        res = hfRes;
       }
 
       setLastSeed(typeof res.usedSeed === 'number' ? res.usedSeed : null);
@@ -912,6 +919,15 @@ export function LoraSdGeneratorScreen(props: {
                     ? `Hotovo před ${Math.max(0, Math.round((Date.now() - genCompletedAtMs) / 1000))}s.`
                     : null}
               </div>
+              {lastRequestInfo?.backend === 'hf' && (lastRequestInfo.requestId || typeof lastRequestInfo.elapsedMs === 'number') && (
+                <div className="mt-2 text-[10px] text-white/35">
+                  HF Space: {lastRequestInfo.requestId ? <span className="text-white/55">request_id {lastRequestInfo.requestId}</span> : null}
+                  {lastRequestInfo.requestId && typeof lastRequestInfo.elapsedMs === 'number' ? <span className="text-white/25"> · </span> : null}
+                  {typeof lastRequestInfo.elapsedMs === 'number' ? (
+                    <span className="text-white/55">elapsed {Math.round(lastRequestInfo.elapsedMs)}ms</span>
+                  ) : null}
+                </div>
+              )}
             </div>
           )}
 
