@@ -187,6 +187,7 @@ export function LoraSdGeneratorScreen(props: {
   const [lastRequestInfo, setLastRequestInfo] = React.useState<{ backend: BackendMode; requestId?: string; elapsedMs?: number } | null>(
     null
   );
+  const [hfTransportInfo, setHfTransportInfo] = React.useState<{ transport: 'direct' | 'proxy'; endpoint: string } | null>(null);
 
   const defaultCheckpointPresetId = MULENMARA_CHECKPOINTS[0]?.id || '';
   const [hfCheckpointPresetId, setHfCheckpointPresetId] = React.useState<string>(defaultCheckpointPresetId);
@@ -205,6 +206,9 @@ export function LoraSdGeneratorScreen(props: {
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
   const inputFileId = React.useMemo(() => `hf-sd-input-${Math.random().toString(36).slice(2)}`, []);
+  const hfDirectEndpoint = (import.meta as any)?.env?.VITE_HF_IMG2IMG_URL
+    ? String((import.meta as any).env.VITE_HF_IMG2IMG_URL).trim()
+    : '';
 
   // If the user selects one of your HF presets, fill the model/LoRA inputs.
   React.useEffect(() => {
@@ -272,6 +276,32 @@ export function LoraSdGeneratorScreen(props: {
     }, 120);
     return () => clearInterval(timer);
   }, [isGenerating, genPhase]);
+
+  // If HF is selected and we have a direct endpoint, keep the Space warm while the page is open.
+  React.useEffect(() => {
+    if (backend !== 'hf') return;
+    if (!hfDirectEndpoint) return;
+    let stopped = false;
+
+    const ping = async () => {
+      try {
+        const origin = new URL(hfDirectEndpoint).origin;
+        await fetch(`${origin}/health`, { method: 'GET', cache: 'no-store' });
+      } catch {
+        // ignore
+      }
+    };
+
+    ping();
+    const t = setInterval(() => {
+      if (stopped) return;
+      ping();
+    }, 5 * 60 * 1000);
+    return () => {
+      stopped = true;
+      clearInterval(t);
+    };
+  }, [backend, hfDirectEndpoint]);
 
   const generate = React.useCallback(async () => {
     if (!input) {
@@ -355,6 +385,7 @@ export function LoraSdGeneratorScreen(props: {
           loras: lorasPayload,
         });
         setLastRequestInfo({ backend: 'hf', requestId: hfRes.requestId, elapsedMs: hfRes.elapsedMs });
+        setHfTransportInfo({ transport: hfRes.transport, endpoint: hfRes.endpoint });
         res = hfRes;
       }
 
@@ -921,11 +952,14 @@ export function LoraSdGeneratorScreen(props: {
               </div>
               {lastRequestInfo?.backend === 'hf' && (lastRequestInfo.requestId || typeof lastRequestInfo.elapsedMs === 'number') && (
                 <div className="mt-2 text-[10px] text-white/35">
-                  HF Space: {lastRequestInfo.requestId ? <span className="text-white/55">request_id {lastRequestInfo.requestId}</span> : null}
+                  HF Space ({hfTransportInfo?.transport === 'direct' ? 'direct' : 'proxy'}):{' '}
+                  {lastRequestInfo.requestId ? <span className="text-white/55">request_id {lastRequestInfo.requestId}</span> : null}
                   {lastRequestInfo.requestId && typeof lastRequestInfo.elapsedMs === 'number' ? <span className="text-white/25"> · </span> : null}
                   {typeof lastRequestInfo.elapsedMs === 'number' ? (
                     <span className="text-white/55">elapsed {Math.round(lastRequestInfo.elapsedMs)}ms</span>
                   ) : null}
+                  {hfTransportInfo?.endpoint ? <span className="text-white/25"> · </span> : null}
+                  {hfTransportInfo?.endpoint ? <span className="text-white/40">{hfTransportInfo.endpoint}</span> : null}
                 </div>
               )}
             </div>

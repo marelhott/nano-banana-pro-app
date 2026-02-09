@@ -12,6 +12,11 @@ function assertOk(res: Response, message: string) {
   if (!res.ok) throw new Error(`${message} (HTTP ${res.status})`);
 }
 
+function getDirectEndpoint(): string {
+  const v = String((import.meta as any)?.env?.VITE_HF_IMG2IMG_URL || '').trim();
+  return v;
+}
+
 function normalizeHfUrl(url: string): string {
   // HF Spaces sometimes return `http://...hf.space/files/...` in responses.
   // Browsers block that as mixed content when our app is served over HTTPS.
@@ -56,7 +61,14 @@ export async function runHfGpuImg2Img(params: {
   seed?: number;
   numImages: 1 | 2 | 3;
   loras?: Array<{ path: string; scale?: number }>;
-}): Promise<{ images: string[]; usedSeed?: number; requestId?: string; elapsedMs?: number }> {
+}): Promise<{
+  images: string[];
+  usedSeed?: number;
+  requestId?: string;
+  elapsedMs?: number;
+  transport: 'direct' | 'proxy';
+  endpoint: string;
+}> {
   const input: Record<string, any> = {
     model_name: params.modelName,
     image_url: params.imageUrl,
@@ -69,7 +81,11 @@ export async function runHfGpuImg2Img(params: {
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
   if (Array.isArray(params.loras) && params.loras.length > 0) input.loras = params.loras;
 
-  const res = await fetch('/api/hf/img2img', {
+  const directEndpoint = getDirectEndpoint();
+  const endpoint = directEndpoint || '/api/hf/img2img';
+  const transport: 'direct' | 'proxy' = directEndpoint ? 'direct' : 'proxy';
+
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ input }),
@@ -93,5 +109,7 @@ export async function runHfGpuImg2Img(params: {
     usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined,
     requestId: typeof payload.request_id === 'string' ? payload.request_id : undefined,
     elapsedMs: typeof payload.elapsed_ms === 'number' ? payload.elapsed_ms : undefined,
+    transport,
+    endpoint,
   };
 }
