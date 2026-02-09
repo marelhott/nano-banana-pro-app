@@ -49,7 +49,7 @@ async function testProviderKey(provider, apiKey) {
       return requestWithTimeout("https://fal.run/fal-ai/lora/image-to-image", {
         method: "POST",
         headers: { Authorization: `Key ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ input: {} }),
+        body: JSON.stringify({}),
       });
     default:
       return null;

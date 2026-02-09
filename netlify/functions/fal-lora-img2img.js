@@ -54,7 +54,8 @@ exports.handler = async (event) => {
         Authorization: `Key ${falKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ input }),
+      // fal expects fields like model_name/prompt at the top-level body (not nested under "input").
+      body: JSON.stringify(input),
     });
 
     const text = await upstream.text();
