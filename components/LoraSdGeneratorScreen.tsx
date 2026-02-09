@@ -22,13 +22,7 @@ type HfPreset = {
   url: string;
 };
 
-const FAL_LIBRARY_CACHE_KEY = 'falModelLibrary_v1';
 type BackendMode = 'fal' | 'hf';
-
-type FalLibrary = {
-  models: string[];
-  loras: string[];
-};
 
 // Your HF library (uploaded weights).
 // We use direct file URLs so both backends (fal + HF GPU) can download the exact weights.
@@ -171,8 +165,6 @@ export function LoraSdGeneratorScreen(props: {
   const [seed, setSeed] = React.useState<string>('');
   const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
 
-  const [falModels, setFalModels] = React.useState<string[]>([]);
-  const [falLoras, setFalLoras] = React.useState<string[]>([]);
   const [falModelName, setFalModelName] = React.useState<string>('stabilityai/stable-diffusion-xl-base-1.0');
   const [falLoraPath, setFalLoraPath] = React.useState<string>('');
   const [falLoraScale, setFalLoraScale] = React.useState<number>(0.85);
@@ -184,19 +176,6 @@ export function LoraSdGeneratorScreen(props: {
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
-
-  React.useEffect(() => {
-    try {
-      const cached = localStorage.getItem(FAL_LIBRARY_CACHE_KEY);
-      if (!cached) return;
-      const parsed = JSON.parse(cached) as FalLibrary;
-      if (Array.isArray(parsed.models)) setFalModels(parsed.models);
-      if (Array.isArray(parsed.loras)) setFalLoras(parsed.loras);
-      if (!falModelName && Array.isArray(parsed.models) && parsed.models[0]) setFalModelName(parsed.models[0]);
-    } catch {
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // If the user selects one of your HF presets, fill the model/LoRA inputs.
   React.useEffect(() => {
@@ -212,46 +191,6 @@ export function LoraSdGeneratorScreen(props: {
       if (p) setFalLoraPath(p.url);
     }
   }, [hfLoraPresetId]);
-
-  const persistFalLibrary = React.useCallback((lib: FalLibrary) => {
-    try {
-      localStorage.setItem(FAL_LIBRARY_CACHE_KEY, JSON.stringify(lib));
-    } catch {
-    }
-  }, []);
-
-  const addFalModel = React.useCallback(() => {
-    const m = falModelName.trim();
-    if (!m) return;
-    const next = Array.from(new Set([m, ...falModels])).slice(0, 30);
-    setFalModels(next);
-    persistFalLibrary({ models: next, loras: falLoras });
-    onToast({ message: 'Uloženo do knihovny modelů (FAL).', type: 'success' });
-  }, [falLoras, falModelName, falModels, onToast, persistFalLibrary]);
-
-  const addFalLora = React.useCallback(() => {
-    const p = falLoraPath.trim();
-    if (!p) return;
-    const next = Array.from(new Set([p, ...falLoras])).slice(0, 60);
-    setFalLoras(next);
-    persistFalLibrary({ models: falModels, loras: next });
-    onToast({ message: 'Uloženo do knihovny LoRA (FAL).', type: 'success' });
-  }, [falLoraPath, falLoras, falModels, onToast, persistFalLibrary]);
-
-  const removeFromFalLibrary = React.useCallback((kind: 'model' | 'lora', value: string) => {
-    if (kind === 'model') {
-      const next = falModels.filter((x) => x !== value);
-      setFalModels(next);
-      persistFalLibrary({ models: next, loras: falLoras });
-      return;
-    }
-    const next = falLoras.filter((x) => x !== value);
-    setFalLoras(next);
-    persistFalLibrary({ models: falModels, loras: next });
-  }, [falLoras, falModels, persistFalLibrary]);
-
-  // NOTE: "local" mode currently only manages selection. To run inference without HF,
-  // we will connect this to a local bridge + GPU inference API (phase 2).
 
   const setInputFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
@@ -434,24 +373,6 @@ export function LoraSdGeneratorScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Knihovna modelů</div>
-              <div className="text-xs text-white/55">
-                {`${falModels.length ? `${falModels.length} modelů` : 'Modely (knihovna prázdná)'} · ${
-                  falLoras.length ? `${falLoras.length} LoRA` : 'LoRA (knihovna prázdná)'
-                }`}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onToast({ message: 'Přidej si modely/LoRA do knihovny pomocí + u polí níže.', type: 'info' })}
-              className="px-4 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800/80 text-zinc-100 text-xs font-bold uppercase tracking-wider border border-zinc-700/70"
-            >
-              Info
-            </button>
-          </div>
-
           <div className="card-surface p-5 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
@@ -564,46 +485,12 @@ export function LoraSdGeneratorScreen(props: {
               <div className="grid grid-cols-1 gap-3">
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Model (HF ID nebo URL)</label>
-                  <div className="flex gap-2">
-                    <input
-                      value={falModelName}
-                      onChange={(e) => setFalModelName(e.target.value)}
-                      placeholder="např. stabilityai/stable-diffusion-xl-base-1.0 nebo URL na .safetensors"
-                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-                    />
-                    <button
-                      type="button"
-                      onClick={addFalModel}
-                      className="px-3 py-2 rounded-lg text-xs font-bold border bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60"
-                      title="Uložit do knihovny"
-                    >
-                      +
-                    </button>
-                  </div>
-                  {falModels.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {falModels.slice(0, 8).map((m) => (
-                        <div key={m} className="flex items-center gap-2 px-2 py-1 rounded-lg border border-zinc-700/70 bg-zinc-900/20">
-                          <button
-                            type="button"
-                            onClick={() => setFalModelName(m)}
-                            className="text-xs text-zinc-200 hover:text-white"
-                            title={m}
-                          >
-                            {m.length > 26 ? `${m.slice(0, 26)}…` : m}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeFromFalLibrary('model', m)}
-                            className="text-xs text-white/35 hover:text-white/70"
-                            title="Smazat z knihovny"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <input
+                    value={falModelName}
+                    onChange={(e) => setFalModelName(e.target.value)}
+                    placeholder="např. stabilityai/stable-diffusion-xl-base-1.0 nebo URL na .safetensors"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                  />
                   <div className="text-xs text-white/40">
                     {backend === 'fal'
                       ? 'fal.ai umí použít model jako HuggingFace ID nebo URL na .safetensors.'
@@ -613,46 +500,12 @@ export function LoraSdGeneratorScreen(props: {
 
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (HF ID nebo URL)</label>
-                  <div className="flex gap-2">
-                    <input
-                      value={falLoraPath}
-                      onChange={(e) => setFalLoraPath(e.target.value)}
-                      placeholder="např. mulenmara/style-library/resolve/main/loras/xxx.safetensors"
-                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-                    />
-                    <button
-                      type="button"
-                      onClick={addFalLora}
-                      className="px-3 py-2 rounded-lg text-xs font-bold border bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60"
-                      title="Uložit do knihovny"
-                    >
-                      +
-                    </button>
-                  </div>
-                  {falLoras.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {falLoras.slice(0, 8).map((m) => (
-                        <div key={m} className="flex items-center gap-2 px-2 py-1 rounded-lg border border-zinc-700/70 bg-zinc-900/20">
-                          <button
-                            type="button"
-                            onClick={() => setFalLoraPath(m)}
-                            className="text-xs text-zinc-200 hover:text-white"
-                            title={m}
-                          >
-                            {m.length > 26 ? `${m.slice(0, 26)}…` : m}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeFromFalLibrary('lora', m)}
-                            className="text-xs text-white/35 hover:text-white/70"
-                            title="Smazat z knihovny"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <input
+                    value={falLoraPath}
+                    onChange={(e) => setFalLoraPath(e.target.value)}
+                    placeholder="např. https://huggingface.co/datasets/mulenmara/loras/resolve/main/xxx.safetensors"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                  />
                 </div>
 
                 {falLoraPath.trim() && (
