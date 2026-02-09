@@ -71,7 +71,7 @@
 
 [[redirects]]
   from = "/api/hf/img2img"
-  to = "/.netlify/functions/hf-img2img"
+  to = "/.netlify/functions/hf-img2img-background"
   status = 200
   force = true
 
