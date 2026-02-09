@@ -198,6 +198,7 @@ export function LoraSdGeneratorScreen(props: {
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [batches, setBatches] = React.useState<OutputBatch[]>([]);
+  const [previewImages, setPreviewImages] = React.useState<OutputItem[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
   const inputFileId = React.useMemo(() => `hf-sd-input-${Math.random().toString(36).slice(2)}`, []);
@@ -277,6 +278,7 @@ export function LoraSdGeneratorScreen(props: {
 
     setIsGenerating(true);
     setLightbox(null);
+    setPreviewImages([]); // avoid showing stale results as if they were newly generated
     setGenPhase('Připravuji…');
     setGenProgress(0.04);
     setGenError('');
@@ -355,6 +357,7 @@ export function LoraSdGeneratorScreen(props: {
         id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
         dataUrl,
       }));
+      setPreviewImages(batchImages);
       setBatches((prev) => [
         ...prev,
         {
@@ -421,10 +424,10 @@ export function LoraSdGeneratorScreen(props: {
     loras,
     lorasEnabled,
     controlNetEnabled,
+    setPreviewImages,
   ]);
 
   const latestBatch = batches.length ? batches[batches.length - 1] : null;
-  const latestImages = latestBatch?.images ?? [];
   const progressPct = Math.max(0, Math.min(100, Math.round(genProgress * 100)));
 
   return (
@@ -490,6 +493,19 @@ export function LoraSdGeneratorScreen(props: {
                     if (f) {
                       await setInputFromFile(f);
                       return;
+                    }
+                    const mulen = e.dataTransfer?.getData('application/x-mulen-image') || '';
+                    if (mulen) {
+                      try {
+                        const parsed = JSON.parse(mulen);
+                        const u = String(parsed?.url || '').trim();
+                        if (u) {
+                          await setInputFromUrlOrData(u);
+                          return;
+                        }
+                      } catch {
+                        // ignore
+                      }
                     }
                     const url = e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '';
                     if (url.trim()) await setInputFromUrlOrData(url.trim());
@@ -631,7 +647,7 @@ export function LoraSdGeneratorScreen(props: {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (moje HF)</label>
+              <label className="block text-[9px] font-bold text-white/60 uppercase tracking-wider">LoRA (moje HF)</label>
               <select
                 value={(() => {
                   const cur = loras[0]?.path?.trim();
@@ -684,7 +700,7 @@ export function LoraSdGeneratorScreen(props: {
                         const v = Number(e.target.value);
                         setLoras((prev) => (prev[0] ? [{ ...prev[0], scale: v }, ...prev.slice(1)] : prev));
                       }}
-                      className="flex-1 accent-[#7ed957] h-1 cursor-pointer"
+                      className="flex-1 range-green"
                     />
                     <div className="text-[11px] text-white/60 w-10 text-right">{loras[0].scale.toFixed(2)}</div>
                   </div>
@@ -732,7 +748,7 @@ export function LoraSdGeneratorScreen(props: {
                                 prev.map((x) => (x.id === l.id ? { ...x, scale: Number(e.target.value) } : x))
                               )
                             }
-                            className="flex-1 accent-[#7ed957] h-1 cursor-pointer"
+                            className="flex-1 range-green"
                           />
                           <div className="text-[11px] text-white/60 w-10 text-right">{l.scale.toFixed(2)}</div>
                         </div>
@@ -807,7 +823,7 @@ export function LoraSdGeneratorScreen(props: {
                 step="0.01"
                 value={denoise}
                 onChange={(e) => setDenoise(Number(e.target.value))}
-                className="w-[140px] accent-[#7ed957] h-1 cursor-pointer"
+                className="w-[140px] range-green"
               />
               <input
                 type="number"
@@ -911,7 +927,7 @@ export function LoraSdGeneratorScreen(props: {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[0, 1, 2].map((idx) => {
-              const img = latestImages[idx];
+              const img = previewImages[idx];
               const showProgress = isGenerating && !img && idx < variants;
               const slotEnabled = idx < variants;
               return (

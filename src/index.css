@@ -104,6 +104,44 @@
     animation: toastPop 180ms ease-out;
   }
 
+  /* Thin, subtle, app-accent range input */
+  .range-green {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.10);
+    outline: none;
+  }
+
+  .range-green::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px rgba(126, 217, 87, 0.10), 0 0 18px rgba(126, 217, 87, 0.20);
+    border: 1px solid rgba(126, 217, 87, 0.35);
+    cursor: pointer;
+  }
+
+  .range-green::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px rgba(126, 217, 87, 0.10), 0 0 18px rgba(126, 217, 87, 0.20);
+    border: 1px solid rgba(126, 217, 87, 0.35);
+    cursor: pointer;
+  }
+
+  .range-green::-moz-range-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.10);
+  }
+
   @keyframes toastPop {
     0% {
       transform: translateY(-6px);

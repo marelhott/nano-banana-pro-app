@@ -57,7 +57,9 @@ exports.handler = async (event) => {
     }
     // Strip query/hash if present.
     splat = String(splat).split('?')[0].split('#')[0];
-    const fileName = decodeURIComponent(splat || '').trim();
+    const decoded = decodeURIComponent(splat || '').trim();
+    // If we ever get a path (e.g. "files/<name>.png"), keep only the filename.
+    const fileName = (decoded.split('/').pop() || '').trim();
 
     if (!fileName) return json(400, { error: 'Missing file name' });
     // Prevent traversal / unexpected paths.
