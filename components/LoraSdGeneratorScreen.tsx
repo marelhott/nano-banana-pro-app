@@ -1,7 +1,6 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { runFalLoraImg2Img } from '../services/falService';
-import { runHfGpuImg2Img } from '../services/hfGpuService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { getPublicUrl, uploadImage, dataUrlToBlob } from '../utils/supabaseStorage';
 
@@ -36,7 +35,7 @@ type HfPreset = {
   url: string;
 };
 
-type BackendMode = 'fal' | 'hf';
+const SDXL_BASE_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
 
 function artistHintFromModelLabel(label: string): string {
   // "Tuymans SD model (checkpoint)" -> "Tuymans"
@@ -48,8 +47,8 @@ function artistHintFromModelLabel(label: string): string {
   return cleaned || base || 'fine art';
 }
 
-function buildAutoPrompt(modelLabel: string, loraLabels: string[]): { prompt: string; negative: string } {
-  const hints = [artistHintFromModelLabel(modelLabel), ...loraLabels.map(artistHintFromModelLabel)]
+function buildAutoPrompt(loraLabels: string[]): { prompt: string; negative: string } {
+  const hints = loraLabels.map(artistHintFromModelLabel)
     .map((s) => s.trim())
     .filter(Boolean);
   const uniq = Array.from(new Set(hints)).slice(0, 3);
@@ -59,51 +58,6 @@ function buildAutoPrompt(modelLabel: string, loraLabels: string[]): { prompt: st
     negative: 'blurry, low quality, watermark, text, logo',
   };
 }
-
-// Your HF library (uploaded weights).
-// We use direct file URLs so both backends (fal + HF GPU) can download the exact weights.
-const MULENMARA_CHECKPOINTS: HfPreset[] = [
-  {
-    id: 'tuymans_sd',
-    label: 'Tuymans SD model (checkpoint)',
-    url: 'https://huggingface.co/mulenmara/tuymans_SD_model/resolve/main/tuymans_style.safetensors',
-  },
-  {
-    id: 'tuymans_style_max',
-    label: 'Tuymans style max (checkpoint)',
-    url: 'https://huggingface.co/mulenmara/tuymans_style_max/resolve/main/tuymans_style_max.safetensors',
-  },
-  {
-    id: 'tuymans_style_3',
-    label: 'Tuymans style 3 (checkpoint)',
-    url: 'https://huggingface.co/mulenmara/tuymans_comfy/resolve/main/tuymans_style_3.safetensors',
-  },
-  {
-    id: 'adrian_ghenie',
-    label: 'Adrian Ghenie (checkpoint)',
-    url: 'https://huggingface.co/mulenmara/Adrian_Ghenie_style/resolve/main/adrian_ghenie_style.safetensors',
-  },
-  {
-    id: 'julius_hofmann',
-    label: 'Julius Hofmann (checkpoint)',
-    url: 'https://huggingface.co/mulenmara/Julius_Hofmann_style/resolve/main/julius_hofmann_style.safetensors',
-  },
-  {
-    id: 'peter_doig',
-    label: 'Peter Doig (checkpoint)',
-    url: 'https://huggingface.co/mulenmara/peter_doig_style/resolve/main/peter_doig_style.safetensors',
-  },
-  {
-    id: 'marlene_dumas',
-    label: 'Marlene Dumas (checkpoint)',
-    url: 'https://huggingface.co/mulenmara/marlene_dumas_style/resolve/main/marlene-dumas-style.safetensors',
-  },
-  {
-    id: 'tuymans_library_max',
-    label: 'Style library: Tuymans MAX (checkpoint)',
-    url: 'https://huggingface.co/mulenmara/style-library/resolve/main/checkpoints/tuymans-style-MAX.safetensors',
-  },
-];
 
 const MULENMARA_LORAS: HfPreset[] = [
   {
@@ -192,13 +146,10 @@ export function LoraSdGeneratorScreen(props: {
 }) {
   const { onOpenSettings, onToast } = props;
 
-  const [backend, setBackend] = React.useState<BackendMode>('hf');
-
   const [input, setInput] = React.useState<ImageSlot | null>(null);
   const [cfg, setCfg] = React.useState(7);
   const [denoise, setDenoise] = React.useState(0.55);
   const [steps, setSteps] = React.useState(30);
-  const [seed, setSeed] = React.useState<string>('');
   const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
 
   // UI-only progress (backend doesn't stream step progress).
@@ -206,24 +157,14 @@ export function LoraSdGeneratorScreen(props: {
   const [genProgress, setGenProgress] = React.useState<number>(0);
   const [genError, setGenError] = React.useState<string>('');
   const [genCompletedAtMs, setGenCompletedAtMs] = React.useState<number>(0);
-  const [lastRequestInfo, setLastRequestInfo] = React.useState<{ backend: BackendMode; requestId?: string; elapsedMs?: number } | null>(
-    null
-  );
-  const [hfTransportInfo, setHfTransportInfo] = React.useState<{ transport: 'direct' | 'proxy'; endpoint: string } | null>(null);
   const [lastSubmitInfo, setLastSubmitInfo] = React.useState<{ modelName: string; loras: Array<{ path: string; scale: number }> } | null>(
     null
   );
-
-  const defaultCheckpointPresetId = MULENMARA_CHECKPOINTS[0]?.id || '';
-  const [hfCheckpointPresetId, setHfCheckpointPresetId] = React.useState<string>(defaultCheckpointPresetId);
-  const [useCustomCheckpoint, setUseCustomCheckpoint] = React.useState(false);
-  const [falModelName, setFalModelName] = React.useState<string>(MULENMARA_CHECKPOINTS[0]?.url || 'stabilityai/stable-diffusion-xl-base-1.0');
 
   const [lorasEnabled, setLorasEnabled] = React.useState(true);
   const [loras, setLoras] = React.useState<LoraItem[]>([]);
   const [newLoraPresetId, setNewLoraPresetId] = React.useState<string>('');
   const [newLoraUrl, setNewLoraUrl] = React.useState<string>('');
-  const [controlNetEnabled, setControlNetEnabled] = React.useState(false); // UI only (backend not yet)
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [batches, setBatches] = React.useState<OutputBatch[]>([]);
@@ -231,17 +172,6 @@ export function LoraSdGeneratorScreen(props: {
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
   const inputFileId = React.useMemo(() => `hf-sd-input-${Math.random().toString(36).slice(2)}`, []);
-  const hfDirectEndpoint = (import.meta as any)?.env?.VITE_HF_IMG2IMG_URL
-    ? String((import.meta as any).env.VITE_HF_IMG2IMG_URL).trim()
-    : '';
-
-  // If the user selects one of your HF presets, fill the model/LoRA inputs.
-  React.useEffect(() => {
-    if (hfCheckpointPresetId) {
-      const p = MULENMARA_CHECKPOINTS.find((x) => x.id === hfCheckpointPresetId);
-      if (p && !useCustomCheckpoint) setFalModelName(p.url);
-    }
-  }, [hfCheckpointPresetId, useCustomCheckpoint]);
 
   const addLora = React.useCallback(
     (path: string) => {
@@ -302,32 +232,6 @@ export function LoraSdGeneratorScreen(props: {
     return () => clearInterval(timer);
   }, [isGenerating, genPhase]);
 
-  // If HF is selected and we have a direct endpoint, keep the Space warm while the page is open.
-  React.useEffect(() => {
-    if (backend !== 'hf') return;
-    if (!hfDirectEndpoint) return;
-    let stopped = false;
-
-    const ping = async () => {
-      try {
-        const origin = new URL(hfDirectEndpoint).origin;
-        await fetch(`${origin}/health`, { method: 'GET', cache: 'no-store' });
-      } catch {
-        // ignore
-      }
-    };
-
-    ping();
-    const t = setInterval(() => {
-      if (stopped) return;
-      ping();
-    }, 5 * 60 * 1000);
-    return () => {
-      stopped = true;
-      clearInterval(t);
-    };
-  }, [backend, hfDirectEndpoint]);
-
   const generate = React.useCallback(async () => {
     if (!input) {
       onToast({ message: 'Nahraj vstupní fotku.', type: 'error' });
@@ -347,19 +251,9 @@ export function LoraSdGeneratorScreen(props: {
       const inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
       setGenProgress((p) => Math.max(p, 0.12));
       setGenPhase('Nahrávám vstup…');
-      const seedNum = seed.trim() ? Number(seed.trim()) : undefined;
 
       let res: { images: string[]; usedSeed?: number } = { images: [] };
-      const modelName = falModelName.trim();
-
-      if (!modelName) {
-        onToast({
-          message: 'Vyber / zadej model (Hugging Face ID nebo URL).',
-          type: 'error',
-        });
-        setIsGenerating(false);
-        return;
-      }
+      const modelName = SDXL_BASE_MODEL;
 
       const lorasPayload =
         lorasEnabled
@@ -369,69 +263,31 @@ export function LoraSdGeneratorScreen(props: {
           : [];
       setLastSubmitInfo({ modelName, loras: lorasPayload });
 
-      const checkpointLabel = useCustomCheckpoint
-        ? modelName
-        : MULENMARA_CHECKPOINTS.find((x) => x.id === hfCheckpointPresetId)?.label || modelName;
       const loraLabels = lorasPayload
         .map((l) => MULENMARA_LORAS.find((p) => p.url === l.path)?.label || l.path)
         .filter(Boolean);
-      const auto = buildAutoPrompt(checkpointLabel, loraLabels);
-
-      if (controlNetEnabled) {
-        onToast({ message: 'ControlNet zatím není na HF Space napojený (coming soon).', type: 'info' });
-      }
+      const auto = buildAutoPrompt(loraLabels);
 
       // Prefer URL (storage) to keep payload small and robust.
       const blob = await dataUrlToBlob(inputDataUrl);
       const storagePath = await uploadImage(blob, 'generated');
       const publicUrl = getPublicUrl(storagePath);
       setGenProgress((p) => Math.max(p, 0.28));
-      setGenPhase(backend === 'hf' ? 'Spouštím HF GPU…' : 'Spouštím fal.ai…');
-
-      if (backend === 'fal') {
-        setGenProgress((p) => Math.max(p, 0.34));
-        setGenPhase('Generuji…');
-        const falRes = await runFalLoraImg2Img({
-          modelName,
-          imageUrlOrDataUrl: publicUrl,
-          // Promptless mode: we keep the UI clean; fal.ai still expects a prompt field.
-          prompt: auto.prompt,
-          negativePrompt: auto.negative,
-          cfg,
-          denoise,
-          steps,
-          seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
-          numImages: variants,
-          loras: lorasPayload,
-        });
-        setLastRequestInfo({ backend: 'fal' });
-        res = falRes;
-      } else {
-        setGenProgress((p) => Math.max(p, 0.34));
-        setGenPhase('Generuji…');
-        const hfRes = await runHfGpuImg2Img({
-          modelName,
-          imageUrl: publicUrl,
-          cfg,
-          denoise,
-          steps,
-          prompt: auto.prompt,
-          negativePrompt: auto.negative,
-          seed: Number.isFinite(seedNum as number) ? (seedNum as number) : undefined,
-          numImages: variants,
-          loras: lorasPayload,
-        });
-        setLastRequestInfo({ backend: 'hf', requestId: hfRes.requestId, elapsedMs: hfRes.elapsedMs });
-        setHfTransportInfo({ transport: hfRes.transport, endpoint: hfRes.endpoint });
-        // Extra proof the HF Space really used what we sent.
-        if (hfRes.pipeline || hfRes.modelName) {
-          onToast({
-            message: `HF Space: ${hfRes.pipeline || 'pipe'} · ${hfRes.modelName ? 'model OK' : 'model'}`,
-            type: 'info',
-          });
-        }
-        res = hfRes;
-      }
+      setGenPhase('Spouštím fal.ai…');
+      setGenProgress((p) => Math.max(p, 0.34));
+      setGenPhase('Generuji…');
+      res = await runFalLoraImg2Img({
+        modelName,
+        imageUrlOrDataUrl: publicUrl,
+        // Promptless UI: prompt is generated automatically in the background.
+        prompt: auto.prompt,
+        negativePrompt: auto.negative,
+        cfg,
+        denoise,
+        steps,
+        numImages: variants,
+        loras: lorasPayload,
+      });
 
       setLastSeed(typeof res.usedSeed === 'number' ? res.usedSeed : null);
       const batchId = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
@@ -453,7 +309,7 @@ export function LoraSdGeneratorScreen(props: {
 
       for (const out of res.images) {
         try {
-          const usedModelName = falModelName.trim();
+          const usedModelName = SDXL_BASE_MODEL;
           const usedLoras = lorasPayload.length ? lorasPayload : null;
 
           const thumb = await createThumbnail(out, 420);
@@ -464,7 +320,7 @@ export function LoraSdGeneratorScreen(props: {
             resolution: undefined,
             aspectRatio: undefined,
             params: {
-              engine: backend === 'fal' ? 'fal_lora_img2img' : 'hf_gpu_img2img',
+              engine: 'fal_lora_img2img',
               modelName: usedModelName,
               loras: usedLoras,
               cfg,
@@ -498,14 +354,10 @@ export function LoraSdGeneratorScreen(props: {
     denoise,
     input,
     onToast,
-    seed,
     steps,
     variants,
-    backend,
-    falModelName,
     loras,
     lorasEnabled,
-    controlNetEnabled,
     setPreviewImages,
   ]);
 
@@ -635,87 +487,16 @@ export function LoraSdGeneratorScreen(props: {
           </div>
 
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Pipeline</div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setBackend('hf')}
-                className={`rounded-xl p-2 text-left transition-all border ${
-                  backend === 'hf'
-                    ? 'border-[#7ed957]/35 bg-[#7ed957]/10 shadow-[0_0_0_1px_rgba(126,217,87,0.10)]'
-                    : 'border-white/10 bg-white/5 hover:bg-white/8'
-                }`}
-              >
-                <div className={`text-[10px] font-bold uppercase tracking-wider ${backend === 'hf' ? 'text-[#7ed957]' : 'text-white/60'}`}>
-                  HF
-                </div>
-                <div className="text-[9px] text-white/40 mt-1">Default (tvůj Space)</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setBackend('fal')}
-                className={`rounded-xl p-2 text-left transition-all border ${
-                  backend === 'fal'
-                    ? 'border-[#7ed957]/35 bg-[#7ed957]/10 shadow-[0_0_0_1px_rgba(126,217,87,0.10)]'
-                    : 'border-white/10 bg-white/5 hover:bg-white/8'
-                }`}
-              >
-                <div className={`text-[10px] font-bold uppercase tracking-wider ${backend === 'fal' ? 'text-[#7ed957]' : 'text-white/60'}`}>
-                  fal.ai
-                </div>
-                <div className="text-[9px] text-white/40 mt-1">Serverless fallback</div>
-              </button>
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Backend</div>
+            <div className="rounded-xl p-2 text-left border border-[#7ed957]/25 bg-[#7ed957]/8">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#7ed957]">fal.ai</div>
+              <div className="text-[9px] text-white/40 mt-1">
+                SDXL base + LoRA (rychlý workflow). Checkpointy teď nepoužíváme.
+              </div>
             </div>
-          </div>
-
-          <div className="card-surface p-4 space-y-3">
-            <div className="text-[10px] uppercase tracking-widest text-white/80 font-bold">Model (checkpoint)</div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setUseCustomCheckpoint(false)}
-                className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
-                  !useCustomCheckpoint
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-                }`}
-              >
-                Moje HF
-              </button>
-              <button
-                type="button"
-                onClick={() => setUseCustomCheckpoint(true)}
-                className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
-                  useCustomCheckpoint
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-                }`}
-              >
-                Vlastní
-              </button>
+            <div className="text-[9px] text-white/35">
+              Model: <span className="text-white/55">{SDXL_BASE_MODEL}</span>
             </div>
-
-            {!useCustomCheckpoint ? (
-              <select
-                value={hfCheckpointPresetId}
-                onChange={(e) => setHfCheckpointPresetId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-              >
-                {MULENMARA_CHECKPOINTS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={falModelName}
-                onChange={(e) => setFalModelName(e.target.value)}
-                placeholder="HF ID nebo URL na .safetensors"
-                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-              />
-            )}
           </div>
 
           <div className="card-surface p-4 space-y-3">
@@ -957,18 +738,7 @@ export function LoraSdGeneratorScreen(props: {
               LoRA {lorasEnabled ? 'ON' : 'OFF'}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setControlNetEnabled((v) => !v)}
-              className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
-                controlNetEnabled
-                  ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                  : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-              }`}
-              title="UI toggle (backend zatím nepodporuje)"
-            >
-              ControlNet {controlNetEnabled ? 'ON' : 'OFF'}
-            </button>
+            {/* ControlNet will be reintroduced later as part of the "robust" generator. */}
           </div>
         </div>
 
@@ -994,18 +764,6 @@ export function LoraSdGeneratorScreen(props: {
                     ? `Hotovo před ${Math.max(0, Math.round((Date.now() - genCompletedAtMs) / 1000))}s.`
                     : null}
               </div>
-              {lastRequestInfo?.backend === 'hf' && (lastRequestInfo.requestId || typeof lastRequestInfo.elapsedMs === 'number') && (
-                <div className="mt-2 text-[10px] text-white/35">
-                  HF Space ({hfTransportInfo?.transport === 'direct' ? 'direct' : 'proxy'}):{' '}
-                  {lastRequestInfo.requestId ? <span className="text-white/55">request_id {lastRequestInfo.requestId}</span> : null}
-                  {lastRequestInfo.requestId && typeof lastRequestInfo.elapsedMs === 'number' ? <span className="text-white/25"> · </span> : null}
-                  {typeof lastRequestInfo.elapsedMs === 'number' ? (
-                    <span className="text-white/55">elapsed {Math.round(lastRequestInfo.elapsedMs)}ms</span>
-                  ) : null}
-                  {hfTransportInfo?.endpoint ? <span className="text-white/25"> · </span> : null}
-                  {hfTransportInfo?.endpoint ? <span className="text-white/40">{hfTransportInfo.endpoint}</span> : null}
-                </div>
-              )}
               {lastSubmitInfo && (
                 <div className="mt-2 text-[10px] text-white/30">
                   Model: <span className="text-white/50 break-all">{lastSubmitInfo.modelName}</span>
@@ -1024,9 +782,6 @@ export function LoraSdGeneratorScreen(props: {
             <div className="mb-5 card-surface p-4 border border-rose-400/20">
               <div className="text-[10px] uppercase tracking-widest text-rose-200/80 font-bold">Chyba</div>
               <div className="mt-1 text-[11px] text-white/65">{genError}</div>
-              <div className="mt-2 text-[10px] text-white/45">
-                Tip: pokud generuješ z vlastního checkpointu, musí být SDXL. Když je to SD1.5, HF Space (SDXL pipeline) skončí chybou.
-              </div>
             </div>
           )}
 
