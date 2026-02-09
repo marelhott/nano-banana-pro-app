@@ -163,6 +163,27 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function extractFalImageUrls(payload: any): string[] {
+  const blocks = [
+    payload?.images,
+    payload?.output?.images,
+    payload?.result?.images,
+    payload?.response?.images,
+    payload?.data?.images,
+    payload?.outputs,
+  ];
+  for (const b of blocks) {
+    if (!b) continue;
+    if (Array.isArray(b)) {
+      const urls = b
+        .map((i: any) => (typeof i === 'string' ? i : i?.url))
+        .filter((u: any) => typeof u === 'string' && u.length > 0);
+      if (urls.length) return urls;
+    }
+  }
+  return [];
+}
+
 export async function runFalLoraImg2ImgQueued(params: {
   modelName: string;
   imageUrlOrDataUrl: string;
@@ -203,10 +224,8 @@ export async function runFalLoraImg2ImgQueued(params: {
     // fal queue payloads vary; support common shapes.
     const status = String(payload?.status || payload?.state || '').toLowerCase();
     if (status === 'completed' || status === 'succeeded' || payload?.images) {
-      const urls = (payload.images || payload?.output?.images || [])
-        .map((i: any) => i?.url)
-        .filter((u: any) => typeof u === 'string' && u.length > 0);
-      if (urls.length === 0) throw new Error('fal.ai: job dokončen, ale nevrátil obrázky.');
+      const urls = extractFalImageUrls(payload);
+      if (urls.length === 0) throw new Error(`fal.ai: job dokončen, ale nevrátil obrázky. (${JSON.stringify({ status: payload?.status || payload?.state, request_id: payload?.request_id || payload?.requestId || payload?.id }).slice(0, 240)})`);
       const out: string[] = [];
       for (const u of urls) out.push(await fetchAsDataUrl(u));
       const usedSeed = typeof payload.seed === 'number' ? payload.seed : (typeof payload?.output?.seed === 'number' ? payload.output.seed : undefined);

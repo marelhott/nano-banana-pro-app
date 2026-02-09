@@ -28,12 +28,47 @@ function pickStatusUrl(payload) {
     payload?.urls?.get,
     payload?.urls?.status,
     payload?.response_url,
+    payload?.responseUrl,
+    payload?.result_url,
+    payload?.resultUrl,
   ];
   for (const c of candidates) {
     const v = String(c || '').trim();
     if (v.startsWith('http')) return v;
   }
   return '';
+}
+
+function extractImageUrls(payload) {
+  const blocks = [
+    payload?.images,
+    payload?.output?.images,
+    payload?.result?.images,
+    payload?.response?.images,
+    payload?.data?.images,
+    payload?.outputs,
+    payload?.output,
+    payload?.result,
+    payload?.response,
+  ];
+  for (const b of blocks) {
+    if (!b) continue;
+    if (Array.isArray(b)) {
+      const urls = b
+        .map((i) => (typeof i === 'string' ? i : i?.url))
+        .filter((u) => typeof u === 'string' && u.length > 0);
+      if (urls.length) return urls;
+    } else if (typeof b === 'object') {
+      const maybe = b?.images;
+      if (Array.isArray(maybe)) {
+        const urls = maybe
+          .map((i) => (typeof i === 'string' ? i : i?.url))
+          .filter((u) => typeof u === 'string' && u.length > 0);
+        if (urls.length) return urls;
+      }
+    }
+  }
+  return [];
 }
 
 exports.handler = async (event) => {
@@ -74,6 +109,34 @@ exports.handler = async (event) => {
       }, 30_000);
 
       const text = await upstream.text();
+
+      // Some fal queue status endpoints return only metadata + response_url when completed.
+      // In that case, fetch the response payload and return it (so the client receives images).
+      try {
+        const payload = JSON.parse(text);
+        const status = String(payload?.status || payload?.state || '').toLowerCase();
+        const hasImages = extractImageUrls(payload).length > 0;
+        if ((status === 'completed' || status === 'succeeded') && !hasImages) {
+          const resultUrl = pickStatusUrl(payload);
+          if (resultUrl && resultUrl !== statusUrl) {
+            const r2 = await requestWithTimeout(resultUrl, {
+              method: 'GET',
+              headers: {
+                Authorization: `Key ${falKey}`,
+                'Content-Type': 'application/json',
+              },
+            }, 30_000);
+            const t2 = await r2.text();
+            return {
+              statusCode: r2.status,
+              headers: { 'Content-Type': r2.headers.get('content-type') || 'application/json' },
+              body: t2,
+            };
+          }
+        }
+      } catch {
+        // ignore parse issues, return raw status
+      }
       return {
         statusCode: upstream.status,
         headers: { 'Content-Type': upstream.headers.get('content-type') || 'application/json' },
