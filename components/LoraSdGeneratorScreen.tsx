@@ -178,6 +178,12 @@ export function LoraSdGeneratorScreen(props: {
   const [seed, setSeed] = React.useState<string>('');
   const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
 
+  // UI-only progress (backend doesn't stream step progress).
+  const [genPhase, setGenPhase] = React.useState<string>('');
+  const [genProgress, setGenProgress] = React.useState<number>(0);
+  const [genError, setGenError] = React.useState<string>('');
+  const [genCompletedAtMs, setGenCompletedAtMs] = React.useState<number>(0);
+
   const defaultCheckpointPresetId = MULENMARA_CHECKPOINTS[0]?.id || '';
   const [hfCheckpointPresetId, setHfCheckpointPresetId] = React.useState<string>(defaultCheckpointPresetId);
   const [useCustomCheckpoint, setUseCustomCheckpoint] = React.useState(false);
@@ -220,6 +226,24 @@ export function LoraSdGeneratorScreen(props: {
     setInput({ file, dataUrl });
   }, []);
 
+  React.useEffect(() => {
+    if (!isGenerating) return;
+    // Smooth-ish fake progress up to ~92% while we wait for the backend.
+    const timer = setInterval(() => {
+      setGenProgress((p) => {
+        const cap = 0.92;
+        if (p >= cap) return p;
+        const phase = genPhase.toLowerCase();
+        // Faster early, slower later (feels more "real").
+        const base =
+          phase.includes('nahráv') ? 0.02 : phase.includes('spoušt') ? 0.012 : phase.includes('gener') ? 0.009 : 0.01;
+        const damp = 1 - p / cap;
+        return Math.min(cap, p + base * Math.max(0.25, damp));
+      });
+    }, 120);
+    return () => clearInterval(timer);
+  }, [isGenerating, genPhase]);
+
   const generate = React.useCallback(async () => {
     if (!input) {
       onToast({ message: 'Nahraj vstupní fotku.', type: 'error' });
@@ -228,11 +252,16 @@ export function LoraSdGeneratorScreen(props: {
 
     setIsGenerating(true);
     setLightbox(null);
+    setGenPhase('Připravuji…');
+    setGenProgress(0.04);
+    setGenError('');
 
     try {
       // Keep function payload reasonable (Netlify Functions size limits).
       const maxBytes = 2_300_000;
       const inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
+      setGenProgress((p) => Math.max(p, 0.12));
+      setGenPhase('Nahrávám vstup…');
       const seedNum = seed.trim() ? Number(seed.trim()) : undefined;
 
       let res: { images: string[]; usedSeed?: number } = { images: [] };
@@ -262,8 +291,12 @@ export function LoraSdGeneratorScreen(props: {
       const blob = await dataUrlToBlob(inputDataUrl);
       const storagePath = await uploadImage(blob, 'generated');
       const publicUrl = getPublicUrl(storagePath);
+      setGenProgress((p) => Math.max(p, 0.28));
+      setGenPhase(backend === 'hf' ? 'Spouštím HF GPU…' : 'Spouštím fal.ai…');
 
       if (backend === 'fal') {
+        setGenProgress((p) => Math.max(p, 0.34));
+        setGenPhase('Generuji…');
         res = await runFalLoraImg2Img({
           modelName,
           imageUrlOrDataUrl: publicUrl,
@@ -277,6 +310,8 @@ export function LoraSdGeneratorScreen(props: {
           loras: lorasPayload,
         });
       } else {
+        setGenProgress((p) => Math.max(p, 0.34));
+        setGenPhase('Generuji…');
         res = await runHfGpuImg2Img({
           modelName,
           imageUrl: publicUrl,
@@ -335,9 +370,18 @@ export function LoraSdGeneratorScreen(props: {
         }
       }
     } catch (err: any) {
-      onToast({ message: err?.message || 'Generování selhalo.', type: 'error' });
+      const msg = String(err?.message || 'Generování selhalo.');
+      setGenError(msg);
+      onToast({ message: msg, type: 'error' });
     } finally {
       setIsGenerating(false);
+      setGenProgress(1);
+      setGenPhase('');
+      setGenCompletedAtMs(Date.now());
+      // Let the UI settle for a moment before resetting.
+      setTimeout(() => {
+        setGenProgress(0);
+      }, 350);
     }
   }, [
     cfg,
@@ -356,10 +400,11 @@ export function LoraSdGeneratorScreen(props: {
 
   const latestBatch = batches.length ? batches[batches.length - 1] : null;
   const latestImages = latestBatch?.images ?? [];
+  const progressPct = Math.max(0, Math.min(100, Math.round(genProgress * 100)));
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
-      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-zinc-800/60">
+      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-zinc-800/60 text-[11px]">
         <div className="p-4 space-y-4">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
@@ -377,20 +422,20 @@ export function LoraSdGeneratorScreen(props: {
             type="button"
             onClick={generate}
             disabled={isGenerating}
-            className="w-full px-5 py-3 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] text-xs font-[900] uppercase tracking-[0.25em] disabled:opacity-60"
+            className="w-full px-5 py-3 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] text-[11px] font-[900] uppercase tracking-[0.25em] disabled:opacity-60"
           >
-            {isGenerating ? 'Generuju…' : 'Generovat'}
+            {isGenerating ? 'Generuji…' : 'Generovat'}
           </button>
 
           <div className="card-surface p-4 space-y-3">
-            <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Počet obrázků</div>
+            <div className="text-[10px] uppercase tracking-widest text-white/80 font-bold">Počet obrázků</div>
             <div className="flex gap-2">
               {[1, 2, 3].map((n) => (
                 <button
                   key={n}
                   type="button"
                   onClick={() => setVariants(n as 1 | 2 | 3)}
-                  className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                  className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
                     variants === n
                       ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
                       : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
@@ -404,9 +449,9 @@ export function LoraSdGeneratorScreen(props: {
 
           <div className="card-surface p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Zdrojový obrázek</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/80 font-bold">Zdrojový obrázek</div>
               {input && (
-                <button type="button" className="text-xs text-white/45 hover:text-white/70" onClick={() => setInput(null)}>
+                <button type="button" className="text-[10px] text-white/45 hover:text-white/70" onClick={() => setInput(null)}>
                   odebrat
                 </button>
               )}
@@ -414,8 +459,8 @@ export function LoraSdGeneratorScreen(props: {
 
             {!input ? (
               <label className="block border border-zinc-700/70 bg-zinc-900/30 rounded-xl p-4 cursor-pointer hover:border-zinc-500/60 transition-colors">
-                <div className="text-sm text-white/70">Klikni a nahraj fotku</div>
-                <div className="text-xs text-white/40 mt-1">PNG/JPG.</div>
+                <div className="text-[11px] text-white/70">Klikni a nahraj fotku</div>
+                <div className="text-[10px] text-white/40 mt-1">PNG/JPG.</div>
                 <input
                   type="file"
                   accept="image/*"
@@ -440,12 +485,12 @@ export function LoraSdGeneratorScreen(props: {
           </div>
 
           <div className="card-surface p-4 space-y-3">
-            <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Pipeline</div>
+            <div className="text-[10px] uppercase tracking-widest text-white/80 font-bold">Pipeline</div>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setBackend('hf')}
-                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
                   backend === 'hf'
                     ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
                     : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
@@ -456,7 +501,7 @@ export function LoraSdGeneratorScreen(props: {
               <button
                 type="button"
                 onClick={() => setBackend('fal')}
-                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
                   backend === 'fal'
                     ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
                     : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
@@ -468,13 +513,13 @@ export function LoraSdGeneratorScreen(props: {
           </div>
 
           <div className="card-surface p-4 space-y-3">
-            <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Model (checkpoint)</div>
+            <div className="text-[10px] uppercase tracking-widest text-white/80 font-bold">Model (checkpoint)</div>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setUseCustomCheckpoint(false)}
-                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
                   !useCustomCheckpoint
                     ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
                     : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
@@ -485,7 +530,7 @@ export function LoraSdGeneratorScreen(props: {
               <button
                 type="button"
                 onClick={() => setUseCustomCheckpoint(true)}
-                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
                   useCustomCheckpoint
                     ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
                     : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
@@ -690,7 +735,7 @@ export function LoraSdGeneratorScreen(props: {
         </div>
       </aside>
 
-      <section className="flex-1 min-w-0 h-full overflow-y-auto custom-scrollbar">
+      <section className="flex-1 min-w-0 h-full overflow-y-auto custom-scrollbar text-[11px]">
         <div className="sticky top-0 z-10 backdrop-blur-md bg-black/25 border-b border-zinc-800/60">
           <div className="p-4 flex flex-wrap items-center gap-3">
             <div className="text-[11px] font-[900] uppercase tracking-[0.25em] text-white/70 mr-2">Nastavení vah</div>
@@ -746,7 +791,7 @@ export function LoraSdGeneratorScreen(props: {
             <button
               type="button"
               onClick={() => setLorasEnabled((v) => !v)}
-              className={`ml-auto px-3 py-2 rounded-lg text-xs font-bold border ${
+              className={`ml-auto px-3 py-2 rounded-lg text-[11px] font-bold border ${
                 lorasEnabled
                   ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
                   : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
@@ -759,7 +804,7 @@ export function LoraSdGeneratorScreen(props: {
             <button
               type="button"
               onClick={() => setControlNetEnabled((v) => !v)}
-              className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+              className={`px-3 py-2 rounded-lg text-[11px] font-bold border ${
                 controlNetEnabled
                   ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
                   : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
@@ -772,9 +817,44 @@ export function LoraSdGeneratorScreen(props: {
         </div>
 
         <div className="p-6">
+          {(isGenerating || genProgress > 0) && (
+            <div className="mb-5 card-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[10px] uppercase tracking-widest text-white/70 font-bold">
+                  {genPhase || (isGenerating ? 'Generuji…' : 'Dokončeno')}
+                </div>
+                <div className="text-[10px] text-white/45 tabular-nums">{progressPct}%</div>
+              </div>
+              <div className="mt-2 h-[10px] rounded-full bg-white/5 overflow-hidden border border-white/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#7ed957]/35 via-[#7ed957] to-[#7ed957]/35 transition-[width] duration-200 ease-out shadow-[0_0_18px_rgba(126,217,87,0.25)]"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <div className="mt-2 text-[10px] text-white/40">
+                {isGenerating
+                  ? 'Pozn.: progress je odhad (backend neposílá průběh kroků).'
+                  : genCompletedAtMs
+                    ? `Hotovo před ${Math.max(0, Math.round((Date.now() - genCompletedAtMs) / 1000))}s.`
+                    : null}
+              </div>
+            </div>
+          )}
+
+          {genError && !isGenerating && (
+            <div className="mb-5 card-surface p-4 border border-rose-400/20">
+              <div className="text-[10px] uppercase tracking-widest text-rose-200/80 font-bold">Chyba</div>
+              <div className="mt-1 text-[11px] text-white/65">{genError}</div>
+              <div className="mt-2 text-[10px] text-white/45">
+                Tip: pokud generuješ z vlastního checkpointu, musí být SDXL. Když je to SD1.5, HF Space (SDXL pipeline) skončí chybou.
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[0, 1, 2].map((idx) => {
               const img = latestImages[idx];
+              const showProgress = isGenerating && !img;
               return (
                 <button
                   key={idx}
@@ -789,13 +869,37 @@ export function LoraSdGeneratorScreen(props: {
                   }}
                   title={img ? 'Zvětšit' : 'Zatím prázdné'}
                 >
-                  {img ? (
-                    <img src={img.dataUrl} alt={`Výstup ${idx + 1}`} className="w-full aspect-square object-cover bg-black/20 rounded-xl" />
-                  ) : (
-                    <div className="w-full aspect-square flex items-center justify-center text-sm text-white/35 bg-black/20 rounded-xl">
-                      Varianta {idx + 1}
-                    </div>
-                  )}
+                  <div className="relative">
+                    {img ? (
+                      <img
+                        src={img.dataUrl}
+                        alt={`Výstup ${idx + 1}`}
+                        className="w-full aspect-square object-cover bg-black/20 rounded-xl"
+                      />
+                    ) : (
+                      <div className="w-full aspect-square flex items-center justify-center text-[11px] text-white/35 bg-black/20 rounded-xl">
+                        Varianta {idx + 1}
+                      </div>
+                    )}
+
+                    {showProgress && (
+                      <div className="absolute inset-0 rounded-xl overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/35 to-black/55" />
+                        <div className="absolute left-3 right-3 bottom-3">
+                          <div className="flex items-center justify-between text-[10px] text-white/60">
+                            <span>{genPhase || 'Generuji…'}</span>
+                            <span className="tabular-nums">{progressPct}%</span>
+                          </div>
+                          <div className="mt-2 h-[8px] rounded-full bg-white/10 overflow-hidden border border-white/10">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-[#7ed957]/35 via-[#7ed957] to-[#7ed957]/35 transition-[width] duration-200 ease-out"
+                              style={{ width: `${progressPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </button>
               );
             })}
