@@ -2,7 +2,7 @@ import React from 'react';
 import { Plus } from 'lucide-react';
 import { runFalLoraImg2Img } from '../services/falService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
-import { getPublicUrl, uploadImage, dataUrlToBlob } from '../utils/supabaseStorage';
+import { dataUrlToBlob } from '../utils/supabaseStorage';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -63,32 +63,8 @@ const MULENMARA_LORAS: HfPreset[] = [
   {
     id: 'lora_tuymans_1',
     label: 'LoRA: Tuymans (1)',
+    // fal.ai expects LoRA as a URL it can fetch server-side.
     url: 'https://huggingface.co/datasets/mulenmara/loras/resolve/main/lora_tuymans_style.safetensors',
-  },
-  {
-    id: 'lora_tuymans_2',
-    label: 'LoRA: Tuymans (2)',
-    url: 'https://huggingface.co/datasets/mulenmara/loras/resolve/main/lora_tuymans_style_2.safetensors',
-  },
-  {
-    id: 'lora_adrian_ghenie',
-    label: 'LoRA: Adrian Ghenie',
-    url: 'https://huggingface.co/datasets/mulenmara/loras/resolve/main/lora_adrian_ghenie_style.safetensors',
-  },
-  {
-    id: 'lora_julius_hofmann',
-    label: 'LoRA: Julius Hofmann',
-    url: 'https://huggingface.co/datasets/mulenmara/loras/resolve/main/lora_julius_hofmann_style.safetensors',
-  },
-  {
-    id: 'lora_peter_doig',
-    label: 'LoRA: Peter Doig',
-    url: 'https://huggingface.co/datasets/mulenmara/loras/resolve/main/lora_peter_doig_style.safetensors',
-  },
-  {
-    id: 'lora_marlene_dumas',
-    label: 'LoRA: Marlene Dumas',
-    url: 'https://huggingface.co/datasets/mulenmara/loras/resolve/main/lora_marlene-dumas-style.safetensors',
   },
 ];
 
@@ -268,17 +244,15 @@ export function LoraSdGeneratorScreen(props: {
         .filter(Boolean);
       const auto = buildAutoPrompt(loraLabels);
 
-      // Prefer URL (storage) to keep payload small and robust.
-      const blob = await dataUrlToBlob(inputDataUrl);
-      const storagePath = await uploadImage(blob, 'generated');
-      const publicUrl = getPublicUrl(storagePath);
+      // Send the image as data URL to avoid upstream fetch issues (private buckets, CORS, etc).
+      // We already shrink it above to fit Netlify payload limits.
       setGenProgress((p) => Math.max(p, 0.28));
       setGenPhase('Spouštím fal.ai…');
       setGenProgress((p) => Math.max(p, 0.34));
       setGenPhase('Generuji…');
       res = await runFalLoraImg2Img({
         modelName,
-        imageUrlOrDataUrl: publicUrl,
+        imageUrlOrDataUrl: inputDataUrl,
         // Promptless UI: prompt is generated automatically in the background.
         prompt: auto.prompt,
         negativePrompt: auto.negative,

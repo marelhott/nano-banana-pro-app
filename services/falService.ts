@@ -77,8 +77,27 @@ export async function runFalLoraImg2Img(params: {
     body: JSON.stringify({ input }),
   });
 
-  assertOk(res, 'fal.ai request selhal');
-  const payload = (await res.json()) as FalLoraImg2ImgResponse;
+  const rawText = await res.text();
+  if (!res.ok) {
+    // Surface upstream validation errors (422) and other details.
+    let detail = rawText;
+    try {
+      const j = JSON.parse(rawText);
+      detail = j?.detail || j?.error || j?.message || rawText;
+      if (typeof detail !== 'string') detail = JSON.stringify(detail);
+    } catch {
+      // keep raw text
+    }
+    const suffix = detail ? `: ${String(detail).slice(0, 500)}` : '';
+    throw new Error(`fal.ai request selhal (HTTP ${res.status})${suffix}`);
+  }
+
+  let payload: FalLoraImg2ImgResponse = {};
+  try {
+    payload = JSON.parse(rawText) as FalLoraImg2ImgResponse;
+  } catch {
+    throw new Error('fal.ai vrátil neplatnou odpověď (není to JSON).');
+  }
 
   const urls = (payload.images || []).map((i) => i?.url).filter((u): u is string => typeof u === 'string' && u.length > 0);
   if (urls.length === 0) throw new Error('fal.ai nevrátil žádné obrázky.');
