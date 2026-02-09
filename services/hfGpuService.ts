@@ -11,8 +11,30 @@ function assertOk(res: Response, message: string) {
   if (!res.ok) throw new Error(`${message} (HTTP ${res.status})`);
 }
 
+function normalizeHfUrl(url: string): string {
+  // HF Spaces sometimes return `http://...hf.space/files/...` in responses.
+  // Browsers block that as mixed content when our app is served over HTTPS.
+  try {
+    const u = new URL(url);
+    if (
+      u.protocol === 'http:' &&
+      (u.hostname.endsWith('.hf.space') ||
+        u.hostname === 'huggingface.co' ||
+        u.hostname.endsWith('.huggingface.co') ||
+        u.hostname === 'hf.co' ||
+        u.hostname.endsWith('.hf.co'))
+    ) {
+      u.protocol = 'https:';
+      return u.toString();
+    }
+  } catch {
+    // ignore
+  }
+  return url;
+}
+
 async function fetchAsDataUrl(url: string): Promise<string> {
-  const res = await fetch(url);
+  const res = await fetch(normalizeHfUrl(url));
   assertOk(res, 'Nepodařilo se stáhnout výstup z HF GPU');
   const blob = await res.blob();
   const base64 = await new Promise<string>((resolve, reject) => {
@@ -56,7 +78,10 @@ export async function runHfGpuImg2Img(params: {
   const payload = (await res.json()) as HfImg2ImgResponse;
   if (payload?.error) throw new Error(payload.error);
 
-  const urls = (payload.images || []).map((i) => i?.url).filter((u): u is string => typeof u === 'string' && u.length > 0);
+  const urls = (payload.images || [])
+    .map((i) => i?.url)
+    .filter((u): u is string => typeof u === 'string' && u.length > 0)
+    .map(normalizeHfUrl);
   if (urls.length === 0) throw new Error('HF GPU nevrátil žádné obrázky.');
 
   const out: string[] = [];
@@ -64,4 +89,3 @@ export async function runHfGpuImg2Img(params: {
 
   return { images: out, usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined };
 }
-
