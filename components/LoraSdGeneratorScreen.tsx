@@ -64,8 +64,9 @@ const MULENMARA_LORAS: HfPreset[] = [
   {
     id: 'lora_tuymans_1',
     label: 'LoRA: Tuymans (1)',
-    // fal.ai expects LoRA as a URL it can fetch server-side.
-    url: 'https://huggingface.co/datasets/mulenmara/loras/resolve/main/lora_tuymans_style.safetensors',
+    // Prefer Cloudflare R2 (fast, avoids HF CDN flakiness / timeouts for large LoRA files).
+    // This resolves into a short-lived signed GET URL via /api/r2-presign before calling fal.ai.
+    url: 'r2://loras/lora_tuymans_style.safetensors',
   },
 ];
 
@@ -711,18 +712,13 @@ export function LoraSdGeneratorScreen(props: {
                         {p.label}
                       </option>
                     ))}
-                    <option value="__r2_tuymans">LoRA: Tuymans (R2, po uploadu)</option>
                   </select>
                   <button
                     type="button"
                     disabled={!newLoraPresetId || loras.length >= 4}
                     onClick={() => {
-                      if (newLoraPresetId === '__r2_tuymans') {
-                        addLora('r2://lora_tuymans_style.safetensors');
-                      } else {
-                        const p = MULENMARA_LORAS.find((x) => x.id === newLoraPresetId);
-                        if (p) addLora(p.url);
-                      }
+                      const p = MULENMARA_LORAS.find((x) => x.id === newLoraPresetId);
+                      if (p) addLora(p.url);
                       setNewLoraPresetId('');
                     }}
                     className="px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
