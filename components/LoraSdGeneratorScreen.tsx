@@ -16,6 +16,13 @@ type OutputItem = {
   dataUrl: string;
 };
 
+type OutputBatch = {
+  id: string;
+  createdAtMs: number;
+  images: OutputItem[];
+  usedSeed: number | null;
+};
+
 type HfPreset = {
   id: string;
   label: string;
@@ -173,7 +180,8 @@ export function LoraSdGeneratorScreen(props: {
   const [hfLoraPresetId, setHfLoraPresetId] = React.useState<string>('');
 
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
+  const [batches, setBatches] = React.useState<OutputBatch[]>([]);
+  const [selectedImageId, setSelectedImageId] = React.useState<string>('input');
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
 
@@ -195,6 +203,7 @@ export function LoraSdGeneratorScreen(props: {
   const setInputFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
     setInput({ file, dataUrl });
+    setSelectedImageId('input');
   }, []);
 
   const generate = React.useCallback(async () => {
@@ -261,13 +270,21 @@ export function LoraSdGeneratorScreen(props: {
       }
 
       setLastSeed(typeof res.usedSeed === 'number' ? res.usedSeed : null);
-      setOutputs((prev) => [
+      const batchId = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+      const batchImages: OutputItem[] = res.images.map((dataUrl) => ({
+        id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        dataUrl,
+      }));
+      setBatches((prev) => [
         ...prev,
-        ...res.images.map((dataUrl) => ({
-          id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-          dataUrl,
-        })),
+        {
+          id: batchId,
+          createdAtMs: Date.now(),
+          images: batchImages,
+          usedSeed: typeof res.usedSeed === 'number' ? res.usedSeed : null,
+        },
       ]);
+      if (batchImages[0]) setSelectedImageId(batchImages[0].id);
       onToast({ message: `Hotovo (${res.images.length}x). Ukládám do galerie…`, type: 'success' });
 
       for (const out of res.images) {
@@ -319,198 +336,100 @@ export function LoraSdGeneratorScreen(props: {
     falLoraScale,
   ]);
 
+  const latestBatch = batches.length ? batches[batches.length - 1] : null;
+  const latestThumbs = latestBatch?.images ?? [];
+  let selectedFromBatches: string | null = null;
+  if (selectedImageId !== 'input') {
+    for (let i = batches.length - 1; i >= 0; i--) {
+      const hit = batches[i].images.find((x) => x.id === selectedImageId);
+      if (hit) {
+        selectedFromBatches = hit.dataUrl;
+        break;
+      }
+    }
+  }
+  const selectedPreviewUrl =
+    selectedImageId === 'input' ? input?.dataUrl ?? null : selectedFromBatches;
+
   return (
     <div className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar">
-      <div className="p-6 lg:p-10 pb-24 w-full">
-        <div className="space-y-8 w-full max-w-6xl mx-auto">
-          <header className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
-              <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">LoRA / SD Generátor</h2>
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="ml-auto px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider"
-              >
-                Nastavení
-              </button>
-            </div>
-            <p className="text-sm text-white/70">
-              Img2Img generování přes vzdálený backend s čistým UI. Vybereš checkpoint/LoRA jako HF ID nebo URL a generuješ přes fal.ai nebo HF GPU endpoint.
-            </p>
-          </header>
-
-          <div className="card-surface p-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Backend</div>
-              <div className="text-xs text-white/55">
-                {backend === 'fal' ? 'fal.ai (serverless)' : 'Hugging Face GPU endpoint'}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setBackend('fal')}
-                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
-                  backend === 'fal'
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-                }`}
-              >
-                fal.ai
-              </button>
-              <button
-                type="button"
-                onClick={() => setBackend('hf')}
-                className={`px-3 py-2 rounded-lg text-xs font-bold border ${
-                  backend === 'hf'
-                    ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                    : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-                }`}
-              >
-                HF GPU
-              </button>
-            </div>
+      <div className="p-4 lg:p-6 pb-24 w-full">
+        <div className="w-full max-w-7xl mx-auto">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
+            <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">LoRA / SD Generátor</h2>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="ml-auto px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider"
+            >
+              Nastavení
+            </button>
           </div>
 
-          <div className="card-surface p-5 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Mulenmara HF knihovna</div>
-                <div className="text-xs text-white/55">Rychlý výběr checkpointů a LoRA z tvého Hugging Face.</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setHfCheckpointPresetId('');
-                  setHfLoraPresetId('');
-                  onToast({ message: 'Výběr presetů resetován.', type: 'info' });
-                }}
-                className="px-4 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider"
-              >
-                Reset
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Checkpoint (vybere URL)</label>
-                <select
-                  value={hfCheckpointPresetId}
-                  onChange={(e) => setHfCheckpointPresetId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                >
-                  <option value="">(nevybráno)</option>
-                  {MULENMARA_CHECKPOINTS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (vybere URL)</label>
-                <select
-                  value={hfLoraPresetId}
-                  onChange={(e) => setHfLoraPresetId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                >
-                  <option value="">(žádná)</option>
-                  {MULENMARA_LORAS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="text-xs text-white/45">
-              Tip: Vyber checkpoint a (volitelně) LoRA. Hodnoty se propsanou do polí níže a použijí se pro fal.ai i HF GPU.
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card-surface p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs uppercase tracking-widest text-white/80 font-bold">Vstup</h3>
-                {input && (
-                  <button
-                    type="button"
-                    onClick={() => setInput(null)}
-                    className="text-xs text-white/50 hover:text-white/80"
-                  >
-                    odstranit
-                  </button>
-                )}
-              </div>
-
-              {!input ? (
-                <label className="block border border-zinc-700/70 bg-zinc-900/30 rounded-xl p-5 cursor-pointer hover:border-zinc-500/60 transition-colors">
-                  <div className="text-sm text-white/70">Klikni a nahraj fotku</div>
-                  <div className="text-xs text-white/40 mt-1">PNG/JPG. (Pro upload se může automaticky zmenšit.)</div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      void setInputFromFile(f);
-                    }}
-                  />
-                </label>
-              ) : (
-                <button
-                  type="button"
-                  className="w-full border border-zinc-700/70 bg-zinc-900/20 rounded-xl overflow-hidden"
-                  onClick={() => setLightbox(input.dataUrl)}
-                  title="Otevřít náhled"
-                >
-                  <img src={input.dataUrl} alt="Input" className="w-full h-[320px] object-contain bg-black/20" />
-                </button>
-              )}
-
-              <div className="space-y-2">
-                <div className="text-xs text-white/45">
-                  Prompt je v režimu <span className="text-white/70 font-bold">Auto</span> (nevyplňuje se).
+          <div className="mt-5 grid grid-cols-1 lg:grid-cols-[340px,minmax(0,1fr)] gap-6">
+            <aside className="space-y-4 lg:sticky lg:top-6 self-start">
+              <div className="card-surface p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Backend</div>
+                    <div className="text-[11px] text-white/55">
+                      {backend === 'fal' ? 'fal.ai (serverless)' : 'HF GPU (tvůj Space)'}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBackend('fal')}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                        backend === 'fal'
+                          ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
+                          : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
+                      }`}
+                    >
+                      fal.ai
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBackend('hf')}
+                      className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                        backend === 'hf'
+                          ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
+                          : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
+                      }`}
+                    >
+                      HF GPU
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="card-surface p-5 space-y-4">
-              <h3 className="text-xs uppercase tracking-widest text-white/80 font-bold">Nastavení</h3>
+              <div className="card-surface p-4 space-y-3">
+                <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Model + LoRA</div>
 
-              <div className="grid grid-cols-1 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Model (HF ID nebo URL)</label>
+                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Checkpoint (HF ID nebo URL)</label>
                   <input
                     value={falModelName}
                     onChange={(e) => setFalModelName(e.target.value)}
                     placeholder="např. stabilityai/stable-diffusion-xl-base-1.0 nebo URL na .safetensors"
                     className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
                   />
-                  <div className="text-xs text-white/40">
-                    {backend === 'fal'
-                      ? 'fal.ai umí použít model jako HuggingFace ID nebo URL na .safetensors.'
-                      : 'HF GPU endpoint musí umět stáhnout model podle zadaného HF ID/URL (implementace endpointu).'}
-                  </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (HF ID nebo URL)</label>
+                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (URL)</label>
                   <input
                     value={falLoraPath}
                     onChange={(e) => setFalLoraPath(e.target.value)}
-                    placeholder="např. https://huggingface.co/datasets/mulenmara/loras/resolve/main/xxx.safetensors"
+                    placeholder="https://huggingface.co/datasets/.../resolve/main/xxx.safetensors"
                     className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
                   />
                 </div>
 
                 {falLoraPath.trim() && (
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-white/50 uppercase tracking-wider">LoRA scale</label>
+                    <label className="block text-xs font-bold text-white/50 uppercase tracking-wider">LoRA váha</label>
                     <input
                       type="number"
                       step="0.05"
@@ -522,117 +441,274 @@ export function LoraSdGeneratorScreen(props: {
                     />
                   </div>
                 )}
+
+                <details className="pt-1">
+                  <summary className="cursor-pointer select-none text-xs text-white/55 hover:text-white/75">
+                    Mulenmara HF knihovna (rychlý výběr)
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Checkpoint preset</label>
+                        <select
+                          value={hfCheckpointPresetId}
+                          onChange={(e) => setHfCheckpointPresetId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                        >
+                          <option value="">(nevybráno)</option>
+                          {MULENMARA_CHECKPOINTS.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA preset</label>
+                        <select
+                          value={hfLoraPresetId}
+                          onChange={(e) => setHfLoraPresetId(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                        >
+                          <option value="">(žádná)</option>
+                          {MULENMARA_LORAS.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHfCheckpointPresetId('');
+                        setHfLoraPresetId('');
+                        onToast({ message: 'Výběr presetů resetován.', type: 'info' });
+                      }}
+                      className="px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider"
+                    >
+                      Reset presetů
+                    </button>
+                  </div>
+                </details>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">CFG</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.1"
-                    max="30"
-                    value={cfg}
-                    onChange={(e) => setCfg(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Steps</label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    max="200"
-                    value={steps}
-                    onChange={(e) => setSteps(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                  />
-                </div>
-              </div>
+              <div className="card-surface p-4 space-y-3">
+                <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Váhy</div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Denoise</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max="1"
-                    value={denoise}
-                    onChange={(e) => setDenoise(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Seed</label>
-                  <input
-                    value={seed}
-                    onChange={(e) => setSeed(e.target.value)}
-                    placeholder={lastSeed != null ? String(lastSeed) : 'random'}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Varianty</label>
-                  <div className="flex gap-2">
-                    {[1, 2, 3].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setVariants(n as 1 | 2 | 3)}
-                        className={`px-3 py-2 rounded-lg text-xs font-bold border ${
-                          variants === n
-                            ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
-                            : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-                        }`}
-                      >
-                        {n}x
-                      </button>
-                    ))}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Denoise</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max="1"
+                      value={denoise}
+                      onChange={(e) => setDenoise(Number(e.target.value))}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">CFG</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      max="30"
+                      value={cfg}
+                      onChange={(e) => setCfg(Number(e.target.value))}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                    />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Steps</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      max="200"
+                      value={steps}
+                      onChange={(e) => setSteps(Number(e.target.value))}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Varianty</label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setVariants(n as 1 | 2 | 3)}
+                          className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                            variants === n
+                              ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
+                              : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
+                          }`}
+                        >
+                          {n}x
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <details className="pt-1">
+                  <summary className="cursor-pointer select-none text-xs text-white/55 hover:text-white/75">Advanced</summary>
+                  <div className="mt-3 space-y-1">
+                    <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">Seed</label>
+                    <input
+                      value={seed}
+                      onChange={(e) => setSeed(e.target.value)}
+                      placeholder={lastSeed != null ? String(lastSeed) : 'random'}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-sm text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                    />
+                  </div>
+                </details>
 
                 <button
                   type="button"
                   onClick={generate}
                   disabled={isGenerating}
-                  className="px-5 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] text-xs font-bold uppercase tracking-wider disabled:opacity-60"
+                  className="w-full px-5 py-3 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] text-xs font-[900] uppercase tracking-[0.25em] disabled:opacity-60"
                 >
-                  {isGenerating ? 'Generuju…' : 'Generate'}
+                  {isGenerating ? 'Generuju…' : 'Generovat'}
                 </button>
-              </div>
 
-              <div className="text-xs text-white/45">
-                Pozn.: fal.ai vyžaduje `FAL_KEY` v Netlify env. HF režim vyžaduje `HF_IMG2IMG_URL` (a případně `HF_TOKEN`).
+                <div className="text-[11px] text-white/40">
+                  fal.ai: `FAL_KEY` v Netlify env. HF: `HF_IMG2IMG_URL` + (pro private Space) `HF_TOKEN`.
+                </div>
               </div>
-            </div>
-          </div>
+            </aside>
 
-          {outputs.length > 0 && (
-            <div className="card-surface p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs uppercase tracking-widest text-white/80 font-bold">Výstupy</h3>
-                <div className="text-xs text-white/45">Klikni pro fullsize</div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {outputs.map((o, idx) => (
+            <main className="space-y-4 min-w-0">
+              <div className="card-surface p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs uppercase tracking-widest text-white/80 font-bold">Preview</div>
+                  <div className="flex items-center gap-3">
+                    <label className="px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider cursor-pointer">
+                      {input ? 'Změnit vstup' : 'Nahrát vstup'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          void setInputFromFile(f);
+                        }}
+                      />
+                    </label>
+                    {input && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInput(null);
+                          setSelectedImageId('input');
+                        }}
+                        className="px-3 py-2 rounded-lg bg-zinc-900/20 text-white/60 border border-zinc-700/60 hover:text-white/80 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider"
+                      >
+                        Odebrat
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {!selectedPreviewUrl ? (
+                  <div className="mt-4 border border-zinc-700/70 bg-zinc-900/20 rounded-2xl p-8 text-sm text-white/60">
+                    Nahraj vstupní fotku. Výstupy (1–3) se zobrazí tady jako velký náhled + miniatury.
+                  </div>
+                ) : (
                   <button
-                    key={o.id}
                     type="button"
-                    className="border border-zinc-700/70 bg-black/20 rounded-xl overflow-hidden hover:border-zinc-500/60 transition-colors"
-                    onClick={() => setLightbox(o.dataUrl)}
-                    title="Otevřít"
+                    className="mt-4 w-full border border-zinc-700/70 bg-black/20 rounded-2xl overflow-hidden"
+                    onClick={() => setLightbox(selectedPreviewUrl)}
+                    title="Otevřít fullsize"
                   >
-                    <img src={o.dataUrl} alt={`Output ${idx + 1}`} className="w-full h-[260px] object-contain" />
+                    <img
+                      src={selectedPreviewUrl}
+                      alt="Preview"
+                      className="w-full aspect-square object-contain bg-black/20"
+                    />
                   </button>
-                ))}
+                )}
+
+                <div className="mt-4 flex items-center gap-3">
+                  {input?.dataUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedImageId('input')}
+                      className={`border rounded-xl overflow-hidden ${
+                        selectedImageId === 'input'
+                          ? 'border-[#7ed957]/70'
+                          : 'border-zinc-700/70 hover:border-zinc-500/60'
+                      }`}
+                      title="Vstup"
+                    >
+                      <img src={input.dataUrl} alt="Input thumb" className="w-[84px] h-[84px] object-cover" />
+                    </button>
+                  )}
+
+                  {latestThumbs.map((o, idx) => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => setSelectedImageId(o.id)}
+                      className={`border rounded-xl overflow-hidden ${
+                        selectedImageId === o.id
+                          ? 'border-[#7ed957]/70'
+                          : 'border-zinc-700/70 hover:border-zinc-500/60'
+                      }`}
+                      title={`Výstup ${idx + 1}`}
+                    >
+                      <img src={o.dataUrl} alt={`Output thumb ${idx + 1}`} className="w-[84px] h-[84px] object-cover" />
+                    </button>
+                  ))}
+
+                  {latestBatch && (
+                    <div className="ml-auto text-[11px] text-white/45">
+                      Poslední seed: <span className="text-white/70 font-bold">{latestBatch.usedSeed ?? 'random'}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+
+              {batches.length > 0 && (
+                <details className="card-surface p-4">
+                  <summary className="cursor-pointer select-none text-xs uppercase tracking-widest text-white/70 font-bold">
+                    Historie ({batches.reduce((a, b) => a + b.images.length, 0)})
+                  </summary>
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {batches
+                      .slice()
+                      .reverse()
+                      .flatMap((b) => b.images)
+                      .map((o, idx) => (
+                        <button
+                          key={o.id}
+                          type="button"
+                          className="border border-zinc-700/70 bg-black/20 rounded-xl overflow-hidden hover:border-zinc-500/60 transition-colors"
+                          onClick={() => {
+                            setSelectedImageId(o.id);
+                            setLightbox(o.dataUrl);
+                          }}
+                          title="Otevřít"
+                        >
+                          <img src={o.dataUrl} alt={`History ${idx + 1}`} className="w-full h-[180px] object-cover" />
+                        </button>
+                      ))}
+                  </div>
+                </details>
+              )}
+            </main>
+          </div>
         </div>
       </div>
 
