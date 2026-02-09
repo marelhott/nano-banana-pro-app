@@ -41,4 +41,6 @@ FastAPI-only Space for SDXL img2img with optional LoRA.
 
 Notes:
 - `model_name` may be a HF model ID or a direct URL supported by diffusers.
+- For single-file checkpoints (`.safetensors` / `.ckpt`), pass a direct URL to the file (e.g. HF `resolve/.../*.safetensors`).
 - `loras[].path` is expected to be a direct URL to a `.safetensors` LoRA file (HF `resolve/...` works).
+- If you need to download private HF repos/files from inside the Space, set the Space secret `HF_HUB_TOKEN`.

@@ -3,7 +3,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import requests
 import torch
@@ -16,6 +16,8 @@ from PIL import Image
 
 FILES_DIR = os.environ.get("FILES_DIR", "/tmp/files")
 os.makedirs(FILES_DIR, exist_ok=True)
+
+HF_HUB_TOKEN = os.environ.get("HF_HUB_TOKEN", "").strip()  # optional: allow downloading private HF weights
 
 app = FastAPI(title="mulennano img2img API", version="0.1.0")
 app.mount("/files", StaticFiles(directory=FILES_DIR), name="files")
@@ -40,7 +42,10 @@ def _as_float(v: Any, default: float) -> float:
 
 
 def _download(url: str, out_path: str, timeout: int = 60) -> None:
-    r = requests.get(url, stream=True, timeout=timeout)
+    headers = {}
+    if HF_HUB_TOKEN and ("huggingface.co" in url or "hf.co" in url):
+        headers["Authorization"] = f"Bearer {HF_HUB_TOKEN}"
+    r = requests.get(url, headers=headers, stream=True, timeout=timeout)
     r.raise_for_status()
     with open(out_path, "wb") as f:
         for chunk in r.iter_content(chunk_size=1024 * 1024):
@@ -87,26 +92,54 @@ def _get_pipe(model_name: str) -> StableDiffusionXLImg2ImgPipeline:
         torch.cuda.empty_cache()
 
     torch_dtype = torch.float16
-    # Prefer fp16 + safetensors, but fall back across common repo layouts.
-    last_err: Optional[Exception] = None
-    for variant, use_safetensors in (
-        ("fp16", True),
-        (None, True),
-        ("fp16", False),
-        (None, False),
-    ):
-        try:
-            kwargs = {"torch_dtype": torch_dtype, "use_safetensors": use_safetensors}
-            if variant:
-                kwargs["variant"] = variant
-            pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(model_name, **kwargs)
-            last_err = None
-            break
-        except Exception as e:
-            last_err = e
-            pipe = None  # type: ignore[assignment]
-    if last_err is not None:
-        raise last_err
+    # Support:
+    # - HF repo id (Diffusers format) -> from_pretrained
+    # - single-file checkpoints (.safetensors / .ckpt) -> from_single_file (download+cache)
+    #
+    # NOTE: For single-file checkpoints hosted on HF, use a direct URL (e.g. .../resolve/.../*.safetensors).
+    is_url = model_name.startswith("http://") or model_name.startswith("https://")
+    is_single_file = model_name.lower().endswith((".safetensors", ".ckpt"))
+
+    if is_url or is_single_file:
+        # If it's not a URL but looks like a file, assume user meant a URL and fail clearly.
+        if not is_url:
+            raise ValueError("Single-file checkpoint requires a direct URL (https://.../*.safetensors)")
+
+        cache_key = _sha256_of_str(model_name)
+        ext = ".safetensors" if model_name.lower().endswith(".safetensors") else ".ckpt"
+        local_ckpt = os.path.join(FILES_DIR, f"ckpt-{cache_key}{ext}")
+        if not os.path.exists(local_ckpt):
+            _download(model_name, local_ckpt, timeout=600)
+
+        if hasattr(StableDiffusionXLImg2ImgPipeline, "from_single_file"):
+            pipe = StableDiffusionXLImg2ImgPipeline.from_single_file(local_ckpt, torch_dtype=torch_dtype)
+        else:
+            # Fallback for older diffusers: load a base pipeline and rebuild img2img from components.
+            from diffusers import DiffusionPipeline  # type: ignore
+
+            base = DiffusionPipeline.from_single_file(local_ckpt, torch_dtype=torch_dtype)
+            pipe = StableDiffusionXLImg2ImgPipeline(**base.components)  # type: ignore[arg-type]
+    else:
+        # Prefer fp16 + safetensors, but fall back across common repo layouts.
+        last_err: Optional[Exception] = None
+        for variant, use_safetensors in (
+            ("fp16", True),
+            (None, True),
+            ("fp16", False),
+            (None, False),
+        ):
+            try:
+                kwargs = {"torch_dtype": torch_dtype, "use_safetensors": use_safetensors}
+                if variant:
+                    kwargs["variant"] = variant
+                pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(model_name, **kwargs)
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                pipe = None  # type: ignore[assignment]
+        if last_err is not None:
+            raise last_err
 
     pipe.to("cuda")
     pipe.set_progress_bar_config(disable=True)
