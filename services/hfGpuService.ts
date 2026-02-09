@@ -2,9 +2,12 @@ type HfImage = { url: string; content_type?: string; width?: number; height?: nu
 
 type HfImg2ImgResponse = {
   images?: HfImage[];
+  images_b64?: string[];
   seed?: number;
   request_id?: string;
   elapsed_ms?: number;
+  pipeline?: string;
+  model_name?: string;
   error?: string;
 };
 
@@ -75,6 +78,8 @@ export async function runHfGpuImg2Img(params: {
   usedSeed?: number;
   requestId?: string;
   elapsedMs?: number;
+  pipeline?: string;
+  modelName?: string;
   transport: 'direct' | 'proxy';
   endpoint: string;
 }> {
@@ -106,6 +111,21 @@ export async function runHfGpuImg2Img(params: {
   const payload = (await res.json()) as HfImg2ImgResponse;
   if (payload?.error) throw new Error(payload.error);
 
+  // Newer Space versions return images inline (data URLs). This avoids /files fetches entirely.
+  const inline = Array.isArray(payload.images_b64) ? payload.images_b64.filter((x) => typeof x === 'string' && x.length > 0) : [];
+  if (inline.length > 0) {
+    return {
+      images: inline,
+      usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined,
+      requestId: typeof payload.request_id === 'string' ? payload.request_id : undefined,
+      elapsedMs: typeof payload.elapsed_ms === 'number' ? payload.elapsed_ms : undefined,
+      pipeline: typeof payload.pipeline === 'string' ? payload.pipeline : undefined,
+      modelName: typeof payload.model_name === 'string' ? payload.model_name : undefined,
+      transport,
+      endpoint,
+    };
+  }
+
   const urls = (payload.images || [])
     .map((i) => i?.url)
     .filter((u): u is string => typeof u === 'string' && u.length > 0)
@@ -120,6 +140,8 @@ export async function runHfGpuImg2Img(params: {
     usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined,
     requestId: typeof payload.request_id === 'string' ? payload.request_id : undefined,
     elapsedMs: typeof payload.elapsed_ms === 'number' ? payload.elapsed_ms : undefined,
+    pipeline: typeof payload.pipeline === 'string' ? payload.pipeline : undefined,
+    modelName: typeof payload.model_name === 'string' ? payload.model_name : undefined,
     transport,
     endpoint,
   };

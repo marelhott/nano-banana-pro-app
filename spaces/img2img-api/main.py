@@ -1,3 +1,5 @@
+import base64
+import io
 import hashlib
 import os
 import time
@@ -22,6 +24,7 @@ HF_HUB_TOKEN = os.environ.get("HF_HUB_TOKEN", "").strip()  # optional: allow dow
 app = FastAPI(title="mulennano img2img API", version="0.1.0")
 app.mount("/files", StaticFiles(directory=FILES_DIR), name="files")
 
+_STARTED_AT = time.time()
 
 def _clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
@@ -234,7 +237,15 @@ def _prepare_loras(pipe: Any, loras: List[Dict[str, Any]]) -> None:
 
 @app.get("/health")
 def health() -> Dict[str, Any]:
-    return {"ok": True}
+    loaded = _loaded
+    return {
+        "ok": True,
+        "uptime_s": int(time.time() - _STARTED_AT),
+        "cuda": bool(torch.cuda.is_available()),
+        "loaded_model": loaded.model_name if loaded else None,
+        "loaded_pipeline": loaded.kind if loaded else None,
+        "has_hf_hub_token": bool(HF_HUB_TOKEN),
+    }
 
 
 @app.post("/api/img2img")
@@ -306,19 +317,21 @@ async def img2img(request: Request) -> JSONResponse:
             generator=gen,
         )
 
-        urls: List[Dict[str, Any]] = []
-        for i, im in enumerate(out.images):
-            fname = f"{request_id}-{i}.png"
-            fpath = os.path.join(FILES_DIR, fname)
-            im.save(fpath, format="PNG", optimize=False)
-            # Build absolute URL to file.
-            base = str(request.base_url).rstrip("/")
-            urls.append({"url": f"{base}/files/{fname}", "content_type": "image/png"})
+        images_b64: List[str] = []
+        # Return images inline as data URLs. This avoids:
+        # - Netlify/browser mixed-content issues (http://.../files/...)
+        # - CORS / private Space file fetches
+        # - extra round-trips to download /files
+        for im in out.images:
+            buf = io.BytesIO()
+            im.save(buf, format="PNG", optimize=False)
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            images_b64.append(f"data:image/png;base64,{b64}")
 
         elapsed_ms = int((time.time() - started) * 1000)
         return JSONResponse(
             {
-                "images": urls,
+                "images_b64": images_b64,
                 "seed": seed_int,
                 "request_id": request_id,
                 "elapsed_ms": elapsed_ms,

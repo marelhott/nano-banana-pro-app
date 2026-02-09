@@ -423,6 +423,13 @@ export function LoraSdGeneratorScreen(props: {
         });
         setLastRequestInfo({ backend: 'hf', requestId: hfRes.requestId, elapsedMs: hfRes.elapsedMs });
         setHfTransportInfo({ transport: hfRes.transport, endpoint: hfRes.endpoint });
+        // Extra proof the HF Space really used what we sent.
+        if (hfRes.pipeline || hfRes.modelName) {
+          onToast({
+            message: `HF Space: ${hfRes.pipeline || 'pipe'} · ${hfRes.modelName ? 'model OK' : 'model'}`,
+            type: 'info',
+          });
+        }
         res = hfRes;
       }
 
