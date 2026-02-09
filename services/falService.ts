@@ -62,6 +62,23 @@ async function fetchAsDataUrl(url: string): Promise<string> {
   return base64;
 }
 
+function buildFalLoras(loras: FalLoraConfig[] | undefined): any[] | undefined {
+  if (!Array.isArray(loras) || loras.length === 0) return undefined;
+  const nonce = Date.now().toString(36);
+  return loras.map((l, idx) => {
+    const scale = typeof l.scale === 'number' && Number.isFinite(l.scale) ? l.scale : 1;
+    // fal/diffusers sometimes requires unique adapter names; never derive from URL query.
+    const adapter = `lora_${nonce}_${idx}`;
+    return {
+      path: l.path,
+      scale,
+      // Try both field names; fal schemas vary.
+      adapter_name: adapter,
+      name: adapter,
+    };
+  });
+}
+
 export async function runFalLoraImg2Img(params: {
   modelName: string;
   imageUrlOrDataUrl: string;
@@ -96,16 +113,8 @@ export async function runFalLoraImg2Img(params: {
 
   if (params.negativePrompt?.trim()) input.negative_prompt = params.negativePrompt.trim();
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
-  if (Array.isArray(params.loras) && params.loras.length > 0) {
-    // fal schemas vary a bit; send a superset to maximize compatibility.
-    const loras = params.loras.map((l) => {
-      const scale = typeof l.scale === 'number' && Number.isFinite(l.scale) ? l.scale : 1;
-      return { path: l.path, url: l.path, scale, weight: scale };
-    });
-    input.loras = loras;
-    input.lora_urls = loras.map((l) => l.url);
-    if (loras.length === 1) input.lora_url = loras[0].url;
-  }
+  const loras = buildFalLoras(params.loras);
+  if (loras) input.loras = loras;
   if (Array.isArray(params.embeddings) && params.embeddings.length > 0) input.embeddings = params.embeddings;
   if (Array.isArray(params.controlnets) && params.controlnets.length > 0) input.controlnets = params.controlnets;
   if (typeof params.controlnetGuessMode === 'boolean') input.controlnet_guess_mode = params.controlnetGuessMode;
@@ -289,15 +298,8 @@ export async function runFalLoraImg2ImgQueued(params: {
   };
   if (params.negativePrompt?.trim()) input.negative_prompt = params.negativePrompt.trim();
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
-  if (Array.isArray(params.loras) && params.loras.length > 0) {
-    const loras = params.loras.map((l) => {
-      const scale = typeof l.scale === 'number' && Number.isFinite(l.scale) ? l.scale : 1;
-      return { path: l.path, url: l.path, scale, weight: scale };
-    });
-    input.loras = loras;
-    input.lora_urls = loras.map((l) => l.url);
-    if (loras.length === 1) input.lora_url = loras[0].url;
-  }
+  const loras = buildFalLoras(params.loras);
+  if (loras) input.loras = loras;
   if (Array.isArray(params.embeddings) && params.embeddings.length > 0) input.embeddings = params.embeddings;
   if (Array.isArray(params.controlnets) && params.controlnets.length > 0) input.controlnets = params.controlnets;
   if (typeof params.controlnetGuessMode === 'boolean') input.controlnet_guess_mode = params.controlnetGuessMode;
