@@ -56,10 +56,32 @@ exports.handler = async (event) => {
     });
 
     const text = await upstream.text();
+
+    // If Space is private, direct /files URLs often return 404/blocked in the browser.
+    // Rewrite `images[].url` to go through our own Netlify proxy: /api/hf/files/<name>
+    // so downloads include HF_TOKEN server-side.
+    const contentType = upstream.headers.get('content-type') || '';
+    if (upstream.ok && contentType.includes('application/json')) {
+      try {
+        const payload = JSON.parse(text);
+        if (payload && Array.isArray(payload.images)) {
+          payload.images = payload.images.map((img) => {
+            const u = String(img?.url || '');
+            const name = u.split('/').pop() || '';
+            if (!name) return img;
+            return { ...img, url: `/api/hf/files/${encodeURIComponent(name)}` };
+          });
+          return json(200, payload);
+        }
+      } catch {
+        // ignore parse errors; fall through to raw passthrough
+      }
+    }
     return {
       statusCode: upstream.status,
       headers: {
-        'Content-Type': upstream.headers.get('content-type') || 'application/json',
+        'Content-Type': contentType || 'application/json',
+        'Cache-Control': 'no-store',
       },
       body: text,
     };
@@ -67,4 +89,3 @@ exports.handler = async (event) => {
     return json(500, { error: 'HF proxy failed', detail: String(err?.message || err) });
   }
 };
-
