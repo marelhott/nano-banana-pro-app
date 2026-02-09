@@ -523,96 +523,169 @@ export function LoraSdGeneratorScreen(props: {
               <div className="text-[11px] text-white/45">{loras.length}/4</div>
             </div>
 
-            <div className="text-[11px] text-white/45">Multi‑LoRA je podporované (HF Space umí až 6).</div>
+            <div className="text-[11px] text-white/45">
+              LoRA je volitelné. Multi‑LoRA je schované v <span className="text-white/70 font-bold">Advanced</span>.
+            </div>
 
-            {loras.length > 0 && (
-              <div className="space-y-3">
-                {loras.map((l) => (
-                  <div key={l.id} className="border border-zinc-800/60 rounded-xl p-3 bg-zinc-950/20">
-                    <div className="flex items-start gap-2">
-                      <input
-                        value={l.path}
-                        onChange={(e) =>
-                          setLoras((prev) => prev.map((x) => (x.id === l.id ? { ...x, path: e.target.value } : x)))
-                        }
-                        placeholder="URL na .safetensors"
-                        className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setLoras((prev) => prev.filter((x) => x.id !== l.id))}
-                        className="px-3 py-2 rounded-lg bg-zinc-900/30 text-white/60 border border-zinc-700/60 hover:text-white/80 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider"
-                        title="Odebrat LoRA"
-                      >
-                        X
-                      </button>
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="text-[11px] text-white/45 w-14">váha</div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.05"
-                        value={l.scale}
-                        onChange={(e) =>
-                          setLoras((prev) => prev.map((x) => (x.id === l.id ? { ...x, scale: Number(e.target.value) } : x)))
-                        }
-                        className="flex-1"
-                      />
-                      <div className="text-[11px] text-white/60 w-10 text-right">{l.scale.toFixed(2)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-2">
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-white/60 uppercase tracking-wider">LoRA (moje HF)</label>
               <select
-                value={newLoraPresetId}
-                onChange={(e) => setNewLoraPresetId(e.target.value)}
+                value={(() => {
+                  const cur = loras[0]?.path?.trim();
+                  if (!cur) return '';
+                  const hit = MULENMARA_LORAS.find((p) => p.url === cur);
+                  return hit?.id || '';
+                })()}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (!id) {
+                    setLoras([]);
+                    return;
+                  }
+                  const p = MULENMARA_LORAS.find((x) => x.id === id);
+                  if (!p) return;
+                  const newId = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+                  setLoras([{ id: newId, path: p.url, scale: 0.85 }]);
+                }}
                 className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
               >
-                <option value="">Přidat z mých LoRA…</option>
+                <option value="">(žádná)</option>
                 {MULENMARA_LORAS.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label}
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
-                disabled={!newLoraPresetId || loras.length >= 4}
-                onClick={() => {
-                  const p = MULENMARA_LORAS.find((x) => x.id === newLoraPresetId);
-                  if (p) addLora(p.url);
-                  setNewLoraPresetId('');
-                }}
-                className="px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
-              >
-                Přidat
-              </button>
+
+              {loras[0] && (
+                <div className="border border-zinc-800/60 rounded-xl p-3 bg-zinc-950/20">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[11px] text-white/45">Váha</div>
+                    <button
+                      type="button"
+                      onClick={() => setLoras([])}
+                      className="text-[11px] text-white/45 hover:text-white/70"
+                      title="Odebrat LoRA"
+                    >
+                      odebrat
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.05"
+                      value={loras[0].scale}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setLoras((prev) => (prev[0] ? [{ ...prev[0], scale: v }, ...prev.slice(1)] : prev));
+                      }}
+                      className="flex-1"
+                    />
+                    <div className="text-[11px] text-white/60 w-10 text-right">{loras[0].scale.toFixed(2)}</div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                value={newLoraUrl}
-                onChange={(e) => setNewLoraUrl(e.target.value)}
-                placeholder="nebo vlož URL LoRA…"
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
-              />
-              <button
-                type="button"
-                disabled={!newLoraUrl.trim() || loras.length >= 4}
-                onClick={() => {
-                  addLora(newLoraUrl);
-                  setNewLoraUrl('');
-                }}
-                className="px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
-              >
-                +
-              </button>
-            </div>
+            <details className="pt-1">
+              <summary className="cursor-pointer select-none text-xs text-white/55 hover:text-white/75">
+                Advanced (multi‑LoRA)
+              </summary>
+              <div className="mt-3 space-y-3">
+                {loras.length > 0 && (
+                  <div className="space-y-3">
+                    {loras.map((l) => (
+                      <div key={l.id} className="border border-zinc-800/60 rounded-xl p-3 bg-zinc-950/20">
+                        <div className="flex items-start gap-2">
+                          <input
+                            value={l.path}
+                            onChange={(e) =>
+                              setLoras((prev) => prev.map((x) => (x.id === l.id ? { ...x, path: e.target.value } : x)))
+                            }
+                            placeholder="URL na .safetensors"
+                            className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setLoras((prev) => prev.filter((x) => x.id !== l.id))}
+                            className="px-3 py-2 rounded-lg bg-zinc-900/30 text-white/60 border border-zinc-700/60 hover:text-white/80 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider"
+                            title="Odebrat LoRA"
+                          >
+                            X
+                          </button>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="text-[11px] text-white/45 w-14">váha</div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="0.05"
+                            value={l.scale}
+                            onChange={(e) =>
+                              setLoras((prev) =>
+                                prev.map((x) => (x.id === l.id ? { ...x, scale: Number(e.target.value) } : x))
+                              )
+                            }
+                            className="flex-1"
+                          />
+                          <div className="text-[11px] text-white/60 w-10 text-right">{l.scale.toFixed(2)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-2">
+                  <select
+                    value={newLoraPresetId}
+                    onChange={(e) => setNewLoraPresetId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[#7ed957]/60"
+                  >
+                    <option value="">Přidat z mých LoRA…</option>
+                    {MULENMARA_LORAS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!newLoraPresetId || loras.length >= 4}
+                    onClick={() => {
+                      const p = MULENMARA_LORAS.find((x) => x.id === newLoraPresetId);
+                      if (p) addLora(p.url);
+                      setNewLoraPresetId('');
+                    }}
+                    className="px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+                  >
+                    Přidat
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    value={newLoraUrl}
+                    onChange={(e) => setNewLoraUrl(e.target.value)}
+                    placeholder="nebo vlož URL LoRA…"
+                    className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] placeholder-white/25 focus:outline-none focus:border-[#7ed957]/60"
+                  />
+                  <button
+                    type="button"
+                    disabled={!newLoraUrl.trim() || loras.length >= 4}
+                    onClick={() => {
+                      addLora(newLoraUrl);
+                      setNewLoraUrl('');
+                    }}
+                    className="px-3 py-2 rounded-lg bg-zinc-900/30 text-zinc-200 border border-zinc-700/70 hover:border-zinc-500/60 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
       </aside>
