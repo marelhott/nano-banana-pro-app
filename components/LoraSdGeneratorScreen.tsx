@@ -158,6 +158,7 @@ export function LoraSdGeneratorScreen(props: {
   const [genProgress, setGenProgress] = React.useState<number>(0);
   const [genError, setGenError] = React.useState<string>('');
   const [genCompletedAtMs, setGenCompletedAtMs] = React.useState<number>(0);
+  const [falPhase, setFalPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [lastSubmitInfo, setLastSubmitInfo] = React.useState<{ modelName: string; loras: Array<{ path: string; scale: number }> } | null>(
     null
   );
@@ -338,7 +339,8 @@ export function LoraSdGeneratorScreen(props: {
       // Send the image as data URL to avoid upstream fetch issues (private buckets, CORS, etc).
       // We already shrink it above to fit Netlify payload limits.
       setGenProgress((p) => Math.max(p, 0.28));
-      setGenPhase('Spouštím fal.ai…');
+      setGenPhase('Ve frontě…');
+      setFalPhase('queue');
       setGenProgress((p) => Math.max(p, 0.34));
       setGenPhase('Generuji…');
       res = await runFalLoraImg2ImgQueued({
@@ -379,6 +381,10 @@ export function LoraSdGeneratorScreen(props: {
         icLightModelUrl: icLightModelUrl.trim() || undefined,
         icLightModelBackgroundImageUrl: icLightModelBackgroundImageUrl.trim() || undefined,
         icLightImageUrl: icLightImageUrl.trim() || undefined,
+        onPhase: (p) => {
+          setFalPhase(p);
+          setGenPhase(p === 'queue' ? 'Ve frontě…' : p === 'running' ? 'Generuji…' : 'Dokončuji…');
+        },
         maxWaitMs: 12 * 60_000,
       });
 
@@ -436,6 +442,7 @@ export function LoraSdGeneratorScreen(props: {
       onToast({ message: msg, type: 'error' });
     } finally {
       setIsGenerating(false);
+      setFalPhase('');
       setGenProgress(1);
       setGenPhase('');
       setGenCompletedAtMs(Date.now());
@@ -468,6 +475,8 @@ export function LoraSdGeneratorScreen(props: {
 
   const latestBatch = batches.length ? batches[batches.length - 1] : null;
   const progressPct = Math.max(0, Math.min(100, Math.round(genProgress * 100)));
+  const falPhaseLabel =
+    falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -1194,40 +1203,7 @@ export function LoraSdGeneratorScreen(props: {
         </div>
 
         <div className="p-6">
-          {(isGenerating || genProgress > 0) && (
-            <div className="mb-5 card-surface p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[10px] uppercase tracking-widest text-white/70 font-bold">
-                  {genPhase || (isGenerating ? 'Generuji…' : 'Dokončeno')}
-                </div>
-                <div className="text-[10px] text-white/45 tabular-nums">{progressPct}%</div>
-              </div>
-              <div className="mt-2 h-[10px] rounded-full bg-white/5 overflow-hidden border border-white/10">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#7ed957]/35 via-[#7ed957] to-[#7ed957]/35 transition-[width] duration-200 ease-out shadow-[0_0_18px_rgba(126,217,87,0.25)]"
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
-              <div className="mt-2 text-[10px] text-white/40">
-                {isGenerating
-                  ? 'Pozn.: progress je odhad (backend neposílá průběh kroků).'
-                  : genCompletedAtMs
-                    ? `Hotovo před ${Math.max(0, Math.round((Date.now() - genCompletedAtMs) / 1000))}s.`
-                    : null}
-              </div>
-              {lastSubmitInfo && (
-                <div className="mt-2 text-[10px] text-white/30">
-                  Model: <span className="text-white/50 break-all">{lastSubmitInfo.modelName}</span>
-                  {lastSubmitInfo.loras.length ? <span className="text-white/25"> · </span> : null}
-                  {lastSubmitInfo.loras.length ? (
-                    <span className="text-white/45">
-                      LoRA: {lastSubmitInfo.loras.map((l) => `${l.scale.toFixed(2)}×`).join(' ')}
-                    </span>
-                  ) : null}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Progress is rendered only in the output slots (single indicator). */}
 
           {genError && !isGenerating && (
             <div className="mb-5 card-surface p-4 border border-rose-400/20">
@@ -1271,16 +1247,13 @@ export function LoraSdGeneratorScreen(props: {
                     {showProgress && (
                       <div className="absolute inset-0 rounded-xl overflow-hidden">
                         <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/35 to-black/55" />
-                        <div className="absolute left-3 right-3 bottom-3">
-                          <div className="flex items-center justify-between text-[10px] text-white/60">
-                            <span>{genPhase || 'Generuji…'}</span>
-                            <span className="tabular-nums">{progressPct}%</span>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                          <div className="w-10 h-10 rounded-full border-2 border-white/15 border-t-[#7ed957] animate-spin" />
+                          <div className="text-[11px] text-white/70 font-bold uppercase tracking-widest">
+                            {falPhaseLabel || 'Generuji'}
                           </div>
-                          <div className="mt-2 h-[8px] rounded-full bg-white/10 overflow-hidden border border-white/10">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-[#7ed957]/35 via-[#7ed957] to-[#7ed957]/35 transition-[width] duration-200 ease-out"
-                              style={{ width: `${progressPct}%` }}
-                            />
+                          <div className="text-[10px] text-white/40">
+                            {genPhase || '…'}
                           </div>
                         </div>
                       </div>

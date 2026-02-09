@@ -285,6 +285,7 @@ export async function runFalLoraImg2ImgQueued(params: {
   icLightModelUrl?: string;
   icLightModelBackgroundImageUrl?: string;
   icLightImageUrl?: string;
+  onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
   maxWaitMs?: number;
 }): Promise<{ images: string[]; usedSeed?: number }> {
   const input: Record<string, any> = {
@@ -316,6 +317,17 @@ export async function runFalLoraImg2ImgQueued(params: {
   if (falKey) headers['x-fal-key'] = falKey;
 
   const { statusUrl, resultUrl } = await submitFalJob(headers, input);
+  let lastPhase: 'queue' | 'running' | 'finalizing' | '' = '';
+  const setPhase = (p: 'queue' | 'running' | 'finalizing') => {
+    if (lastPhase === p) return;
+    lastPhase = p;
+    try {
+      params.onPhase?.(p);
+    } catch {
+      // ignore UI callback failures
+    }
+  };
+  setPhase('queue');
 
   const deadline = Date.now() + Math.max(30_000, Math.min(15 * 60_000, params.maxWaitMs ?? 12 * 60_000));
   let delayMs = 800;
@@ -324,11 +336,15 @@ export async function runFalLoraImg2ImgQueued(params: {
 
     // fal queue payloads vary; support common shapes.
     const status = String(payload?.status || payload?.state || '').toLowerCase();
+    if (status === 'running' || status === 'in_progress' || status === 'processing') setPhase('running');
+    else if (status === 'queued' || status === 'pending' || status === 'enqueued') setPhase('queue');
+
     if (status === 'completed' || status === 'succeeded' || payload?.images || payload?.output?.images) {
       let finalPayload: any = payload;
       let urls = extractFalImageUrls(finalPayload);
       if (urls.length === 0 && resultUrl) {
         // Some queue status endpoints return only status metadata. The result payload may appear shortly after COMPLETED.
+        setPhase('finalizing');
         let attempts = 0;
         let wait = 650;
         while (attempts < 10 && Date.now() < deadline) {
