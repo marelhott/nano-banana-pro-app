@@ -429,7 +429,7 @@ export function LoraSdGeneratorScreen(props: {
             {isGenerating ? 'Generuji…' : 'Generovat'}
           </button>
 
-          <div className="card-surface p-4 space-y-3">
+          <div className="card-surface p-3 space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Počet obrázků</div>
             <div className="border-b border-white/10">
               <div className="flex">
@@ -440,7 +440,7 @@ export function LoraSdGeneratorScreen(props: {
                       key={n}
                       type="button"
                       onClick={() => setVariants(n as 1 | 2 | 3)}
-                      className={`relative flex-1 py-3 text-center text-[12px] font-black transition-colors ${
+                      className={`relative flex-1 py-2 text-center text-[11px] font-black transition-colors ${
                         active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
                       }`}
                       aria-label={`Počet obrázků: ${n}`}
@@ -458,18 +458,18 @@ export function LoraSdGeneratorScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-3 space-y-3">
+          <div className="card-surface p-3 space-y-2">
             <div className="space-y-1">
               <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Referenční obrázek</div>
               <div
-                className="relative aspect-[5/4] rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden cursor-pointer"
+                className="relative aspect-[16/9] rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden cursor-pointer"
                 onClick={() => document.getElementById(inputFileId)?.click()}
               >
                 {input ? (
                   <img src={input.dataUrl} alt="Vstup" className="w-full h-full object-cover opacity-90" draggable={false} />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Plus className="w-5 h-5 text-gray-600" />
+                    <Plus className="w-4 h-4 text-gray-600" />
                   </div>
                 )}
 
@@ -480,7 +480,7 @@ export function LoraSdGeneratorScreen(props: {
                       e.stopPropagation();
                       setInput(null);
                     }}
-                    className="absolute top-2 right-2 px-2 py-1 bg-black/60 hover:bg-black/75 text-white/80 rounded-md text-[9px] font-bold uppercase tracking-wider"
+                    className="absolute top-1.5 right-1.5 px-2 py-1 bg-black/60 hover:bg-black/75 text-white/80 rounded-md text-[9px] font-bold uppercase tracking-wider"
                   >
                     Odebrat
                   </button>
@@ -503,13 +503,13 @@ export function LoraSdGeneratorScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-4 space-y-3">
+          <div className="card-surface p-3 space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Pipeline</div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setBackend('hf')}
-                className={`rounded-xl p-3 text-left transition-all border ${
+                className={`rounded-xl p-2 text-left transition-all border ${
                   backend === 'hf'
                     ? 'border-[#7ed957]/35 bg-[#7ed957]/10 shadow-[0_0_0_1px_rgba(126,217,87,0.10)]'
                     : 'border-white/10 bg-white/5 hover:bg-white/8'
@@ -523,7 +523,7 @@ export function LoraSdGeneratorScreen(props: {
               <button
                 type="button"
                 onClick={() => setBackend('fal')}
-                className={`rounded-xl p-3 text-left transition-all border ${
+                className={`rounded-xl p-2 text-left transition-all border ${
                   backend === 'fal'
                     ? 'border-[#7ed957]/35 bg-[#7ed957]/10 shadow-[0_0_0_1px_rgba(126,217,87,0.10)]'
                     : 'border-white/10 bg-white/5 hover:bg-white/8'
