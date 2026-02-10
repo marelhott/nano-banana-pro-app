@@ -5,7 +5,7 @@ export interface ImageVersion {
   timestamp: number;
 }
 
-export type ProviderId = 'gemini' | 'grok' | 'chatgpt';
+export type ProviderId = 'gemini' | 'grok' | 'chatgpt' | 'replicate';
 
 export interface StyleAnalysis {
   recommendedStrength: number;
@@ -22,7 +22,7 @@ export interface LineageEntry {
 
 export interface GenerationRecipe {
   provider: ProviderId;
-  operation: 'generate' | 'edit' | 'variant' | 'batch' | 'upscale' | 'inpaint' | 'outpaint';
+  operation: 'generate' | 'edit' | 'variant' | 'batch' | 'upscale' | 'inpaint' | 'outpaint' | '3ai';
   prompt: string;
   effectivePrompt?: string;
   useGrounding?: boolean;
