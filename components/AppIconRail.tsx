@@ -1,7 +1,7 @@
 import React from 'react';
-import { Brush, Grid3X3, Network, Sparkles } from 'lucide-react';
+import { Brush, Grid3X3, Network, Sparkles, Flame } from 'lucide-react';
 
-type RailRoute = 'mulen' | 'style-transfer' | 'lora-sd' | 'nodes';
+type RailRoute = 'mulen' | 'style-transfer' | 'lora-sd' | 'flux-lora' | 'nodes';
 
 export function AppIconRail(props: {
   active: RailRoute;
@@ -14,6 +14,7 @@ export function AppIconRail(props: {
     { id: 'mulen', label: 'Mulen Nano', icon: <Grid3X3 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'lora-sd', label: 'LoRA / SD', icon: <Sparkles className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'flux-lora', label: 'Flux LoRA', icon: <Flame className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'nodes', label: 'Nodes', icon: <Network className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
   ];
 

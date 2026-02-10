@@ -109,6 +109,21 @@ exports.handler = async (event) => {
 
     const mode = String(body?.mode || 'run').toLowerCase(); // run|submit|status
 
+    // Allow switching fal endpoints (e.g. SDXL LoRA vs Flux LoRA) while keeping one proxy.
+    // Keep this allowlist tight; never allow arbitrary URL passthrough from the browser.
+    const endpointIdRaw = String(body?.endpointId || body?.endpoint_id || '').trim();
+    const endpointId = endpointIdRaw || 'fal-ai/lora/image-to-image';
+    const ALLOWED_ENDPOINTS = new Set([
+      'fal-ai/lora/image-to-image',
+      'fal-ai/flux-lora/image-to-image',
+    ]);
+    if (!ALLOWED_ENDPOINTS.has(endpointId)) {
+      return json(400, {
+        error: 'Nepovolený fal.ai endpoint.',
+        hint: 'Použij fal-ai/lora/image-to-image nebo fal-ai/flux-lora/image-to-image.',
+      });
+    }
+
     if (mode === 'status') {
       const statusUrl = String(body?.statusUrl || body?.status_url || '').trim();
       if (!statusUrl || !statusUrl.startsWith('http')) return json(400, { error: 'Missing statusUrl' });
@@ -162,7 +177,7 @@ exports.handler = async (event) => {
 
     // Prefer async submit for large LoRA (avoids "Inactivity Timeout" on long runs).
     const shouldSubmit = mode === 'submit' || mode === 'queue';
-    const targetUrl = shouldSubmit ? 'https://queue.fal.run/fal-ai/lora/image-to-image' : 'https://fal.run/fal-ai/lora/image-to-image';
+    const targetUrl = shouldSubmit ? `https://queue.fal.run/${endpointId}` : `https://fal.run/${endpointId}`;
 
     const upstream = await requestWithTimeout(targetUrl, {
       method: 'POST',

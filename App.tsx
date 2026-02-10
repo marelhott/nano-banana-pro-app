@@ -37,6 +37,7 @@ import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
 import { LoraSdGeneratorScreen } from './components/LoraSdGeneratorScreen';
+import { FluxLoraGeneratorScreen } from './components/FluxLoraGeneratorScreen';
 import { NodesScreen } from './components/NodesScreen';
 import { PinAuth } from './components/PinAuth';
 import { MaskCanvas } from './components/MaskCanvas';
@@ -364,6 +365,7 @@ const App: React.FC = () => {
 
   const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
   const isLoraSdRoute = routePath === '/lora-sd' || routePath.startsWith('/lora-sd/');
+  const isFluxLoraRoute = routePath === '/flux-lora' || routePath.startsWith('/flux-lora/');
   const isNodesHubRoute = routePath === '/nodes-hub' || routePath.startsWith('/nodes-hub/');
 
   // Nové state pro featury
@@ -3131,7 +3133,15 @@ ${extra}
 
       <AppIconRail
         active={
-          isNodesHubRoute ? 'nodes' : isStyleTransferRoute ? 'style-transfer' : isLoraSdRoute ? 'lora-sd' : 'mulen'
+          isNodesHubRoute
+            ? 'nodes'
+            : isStyleTransferRoute
+              ? 'style-transfer'
+              : isLoraSdRoute
+                ? 'lora-sd'
+                : isFluxLoraRoute
+                  ? 'flux-lora'
+                  : 'mulen'
         }
         onNavigate={(route) => {
           if (route === 'mulen') {
@@ -3144,6 +3154,10 @@ ${extra}
           }
           if (route === 'lora-sd') {
             navigate('/lora-sd');
+            return;
+          }
+          if (route === 'flux-lora') {
+            navigate('/flux-lora');
             return;
           }
           if (route === 'nodes') {
@@ -3172,6 +3186,11 @@ ${extra}
             <NodesScreen onToast={(t) => setToast(t)} />
           ) : isLoraSdRoute ? (
             <LoraSdGeneratorScreen
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onToast={(t) => setToast(t)}
+            />
+          ) : isFluxLoraRoute ? (
+            <FluxLoraGeneratorScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onToast={(t) => setToast(t)}
             />
