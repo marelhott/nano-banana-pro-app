@@ -58,12 +58,6 @@
   force = true
 
 [[redirects]]
-  from = "/api/comfy/*"
-  to = "/.netlify/functions/comfy/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/api/fal/lora-img2img"
   to = "/.netlify/functions/fal-lora-img2img"
   status = 200

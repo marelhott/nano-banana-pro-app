@@ -187,7 +187,7 @@ async function submitFalJob(
       const j = JSON.parse(rawText);
       detail = j?.detail || j?.error || j?.message || rawText;
       if (typeof detail !== 'string') detail = JSON.stringify(detail);
-    } catch {}
+    } catch { }
     throw new Error(`fal.ai submit selhal (HTTP ${res.status}): ${String(detail).slice(0, 500)}`);
   }
   let payload: any = {};
@@ -215,7 +215,7 @@ async function pollFalJob(headers: Record<string, string>, statusUrl: string, en
       const j = JSON.parse(rawText);
       detail = j?.detail || j?.error || j?.message || rawText;
       if (typeof detail !== 'string') detail = JSON.stringify(detail);
-    } catch {}
+    } catch { }
     throw new Error(`fal.ai status selhal (HTTP ${res.status}): ${String(detail).slice(0, 500)}`);
   }
   try {
@@ -400,6 +400,8 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
   seed?: number;
   numImages: 1 | 2 | 3;
   loras?: FalLoraConfig[];
+  imageSize?: string;       // e.g. "landscape_4_3" or JSON "{width,height}"
+  outputFormat?: 'jpeg' | 'png';
   onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
   maxWaitMs?: number;
 }): Promise<{ images: string[]; usedSeed?: number }> {
@@ -421,6 +423,8 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
   const loras = buildFalLoras(params.loras);
   if (loras) input.loras = loras;
+  if (params.imageSize) input.image_size = params.imageSize;
+  if (params.outputFormat) input.output_format = params.outputFormat;
 
   const falKey = getFalKeyFromStorage();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -433,7 +437,7 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
     lastPhase = p;
     try {
       params.onPhase?.(p);
-    } catch {}
+    } catch { }
   };
   setPhase('queue');
 

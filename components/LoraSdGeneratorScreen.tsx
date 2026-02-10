@@ -126,7 +126,7 @@ async function shrinkDataUrl(dataUrl: string, maxBytes: number): Promise<string>
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, 0, w, h);
 
-  // Prefer jpeg for upload payload size; ComfyUI img2img will encode into latent anyway.
+  // Prefer jpeg for upload payload size.
   const qualities = [0.9, 0.82, 0.75, 0.68, 0.6, 0.5];
   for (const q of qualities) {
     const out = canvas.toDataURL('image/jpeg', q);
@@ -313,8 +313,8 @@ export function LoraSdGeneratorScreen(props: {
       const lorasPayload =
         lorasEnabled
           ? loras
-              .map((l) => ({ path: l.path.trim(), scale: Math.max(0, Math.min(2, l.scale)) }))
-              .filter((l) => !!l.path)
+            .map((l) => ({ path: l.path.trim(), scale: Math.max(0, Math.min(2, l.scale)) }))
+            .filter((l) => !!l.path)
           : [];
       setLastSubmitInfo({ modelName, loras: lorasPayload });
 
@@ -322,13 +322,13 @@ export function LoraSdGeneratorScreen(props: {
       const resolvedLorasPayload =
         lorasPayload.length > 0
           ? await Promise.all(
-              lorasPayload.map(async (l) => {
-                if (!isR2Ref(l.path)) return l;
-                const key = r2KeyFromRef(l.path);
-                const signed = await presignR2({ op: 'get', key, expires: 3600 });
-                return { ...l, path: signed.signedUrl };
-              })
-            )
+            lorasPayload.map(async (l) => {
+              if (!isR2Ref(l.path)) return l;
+              const key = r2KeyFromRef(l.path);
+              const signed = await presignR2({ op: 'get', key, expires: 3600 });
+              return { ...l, path: signed.signedUrl };
+            })
+          )
           : [];
 
       const loraLabels = lorasPayload
@@ -508,16 +508,14 @@ export function LoraSdGeneratorScreen(props: {
                       key={n}
                       type="button"
                       onClick={() => setVariants(n as 1 | 2 | 3)}
-                      className={`relative flex-1 py-2 text-center text-[11px] font-black transition-colors ${
-                        active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
-                      }`}
+                      className={`relative flex-1 py-2 text-center text-[11px] font-black transition-colors ${active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
+                        }`}
                       aria-label={`Počet obrázků: ${n}`}
                     >
                       {n}
                       <span
-                        className={`absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full transition-colors ${
-                          active ? 'bg-[#7ed957]' : 'bg-transparent'
-                        }`}
+                        className={`absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full transition-colors ${active ? 'bg-[#7ed957]' : 'bg-transparent'
+                          }`}
                       />
                     </button>
                   );
@@ -701,11 +699,10 @@ export function LoraSdGeneratorScreen(props: {
                     </div>
                     <label
                       htmlFor={loraUploadInputId}
-                      className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${
-                        uploadingLora
+                      className={`px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${uploadingLora
                           ? 'bg-zinc-900/30 text-zinc-400 border-zinc-700/70 cursor-not-allowed opacity-60'
                           : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60 cursor-pointer'
-                      }`}
+                        }`}
                       title="Nahrát .safetensors do R2"
                     >
                       {uploadingLora ? 'Nahrávám…' : 'Nahrát LoRA'}
@@ -999,11 +996,10 @@ export function LoraSdGeneratorScreen(props: {
             <button
               type="button"
               onClick={() => setLorasEnabled((v) => !v)}
-              className={`ml-auto px-3 py-2 rounded-lg text-[11px] font-bold border ${
-                lorasEnabled
+              className={`ml-auto px-3 py-2 rounded-lg text-[11px] font-bold border ${lorasEnabled
                   ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]/50'
                   : 'bg-zinc-900/30 text-zinc-200 border-zinc-700/70 hover:border-zinc-500/60'
-              }`}
+                }`}
               title="Rychle zapnout/vypnout LoRA bez mazání"
             >
               LoRA {lorasEnabled ? 'ON' : 'OFF'}

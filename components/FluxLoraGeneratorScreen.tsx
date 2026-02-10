@@ -1,7 +1,8 @@
 import React from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Save, Trash2, ChevronDown } from 'lucide-react';
 import { runFalFluxLoraImg2ImgQueued } from '../services/falService';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
+import { listFluxPresets, saveFluxPreset, deleteFluxPreset, type FluxPreset } from '../utils/fluxPresetsDB';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -115,6 +116,12 @@ export function FluxLoraGeneratorScreen(props: {
   const [steps, setSteps] = React.useState(28);
   const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
 
+  // New parameters (stored in presets)
+  const [seed, setSeed] = React.useState<number | null>(null);
+  const [imageSize, setImageSize] = React.useState('landscape_4_3');
+  const [outputFormat, setOutputFormat] = React.useState<'jpeg' | 'png'>('jpeg');
+  const [customPrompt, setCustomPrompt] = React.useState('');
+
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [genError, setGenError] = React.useState('');
   const [falPhase, setFalPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
@@ -126,9 +133,97 @@ export function FluxLoraGeneratorScreen(props: {
   const [newLoraPresetId, setNewLoraPresetId] = React.useState<string>(MULENMARA_FLUX_LORAS[0].id);
   const [newLoraUrl, setNewLoraUrl] = React.useState('');
 
+  // Presets
+  const [presets, setPresets] = React.useState<FluxPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = React.useState<string>('');
+  const [presetName, setPresetName] = React.useState('');
+  const [isSavingPreset, setIsSavingPreset] = React.useState(false);
+  const [presetsLoaded, setPresetsLoaded] = React.useState(false);
+
   const [generated, setGenerated] = React.useState<OutputItem[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const inputFileId = React.useMemo(() => `flux-input-${Math.random().toString(36).slice(2)}`, []);
+
+  // Load presets from Supabase on mount
+  React.useEffect(() => {
+    let cancelled = false;
+    listFluxPresets()
+      .then((list) => {
+        if (cancelled) return;
+        setPresets(list);
+        setPresetsLoaded(true);
+      })
+      .catch((err) => {
+        console.warn('[FluxPresets] Failed to load:', err);
+        setPresetsLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const applyPreset = React.useCallback((preset: FluxPreset) => {
+    setCfg(preset.cfg);
+    setDenoise(preset.strength);
+    setSteps(preset.steps);
+    setVariants(preset.numImages);
+    setSeed(preset.seed);
+    setImageSize(preset.imageSize);
+    setOutputFormat(preset.outputFormat);
+    setCustomPrompt(preset.prompt);
+    const newLoras: LoraItem[] = preset.loras.map((l) => ({
+      id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+      path: l.path,
+      scale: l.scale,
+    }));
+    setLoras(newLoras.length > 0 ? newLoras : []);
+    setSelectedPresetId(preset.id);
+    setPresetName(preset.name);
+  }, []);
+
+  const handleSavePreset = React.useCallback(async () => {
+    const name = presetName.trim();
+    if (!name) {
+      onToast({ type: 'error', message: 'Zadej název presetu.' });
+      return;
+    }
+    setIsSavingPreset(true);
+    try {
+      const saved = await saveFluxPreset({
+        name,
+        cfg,
+        strength: denoise,
+        steps,
+        numImages: variants,
+        seed,
+        imageSize,
+        outputFormat,
+        loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
+        prompt: customPrompt,
+      });
+      // Refresh list
+      const list = await listFluxPresets();
+      setPresets(list);
+      setSelectedPresetId(saved.id);
+      onToast({ type: 'success', message: `Preset "${name}" uložen.` });
+    } catch (err: any) {
+      onToast({ type: 'error', message: String(err?.message || 'Nepodařilo se uložit preset.') });
+    } finally {
+      setIsSavingPreset(false);
+    }
+  }, [cfg, customPrompt, denoise, imageSize, loras, onToast, outputFormat, presetName, seed, steps, variants]);
+
+  const handleDeletePreset = React.useCallback(async (id: string) => {
+    try {
+      await deleteFluxPreset(id);
+      setPresets((prev) => prev.filter((p) => p.id !== id));
+      if (selectedPresetId === id) {
+        setSelectedPresetId('');
+        setPresetName('');
+      }
+      onToast({ type: 'info', message: 'Preset smazán.' });
+    } catch (err: any) {
+      onToast({ type: 'error', message: String(err?.message || 'Nepodařilo se smazat preset.') });
+    }
+  }, [onToast, selectedPresetId]);
 
   const addLora = React.useCallback((path: string) => {
     const p = path.trim();
@@ -187,15 +282,18 @@ export function FluxLoraGeneratorScreen(props: {
       const inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
 
       const loraLabels = loras.map((l) => l.path);
-      const prompt = buildAutoPrompt(loraLabels);
+      const prompt = customPrompt.trim() || buildAutoPrompt(loraLabels);
       const { images, usedSeed } = await runFalFluxLoraImg2ImgQueued({
         imageUrlOrDataUrl: inputDataUrl,
         prompt,
         cfg,
         denoise,
         steps,
+        seed: seed ?? undefined,
         numImages: variants,
         loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
+        imageSize,
+        outputFormat,
         onPhase: (p) => {
           setFalPhase(p);
           setGenPhase(p === 'queue' ? 'Ve frontě…' : p === 'running' ? 'Generuji…' : 'Dokončuji…');
@@ -256,7 +354,7 @@ export function FluxLoraGeneratorScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [cfg, denoise, input?.dataUrl, loras, onToast, steps, variants]);
+  }, [cfg, customPrompt, denoise, input?.dataUrl, loras, onToast, seed, steps, variants]);
 
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
@@ -268,6 +366,60 @@ export function FluxLoraGeneratorScreen(props: {
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
             <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Flux LoRA Generátor</h2>
+          </div>
+
+          {/* ── Presets ── */}
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Presety</div>
+            <div className="flex gap-2">
+              <select
+                value={selectedPresetId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (!id) {
+                    setSelectedPresetId('');
+                    setPresetName('');
+                    return;
+                  }
+                  const p = presets.find((x) => x.id === id);
+                  if (p) applyPreset(p);
+                }}
+                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] truncate"
+              >
+                <option value="">{presetsLoaded ? '(žádný preset)' : 'Načítám…'}</option>
+                {presets.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {selectedPresetId && (
+                <button
+                  type="button"
+                  onClick={() => handleDeletePreset(selectedPresetId)}
+                  className="p-2 rounded-lg border border-white/10 bg-black/10 hover:bg-red-500/15 hover:border-red-400/25 text-white/50 hover:text-red-300 transition-colors"
+                  title="Smazat preset"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="Název nového presetu…"
+                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+              />
+              <button
+                type="button"
+                onClick={handleSavePreset}
+                disabled={isSavingPreset || !presetName.trim()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#7ed957]/25 bg-[#7ed957]/8 hover:bg-[#7ed957]/15 text-[#7ed957] text-[10px] font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Uložit aktuální nastavení jako preset"
+              >
+                <Save className="w-3.5 h-3.5" />
+                {isSavingPreset ? '…' : 'Uložit'}
+              </button>
+            </div>
           </div>
 
           <button
@@ -290,16 +442,14 @@ export function FluxLoraGeneratorScreen(props: {
                       key={n}
                       type="button"
                       onClick={() => setVariants(n as 1 | 2 | 3)}
-                      className={`relative flex-1 py-2 text-center text-[11px] font-black transition-colors ${
-                        active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
-                      }`}
+                      className={`relative flex-1 py-2 text-center text-[11px] font-black transition-colors ${active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
+                        }`}
                       aria-label={`Počet obrázků: ${n}`}
                     >
                       {n}
                       <span
-                        className={`absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full transition-colors ${
-                          active ? 'bg-[#7ed957]' : 'bg-transparent'
-                        }`}
+                        className={`absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full transition-colors ${active ? 'bg-[#7ed957]' : 'bg-transparent'
+                          }`}
                       />
                     </button>
                   );
@@ -423,6 +573,87 @@ export function FluxLoraGeneratorScreen(props: {
             </div>
           </div>
 
+          {/* ── Seed ── */}
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Seed</div>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={seed ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  setSeed(v === '' ? null : Math.floor(Number(v)));
+                }}
+                placeholder="náhodný"
+                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+              />
+              <button
+                type="button"
+                onClick={() => setSeed(null)}
+                className="px-3 py-2 rounded-lg border border-white/10 bg-black/10 hover:bg-black/20 text-[10px] font-black uppercase tracking-widest text-white/55 hover:text-white/75"
+                title="Resetovat na náhodný"
+              >
+                🎲
+              </button>
+            </div>
+            <div className="text-[9px] text-white/30">Stejný seed = stejný výsledek. Prázdné = náhodný.</div>
+          </div>
+
+          {/* ── Image Size ── */}
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Velikost výstupu</div>
+            <select
+              value={imageSize}
+              onChange={(e) => setImageSize(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+            >
+              <option value="square_hd">Square HD (1024×1024)</option>
+              <option value="square">Square (512×512)</option>
+              <option value="portrait_4_3">Portrait 4:3</option>
+              <option value="portrait_16_9">Portrait 16:9</option>
+              <option value="landscape_4_3">Landscape 4:3</option>
+              <option value="landscape_16_9">Landscape 16:9</option>
+            </select>
+          </div>
+
+          {/* ── Output Format ── */}
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Formát výstupu</div>
+            <div className="flex">
+              {(['jpeg', 'png'] as const).map((fmt) => {
+                const active = outputFormat === fmt;
+                return (
+                  <button
+                    key={fmt}
+                    type="button"
+                    onClick={() => setOutputFormat(fmt)}
+                    className={`relative flex-1 py-2 text-center text-[11px] font-black uppercase tracking-widest transition-colors ${active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
+                      }`}
+                  >
+                    {fmt}
+                    <span
+                      className={`absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full transition-colors ${active ? 'bg-[#7ed957]' : 'bg-transparent'
+                        }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Custom Prompt ── */}
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Prompt</div>
+            <textarea
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder="Prázdné = automatický prompt ze stylu LoRA…"
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20 resize-y"
+            />
+            <div className="text-[9px] text-white/30">Nech prázdné pro auto-prompt, nebo napiš vlastní.</div>
+          </div>
+
           {genError && !isGenerating && (
             <div className="card-surface p-4 border border-rose-400/20">
               <div className="text-[10px] uppercase tracking-widest text-rose-200/80 font-bold">Chyba</div>
@@ -501,7 +732,7 @@ export function FluxLoraGeneratorScreen(props: {
                             setGenerated((prev) => prev.filter((it) => it.id !== img.id));
                             try {
                               await deleteGeneratedImage(img.id);
-                            } catch {}
+                            } catch { }
                           }}
                         >
                           <X size={14} strokeWidth={3} />

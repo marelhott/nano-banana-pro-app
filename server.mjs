@@ -116,129 +116,19 @@ async function start() {
 
   const app = express()
 
-  // Image-to-dataURL payloads (for ComfyUI upload) can exceed 2mb.
+  // Large payloads (e.g. image data-URLs) can exceed default limit.
   app.use(express.json({ limit: '10mb' }))
-
-  function resolveComfyBaseUrl() {
-    const raw = String(process.env.COMFY_BASE_URL || '').trim()
-    if (!raw) return null
-    return raw.endsWith('/') ? raw.slice(0, -1) : raw
-  }
-
-  function withComfyAuthHeaders(headers = {}) {
-    const token = String(process.env.COMFY_AUTH_TOKEN || '').trim()
-    if (!token) return headers
-    return { ...headers, Authorization: `Bearer ${token}` }
-  }
 
   // Local model library (dev only): list checkpoints/loras from disk so the UI can pick them.
   // This does not perform inference; it only exposes filenames/paths for local workflows.
   app.get('/api/local-models', (req, res) => {
-    const checkpointDir = String(process.env.LOCAL_CHECKPOINT_DIR || '/Volumes/Bez názvu/modely/modely').trim()
-    const loraDir = String(process.env.LOCAL_LORA_DIR || '/Volumes/Bez názvu/modely/lora').trim()
+    const checkpointDir = String(process.env.LOCAL_CHECKPOINT_DIR || '/Volumes/Bez názvu/modely/modely').trim()
+    const loraDir = String(process.env.LOCAL_LORA_DIR || '/Volumes/Bez názvu/modely/lora').trim()
 
     const checkpoints = listSafetensors(checkpointDir)
     const loras = listSafetensors(loraDir)
 
     return res.json({ checkpoints, loras, checkpointDir, loraDir })
-  })
-
-  app.get('/api/comfy/object_info', async (req, res) => {
-    try {
-      const baseUrl = resolveComfyBaseUrl()
-      if (!baseUrl) return res.status(500).json({ error: 'COMFY_BASE_URL není nastavená.' })
-      const upstream = await fetch(`${baseUrl}/object_info`, { headers: withComfyAuthHeaders({}) })
-      const text = await upstream.text()
-      res.status(upstream.status)
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
-      return res.send(text)
-    } catch (err) {
-      return res.status(500).json({ error: 'Comfy proxy failed' })
-    }
-  })
-
-  app.post('/api/comfy/prompt', async (req, res) => {
-    try {
-      const baseUrl = resolveComfyBaseUrl()
-      if (!baseUrl) return res.status(500).json({ error: 'COMFY_BASE_URL není nastavená.' })
-      const upstream = await fetch(`${baseUrl}/prompt`, {
-        method: 'POST',
-        headers: withComfyAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(req.body || {}),
-      })
-      const text = await upstream.text()
-      res.status(upstream.status)
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
-      return res.send(text)
-    } catch {
-      return res.status(500).json({ error: 'Comfy proxy failed' })
-    }
-  })
-
-  app.get('/api/comfy/history/:id', async (req, res) => {
-    try {
-      const baseUrl = resolveComfyBaseUrl()
-      if (!baseUrl) return res.status(500).json({ error: 'COMFY_BASE_URL není nastavená.' })
-      const id = String(req.params.id || '').trim()
-      if (!id) return res.status(400).json({ error: 'Missing prompt id' })
-      const upstream = await fetch(`${baseUrl}/history/${encodeURIComponent(id)}`, {
-        headers: withComfyAuthHeaders({}),
-      })
-      const text = await upstream.text()
-      res.status(upstream.status)
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
-      return res.send(text)
-    } catch {
-      return res.status(500).json({ error: 'Comfy proxy failed' })
-    }
-  })
-
-  app.get('/api/comfy/view', async (req, res) => {
-    try {
-      const baseUrl = resolveComfyBaseUrl()
-      if (!baseUrl) return res.status(500).json({ error: 'COMFY_BASE_URL není nastavená.' })
-      const qs = new URLSearchParams()
-      for (const [k, v] of Object.entries(req.query || {})) {
-        if (typeof v === 'string') qs.set(k, v)
-      }
-      const upstream = await fetch(`${baseUrl}/view?${qs.toString()}`, { headers: withComfyAuthHeaders({}) })
-      res.status(upstream.status)
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream')
-      const buf = Buffer.from(await upstream.arrayBuffer())
-      return res.send(buf)
-    } catch {
-      return res.status(500).json({ error: 'Comfy proxy failed' })
-    }
-  })
-
-  app.post('/api/comfy/upload', async (req, res) => {
-    try {
-      const baseUrl = resolveComfyBaseUrl()
-      if (!baseUrl) return res.status(500).json({ error: 'COMFY_BASE_URL není nastavená.' })
-      const dataUrl = String(req.body?.dataUrl || '')
-      const fileName = String(req.body?.fileName || 'input.png')
-      const overwrite = Boolean(req.body?.overwrite ?? true)
-      const commaIdx = dataUrl.indexOf(',')
-      if (!dataUrl.startsWith('data:') || commaIdx < 0) {
-        return res.status(400).json({ error: 'Missing/invalid dataUrl' })
-      }
-      const b64 = dataUrl.slice(commaIdx + 1)
-      const buffer = Buffer.from(b64, 'base64')
-      const form = new FormData()
-      form.append('image', new Blob([buffer]), fileName)
-      form.append('overwrite', overwrite ? 'true' : 'false')
-      const upstream = await fetch(`${baseUrl}/upload/image`, {
-        method: 'POST',
-        headers: withComfyAuthHeaders({}),
-        body: form,
-      })
-      const text = await upstream.text()
-      res.status(upstream.status)
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
-      return res.send(text)
-    } catch {
-      return res.status(500).json({ error: 'Comfy proxy failed' })
-    }
   })
 
   app.post('/api/replicate/predictions', async (req, res) => {
