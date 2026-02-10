@@ -1,8 +1,7 @@
 import React from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { runFalFluxLoraImg2ImgQueued } from '../services/falService';
-import { createThumbnail, saveToGallery } from '../utils/galleryDB';
-import { dataUrlToBlob } from '../utils/supabaseStorage';
+import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -13,20 +12,14 @@ type ImageSlot = {
 
 type OutputItem = {
   id: string;
-  dataUrl: string;
+  dataUrl?: string;
+  status: 'pending' | 'done';
 };
 
 type LoraItem = {
   id: string;
   path: string;
   scale: number;
-};
-
-type OutputBatch = {
-  id: string;
-  createdAtMs: number;
-  images: OutputItem[];
-  usedSeed: number | null;
 };
 
 type HfPreset = {
@@ -114,7 +107,7 @@ export function FluxLoraGeneratorScreen(props: {
   onOpenSettings: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
 }) {
-  const { onOpenSettings, onToast } = props;
+  const { onToast } = props;
 
   const [input, setInput] = React.useState<ImageSlot | null>(null);
   const [cfg, setCfg] = React.useState(3.5);
@@ -125,6 +118,7 @@ export function FluxLoraGeneratorScreen(props: {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [genError, setGenError] = React.useState('');
   const [falPhase, setFalPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
+  const [genPhase, setGenPhase] = React.useState<string>('');
 
   const [loras, setLoras] = React.useState<LoraItem[]>([
     { id: 'flux_lora_default', path: MULENMARA_FLUX_LORAS[0].url, scale: 1.0 },
@@ -132,8 +126,7 @@ export function FluxLoraGeneratorScreen(props: {
   const [newLoraPresetId, setNewLoraPresetId] = React.useState<string>(MULENMARA_FLUX_LORAS[0].id);
   const [newLoraUrl, setNewLoraUrl] = React.useState('');
 
-  const [batches, setBatches] = React.useState<OutputBatch[]>([]);
-  const [previewImages, setPreviewImages] = React.useState<OutputItem[]>([]);
+  const [generated, setGenerated] = React.useState<OutputItem[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const inputFileId = React.useMemo(() => `flux-input-${Math.random().toString(36).slice(2)}`, []);
 
@@ -168,14 +161,6 @@ export function FluxLoraGeneratorScreen(props: {
     [onToast]
   );
 
-  const phaseLabel = React.useMemo(() => {
-    if (!isGenerating) return '';
-    if (falPhase === 'queue') return 'In queue';
-    if (falPhase === 'running') return 'In progress';
-    if (falPhase === 'finalizing') return 'Finalizing';
-    return 'Generating';
-  }, [falPhase, isGenerating]);
-
   const canGenerate = Boolean(input?.dataUrl) && !isGenerating;
 
   const handleGenerate = React.useCallback(async () => {
@@ -184,115 +169,166 @@ export function FluxLoraGeneratorScreen(props: {
       return;
     }
 
+    setLightbox(null);
     setIsGenerating(true);
     setGenError('');
     setFalPhase('queue');
+    setGenPhase('Ve frontě…');
+
+    const pendingItems: OutputItem[] = Array.from({ length: variants }).map((_, idx) => ({
+      id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-${idx}`,
+      status: 'pending',
+    }));
+    const pendingIdSet = new Set(pendingItems.map((p) => p.id));
+    setGenerated((prev) => [...pendingItems, ...prev]);
 
     try {
+      const maxBytes = 2_300_000;
+      const inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
+
       const loraLabels = loras.map((l) => l.path);
       const prompt = buildAutoPrompt(loraLabels);
       const { images, usedSeed } = await runFalFluxLoraImg2ImgQueued({
-        imageUrlOrDataUrl: input.dataUrl,
+        imageUrlOrDataUrl: inputDataUrl,
         prompt,
         cfg,
         denoise,
         steps,
         numImages: variants,
         loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
-        onPhase: (p) => setFalPhase(p),
+        onPhase: (p) => {
+          setFalPhase(p);
+          setGenPhase(p === 'queue' ? 'Ve frontě…' : p === 'running' ? 'Generuji…' : 'Dokončuji…');
+        },
         maxWaitMs: 12 * 60_000,
       });
 
-      const outputItems: OutputItem[] = images.map((d) => ({
-        id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-        dataUrl: d,
+      const resolved = pendingItems.map((p, i) => ({
+        id: p.id,
+        dataUrl: images[i],
+        status: 'done' as const,
       }));
-
-      setPreviewImages(outputItems);
-      setBatches((prev) => [
-        {
-          id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-          createdAtMs: Date.now(),
-          images: outputItems,
-          usedSeed: typeof usedSeed === 'number' ? usedSeed : null,
-        },
-        ...prev,
-      ]);
+      setGenerated((prev) => {
+        let outIdx = 0;
+        return prev.map((it) => {
+          if (!pendingIdSet.has(it.id)) return it;
+          const next = resolved[outIdx];
+          outIdx += 1;
+          return next || it;
+        });
+      });
 
       // Persist into gallery (same behavior as Mulen Nano).
-      for (const item of outputItems) {
+      for (const item of resolved) {
         try {
-          const blob = dataUrlToBlob(item.dataUrl);
-          const thumb = await createThumbnail(item.dataUrl);
+          const thumb = await createThumbnail(item.dataUrl || '', 420);
           await saveToGallery({
             id: item.id,
-            prompt: '',
-            url: item.dataUrl,
-            thumbnailUrl: thumb,
-            createdAt: new Date().toISOString(),
-            meta: { source: 'flux-lora', cfg, denoise, steps, seed: usedSeed ?? null, loras: loras.map((l) => ({ path: l.path, scale: l.scale })) },
-            blob,
-          } as any);
+            url: item.dataUrl || '',
+            thumbnail: thumb,
+            prompt: 'img2img',
+            resolution: undefined,
+            aspectRatio: undefined,
+            params: {
+              engine: 'fal_flux_lora_img2img',
+              cfg,
+              strength: denoise,
+              steps,
+              seed: typeof usedSeed === 'number' ? usedSeed : null,
+              variants,
+              loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
+              promptMode: 'auto',
+            },
+          });
         } catch {
           // Best-effort only.
         }
       }
 
-      onToast({ type: 'success', message: `Hotovo (${outputItems.length}x).` });
+      onToast({ type: 'success', message: `Hotovo (${resolved.length}x).` });
     } catch (e: any) {
       const msg = String(e?.message || e || 'Chyba při generování.');
       setGenError(msg);
+      setGenerated((prev) => prev.filter((it) => !pendingIdSet.has(it.id)));
       onToast({ type: 'error', message: msg });
     } finally {
       setIsGenerating(false);
       setFalPhase('');
+      setGenPhase('');
     }
   }, [cfg, denoise, input?.dataUrl, loras, onToast, steps, variants]);
 
+  const falPhaseLabel =
+    falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
+
   return (
-    <div className="flex h-full w-full overflow-hidden">
-      <div className="hidden lg:flex w-[340px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20">
+    <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
+      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
         <div className="p-6 flex flex-col gap-6 min-h-full">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
-              <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Flux LoRA</h2>
-            </div>
-            <p className="text-[12px] text-zinc-400 leading-relaxed">
-              Prompt se generuje automaticky. Ty jen nahráváš vstup + LoRA a ladíš váhy.
-            </p>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
+            <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Flux LoRA Generátor</h2>
           </div>
 
-          <div className="space-y-3">
-            <div className="text-[11px] font-[900] uppercase tracking-[0.3em] text-zinc-300">Počet obrázků</div>
-            <div className="flex items-center justify-between gap-2">
-              {[1, 2, 3].map((n) => (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={!input || isGenerating}
+            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+          >
+            {isGenerating ? 'Generuji…' : 'Generovat'}
+          </button>
+
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Počet obrázků</div>
+            <div className="border-b border-white/10">
+              <div className="flex">
+                {[1, 2, 3].map((n) => {
+                  const active = variants === n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setVariants(n as 1 | 2 | 3)}
+                      className={`relative flex-1 py-2 text-center text-[11px] font-black transition-colors ${
+                        active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
+                      }`}
+                      aria-label={`Počet obrázků: ${n}`}
+                    >
+                      {n}
+                      <span
+                        className={`absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full transition-colors ${
+                          active ? 'bg-[#7ed957]' : 'bg-transparent'
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="card-surface p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Referenční obrázek</div>
+              {input && (
                 <button
-                  key={n}
                   type="button"
-                  onClick={() => setVariants(n as 1 | 2 | 3)}
-                  className={`flex-1 h-10 rounded-lg border text-[14px] font-semibold transition-colors ${
-                    variants === n
-                      ? 'bg-[#7ed957]/20 border-[#7ed957]/50 text-[#a7f07e]'
-                      : 'bg-white/0 border-white/10 text-zinc-300 hover:border-white/20'
-                  }`}
+                  onClick={() => setInput(null)}
+                  className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70"
                 >
-                  {n}
+                  Odebrat
                 </button>
-              ))}
+              )}
             </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-[11px] font-[900] uppercase tracking-[0.3em] text-zinc-300">Referenční obrázek</div>
             <label
               htmlFor={inputFileId}
-              className="block rounded-2xl border border-dashed border-white/10 bg-black/20 hover:bg-black/30 transition-colors p-4 cursor-pointer"
+              className="block w-full aspect-square rounded-xl bg-black/15 border border-dashed border-white/10 hover:border-white/20 transition-colors cursor-pointer overflow-hidden"
             >
               {input?.dataUrl ? (
-                <img src={input.dataUrl} className="w-full aspect-square object-cover rounded-xl" />
+                <img src={input.dataUrl} className="w-full h-full object-cover opacity-90 hover:opacity-100 transition-opacity" />
               ) : (
-                <div className="w-full aspect-square flex items-center justify-center text-zinc-400">
+                <div className="w-full h-full flex items-center justify-center text-white/35">
                   <Plus className="w-6 h-6" />
                 </div>
               )}
@@ -310,14 +346,14 @@ export function FluxLoraGeneratorScreen(props: {
             />
           </div>
 
-          <div className="space-y-3">
-            <div className="text-[11px] font-[900] uppercase tracking-[0.3em] text-zinc-300">LoRA</div>
+          <div className="card-surface p-3 space-y-3">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">LoRA</div>
 
             <div className="flex gap-2">
               <select
                 value={newLoraPresetId}
                 onChange={(e) => setNewLoraPresetId(e.target.value)}
-                className="flex-1 h-10 rounded-lg border border-white/10 bg-black/30 text-zinc-200 text-[12px] px-3"
+                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
               >
                 {MULENMARA_FLUX_LORAS.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -331,7 +367,7 @@ export function FluxLoraGeneratorScreen(props: {
                   const preset = MULENMARA_FLUX_LORAS.find((p) => p.id === newLoraPresetId);
                   if (preset) addLora(preset.url);
                 }}
-                className="h-10 px-3 rounded-lg border border-white/10 bg-white/0 text-zinc-200 hover:border-white/20 text-[12px] font-semibold"
+                className="px-3 py-2 rounded-lg border border-white/10 bg-black/10 hover:bg-black/20 text-[10px] font-black uppercase tracking-widest text-white/75"
               >
                 Přidat
               </button>
@@ -342,7 +378,7 @@ export function FluxLoraGeneratorScreen(props: {
                 value={newLoraUrl}
                 onChange={(e) => setNewLoraUrl(e.target.value)}
                 placeholder="URL na LoRA weights (.safetensors)"
-                className="flex-1 h-10 rounded-lg border border-white/10 bg-black/30 text-zinc-200 text-[12px] px-3"
+                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
               />
               <button
                 type="button"
@@ -350,7 +386,7 @@ export function FluxLoraGeneratorScreen(props: {
                   addLora(newLoraUrl);
                   setNewLoraUrl('');
                 }}
-                className="h-10 px-3 rounded-lg border border-white/10 bg-white/0 text-zinc-200 hover:border-white/20 text-[12px] font-semibold"
+                className="px-3 py-2 rounded-lg border border-white/10 bg-black/10 hover:bg-black/20 text-[10px] font-black uppercase tracking-widest text-white/75"
               >
                 +
               </button>
@@ -358,19 +394,19 @@ export function FluxLoraGeneratorScreen(props: {
 
             <div className="space-y-2">
               {loras.map((l) => (
-                <div key={l.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div key={l.id} className="border border-zinc-800/60 rounded-xl p-3 bg-black/10 space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-[12px] text-zinc-200 truncate">{l.path}</div>
+                    <div className="text-[10px] text-white/70 truncate">{l.path}</div>
                     <button
                       type="button"
                       onClick={() => removeLora(l.id)}
-                      className="text-[12px] text-zinc-400 hover:text-zinc-200"
+                      className="text-[9px] font-black uppercase tracking-widest text-white/35 hover:text-white/65"
                     >
                       Odebrat
                     </button>
                   </div>
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="text-[11px] tracking-wide text-zinc-400 w-12">váha</div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-white/35 w-10">váha</div>
                     <input
                       type="range"
                       min={0}
@@ -380,139 +416,111 @@ export function FluxLoraGeneratorScreen(props: {
                       onChange={(e) => updateLoraScale(l.id, Number(e.target.value))}
                       className="flex-1 accent-[#7ed957]"
                     />
-                    <div className="text-[11px] text-zinc-300 w-10 text-right">{l.scale.toFixed(2)}</div>
+                    <div className="text-[10px] text-white/55 w-10 text-right">{l.scale.toFixed(2)}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="mt-auto space-y-3">
-            <button
-              type="button"
-              onClick={() => onOpenSettings()}
-              className="w-full h-11 rounded-xl border border-white/10 bg-white/0 text-zinc-200 hover:border-white/20 text-[12px] font-semibold"
-            >
-              Nastavení (fal.ai klíč)
-            </button>
-            <button
-              type="button"
-              disabled={!canGenerate}
-              onClick={() => void handleGenerate()}
-              className={`w-full h-12 rounded-xl font-[900] tracking-[0.25em] uppercase text-[12px] transition-colors ${
-                canGenerate
-                  ? 'bg-[#7ed957] text-black hover:bg-[#93f070]'
-                  : 'bg-white/10 text-zinc-500 cursor-not-allowed'
-              }`}
-            >
-              {isGenerating ? 'Generuji' : 'Generovat'}
-            </button>
-            {genError ? <div className="text-[12px] text-red-300/90">{genError}</div> : null}
-          </div>
+          {genError && !isGenerating && (
+            <div className="card-surface p-4 border border-rose-400/20">
+              <div className="text-[10px] uppercase tracking-widest text-rose-200/80 font-bold">Chyba</div>
+              <div className="mt-1 text-[11px] text-white/65">{genError}</div>
+            </div>
+          )}
         </div>
-      </div>
+      </aside>
 
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/80 backdrop-blur px-6 py-4">
-          <div className="flex flex-wrap items-center gap-4">
+      <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
+        <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
+          <div className="px-6 py-4 flex flex-wrap items-center gap-5">
             <div className="flex items-center gap-3">
-              <div className="text-[11px] font-[900] uppercase tracking-[0.3em] text-zinc-300">Denoise</div>
-              <input
-                type="range"
-                min={0.01}
-                max={1}
-                step={0.01}
-                value={denoise}
-                onChange={(e) => setDenoise(Number(e.target.value))}
-                className="w-48 accent-[#7ed957]"
-              />
-              <div className="text-[11px] text-zinc-300 w-10 text-right">{denoise.toFixed(2)}</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Strength</div>
+              <input type="range" min={0.01} max={1} step={0.01} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="w-[220px] accent-[#7ed957]" />
+              <div className="text-[10px] text-white/55 w-10 text-right">{denoise.toFixed(2)}</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-[11px] font-[900] uppercase tracking-[0.3em] text-zinc-300">CFG</div>
-              <input
-                type="range"
-                min={0}
-                max={20}
-                step={0.1}
-                value={cfg}
-                onChange={(e) => setCfg(Number(e.target.value))}
-                className="w-40 accent-[#7ed957]"
-              />
-              <div className="text-[11px] text-zinc-300 w-10 text-right">{cfg.toFixed(1)}</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">CFG</div>
+              <input type="range" min={0} max={35} step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="w-[180px] accent-[#7ed957]" />
+              <div className="text-[10px] text-white/55 w-10 text-right">{cfg.toFixed(1)}</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-[11px] font-[900] uppercase tracking-[0.3em] text-zinc-300">Steps</div>
-              <input
-                type="range"
-                min={1}
-                max={50}
-                step={1}
-                value={steps}
-                onChange={(e) => setSteps(Number(e.target.value))}
-                className="w-40 accent-[#7ed957]"
-              />
-              <div className="text-[11px] text-zinc-300 w-10 text-right">{steps}</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Steps</div>
+              <input type="range" min={1} max={50} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="w-[180px] accent-[#7ed957]" />
+              <div className="text-[10px] text-white/55 w-10 text-right">{steps}</div>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(previewImages.length ? previewImages : new Array(variants).fill(null).map(() => null)).map((it: any, idx: number) => {
-              const url = it?.dataUrl as string | undefined;
-              return (
-                <div key={it?.id || idx} className="relative rounded-2xl border border-white/5 bg-black/20 overflow-hidden">
-                  {url ? (
-                    <button type="button" className="block w-full" onClick={() => setLightbox(url)}>
-                      <img src={url} className="w-full aspect-square object-cover" />
-                    </button>
-                  ) : (
-                    <div className="w-full aspect-square flex items-center justify-center text-zinc-500">
-                      {isGenerating ? <Spinner label={phaseLabel} /> : <span className="text-[12px]">Výstup {idx + 1}</span>}
-                    </div>
-                  )}
-
-                  {isGenerating && !url ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                      <Spinner label={phaseLabel} />
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-
-          {batches.length > 0 ? (
-            <div className="mt-8">
-              <div className="text-[11px] font-[900] uppercase tracking-[0.3em] text-zinc-300 mb-3">Historie</div>
-              <div className="space-y-3">
-                {batches.slice(0, 8).map((b) => (
-                  <div key={b.id} className="rounded-2xl border border-white/5 bg-black/20 p-3">
-                    <div className="text-[11px] text-zinc-400">
-                      {new Date(b.createdAtMs).toLocaleString()} {typeof b.usedSeed === 'number' ? `• seed ${b.usedSeed}` : ''}
-                    </div>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {b.images.slice(0, 3).map((img) => (
-                        <button key={img.id} type="button" onClick={() => setLightbox(img.dataUrl)}>
-                          <img src={img.dataUrl} className="w-full aspect-square object-cover rounded-xl" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-min">
+            {generated.length === 0 ? (
+              <div className="md:col-span-3 card-surface p-8 text-center text-white/45 text-[11px] uppercase tracking-widest">
+                Zatím žádné výstupy
               </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
+            ) : (
+              generated.map((img, idx) => {
+                const isPending = img.status === 'pending';
+                const canOpen = !isPending && !!img.dataUrl;
+                return (
+                  <article key={img.id} className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all animate-fadeIn">
+                    <div className="relative bg-black/50 aspect-square overflow-hidden" title={canOpen ? 'Klikni pro plné zobrazení' : 'Generuji…'}>
+                      {img.dataUrl ? (
+                        <button type="button" className="block w-full h-full cursor-zoom-in" onClick={() => setLightbox(img.dataUrl || null)}>
+                          <img
+                            src={img.dataUrl}
+                            alt={`Výstup ${idx + 1}`}
+                            className="w-full h-full object-contain bg-black/20 transition-all duration-300"
+                            decoding="sync"
+                            style={{ imageRendering: '-webkit-optimize-contrast' }}
+                          />
+                        </button>
+                      ) : (
+                        <div className="w-full h-full bg-black/20" />
+                      )}
 
-      {lightbox ? (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setLightbox(null)}>
-          <img src={lightbox} className="max-w-[92vw] max-h-[92vh] object-contain rounded-2xl border border-white/10" />
+                      {isPending && (
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/55 backdrop-blur-sm px-6 transition-all duration-200">
+                          <div className="w-10 h-10 rounded-full border-2 border-white/15 border-t-[#7ed957] animate-spin" />
+                          <div className="mt-4 text-[11px] text-white/70 font-black uppercase tracking-widest">
+                            {falPhaseLabel || 'Generuji'}
+                          </div>
+                          <div className="mt-1 text-[10px] text-white/40">{genPhase || '…'}</div>
+                        </div>
+                      )}
+
+                      {!isPending && (
+                        <button
+                          type="button"
+                          className="absolute top-2 right-2 z-30 p-1.5 rounded-md bg-black/35 border border-white/10 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-200 hover:border-red-400/30 transition-all"
+                          title="Smazat"
+                          aria-label="Smazat"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setGenerated((prev) => prev.filter((it) => it.id !== img.id));
+                            try {
+                              await deleteGeneratedImage(img.id);
+                            } catch {}
+                          }}
+                        >
+                          <X size={14} strokeWidth={3} />
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
         </div>
-      ) : null}
+      </section>
+
+      {lightbox && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="Preview" className="max-w-[92vw] max-h-[92vh] object-contain rounded-2xl border border-white/10" />
+        </div>
+      )}
     </div>
   );
 }
-

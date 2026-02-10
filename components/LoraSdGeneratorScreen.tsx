@@ -1,8 +1,8 @@
 import React from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { runFalLoraImg2ImgQueued } from '../services/falService';
 import { presignR2, isR2Ref, r2KeyFromRef } from '../services/r2Service';
-import { createThumbnail, saveToGallery } from '../utils/galleryDB';
+import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
 import { dataUrlToBlob } from '../utils/supabaseStorage';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -14,7 +14,8 @@ type ImageSlot = {
 
 type OutputItem = {
   id: string;
-  dataUrl: string;
+  dataUrl?: string;
+  status: 'pending' | 'done';
 };
 
 type LoraItem = {
@@ -44,13 +45,6 @@ type IPAdapterItem = {
   imageUrl: string;
   maskUrl: string;
   scale: number;
-};
-
-type OutputBatch = {
-  id: string;
-  createdAtMs: number;
-  images: OutputItem[];
-  usedSeed: number | null;
 };
 
 type HfPreset = {
@@ -185,8 +179,7 @@ export function LoraSdGeneratorScreen(props: {
   const [icLightImageUrl, setIcLightImageUrl] = React.useState('');
 
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [batches, setBatches] = React.useState<OutputBatch[]>([]);
-  const [previewImages, setPreviewImages] = React.useState<OutputItem[]>([]);
+  const [generated, setGenerated] = React.useState<OutputItem[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [lastSeed, setLastSeed] = React.useState<number | null>(null);
   const inputFileId = React.useMemo(() => `hf-sd-input-${Math.random().toString(36).slice(2)}`, []);
@@ -295,10 +288,17 @@ export function LoraSdGeneratorScreen(props: {
 
     setIsGenerating(true);
     setLightbox(null);
-    setPreviewImages([]); // avoid showing stale results as if they were newly generated
     setGenPhase('Připravuji…');
     setGenProgress(0.04);
     setGenError('');
+
+    const pendingItems: OutputItem[] = Array.from({ length: variants }).map((_, idx) => ({
+      id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-${idx}`,
+      status: 'pending',
+    }));
+    const pendingIdSet = new Set(pendingItems.map((p) => p.id));
+    // Match Mulen Nano behavior: newest run appears first in the grid.
+    setGenerated((prev) => [...pendingItems, ...prev]);
 
     try {
       // Keep function payload reasonable (Netlify Functions size limits).
@@ -389,31 +389,33 @@ export function LoraSdGeneratorScreen(props: {
       });
 
       setLastSeed(typeof res.usedSeed === 'number' ? res.usedSeed : null);
-      const batchId = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-      const batchImages: OutputItem[] = res.images.map((dataUrl) => ({
-        id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-        dataUrl,
+
+      const resolved = pendingItems.map((p, i) => ({
+        id: p.id,
+        dataUrl: res.images[i],
+        status: 'done' as const,
       }));
-      setPreviewImages(batchImages);
-      setBatches((prev) => [
-        ...prev,
-        {
-          id: batchId,
-          createdAtMs: Date.now(),
-          images: batchImages,
-          usedSeed: typeof res.usedSeed === 'number' ? res.usedSeed : null,
-        },
-      ]);
+      setGenerated((prev) => {
+        let outIdx = 0;
+        return prev.map((it) => {
+          if (!pendingIdSet.has(it.id)) return it;
+          const next = resolved[outIdx];
+          outIdx += 1;
+          return next || it;
+        });
+      });
+
       onToast({ message: `Hotovo (${res.images.length}x). Ukládám do galerie…`, type: 'success' });
 
-      for (const out of res.images) {
+      for (const outItem of resolved) {
         try {
           const usedModelName = SDXL_BASE_MODEL;
           const usedLoras = lorasPayload.length ? lorasPayload : null;
 
-          const thumb = await createThumbnail(out, 420);
+          const thumb = await createThumbnail(outItem.dataUrl || '', 420);
           await saveToGallery({
-            url: out,
+            id: outItem.id,
+            url: outItem.dataUrl || '',
             thumbnail: thumb,
             prompt: 'img2img',
             resolution: undefined,
@@ -439,6 +441,7 @@ export function LoraSdGeneratorScreen(props: {
     } catch (err: any) {
       const msg = String(err?.message || 'Generování selhalo.');
       setGenError(msg);
+      setGenerated((prev) => prev.filter((it) => !pendingIdSet.has(it.id)));
       onToast({ message: msg, type: 'error' });
     } finally {
       setIsGenerating(false);
@@ -470,11 +473,9 @@ export function LoraSdGeneratorScreen(props: {
     icLightModelUrl,
     icLightModelBackgroundImageUrl,
     icLightImageUrl,
-    setPreviewImages,
+    setGenerated,
   ]);
 
-  const latestBatch = batches.length ? batches[batches.length - 1] : null;
-  const progressPct = Math.max(0, Math.min(100, Math.round(genProgress * 100)));
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
 
@@ -1212,82 +1213,70 @@ export function LoraSdGeneratorScreen(props: {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {[0, 1, 2].map((idx) => {
-              const img = previewImages[idx];
-              const showProgress = isGenerating && !img && idx < variants;
-              const slotEnabled = idx < variants;
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  disabled={!img || !slotEnabled}
-                  className={`card-surface p-2 border border-zinc-800/60 rounded-2xl overflow-hidden ${
-                    img ? 'hover:border-zinc-500/60' : 'opacity-60 cursor-default'
-                  }`}
-                  onClick={() => {
-                    if (!img) return;
-                    setLightbox(img.dataUrl);
-                  }}
-                  title={img ? 'Zvětšit' : slotEnabled ? 'Zatím prázdné' : 'Vypnuto'}
-                >
-                  <div className="relative">
-                    {img ? (
-                      <img
-                        src={img.dataUrl}
-                        alt={`Výstup ${idx + 1}`}
-                        className="w-full aspect-square object-cover bg-black/20 rounded-xl"
-                      />
-                    ) : (
-                      <div className="w-full aspect-square flex items-center justify-center text-[11px] text-white/35 bg-black/20 rounded-xl">
-                        {slotEnabled ? `Varianta ${idx + 1}` : 'Vypnuto'}
-                      </div>
-                    )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-min">
+            {generated.length === 0 ? (
+              <div className="md:col-span-3 card-surface p-8 text-center text-white/45 text-[11px] uppercase tracking-widest">
+                Zatím žádné výstupy
+              </div>
+            ) : (
+              generated.map((img, idx) => {
+                const isPending = img.status === 'pending';
+                const canOpen = !isPending && !!img.dataUrl;
+                return (
+                  <article key={img.id} className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all animate-fadeIn">
+                    <div
+                      className="relative bg-black/50 aspect-square overflow-hidden"
+                      title={canOpen ? 'Klikni pro plné zobrazení' : 'Generuji…'}
+                    >
+                      {img.dataUrl ? (
+                        <button type="button" className="block w-full h-full cursor-zoom-in" onClick={() => setLightbox(img.dataUrl || null)}>
+                          <img
+                            src={img.dataUrl}
+                            alt={`Výstup ${idx + 1}`}
+                            className="w-full h-full object-contain bg-black/20 transition-all duration-300"
+                            decoding="sync"
+                            style={{ imageRendering: '-webkit-optimize-contrast' }}
+                          />
+                        </button>
+                      ) : (
+                        <div className="w-full h-full bg-black/20" />
+                      )}
 
-                    {showProgress && (
-                      <div className="absolute inset-0 rounded-xl overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/35 to-black/55" />
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                      {isPending && (
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/55 backdrop-blur-sm px-6 transition-all duration-200">
                           <div className="w-10 h-10 rounded-full border-2 border-white/15 border-t-[#7ed957] animate-spin" />
-                          <div className="text-[11px] text-white/70 font-bold uppercase tracking-widest">
+                          <div className="mt-4 text-[11px] text-white/70 font-black uppercase tracking-widest">
                             {falPhaseLabel || 'Generuji'}
                           </div>
-                          <div className="text-[10px] text-white/40">
-                            {genPhase || '…'}
-                          </div>
+                          <div className="mt-1 text-[10px] text-white/40">{genPhase || '…'}</div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                      )}
 
-          {batches.length > 0 && (
-            <details className="mt-6 card-surface p-4">
-              <summary className="cursor-pointer select-none text-xs uppercase tracking-widest text-white/70 font-bold">
-                Historie ({batches.reduce((a, b) => a + b.images.length, 0)})
-              </summary>
-              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {batches
-                  .slice()
-                  .reverse()
-                  .flatMap((b) => b.images)
-                  .map((o, i) => (
-                    <button
-                      key={o.id}
-                      type="button"
-                      className="border border-zinc-700/70 bg-black/20 rounded-xl overflow-hidden hover:border-zinc-500/60 transition-colors"
-                      onClick={() => setLightbox(o.dataUrl)}
-                      title="Otevřít"
-                    >
-                      <img src={o.dataUrl} alt={`History ${i + 1}`} className="w-full h-[180px] object-cover" />
-                    </button>
-                  ))}
-              </div>
-            </details>
-          )}
+                      {!isPending && (
+                        <button
+                          type="button"
+                          className="absolute top-2 right-2 z-30 p-1.5 rounded-md bg-black/35 border border-white/10 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-200 hover:border-red-400/30 transition-all"
+                          title="Smazat"
+                          aria-label="Smazat"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setGenerated((prev) => prev.filter((it) => it.id !== img.id));
+                            try {
+                              await deleteGeneratedImage(img.id);
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                        >
+                          <X size={14} strokeWidth={3} />
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
         </div>
       </section>
 
