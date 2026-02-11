@@ -454,7 +454,7 @@ export function FluxLoraGeneratorScreen(props: {
           </button>
 
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">POČET OBRÁZKŮ</div>
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET OBRÁZKŮ</div>
             <div className="flex items-center justify-between bg-transparent pt-1">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button
@@ -476,7 +476,7 @@ export function FluxLoraGeneratorScreen(props: {
 
           <div className="card-surface p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">REFERENČNÍ OBRÁZKY</div>
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">REFERENČNÍ OBRÁZKY</div>
               <div className="text-[12px] leading-none font-semibold text-[#9aa5ba]">{input ? 1 : 0}</div>
             </div>
             <label
