@@ -27,14 +27,28 @@ type HfPreset = {
   id: string;
   label: string;
   url: string;
+  configUrl?: string;
 };
 
 // User-provided Flux LoRA export (fal media URLs).
 const MULENMARA_FLUX_LORAS: HfPreset[] = [
   {
-    id: 'flux_lora_latest',
-    label: 'Flux LoRA: latest (weights)',
+    id: 'flux_1',
+    label: 'flux 1',
     url: 'https://v3b.fal.media/files/b/0a8dd547/4Z_ldmLbgx3Tb3XiOsA12_pytorch_lora_weights.safetensors',
+    configUrl: 'https://v3b.fal.media/files/b/0a8dd547/WvQthl3WR-s79eb5K7-qw_config.json',
+  },
+  {
+    id: 'flux_2',
+    label: 'flux 2',
+    url: 'https://v3b.fal.media/files/b/0a8dfeed/Rd3SIBmJ-NlEwGv5q1E1L_pytorch_lora_weights.safetensors',
+    configUrl: 'https://v3b.fal.media/files/b/0a8dfeed/jfYQpmI8ZTgojETD3UmQi_config_b0e9412a-a0c7-4475-9b56-f8e9de54567e.json',
+  },
+  {
+    id: 'flux_krea',
+    label: 'flux krea',
+    url: 'https://v3b.fal.media/files/b/0a8df48d/49cyD9v_shitOjkkdmfdr_pytorch_lora_weights.safetensors',
+    configUrl: 'https://v3b.fal.media/files/b/0a8df48d/F9EdkyTd15HyuMuEeHxWg_config.json',
   },
 ];
 
