@@ -498,8 +498,8 @@ export function LoraSdGeneratorScreen(props: {
           </button>
 
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70">POČET OBRÁZKŮ</div>
-            <div className="relative pt-1 pb-2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">POČET OBRÁZKŮ</div>
+            <div className="relative pt-1 pb-1">
               <div className="absolute left-0 right-0 bottom-0 h-px bg-white/14" />
               <div className="flex items-center justify-between">
                 {[1, 2, 3].map((n) => {
@@ -509,13 +509,13 @@ export function LoraSdGeneratorScreen(props: {
                       key={n}
                       type="button"
                       onClick={() => setVariants(n as 1 | 2 | 3)}
-                      className={`relative w-12 h-8 text-center text-[34px] leading-none font-medium transition-colors ${active ? 'text-[#7ed957]' : 'text-[#98a3b8] hover:text-white/80'
+                      className={`relative w-12 h-8 text-center text-[20px] leading-none font-medium transition-colors ${active ? 'text-[#7ed957]' : 'text-[#98a3b8] hover:text-white/80'
                         }`}
                       aria-label={`Počet obrázků: ${n}`}
                     >
-                      <span className="relative top-[1px]">{n}</span>
+                      <span className="relative top-[5px]">{n}</span>
                       <span
-                        className={`absolute left-[4px] right-[4px] bottom-[-8px] h-[3px] rounded-full transition-colors ${active ? 'bg-[#7ed957]' : 'bg-transparent'
+                        className={`absolute left-[4px] right-[4px] bottom-[-4px] h-[2px] rounded-full transition-colors ${active ? 'bg-[#7ed957]' : 'bg-transparent'
                           }`}
                       />
                     </button>
@@ -527,11 +527,11 @@ export function LoraSdGeneratorScreen(props: {
 
           <div className="card-surface p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70">Referenční obrázky</div>
-              <div className="text-[24px] leading-none font-medium text-[#98a3b8]">{input ? 1 : 0}</div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">REFERENČNÍ OBRÁZKY</div>
+              <div className="text-[12px] leading-none font-semibold text-[#9aa5ba]">{input ? 1 : 0}</div>
             </div>
             <div
-              className="relative aspect-[16/9] rounded-[18px] border border-dashed border-[#16263a] hover:border-[#223a57] bg-[#070d17] transition-all overflow-hidden cursor-pointer"
+              className="relative h-[170px] rounded-[16px] border border-dashed border-[#16263a] hover:border-[#223a57] bg-[#060d17] transition-all overflow-hidden cursor-pointer"
                 onClick={() => document.getElementById(inputFileId)?.click()}
                 onDragOver={(e) => {
                   e.preventDefault();
