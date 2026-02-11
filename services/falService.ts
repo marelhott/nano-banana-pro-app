@@ -405,6 +405,7 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
   prompt: string;
   cfg: number;
   denoise: number; // mapped to "strength" (0..1)
+  acceleration?: 'none' | 'regular' | 'high';
   steps: number;
   seed?: number;
   numImages: 1 | 2 | 3 | 4 | 5;
@@ -445,6 +446,7 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
     maxItems: isFlux2Edit ? 3 : 6,
   });
   if (loras) input.loras = loras;
+  if (isFlux2Edit && params.acceleration) input.acceleration = params.acceleration;
   if (params.imageSize) input.image_size = params.imageSize;
   if (params.outputFormat) input.output_format = params.outputFormat;
 
