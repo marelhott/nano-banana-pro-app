@@ -345,6 +345,7 @@ export function FluxLoraGeneratorScreen(props: {
 
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
+  const topbarLoraScale = loras[0]?.scale ?? 1.0;
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -605,6 +606,27 @@ export function FluxLoraGeneratorScreen(props: {
                   <option value="__custom__">Vlastní LoRA URL (z presetu)</option>
                 )}
               </select>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Váha</div>
+              <input
+                type="range"
+                min={0}
+                max={2}
+                step={0.05}
+                value={topbarLoraScale}
+                disabled={loras.length === 0}
+                onChange={(e) => {
+                  const scale = Number(e.target.value);
+                  setLoras((prev) => {
+                    if (!prev.length) return prev;
+                    const [first, ...rest] = prev;
+                    return [{ ...first, scale }, ...rest];
+                  });
+                }}
+                className="w-[150px] h-[2px] accent-[#7ed957] opacity-80 disabled:opacity-30"
+              />
+              <div className="text-[10px] text-white/55 w-10 text-right">{topbarLoraScale.toFixed(2)}</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
