@@ -329,6 +329,9 @@ export function FluxLoraGeneratorScreen(props: {
   );
 
   const canGenerate = Boolean(input?.dataUrl) && !isGenerating;
+  const fluxEndpointId =
+    fluxEndpoint === 'flux2' ? 'fal-ai/flux-2/lora/edit' : 'fal-ai/flux-lora/image-to-image';
+  const denoiseAvailable = !(modelFamily === 'flux' && fluxEndpoint === 'flux2');
 
   const handleGenerate = React.useCallback(async () => {
     if (!input?.dataUrl) {
@@ -484,9 +487,6 @@ export function FluxLoraGeneratorScreen(props: {
   const topbarLoraScale = loras[0]?.scale ?? 1.0;
   const selectedTopbarLoraPreset =
     loras.length > 0 ? activeLoraPresets.find((p) => p.url === loras[0].path) ?? null : null;
-  const fluxEndpointId =
-    fluxEndpoint === 'flux2' ? 'fal-ai/flux-2/lora/edit' : 'fal-ai/flux-lora/image-to-image';
-  const denoiseAvailable = !(modelFamily === 'flux' && fluxEndpoint === 'flux2');
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
