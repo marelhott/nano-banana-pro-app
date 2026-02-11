@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, X, Save, Trash2 } from 'lucide-react';
-import { runFalFluxLoraImg2ImgQueued } from '../services/falService';
+import { runFalFluxLoraImg2ImgQueued, runFalLoraImg2ImgQueued } from '../services/falService';
 import { presignR2, isR2Ref, r2KeyFromRef } from '../services/r2Service';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
 import { listFluxPresets, saveFluxPreset, deleteFluxPreset, type FluxPreset } from '../utils/fluxPresetsDB';
@@ -31,8 +31,12 @@ type HfPreset = {
   configUrl?: string;
 };
 
+type ModelFamily = 'flux' | 'sdxl';
+
+const SDXL_BASE_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
+
 // User-provided Flux LoRA export (fal media URLs).
-const MULENMARA_FLUX_LORAS: HfPreset[] = [
+const FLUX_LORA_PRESETS: HfPreset[] = [
   {
     id: 'flux_1',
     label: 'flux 1',
@@ -55,6 +59,14 @@ const MULENMARA_FLUX_LORAS: HfPreset[] = [
     label: 'flux krea',
     url: 'https://v3b.fal.media/files/b/0a8df48d/49cyD9v_shitOjkkdmfdr_pytorch_lora_weights.safetensors',
     configUrl: 'https://v3b.fal.media/files/b/0a8df48d/F9EdkyTd15HyuMuEeHxWg_config.json',
+  },
+];
+
+const SDXL_LORA_PRESETS: HfPreset[] = [
+  {
+    id: 'sdxl_tuymans',
+    label: 'sdxl tuymans',
+    url: 'r2://loras/lora_tuymans_style.safetensors',
   },
 ];
 
@@ -135,6 +147,7 @@ export function FluxLoraGeneratorScreen(props: {
   const [denoise, setDenoise] = React.useState(0.35);
   const [steps, setSteps] = React.useState(28);
   const [variants, setVariants] = React.useState<1 | 2 | 3 | 4 | 5>(1);
+  const [modelFamily, setModelFamily] = React.useState<ModelFamily>('flux');
 
   // New parameters (stored in presets)
   const [seed, setSeed] = React.useState<number | null>(null);
@@ -147,10 +160,10 @@ export function FluxLoraGeneratorScreen(props: {
   const [falPhase, setFalPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [genPhase, setGenPhase] = React.useState<string>('');
 
+  const activeLoraPresets = modelFamily === 'sdxl' ? SDXL_LORA_PRESETS : FLUX_LORA_PRESETS;
   const [loras, setLoras] = React.useState<LoraItem[]>([
-    { id: 'flux_lora_default', path: MULENMARA_FLUX_LORAS[0].url, scale: 1.0 },
+    { id: 'lora_default', path: FLUX_LORA_PRESETS[0].url, scale: 1.0 },
   ]);
-  const [newLoraPresetId, setNewLoraPresetId] = React.useState<string>(MULENMARA_FLUX_LORAS[0].id);
 
   // Presets
   const [presets, setPresets] = React.useState<FluxPreset[]>([]);
@@ -162,6 +175,18 @@ export function FluxLoraGeneratorScreen(props: {
   const [generated, setGenerated] = React.useState<OutputItem[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const inputFileId = React.useMemo(() => `flux-input-${Math.random().toString(36).slice(2)}`, []);
+
+  React.useEffect(() => {
+    const nextDefaultPreset = activeLoraPresets[0];
+    setLoras((prev) => {
+      if (!nextDefaultPreset) return [];
+      const currentPath = prev[0]?.path?.trim();
+      if (currentPath && activeLoraPresets.some((p) => p.url === currentPath)) {
+        return prev;
+      }
+      return [{ id: 'lora_default', path: nextDefaultPreset.url, scale: prev[0]?.scale ?? 1.0 }];
+    });
+  }, [activeLoraPresets]);
 
   // Load presets from Supabase on mount
   React.useEffect(() => {
@@ -246,9 +271,9 @@ export function FluxLoraGeneratorScreen(props: {
 
   const selectedTopbarLoraId = React.useMemo(() => {
     if (!loras.length) return '';
-    const hit = MULENMARA_FLUX_LORAS.find((p) => p.url === loras[0].path);
+    const hit = activeLoraPresets.find((p) => p.url === loras[0].path);
     return hit ? hit.id : '__custom__';
-  }, [loras]);
+  }, [activeLoraPresets, loras]);
 
   const onPickInputFile = React.useCallback(
     async (file: File) => {
@@ -304,23 +329,42 @@ export function FluxLoraGeneratorScreen(props: {
           )
           : [];
 
-      const { images, usedSeed } = await runFalFluxLoraImg2ImgQueued({
-        imageUrlOrDataUrl: inputDataUrl,
-        prompt,
-        cfg,
-        denoise,
-        steps,
-        seed: seed ?? undefined,
-        numImages: variants,
-        loras: resolvedLoras.map((l) => ({ path: l.path, scale: l.scale })),
-        imageSize,
-        outputFormat,
-        onPhase: (p) => {
-          setFalPhase(p);
-          setGenPhase(p === 'queue' ? 'Ve frontě…' : p === 'running' ? 'Generuji…' : 'Dokončuji…');
-        },
-        maxWaitMs: 12 * 60_000,
-      });
+      const normalizedLoras = resolvedLoras.map((l) => ({ path: l.path, scale: l.scale }));
+      const phaseHandler = (p: 'queue' | 'running' | 'finalizing') => {
+        setFalPhase(p);
+        setGenPhase(p === 'queue' ? 'Ve frontě…' : p === 'running' ? 'Generuji…' : 'Dokončuji…');
+      };
+
+      const { images, usedSeed } =
+        modelFamily === 'sdxl'
+          ? await runFalLoraImg2ImgQueued({
+            modelName: SDXL_BASE_MODEL,
+            imageUrlOrDataUrl: inputDataUrl,
+            prompt,
+            negativePrompt: 'blurry, low quality, watermark, text, logo',
+            cfg,
+            denoise,
+            steps,
+            seed: seed ?? undefined,
+            numImages: variants,
+            loras: normalizedLoras,
+            onPhase: phaseHandler,
+            maxWaitMs: 12 * 60_000,
+          })
+          : await runFalFluxLoraImg2ImgQueued({
+            imageUrlOrDataUrl: inputDataUrl,
+            prompt,
+            cfg,
+            denoise,
+            steps,
+            seed: seed ?? undefined,
+            numImages: variants,
+            loras: normalizedLoras,
+            imageSize,
+            outputFormat,
+            onPhase: phaseHandler,
+            maxWaitMs: 12 * 60_000,
+          });
 
       const resolved = pendingItems.map((p, i) => ({
         id: p.id,
@@ -349,7 +393,9 @@ export function FluxLoraGeneratorScreen(props: {
             resolution: undefined,
             aspectRatio: undefined,
             params: {
-              engine: 'fal_flux_lora_img2img',
+              engine: modelFamily === 'sdxl' ? 'fal_lora_img2img' : 'fal_flux_lora_img2img',
+              modelFamily,
+              modelName: modelFamily === 'sdxl' ? SDXL_BASE_MODEL : 'fal-ai/flux-lora/image-to-image',
               cfg,
               strength: denoise,
               steps,
@@ -375,7 +421,7 @@ export function FluxLoraGeneratorScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [cfg, customPrompt, denoise, input?.dataUrl, loras, onToast, seed, steps, variants]);
+  }, [cfg, customPrompt, denoise, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, seed, steps, variants]);
 
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
@@ -387,7 +433,7 @@ export function FluxLoraGeneratorScreen(props: {
         <div className="p-6 flex flex-col gap-6 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
-            <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Flux LoRA Generátor</h2>
+            <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Lora Influence</h2>
           </div>
 
           {/* ── Presets ── */}
@@ -536,7 +582,8 @@ export function FluxLoraGeneratorScreen(props: {
             <select
               value={imageSize}
               onChange={(e) => setImageSize(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+              disabled={modelFamily === 'sdxl'}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] disabled:opacity-40"
             >
               <option value="square_hd">Square HD (1024×1024)</option>
               <option value="square">Square (512×512)</option>
@@ -545,6 +592,9 @@ export function FluxLoraGeneratorScreen(props: {
               <option value="landscape_4_3">Landscape 4:3</option>
               <option value="landscape_16_9">Landscape 16:9</option>
             </select>
+            {modelFamily === 'sdxl' && (
+              <div className="text-[9px] text-white/35">SDXL režim používá výchozí velikost endpointu.</div>
+            )}
           </div>
 
           {/* ── Output Format ── */}
@@ -558,8 +608,9 @@ export function FluxLoraGeneratorScreen(props: {
                     key={fmt}
                     type="button"
                     onClick={() => setOutputFormat(fmt)}
+                    disabled={modelFamily === 'sdxl'}
                     className={`relative flex-1 py-2 text-center text-[11px] font-black uppercase tracking-widest transition-colors ${active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
-                      }`}
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
                   >
                     {fmt}
                     <span
@@ -578,7 +629,7 @@ export function FluxLoraGeneratorScreen(props: {
             <textarea
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder="Prázdné = automatický prompt ze stylu LoRA…"
+              placeholder="Prázdné = automatický prompt podle zvolené LoRA…"
               rows={3}
               className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20 resize-y"
             />
@@ -598,17 +649,27 @@ export function FluxLoraGeneratorScreen(props: {
         <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
           <div className="px-6 py-4 flex flex-wrap items-center gap-5">
             <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
+              <select
+                value={modelFamily}
+                onChange={(e) => setModelFamily(e.target.value as ModelFamily)}
+                className="w-[190px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+              >
+                <option value="flux">flux model</option>
+                <option value="sdxl">sdxl model</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">LoRA</div>
               <select
                 value={selectedTopbarLoraId}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setNewLoraPresetId(val || MULENMARA_FLUX_LORAS[0].id);
                   if (!val) {
                     setLoras([]);
                     return;
                   }
-                  const preset = MULENMARA_FLUX_LORAS.find((p) => p.id === val);
+                  const preset = activeLoraPresets.find((p) => p.id === val);
                   if (!preset) return;
                   const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                   const scale = loras[0]?.scale ?? 1.0;
@@ -617,7 +678,7 @@ export function FluxLoraGeneratorScreen(props: {
                 className="w-[280px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
               >
                 <option value="">(bez LoRA)</option>
-                {MULENMARA_FLUX_LORAS.map((p) => (
+                {activeLoraPresets.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label}
                   </option>

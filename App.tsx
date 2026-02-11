@@ -36,7 +36,6 @@ import { ensureAnonymousSession, refreshSupabaseSession, SUPABASE_ANON_DISABLED_
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
-import { LoraSdGeneratorScreen } from './components/LoraSdGeneratorScreen';
 import { FluxLoraGeneratorScreen } from './components/FluxLoraGeneratorScreen';
 import { NodesScreen } from './components/NodesScreen';
 import { PinAuth } from './components/PinAuth';
@@ -366,6 +365,7 @@ const App: React.FC = () => {
   const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
   const isLoraSdRoute = routePath === '/lora-sd' || routePath.startsWith('/lora-sd/');
   const isFluxLoraRoute = routePath === '/flux-lora' || routePath.startsWith('/flux-lora/');
+  const isLoraInfluenceRoute = isFluxLoraRoute || isLoraSdRoute;
   const isNodesHubRoute = routePath === '/nodes-hub' || routePath.startsWith('/nodes-hub/');
 
   // Nové state pro featury
@@ -3318,11 +3318,9 @@ ${extra}
             ? 'nodes'
             : isStyleTransferRoute
               ? 'style-transfer'
-              : isLoraSdRoute
-                ? 'lora-sd'
-                : isFluxLoraRoute
-                  ? 'flux-lora'
-                  : 'mulen'
+              : isLoraInfluenceRoute
+                ? 'flux-lora'
+                : 'mulen'
         }
         onNavigate={(route) => {
           if (route === 'mulen') {
@@ -3331,10 +3329,6 @@ ${extra}
           }
           if (route === 'style-transfer') {
             navigate('/style-transfer');
-            return;
-          }
-          if (route === 'lora-sd') {
-            navigate('/lora-sd');
             return;
           }
           if (route === 'flux-lora') {
@@ -3365,12 +3359,7 @@ ${extra}
             />
           ) : isNodesHubRoute ? (
             <NodesScreen onToast={(t) => setToast(t)} />
-          ) : isLoraSdRoute ? (
-            <LoraSdGeneratorScreen
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onToast={(t) => setToast(t)}
-            />
-          ) : isFluxLoraRoute ? (
+          ) : isLoraInfluenceRoute ? (
             <FluxLoraGeneratorScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onToast={(t) => setToast(t)}
