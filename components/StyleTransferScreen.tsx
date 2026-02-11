@@ -1,6 +1,7 @@
 import React from 'react';
 import { AIProviderType, ProviderSettings } from '../services/aiProvider';
 import { runArbitraryStyleTransferTfjs } from '../services/arbitraryStyleTransferTfjs';
+import { runGatysStyleTransfer, runWctStyleTransfer } from '../services/neuralStyleTransferAlgorithms';
 import { runFofrStyleTransfer } from '../services/replicateService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
@@ -104,6 +105,11 @@ export function StyleTransferScreen(props: {
   const marginRight = isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0';
   const activeStyles = React.useMemo(() => styles.filter((slot): slot is ImageSlot => !!slot), [styles]);
   const canGenerate = !!reference && activeStyles.length > 0 && !isGenerating;
+  const localIterationHint = React.useMemo(() => {
+    if (localMethod === 'adain') return getMergePasses(merge, highRes);
+    if (localMethod === 'gatys') return Math.round(40 + (Math.max(0, Math.min(100, merge)) / 100) * 120);
+    return Math.round(28 + (Math.max(0, Math.min(100, merge)) / 100) * 70);
+  }, [getMergePasses, highRes, localMethod, merge]);
 
   const setReferenceFromFile = React.useCallback(async (file: File) => {
     const dataUrl = await fileToDataUrl(file);
@@ -266,39 +272,55 @@ export function StyleTransferScreen(props: {
 
       const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
       const mergeValue = Math.max(0, Math.min(100, Math.round(merge)));
-      const methodProfile = (() => {
-        if (localMethod === 'gatys') {
-          return { strengthMult: 1.15, mergeMult: 1.25, forceColorPreserve: false };
-        }
-        if (localMethod === 'wct') {
-          return { strengthMult: 1.05, mergeMult: 1.15, forceColorPreserve: false };
-        }
-        return { strengthMult: 1.0, mergeMult: 1.0, forceColorPreserve: preserveColors };
-      })();
-      const effectiveStrengthValue = Math.max(0, Math.min(100, Math.round(strengthValue * methodProfile.strengthMult)));
-      const effectiveMergeValue = Math.max(0, Math.min(100, Math.round(mergeValue * methodProfile.mergeMult)));
-      const strength01 = effectiveStrengthValue / 100;
-      const passes = getMergePasses(effectiveMergeValue, highRes);
-      const effectivePreserveColors = methodProfile.forceColorPreserve;
+      const strength01 = strengthValue / 100;
+      const merge01 = mergeValue / 100;
+      const adainPasses = getMergePasses(mergeValue, highRes);
+      const localMaxDim = highRes ? 768 : 512;
 
       for (let i = 0; i < variants; i++) {
         try {
           // Each click should produce a fresh variant even with identical inputs.
           // (User can increase Variants to see several at once.)
           const seed = ((Date.now() + i * 9973) ^ Math.floor(Math.random() * 1e9)) | 0;
-          let contentDataUrl = reference.dataUrl;
-          for (let pass = 0; pass < passes; pass++) {
-            const { dataUrl } = await runArbitraryStyleTransferTfjs({
-              contentDataUrl,
+          let dataUrl = reference.dataUrl;
+
+          if (localMethod === 'adain') {
+            let contentDataUrl = reference.dataUrl;
+            for (let pass = 0; pass < adainPasses; pass++) {
+              const out = await runArbitraryStyleTransferTfjs({
+                contentDataUrl,
+                styleDataUrls: activeStyles.map((s) => s.dataUrl),
+                strength01,
+                maxDim: highRes ? 1024 : 512,
+                preserveContentColors: preserveColors,
+                variantSeed: seed + pass * 1337,
+              });
+              contentDataUrl = out.dataUrl;
+            }
+            dataUrl = contentDataUrl;
+          } else if (localMethod === 'gatys') {
+            const out = await runGatysStyleTransfer({
+              contentDataUrl: reference.dataUrl,
               styleDataUrls: activeStyles.map((s) => s.dataUrl),
               strength01,
-              maxDim: highRes ? 1024 : 512,
-              preserveContentColors: effectivePreserveColors,
-              variantSeed: seed + pass * 1337,
+              merge01,
+              maxDim: localMaxDim,
+              preserveContentColors: preserveColors,
+              variantSeed: seed,
             });
-            contentDataUrl = dataUrl;
+            dataUrl = out.dataUrl;
+          } else {
+            const out = await runWctStyleTransfer({
+              contentDataUrl: reference.dataUrl,
+              styleDataUrls: activeStyles.map((s) => s.dataUrl),
+              strength01,
+              merge01,
+              maxDim: localMaxDim,
+              preserveContentColors: preserveColors,
+              variantSeed: seed,
+            });
+            dataUrl = out.dataUrl;
           }
-          const dataUrl = contentDataUrl;
 
           // Show instantly (local data URL), then upload+persist in background.
           setOutputs((prev) =>
@@ -318,19 +340,23 @@ export function StyleTransferScreen(props: {
             await saveToGallery({
               url: publicUrl,
               thumbnail: thumb,
-              prompt: `Style Transfer | strength=${strengthValue} merge=${mergeValue} passes=${passes}`,
-              resolution: highRes ? '1024' : '512',
+              prompt: `Style Transfer (${localMethod.toUpperCase()}) | strength=${strengthValue} merge=${mergeValue}`,
+              resolution: localMethod === 'adain' ? (highRes ? '1024' : '512') : (highRes ? '768' : '512'),
               aspectRatio: 'Original',
               params: {
-                mode: 'style-transfer-arbitrary-tfjs',
+                mode:
+                  localMethod === 'adain'
+                    ? 'style-transfer-adain'
+                    : localMethod === 'gatys'
+                      ? 'style-transfer-gatys'
+                      : 'style-transfer-wct',
                 method: localMethod,
                 strength: strengthValue,
                 merge: mergeValue,
-                effective_strength: effectiveStrengthValue,
-                effective_merge: effectiveMergeValue,
-                passes,
+                passes: localMethod === 'adain' ? adainPasses : null,
+                iterations: localMethod === 'adain' ? null : localIterationHint,
                 highRes,
-                preserveColors: effectivePreserveColors,
+                preserveColors,
                 styleReferences: activeStyles.length,
                 variant: i + 1,
                 variants,
@@ -373,6 +399,7 @@ export function StyleTransferScreen(props: {
     merge,
     onToast,
     preserveColors,
+    localIterationHint,
     localMethod,
     providerSettings,
     reference,
@@ -395,7 +422,7 @@ export function StyleTransferScreen(props: {
         setStrength={setStrength}
         merge={merge}
         setMerge={setMerge}
-        mergePasses={getMergePasses(merge, highRes)}
+        mergePasses={localIterationHint}
         variants={variants}
         setVariants={setVariants}
         fofrNumImages={fofrNumImages}
@@ -447,7 +474,7 @@ export function StyleTransferScreen(props: {
                 setStrength={setStrength}
                 merge={merge}
                 setMerge={setMerge}
-                mergePasses={getMergePasses(merge, highRes)}
+                mergePasses={localIterationHint}
                 variants={variants}
                 setVariants={setVariants}
                 fofrNumImages={fofrNumImages}
