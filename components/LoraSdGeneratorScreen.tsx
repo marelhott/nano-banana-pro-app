@@ -561,7 +561,7 @@ export function LoraSdGeneratorScreen(props: {
                   <img src={input.dataUrl} alt="Vstup" className="w-full h-full object-cover opacity-90" draggable={false} />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Plus className="w-7 h-7 text-[#8f9aae]" />
+                    <Plus className="w-5 h-5 text-[#8f9aae]" strokeWidth={1.8} />
                   </div>
                 )}
 

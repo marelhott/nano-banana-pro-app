@@ -487,7 +487,7 @@ export function FluxLoraGeneratorScreen(props: {
                 <img src={input.dataUrl} className="w-full h-full object-cover opacity-92 hover:opacity-100 transition-opacity" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-[#8f9aae]">
-                  <Plus className="w-7 h-7" />
+                  <Plus className="w-5 h-5" strokeWidth={1.8} />
                 </div>
               )}
             </label>
