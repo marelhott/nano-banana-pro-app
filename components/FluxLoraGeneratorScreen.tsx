@@ -29,6 +29,8 @@ type HfPreset = {
   label: string;
   url: string;
   configUrl?: string;
+  trigger?: string;
+  trainedOn?: string;
 };
 
 type ModelFamily = 'flux' | 'sdxl';
@@ -42,23 +44,28 @@ const FLUX_LORA_PRESETS: HfPreset[] = [
     label: 'flux 1',
     url: 'https://v3b.fal.media/files/b/0a8dd547/4Z_ldmLbgx3Tb3XiOsA12_pytorch_lora_weights.safetensors',
     configUrl: 'https://v3b.fal.media/files/b/0a8dd547/WvQthl3WR-s79eb5K7-qw_config.json',
+    trainedOn: 'flux',
   },
   {
     id: 'flux_1_prestige',
     label: 'flux 1 prestige',
     url: 'r2://loras/flux_tuymans_000001400.safetensors',
+    trainedOn: 'flux',
   },
   {
     id: 'flux_2',
     label: 'flux 2',
     url: 'https://v3b.fal.media/files/b/0a8dfeed/Rd3SIBmJ-NlEwGv5q1E1L_pytorch_lora_weights.safetensors',
     configUrl: 'https://v3b.fal.media/files/b/0a8dfeed/jfYQpmI8ZTgojETD3UmQi_config_b0e9412a-a0c7-4475-9b56-f8e9de54567e.json',
+    trigger: 'mvhpaint style',
+    trainedOn: 'flux.2',
   },
   {
     id: 'flux_krea',
     label: 'flux krea',
     url: 'https://v3b.fal.media/files/b/0a8df48d/49cyD9v_shitOjkkdmfdr_pytorch_lora_weights.safetensors',
     configUrl: 'https://v3b.fal.media/files/b/0a8df48d/F9EdkyTd15HyuMuEeHxWg_config.json',
+    trainedOn: 'flux',
   },
 ];
 
@@ -70,7 +77,7 @@ const SDXL_LORA_PRESETS: HfPreset[] = [
   },
 ];
 
-function buildAutoPrompt(loraLabels: string[]): string {
+function buildAutoPrompt(loraLabels: string[], triggers: string[] = []): string {
   const baseHints = loraLabels
     .map((l) =>
       String(l || '')
@@ -84,7 +91,8 @@ function buildAutoPrompt(loraLabels: string[]): string {
     .slice(0, 3);
   // Flux endpoint requires a prompt; keep it minimal and "promptless" in UX (user doesn't type).
   const style = baseHints.length ? `in the style of ${baseHints.join(', ')}` : 'fine art painting style';
-  return `high quality image-to-image transformation, preserve subject identity and composition, painterly rendering, ${style}`;
+  const triggerPart = triggers.length ? `, ${Array.from(new Set(triggers)).join(', ')}` : '';
+  return `high quality image-to-image transformation, preserve subject identity and composition, painterly rendering, ${style}${triggerPart}`;
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -141,6 +149,13 @@ function loraHintFromPath(path: string, presets: HfPreset[]): string {
   if (preset?.label) return preset.label;
   const tail = cleanPath.split('/').pop() || cleanPath;
   return tail.replace(/\?.*$/, '').replace(/\.safetensors$/i, '');
+}
+
+function loraTriggerFromPath(path: string, presets: HfPreset[]): string {
+  const cleanPath = String(path || '').trim();
+  if (!cleanPath) return '';
+  const preset = presets.find((p) => p.url === cleanPath);
+  return String(preset?.trigger || '').trim();
 }
 
 function Spinner(props: { label?: string }) {
@@ -330,7 +345,10 @@ export function FluxLoraGeneratorScreen(props: {
       const inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
 
       const loraLabels = loras.map((l) => loraHintFromPath(l.path, activeLoraPresets));
-      const prompt = customPrompt.trim() || buildAutoPrompt(loraLabels);
+      const loraTriggers = loras
+        .map((l) => loraTriggerFromPath(l.path, activeLoraPresets))
+        .filter(Boolean);
+      const prompt = customPrompt.trim() || buildAutoPrompt(loraLabels, loraTriggers);
       const resolvedLoras =
         loras.length > 0
           ? await Promise.all(
@@ -442,6 +460,8 @@ export function FluxLoraGeneratorScreen(props: {
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
   const topbarLoraScale = loras[0]?.scale ?? 1.0;
+  const selectedTopbarLoraPreset =
+    loras.length > 0 ? activeLoraPresets.find((p) => p.url === loras[0].path) ?? null : null;
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -704,6 +724,16 @@ export function FluxLoraGeneratorScreen(props: {
                 )}
               </select>
             </div>
+            {selectedTopbarLoraPreset?.trigger && (
+              <div className="text-[10px] text-white/50">
+                trigger: <span className="text-[#7ed957]">{selectedTopbarLoraPreset.trigger}</span>
+              </div>
+            )}
+            {selectedTopbarLoraPreset?.trainedOn && (
+              <div className="text-[10px] text-amber-200/70">
+                trénink: {selectedTopbarLoraPreset.trainedOn}
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Váha</div>
               <input
