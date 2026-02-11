@@ -190,6 +190,33 @@ async function getOrCreateSupabaseAuthUserId(): Promise<string> {
   return createdUserId;
 }
 
+function isMissingUserAuthIdentitiesTableError(error: unknown): boolean {
+  const message = String((error as any)?.message || '').toLowerCase();
+  const code = String((error as any)?.code || '').toLowerCase();
+
+  return (
+    code === '42p01' ||
+    message.includes('user_auth_identities') ||
+    message.includes('relation') && message.includes('does not exist')
+  );
+}
+
+async function linkAuthIdentity(appUserId: string, authUserId: string): Promise<void> {
+  const { error } = await supabase
+    .from('user_auth_identities')
+    .upsert(
+      {
+        user_id: appUserId,
+        auth_user_id: authUserId,
+      },
+      { onConflict: 'auth_user_id' }
+    );
+
+  if (!error) return;
+  if (isMissingUserAuthIdentitiesTableError(error)) return;
+  throw error;
+}
+
 async function sha256Hex(input: string): Promise<string> {
   if (typeof crypto === 'undefined' || !crypto.subtle) {
     // Fallback: do not block login in older environments.
@@ -264,9 +291,10 @@ export async function loginWithPin(pin: string): Promise<string> {
     throw new Error('PIN musí mít 4–6 číslic');
   }
 
-  // Best-effort: keep Supabase auth session alive (not strictly required with RLS disabled).
+  let supabaseAuthUserId: string | null = null;
+  // Best-effort: keep Supabase auth session alive.
   try {
-    await ensureAnonymousSession();
+    supabaseAuthUserId = await ensureAnonymousSession();
   } catch {
     // ignore; the app tables can still work if RLS is disabled
   }
@@ -275,6 +303,9 @@ export async function loginWithPin(pin: string): Promise<string> {
   if (existing?.id) {
     persistAppUserId(existing.id);
     localStorage.setItem(PIN_HASH_STORAGE_KEY, existing.pin_hash);
+    if (supabaseAuthUserId) {
+      await linkAuthIdentity(existing.id, supabaseAuthUserId);
+    }
     // Best-effort last_login update.
     void supabase.from('users').update({ last_login: new Date().toISOString() }).eq('id', existing.id);
     return existing.id;
@@ -301,6 +332,9 @@ export async function loginWithPin(pin: string): Promise<string> {
   const created = data as UserRow;
   persistAppUserId(created.id);
   localStorage.setItem(PIN_HASH_STORAGE_KEY, created.pin_hash);
+  if (supabaseAuthUserId) {
+    await linkAuthIdentity(created.id, supabaseAuthUserId);
+  }
   return created.id;
 }
 
@@ -311,9 +345,10 @@ export async function autoLogin(): Promise<string | null> {
   try {
     await ensureSupabaseClient();
 
+    let supabaseAuthUserId: string | null = null;
     // Best-effort keep auth session alive.
     try {
-      await ensureAnonymousSession();
+      supabaseAuthUserId = await ensureAnonymousSession();
     } catch {
     }
 
@@ -338,6 +373,9 @@ export async function autoLogin(): Promise<string | null> {
       const row = data as UserRow | null;
       if (row?.id) {
         persistAppUserId(row.id);
+        if (supabaseAuthUserId) {
+          await linkAuthIdentity(row.id, supabaseAuthUserId);
+        }
         return row.id;
       }
     }

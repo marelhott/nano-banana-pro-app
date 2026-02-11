@@ -51,7 +51,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
 - In Supabase Dashboard you must enable anonymous auth:
   - `Authentication → Providers → Anonymous sign-ins → Enable`
 - App auth now automatically retries and reconnects to Supabase on transient failures.
-- Apply migrations in `supabase/migrations/` (including `20260207_user_settings_rls_policies.sql`) to keep `user_settings` accessible only to `auth.uid() = user_id`.
+- Apply migrations in `supabase/migrations/` (especially `20260211_enable_rls_with_pin_identity_links.sql`) to enable RLS on app tables while preserving PIN-based identity via `user_auth_identities`.
 
 ### Provider and workflow operations
 
