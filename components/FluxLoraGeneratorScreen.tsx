@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, X, Save, Trash2 } from 'lucide-react';
 import { runFalFluxLoraImg2ImgQueued } from '../services/falService';
+import { presignR2, isR2Ref, r2KeyFromRef } from '../services/r2Service';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
 import { listFluxPresets, saveFluxPreset, deleteFluxPreset, type FluxPreset } from '../utils/fluxPresetsDB';
 
@@ -34,8 +35,8 @@ type HfPreset = {
 const MULENMARA_FLUX_LORAS: HfPreset[] = [
   {
     id: 'flux_1',
-    label: 'flux 1',
-    url: 'https://v3b.fal.media/files/b/0a8dd547/4Z_ldmLbgx3Tb3XiOsA12_pytorch_lora_weights.safetensors',
+    label: 'flux 1 prestige',
+    url: 'r2://loras/flux_tuymans_000001400.safetensors',
     configUrl: 'https://v3b.fal.media/files/b/0a8dd547/WvQthl3WR-s79eb5K7-qw_config.json',
   },
   {
@@ -284,6 +285,20 @@ export function FluxLoraGeneratorScreen(props: {
 
       const loraLabels = loras.map((l) => l.path);
       const prompt = customPrompt.trim() || buildAutoPrompt(loraLabels);
+      const resolvedLoras =
+        loras.length > 0
+          ? await Promise.all(
+            loras.map(async (l) => {
+              const path = String(l.path || '').trim();
+              if (!path) return l;
+              if (!isR2Ref(path)) return l;
+              const key = r2KeyFromRef(path);
+              const signed = await presignR2({ op: 'get', key, expires: 3600 });
+              return { ...l, path: signed.signedUrl };
+            })
+          )
+          : [];
+
       const { images, usedSeed } = await runFalFluxLoraImg2ImgQueued({
         imageUrlOrDataUrl: inputDataUrl,
         prompt,
@@ -292,7 +307,7 @@ export function FluxLoraGeneratorScreen(props: {
         steps,
         seed: seed ?? undefined,
         numImages: variants,
-        loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
+        loras: resolvedLoras.map((l) => ({ path: l.path, scale: l.scale })),
         imageSize,
         outputFormat,
         onPhase: (p) => {
