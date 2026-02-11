@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, Save, Trash2, ChevronDown } from 'lucide-react';
+import { Plus, X, Save, Trash2 } from 'lucide-react';
 import { runFalFluxLoraImg2ImgQueued } from '../services/falService';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
 import { listFluxPresets, saveFluxPreset, deleteFluxPreset, type FluxPreset } from '../utils/fluxPresetsDB';
@@ -131,7 +131,6 @@ export function FluxLoraGeneratorScreen(props: {
     { id: 'flux_lora_default', path: MULENMARA_FLUX_LORAS[0].url, scale: 1.0 },
   ]);
   const [newLoraPresetId, setNewLoraPresetId] = React.useState<string>(MULENMARA_FLUX_LORAS[0].id);
-  const [newLoraUrl, setNewLoraUrl] = React.useState('');
 
   // Presets
   const [presets, setPresets] = React.useState<FluxPreset[]>([]);
@@ -225,23 +224,11 @@ export function FluxLoraGeneratorScreen(props: {
     }
   }, [onToast, selectedPresetId]);
 
-  const addLora = React.useCallback((path: string) => {
-    const p = path.trim();
-    if (!p) return;
-    setLoras((prev) => {
-      if (prev.length >= 6) return prev;
-      const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-      return [...prev, { id, path: p, scale: 1.0 }];
-    });
-  }, []);
-
-  const removeLora = React.useCallback((id: string) => {
-    setLoras((prev) => prev.filter((l) => l.id !== id));
-  }, []);
-
-  const updateLoraScale = React.useCallback((id: string, scale: number) => {
-    setLoras((prev) => prev.map((l) => (l.id === id ? { ...l, scale } : l)));
-  }, []);
+  const selectedTopbarLoraId = React.useMemo(() => {
+    if (!loras.length) return '';
+    const hit = MULENMARA_FLUX_LORAS.find((p) => p.url === loras[0].path);
+    return hit ? hit.id : '__custom__';
+  }, [loras]);
 
   const onPickInputFile = React.useCallback(
     async (file: File) => {
@@ -496,83 +483,6 @@ export function FluxLoraGeneratorScreen(props: {
             />
           </div>
 
-          <div className="card-surface p-3 space-y-3">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">LoRA</div>
-
-            <div className="flex gap-2">
-              <select
-                value={newLoraPresetId}
-                onChange={(e) => setNewLoraPresetId(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-              >
-                {MULENMARA_FLUX_LORAS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => {
-                  const preset = MULENMARA_FLUX_LORAS.find((p) => p.id === newLoraPresetId);
-                  if (preset) addLora(preset.url);
-                }}
-                className="px-3 py-2 rounded-lg border border-white/10 bg-black/10 hover:bg-black/20 text-[10px] font-black uppercase tracking-widest text-white/75"
-              >
-                Přidat
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                value={newLoraUrl}
-                onChange={(e) => setNewLoraUrl(e.target.value)}
-                placeholder="URL na LoRA weights (.safetensors)"
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  addLora(newLoraUrl);
-                  setNewLoraUrl('');
-                }}
-                className="px-3 py-2 rounded-lg border border-white/10 bg-black/10 hover:bg-black/20 text-[10px] font-black uppercase tracking-widest text-white/75"
-              >
-                +
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {loras.map((l) => (
-                <div key={l.id} className="border border-zinc-800/60 rounded-xl p-3 bg-black/10 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-[10px] text-white/70 truncate">{l.path}</div>
-                    <button
-                      type="button"
-                      onClick={() => removeLora(l.id)}
-                      className="text-[9px] font-black uppercase tracking-widest text-white/35 hover:text-white/65"
-                    >
-                      Odebrat
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-white/35 w-10">váha</div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={4}
-                      step={0.05}
-                      value={l.scale}
-                      onChange={(e) => updateLoraScale(l.id, Number(e.target.value))}
-                      className="flex-1 accent-[#7ed957]"
-                    />
-                    <div className="text-[10px] text-white/55 w-10 text-right">{l.scale.toFixed(2)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* ── Seed ── */}
           <div className="card-surface p-3 space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Seed</div>
@@ -667,18 +577,48 @@ export function FluxLoraGeneratorScreen(props: {
         <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
           <div className="px-6 py-4 flex flex-wrap items-center gap-5">
             <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Strength</div>
-              <input type="range" min={0.01} max={1} step={0.01} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="w-[220px] accent-[#7ed957]" />
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">LoRA</div>
+              <select
+                value={selectedTopbarLoraId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNewLoraPresetId(val || MULENMARA_FLUX_LORAS[0].id);
+                  if (!val) {
+                    setLoras([]);
+                    return;
+                  }
+                  const preset = MULENMARA_FLUX_LORAS.find((p) => p.id === val);
+                  if (!preset) return;
+                  const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+                  const scale = loras[0]?.scale ?? 1.0;
+                  setLoras([{ id, path: preset.url, scale }]);
+                }}
+                className="w-[280px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+              >
+                <option value="">(bez LoRA)</option>
+                {MULENMARA_FLUX_LORAS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+                {selectedTopbarLoraId === '__custom__' && (
+                  <option value="__custom__">Vlastní LoRA URL (z presetu)</option>
+                )}
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
+              <input type="range" min={0.01} max={1} step={0.01} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="w-[220px] h-[2px] accent-[#7ed957] opacity-80" />
               <div className="text-[10px] text-white/55 w-10 text-right">{denoise.toFixed(2)}</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">CFG</div>
-              <input type="range" min={0} max={35} step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="w-[180px] accent-[#7ed957]" />
+              <input type="range" min={0} max={35} step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="w-[180px] h-[2px] accent-[#7ed957] opacity-80" />
               <div className="text-[10px] text-white/55 w-10 text-right">{cfg.toFixed(1)}</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Steps</div>
-              <input type="range" min={1} max={50} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="w-[180px] accent-[#7ed957]" />
+              <input type="range" min={1} max={50} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="w-[180px] h-[2px] accent-[#7ed957] opacity-80" />
               <div className="text-[10px] text-white/55 w-10 text-right">{steps}</div>
             </div>
           </div>
