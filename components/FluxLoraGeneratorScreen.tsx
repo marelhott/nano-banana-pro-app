@@ -693,7 +693,7 @@ export function FluxLoraGeneratorScreen(props: {
               <input
                 type="range"
                 min={0}
-                max={2}
+                max={4}
                 step={0.05}
                 value={topbarLoraScale}
                 disabled={loras.length === 0}
