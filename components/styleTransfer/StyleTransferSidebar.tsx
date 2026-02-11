@@ -2,12 +2,15 @@ import React from 'react';
 import { ArrowLeft, Plus } from 'lucide-react';
 import type { ImageSlot } from './utils';
 import { STYLE_REFERENCE_LIMIT } from './utils';
+import type { LocalStyleMethod } from '../StyleTransferScreen';
 
 type ToastType = 'success' | 'error' | 'info';
 
 export function StyleTransferSidebar(props: {
   engine: 'fofr' | 'quick';
   setEngine: (v: 'fofr' | 'quick') => void;
+  localMethod: LocalStyleMethod;
+  setLocalMethod: (v: LocalStyleMethod) => void;
   onBack: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
   reference: ImageSlot | null;
@@ -51,6 +54,8 @@ export function StyleTransferSidebar(props: {
   const {
     engine,
     setEngine,
+    localMethod,
+    setLocalMethod,
     onBack,
     onToast,
     reference,
@@ -130,9 +135,28 @@ export function StyleTransferSidebar(props: {
                   engine === 'quick' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
                 }`}
               >
-                Quick (local)
+                Neural (local)
               </button>
             </div>
+            {engine === 'quick' && (
+              <div className="space-y-1">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Neural metoda</div>
+                <div className="flex p-1 rounded-lg control-surface">
+                  {(['gatys', 'adain', 'wct'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setLocalMethod(m)}
+                      className={`px-2 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${
+                        localMethod === m ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="card-surface p-4 space-y-3">
@@ -344,7 +368,9 @@ export function StyleTransferSidebar(props: {
                 disabled={styleCount === 0}
                 className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
               />
-              <div className="text-[9px] text-white/35">Iterace: {mergePasses}x (víc = víc struktury stylu, pomalejší)</div>
+              <div className="text-[9px] text-white/35">
+                Iterace: {mergePasses}x {localMethod === 'gatys' ? '(Gatys: víc textury)' : localMethod === 'wct' ? '(WCT: silný stylový posun)' : '(AdaIN: vyvážené)'}
+              </div>
             </div>
           )}
 

@@ -12,6 +12,7 @@ import { downloadDataUrl, fileToDataUrl, resolveDropToFile, STYLE_REFERENCE_LIMI
 import type { ImageSlot, OutputItem } from './styleTransfer/utils';
 
 type ToastType = 'success' | 'error' | 'info';
+export type LocalStyleMethod = 'gatys' | 'adain' | 'wct';
 
 export function StyleTransferScreen(props: {
   providerSettings: ProviderSettings;
@@ -67,6 +68,7 @@ export function StyleTransferScreen(props: {
 
   type Engine = 'fofr' | 'quick';
   const [engine, setEngine] = React.useState<Engine>('fofr');
+  const [localMethod, setLocalMethod] = React.useState<LocalStyleMethod>('adain');
 
   const [reference, setReference] = React.useState<ImageSlot | null>(null);
   const [styles, setStyles] = React.useState<Array<ImageSlot | null>>(
@@ -174,7 +176,7 @@ export function StyleTransferScreen(props: {
     try {
       if (engine === 'quick') {
         onToast({
-          message: 'Quick styl transfer běží lokálně v prohlížeči. První běh může chvíli načítat model, potom je to rychlé.',
+          message: `Neural styl transfer (${localMethod.toUpperCase()}) běží lokálně v prohlížeči. První běh může chvíli načítat model.`,
           type: 'info',
         });
       } else {
@@ -263,9 +265,21 @@ export function StyleTransferScreen(props: {
       }
 
       const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
-      const strength01 = strengthValue / 100;
       const mergeValue = Math.max(0, Math.min(100, Math.round(merge)));
-      const passes = getMergePasses(mergeValue, highRes);
+      const methodProfile = (() => {
+        if (localMethod === 'gatys') {
+          return { strengthMult: 1.15, mergeMult: 1.25, forceColorPreserve: false };
+        }
+        if (localMethod === 'wct') {
+          return { strengthMult: 1.05, mergeMult: 1.15, forceColorPreserve: false };
+        }
+        return { strengthMult: 1.0, mergeMult: 1.0, forceColorPreserve: preserveColors };
+      })();
+      const effectiveStrengthValue = Math.max(0, Math.min(100, Math.round(strengthValue * methodProfile.strengthMult)));
+      const effectiveMergeValue = Math.max(0, Math.min(100, Math.round(mergeValue * methodProfile.mergeMult)));
+      const strength01 = effectiveStrengthValue / 100;
+      const passes = getMergePasses(effectiveMergeValue, highRes);
+      const effectivePreserveColors = methodProfile.forceColorPreserve;
 
       for (let i = 0; i < variants; i++) {
         try {
@@ -279,7 +293,7 @@ export function StyleTransferScreen(props: {
               styleDataUrls: activeStyles.map((s) => s.dataUrl),
               strength01,
               maxDim: highRes ? 1024 : 512,
-              preserveContentColors: preserveColors,
+              preserveContentColors: effectivePreserveColors,
               variantSeed: seed + pass * 1337,
             });
             contentDataUrl = dataUrl;
@@ -309,11 +323,14 @@ export function StyleTransferScreen(props: {
               aspectRatio: 'Original',
               params: {
                 mode: 'style-transfer-arbitrary-tfjs',
+                method: localMethod,
                 strength: strengthValue,
                 merge: mergeValue,
+                effective_strength: effectiveStrengthValue,
+                effective_merge: effectiveMergeValue,
                 passes,
                 highRes,
-                preserveColors,
+                preserveColors: effectivePreserveColors,
                 styleReferences: activeStyles.length,
                 variant: i + 1,
                 variants,
@@ -356,6 +373,7 @@ export function StyleTransferScreen(props: {
     merge,
     onToast,
     preserveColors,
+    localMethod,
     providerSettings,
     reference,
     strength,
@@ -367,6 +385,8 @@ export function StyleTransferScreen(props: {
       <StyleTransferSidebar
         engine={engine}
         setEngine={setEngine}
+        localMethod={localMethod}
+        setLocalMethod={setLocalMethod}
         onBack={onBack}
         onToast={onToast}
         reference={reference}
@@ -417,6 +437,8 @@ export function StyleTransferScreen(props: {
               <StyleTransferMobileControls
                 engine={engine}
                 setEngine={setEngine}
+                localMethod={localMethod}
+                setLocalMethod={setLocalMethod}
                 onBack={onBack}
                 onToast={onToast}
                 reference={reference}
