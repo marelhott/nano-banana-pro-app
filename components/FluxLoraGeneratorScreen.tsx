@@ -736,11 +736,6 @@ export function FluxLoraGeneratorScreen(props: {
                 trigger: <span className="text-[#7ed957]">{selectedTopbarLoraPreset.trigger}</span>
               </div>
             )}
-            {selectedTopbarLoraPreset?.trainedOn && (
-              <div className="text-[10px] text-amber-200/70">
-                trénink: {selectedTopbarLoraPreset.trainedOn}
-              </div>
-            )}
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Váha</div>
               <input
