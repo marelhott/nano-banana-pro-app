@@ -49,6 +49,13 @@ const FLUX_LORA_PRESETS: HfPreset[] = [
     trainedOn: 'flux',
   },
   {
+    id: 'flux_1a',
+    label: 'Flux 1a',
+    url: 'https://v3b.fal.media/files/b/0a8e0a45/bhN3qNj08efi3T3pZvfT8_pytorch_lora_weights.safetensors',
+    configUrl: 'https://v3b.fal.media/files/b/0a8e0a46/AR1PpFip04qZ-dAqRo_Fe_config.json',
+    trainedOn: 'flux',
+  },
+  {
     id: 'flux_1_prestige',
     label: 'flux 1 prestige',
     url: 'r2://loras/flux_tuymans_000001400.safetensors',
