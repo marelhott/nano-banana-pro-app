@@ -24,13 +24,67 @@ create table if not exists public.flux_presets (
 -- Index for fast listing by user.
 create index if not exists idx_flux_presets_user on public.flux_presets (user_id);
 
--- Allow all operations (RLS disabled for simplicity, same pattern as saved_prompts).
 alter table public.flux_presets enable row level security;
 
--- Policies (match existing app pattern: PIN-based user_id, no auth RLS).
--- If your project uses permissive RLS, add appropriate policies here.
--- For now, we keep it open (same as other app tables):
-create policy "flux_presets_all" on public.flux_presets
-  for all
-  using (true)
-  with check (true);
+create table if not exists public.user_auth_identities (
+  user_id uuid not null references public.users(id) on delete cascade,
+  auth_user_id uuid not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, auth_user_id),
+  unique (auth_user_id)
+);
+
+alter table public.user_auth_identities enable row level security;
+
+drop policy if exists "flux_presets_all" on public.flux_presets;
+
+create policy "flux_presets_select_linked"
+  on public.flux_presets
+  for select
+  using (
+    exists (
+      select 1 from public.user_auth_identities uai
+      where uai.user_id = flux_presets.user_id
+        and uai.auth_user_id = auth.uid()
+    )
+  );
+
+create policy "flux_presets_insert_linked"
+  on public.flux_presets
+  for insert
+  with check (
+    exists (
+      select 1 from public.user_auth_identities uai
+      where uai.user_id = flux_presets.user_id
+        and uai.auth_user_id = auth.uid()
+    )
+  );
+
+create policy "flux_presets_update_linked"
+  on public.flux_presets
+  for update
+  using (
+    exists (
+      select 1 from public.user_auth_identities uai
+      where uai.user_id = flux_presets.user_id
+        and uai.auth_user_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.user_auth_identities uai
+      where uai.user_id = flux_presets.user_id
+        and uai.auth_user_id = auth.uid()
+    )
+  );
+
+create policy "flux_presets_delete_linked"
+  on public.flux_presets
+  for delete
+  using (
+    exists (
+      select 1 from public.user_auth_identities uai
+      where uai.user_id = flux_presets.user_id
+        and uai.auth_user_id = auth.uid()
+    )
+  );
