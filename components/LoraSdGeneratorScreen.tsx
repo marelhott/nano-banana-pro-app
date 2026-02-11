@@ -498,9 +498,10 @@ export function LoraSdGeneratorScreen(props: {
           </button>
 
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Počet obrázků</div>
-            <div className="border-b border-white/10">
-              <div className="flex">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70">POČET OBRÁZKŮ</div>
+            <div className="relative pt-1 pb-2">
+              <div className="absolute left-0 right-0 bottom-0 h-px bg-white/14" />
+              <div className="flex items-center justify-between">
                 {[1, 2, 3].map((n) => {
                   const active = variants === n;
                   return (
@@ -508,13 +509,13 @@ export function LoraSdGeneratorScreen(props: {
                       key={n}
                       type="button"
                       onClick={() => setVariants(n as 1 | 2 | 3)}
-                      className={`relative flex-1 py-2 text-center text-[11px] font-black transition-colors ${active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
+                      className={`relative w-12 h-8 text-center text-[34px] leading-none font-medium transition-colors ${active ? 'text-[#7ed957]' : 'text-[#98a3b8] hover:text-white/80'
                         }`}
                       aria-label={`Počet obrázků: ${n}`}
                     >
-                      {n}
+                      <span className="relative top-[1px]">{n}</span>
                       <span
-                        className={`absolute left-2 right-2 bottom-[-1px] h-[2px] rounded-full transition-colors ${active ? 'bg-[#7ed957]' : 'bg-transparent'
+                        className={`absolute left-[4px] right-[4px] bottom-[-8px] h-[3px] rounded-full transition-colors ${active ? 'bg-[#7ed957]' : 'bg-transparent'
                           }`}
                       />
                     </button>
