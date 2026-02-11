@@ -348,12 +348,19 @@ const App: React.FC = () => {
   const [styleImageSource, setStyleImageSource] = useState<'computer' | 'database'>('computer');
   const [dragOverTarget, setDragOverTarget] = useState<'reference' | 'style' | null>(null);
 
-  const [routePath, setRoutePath] = useState(() => window.location.pathname);
+  const [routePath, setRoutePath] = useState('/');
   const navigate = useCallback((to: string) => {
     if (window.location.pathname === to) return;
     window.history.pushState({}, '', to);
     setRoutePath(to);
     window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    if (window.location.pathname !== '/') {
+      window.history.replaceState({}, '', '/');
+    }
+    setRoutePath('/');
   }, []);
 
   useEffect(() => {
