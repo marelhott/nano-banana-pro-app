@@ -67,6 +67,13 @@ const FLUX_LORA_PRESETS: HfPreset[] = [
     configUrl: 'https://v3b.fal.media/files/b/0a8df48d/F9EdkyTd15HyuMuEeHxWg_config.json',
     trainedOn: 'flux',
   },
+  {
+    id: 'flux_qwen',
+    label: 'qwen',
+    url: 'https://v3b.fal.media/files/b/0a8e0914/cDNMZMLEivWB_D9sjmFTL_pytorch_lora_weights.safetensors',
+    configUrl: 'https://v3b.fal.media/files/b/0a8e0914/tZ6ZLijNAKBc4oX2bJpm5_config_074e689b-7703-4ddb-b763-e458a3dd3c7f.json',
+    trainedOn: 'flux',
+  },
 ];
 
 const SDXL_LORA_PRESETS: HfPreset[] = [
