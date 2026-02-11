@@ -12,9 +12,9 @@ export function AppIconRail(props: {
   const items: Array<{ id: RailRoute; label: string; icon: React.ReactNode }> = [
     // Icons reduced ~30% (18px -> 13px) and kept monochrome/neutral.
     { id: 'mulen', label: 'Mulen Nano', icon: <Grid3X3 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
-    { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
-    { id: 'lora-sd', label: 'LoRA / SD', icon: <Sparkles className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'flux-lora', label: 'Flux LoRA', icon: <Flame className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'lora-sd', label: 'SDXL LoRA', icon: <Sparkles className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'nodes', label: 'Nodes', icon: <Network className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
   ];
 
