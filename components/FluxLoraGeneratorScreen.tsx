@@ -200,7 +200,14 @@ export function FluxLoraGeneratorScreen(props: {
   const [falPhase, setFalPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [genPhase, setGenPhase] = React.useState<string>('');
 
-  const activeLoraPresets = modelFamily === 'sdxl' ? SDXL_LORA_PRESETS : FLUX_LORA_PRESETS;
+  const activeLoraPresets = React.useMemo(() => {
+    if (modelFamily === 'sdxl') return SDXL_LORA_PRESETS;
+    return FLUX_LORA_PRESETS.filter((p) => {
+      const trainedOn = String(p.trainedOn || '').toLowerCase();
+      if (fluxEndpoint === 'flux2') return trainedOn.includes('flux.2');
+      return !trainedOn.includes('flux.2');
+    });
+  }, [modelFamily, fluxEndpoint]);
   const [loras, setLoras] = React.useState<LoraItem[]>([
     { id: 'lora_default', path: FLUX_LORA_PRESETS[0].url, scale: 1.0 },
   ]);
@@ -611,30 +618,74 @@ export function FluxLoraGeneratorScreen(props: {
             />
           </div>
 
-          {/* ── Seed ── */}
+          {/* ── Model / Endpoint / LoRA ── */}
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Seed</div>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                value={seed ?? ''}
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Model + endpoint + lora</div>
+
+            <div className="flex items-center gap-2">
+              <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">Model</div>
+              <select
+                value={modelFamily}
                 onChange={(e) => {
-                  const v = e.target.value.trim();
-                  setSeed(v === '' ? null : Math.floor(Number(v)));
+                  const next = e.target.value as ModelFamily;
+                  setModelFamily(next);
+                  if (next !== 'flux') setFluxEndpoint('flux1');
                 }}
-                placeholder="náhodný"
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
-              />
-              <button
-                type="button"
-                onClick={() => setSeed(null)}
-                className="px-3 py-2 rounded-lg border border-white/10 bg-black/10 hover:bg-black/20 text-[10px] font-black uppercase tracking-widest text-white/55 hover:text-white/75"
-                title="Resetovat na náhodný"
+                className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
               >
-                🎲
-              </button>
+                <option value="flux">flux model</option>
+                <option value="sdxl">sdxl model</option>
+              </select>
             </div>
-            <div className="text-[9px] text-white/30">Stejný seed = stejný výsledek. Prázdné = náhodný.</div>
+
+            <div className="flex items-center gap-2">
+              <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">Endpoint</div>
+              <select
+                value={fluxEndpoint}
+                onChange={(e) => setFluxEndpoint(e.target.value as FluxEndpoint)}
+                disabled={modelFamily !== 'flux'}
+                className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <option value="flux1">flux 1 img2img</option>
+                <option value="flux2">flux 2 lora edit</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">LoRA</div>
+              <select
+                value={selectedTopbarLoraId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) {
+                    setLoras([]);
+                    return;
+                  }
+                  const preset = activeLoraPresets.find((p) => p.id === val);
+                  if (!preset) return;
+                  const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+                  const scale = loras[0]?.scale ?? 1.0;
+                  setLoras([{ id, path: preset.url, scale }]);
+                }}
+                className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+              >
+                <option value="">(bez LoRA)</option>
+                {activeLoraPresets.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+                {selectedTopbarLoraId === '__custom__' && (
+                  <option value="__custom__">Vlastní LoRA URL (z presetu)</option>
+                )}
+              </select>
+            </div>
+
+            {selectedTopbarLoraPreset?.trigger && (
+              <div className="text-[9px] text-white/50">
+                trigger: <span className="text-[#7ed957]">{selectedTopbarLoraPreset.trigger}</span>
+              </div>
+            )}
           </div>
 
           {/* ── Image Size ── */}
@@ -708,75 +759,7 @@ export function FluxLoraGeneratorScreen(props: {
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
         <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-wrap items-center gap-5">
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
-              <select
-                value={modelFamily}
-                onChange={(e) => {
-                  const next = e.target.value as ModelFamily;
-                  setModelFamily(next);
-                  if (next !== 'flux') {
-                    setFluxEndpoint('flux1');
-                  }
-                }}
-                className="w-[190px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-              >
-                <option value="flux">flux model</option>
-                <option value="sdxl">sdxl model</option>
-              </select>
-            </div>
-            {modelFamily === 'flux' && (
-              <div className="flex items-center gap-3">
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Endpoint</div>
-                <select
-                  value={fluxEndpoint}
-                  onChange={(e) => setFluxEndpoint(e.target.value as FluxEndpoint)}
-                  className="w-[220px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-                >
-                  <option value="flux1">flux 1 img2img</option>
-                  <option value="flux2">flux 2 lora edit</option>
-                </select>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">LoRA</div>
-              <select
-                value={selectedTopbarLoraId}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (!val) {
-                    setLoras([]);
-                    return;
-                  }
-                  const preset = activeLoraPresets.find((p) => p.id === val);
-                  if (!preset) return;
-                  if (modelFamily === 'flux') {
-                    const trainedOn = String(preset.trainedOn || '').toLowerCase();
-                    setFluxEndpoint(trainedOn.includes('flux.2') ? 'flux2' : 'flux1');
-                  }
-                  const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-                  const scale = loras[0]?.scale ?? 1.0;
-                  setLoras([{ id, path: preset.url, scale }]);
-                }}
-                className="w-[280px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-              >
-                <option value="">(bez LoRA)</option>
-                {activeLoraPresets.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-                {selectedTopbarLoraId === '__custom__' && (
-                  <option value="__custom__">Vlastní LoRA URL (z presetu)</option>
-                )}
-              </select>
-            </div>
-            {selectedTopbarLoraPreset?.trigger && (
-              <div className="text-[10px] text-white/50">
-                trigger: <span className="text-[#7ed957]">{selectedTopbarLoraPreset.trigger}</span>
-              </div>
-            )}
+          <div className="px-6 py-4 flex flex-nowrap items-center gap-5 overflow-x-auto custom-scrollbar">
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Váha</div>
               <input
@@ -812,11 +795,6 @@ export function FluxLoraGeneratorScreen(props: {
               />
               <div className="text-[10px] text-white/55 w-10 text-right">{denoise.toFixed(2)}</div>
             </div>
-            {!denoiseAvailable && (
-              <div className="text-[10px] text-white/35">
-                FLUX 2 edit endpoint nepoužívá parametr denoise.
-              </div>
-            )}
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">CFG</div>
               <input type="range" min={0} max={35} step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="w-[180px] h-[2px] accent-[#7ed957] opacity-80" />
@@ -827,6 +805,11 @@ export function FluxLoraGeneratorScreen(props: {
               <input type="range" min={1} max={50} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="w-[180px] h-[2px] accent-[#7ed957] opacity-80" />
               <div className="text-[10px] text-white/55 w-10 text-right">{steps}</div>
             </div>
+            {!denoiseAvailable && (
+              <div className="text-[10px] text-white/35 shrink-0">
+                FLUX 2 edit endpoint nepoužívá denoise.
+              </div>
+            )}
           </div>
         </div>
 
