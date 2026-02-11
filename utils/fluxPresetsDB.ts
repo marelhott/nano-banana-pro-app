@@ -10,7 +10,7 @@ export type FluxPreset = {
     cfg: number;
     strength: number;
     steps: number;
-    numImages: 1 | 2 | 3;
+    numImages: 1 | 2 | 3 | 4 | 5;
     seed: number | null;
     imageSize: string;
     outputFormat: 'jpeg' | 'png';
@@ -46,7 +46,7 @@ function mapRow(row: FluxPresetRow): FluxPreset {
         cfg: row.cfg,
         strength: row.strength,
         steps: row.steps,
-        numImages: Math.max(1, Math.min(3, row.num_images)) as 1 | 2 | 3,
+        numImages: Math.max(1, Math.min(5, row.num_images)) as 1 | 2 | 3 | 4 | 5,
         seed: row.seed,
         imageSize: row.image_size || 'landscape_4_3',
         outputFormat: (row.output_format === 'png' ? 'png' : 'jpeg') as 'jpeg' | 'png',

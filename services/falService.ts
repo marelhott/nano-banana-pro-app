@@ -89,7 +89,7 @@ export async function runFalLoraImg2Img(params: {
   denoise: number;
   steps: number;
   seed?: number;
-  numImages: 1 | 2 | 3;
+  numImages: 1 | 2 | 3 | 4 | 5;
   loras?: FalLoraConfig[];
   embeddings?: FalEmbedding[];
   controlnets?: FalControlNet[];
@@ -276,7 +276,7 @@ export async function runFalLoraImg2ImgQueued(params: {
   denoise: number;
   steps: number;
   seed?: number;
-  numImages: 1 | 2 | 3;
+  numImages: 1 | 2 | 3 | 4 | 5;
   loras?: FalLoraConfig[];
   embeddings?: FalEmbedding[];
   controlnets?: FalControlNet[];
@@ -398,7 +398,7 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
   denoise: number; // mapped to "strength" (0..1)
   steps: number;
   seed?: number;
-  numImages: 1 | 2 | 3;
+  numImages: 1 | 2 | 3 | 4 | 5;
   loras?: FalLoraConfig[];
   imageSize?: string;       // e.g. "landscape_4_3" or JSON "{width,height}"
   outputFormat?: 'jpeg' | 'png';

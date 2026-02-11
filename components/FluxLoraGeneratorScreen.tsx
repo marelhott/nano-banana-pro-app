@@ -134,7 +134,7 @@ export function FluxLoraGeneratorScreen(props: {
   const [cfg, setCfg] = React.useState(3.5);
   const [denoise, setDenoise] = React.useState(0.35);
   const [steps, setSteps] = React.useState(28);
-  const [variants, setVariants] = React.useState<1 | 2 | 3>(1);
+  const [variants, setVariants] = React.useState<1 | 2 | 3 | 4 | 5>(1);
 
   // New parameters (stored in presets)
   const [seed, setSeed] = React.useState<number | null>(null);
@@ -455,29 +455,22 @@ export function FluxLoraGeneratorScreen(props: {
 
           <div className="card-surface p-3 space-y-2">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">POČET OBRÁZKŮ</div>
-            <div className="relative pt-1 pb-1">
-              <div className="absolute left-0 right-0 bottom-0 h-px bg-white/14" />
-              <div className="flex items-center justify-between">
-                {[1, 2, 3].map((n) => {
-                  const active = variants === n;
-                  return (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setVariants(n as 1 | 2 | 3)}
-                      className={`relative w-12 h-8 text-center text-[20px] leading-none font-medium transition-colors ${active ? 'text-[#7ed957]' : 'text-[#98a3b8] hover:text-white/80'
-                        }`}
-                      aria-label={`Počet obrázků: ${n}`}
-                    >
-                      <span className="relative top-[5px]">{n}</span>
-                      <span
-                        className={`absolute left-[4px] right-[4px] bottom-[-4px] h-[2px] rounded-full transition-colors ${active ? 'bg-[#7ed957]' : 'bg-transparent'
-                          }`}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="flex items-center justify-between bg-transparent pt-1">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setVariants(n as 1 | 2 | 3 | 4 | 5)}
+                  className={`w-10 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${
+                    variants === n
+                      ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                  aria-label={`Počet obrázků: ${n}`}
+                >
+                  {n}
+                </button>
+              ))}
             </div>
           </div>
 
