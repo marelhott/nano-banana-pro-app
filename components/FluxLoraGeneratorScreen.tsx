@@ -34,6 +34,7 @@ type HfPreset = {
 };
 
 type ModelFamily = 'flux' | 'sdxl';
+type FluxEndpoint = 'flux1' | 'flux2';
 
 const SDXL_BASE_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
 
@@ -186,6 +187,7 @@ export function FluxLoraGeneratorScreen(props: {
   const [steps, setSteps] = React.useState(28);
   const [variants, setVariants] = React.useState<1 | 2 | 3 | 4 | 5>(1);
   const [modelFamily, setModelFamily] = React.useState<ModelFamily>('flux');
+  const [fluxEndpoint, setFluxEndpoint] = React.useState<FluxEndpoint>('flux1');
 
   // New parameters (stored in presets)
   const [seed, setSeed] = React.useState<number | null>(null);
@@ -340,7 +342,9 @@ export function FluxLoraGeneratorScreen(props: {
     setFalPhase('queue');
     setGenPhase('Ve frontě…');
 
-    const pendingItems: OutputItem[] = Array.from({ length: variants }).map((_, idx) => ({
+    const effectiveVariants = modelFamily === 'flux' && fluxEndpoint === 'flux2' ? Math.min(4, variants) : variants;
+
+    const pendingItems: OutputItem[] = Array.from({ length: effectiveVariants }).map((_, idx) => ({
       id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-${idx}`,
       status: 'pending',
     }));
@@ -371,6 +375,15 @@ export function FluxLoraGeneratorScreen(props: {
           : [];
 
       const normalizedLoras = resolvedLoras.map((l) => ({ path: l.path, scale: l.scale }));
+      const requestedVariants = effectiveVariants;
+      const normalizedLorasForRun =
+        modelFamily === 'flux' && fluxEndpoint === 'flux2' ? normalizedLoras.slice(0, 3) : normalizedLoras;
+      if (requestedVariants !== variants) {
+        onToast({ type: 'info', message: 'FLUX 2 endpoint umožňuje max 4 výstupy. Použito 4.' });
+      }
+      if (normalizedLorasForRun.length !== normalizedLoras.length) {
+        onToast({ type: 'info', message: 'FLUX 2 endpoint podporuje max 3 LoRA. Použity první 3.' });
+      }
       const phaseHandler = (p: 'queue' | 'running' | 'finalizing') => {
         setFalPhase(p);
         setGenPhase(p === 'queue' ? 'Ve frontě…' : p === 'running' ? 'Generuji…' : 'Dokončuji…');
@@ -387,20 +400,21 @@ export function FluxLoraGeneratorScreen(props: {
             denoise,
             steps,
             seed: seed ?? undefined,
-            numImages: variants,
-            loras: normalizedLoras,
+            numImages: requestedVariants,
+            loras: normalizedLorasForRun,
             onPhase: phaseHandler,
             maxWaitMs: 12 * 60_000,
           })
           : await runFalFluxLoraImg2ImgQueued({
+            endpointId: fluxEndpointId,
             imageUrlOrDataUrl: inputDataUrl,
             prompt,
             cfg,
             denoise,
             steps,
             seed: seed ?? undefined,
-            numImages: variants,
-            loras: normalizedLoras,
+            numImages: requestedVariants,
+            loras: normalizedLorasForRun,
             imageSize,
             outputFormat,
             onPhase: phaseHandler,
@@ -436,12 +450,13 @@ export function FluxLoraGeneratorScreen(props: {
             params: {
               engine: modelFamily === 'sdxl' ? 'fal_lora_img2img' : 'fal_flux_lora_img2img',
               modelFamily,
-              modelName: modelFamily === 'sdxl' ? SDXL_BASE_MODEL : 'fal-ai/flux-lora/image-to-image',
+              modelName: modelFamily === 'sdxl' ? SDXL_BASE_MODEL : fluxEndpointId,
+              fluxEndpoint: modelFamily === 'flux' ? fluxEndpoint : null,
               cfg,
               strength: denoise,
               steps,
               seed: typeof usedSeed === 'number' ? usedSeed : null,
-              variants,
+              variants: requestedVariants,
               loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
               promptMode: 'auto',
             },
@@ -462,13 +477,16 @@ export function FluxLoraGeneratorScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [activeLoraPresets, cfg, customPrompt, denoise, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, seed, steps, variants]);
+  }, [activeLoraPresets, cfg, customPrompt, denoise, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, seed, steps, variants]);
 
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
   const topbarLoraScale = loras[0]?.scale ?? 1.0;
   const selectedTopbarLoraPreset =
     loras.length > 0 ? activeLoraPresets.find((p) => p.url === loras[0].path) ?? null : null;
+  const fluxEndpointId =
+    fluxEndpoint === 'flux2' ? 'fal-ai/flux-2/lora/edit' : 'fal-ai/flux-lora/image-to-image';
+  const denoiseAvailable = !(modelFamily === 'flux' && fluxEndpoint === 'flux2');
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -695,13 +713,32 @@ export function FluxLoraGeneratorScreen(props: {
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
               <select
                 value={modelFamily}
-                onChange={(e) => setModelFamily(e.target.value as ModelFamily)}
+                onChange={(e) => {
+                  const next = e.target.value as ModelFamily;
+                  setModelFamily(next);
+                  if (next !== 'flux') {
+                    setFluxEndpoint('flux1');
+                  }
+                }}
                 className="w-[190px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
               >
                 <option value="flux">flux model</option>
                 <option value="sdxl">sdxl model</option>
               </select>
             </div>
+            {modelFamily === 'flux' && (
+              <div className="flex items-center gap-3">
+                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Endpoint</div>
+                <select
+                  value={fluxEndpoint}
+                  onChange={(e) => setFluxEndpoint(e.target.value as FluxEndpoint)}
+                  className="w-[220px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                >
+                  <option value="flux1">flux 1 img2img</option>
+                  <option value="flux2">flux 2 lora edit</option>
+                </select>
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">LoRA</div>
               <select
@@ -714,6 +751,10 @@ export function FluxLoraGeneratorScreen(props: {
                   }
                   const preset = activeLoraPresets.find((p) => p.id === val);
                   if (!preset) return;
+                  if (modelFamily === 'flux') {
+                    const trainedOn = String(preset.trainedOn || '').toLowerCase();
+                    setFluxEndpoint(trainedOn.includes('flux.2') ? 'flux2' : 'flux1');
+                  }
                   const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                   const scale = loras[0]?.scale ?? 1.0;
                   setLoras([{ id, path: preset.url, scale }]);
@@ -759,9 +800,23 @@ export function FluxLoraGeneratorScreen(props: {
             </div>
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
-              <input type="range" min={0.01} max={1} step={0.01} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="w-[220px] h-[2px] accent-[#7ed957] opacity-80" />
+              <input
+                type="range"
+                min={0.01}
+                max={1}
+                step={0.01}
+                value={denoise}
+                disabled={!denoiseAvailable}
+                onChange={(e) => setDenoise(Number(e.target.value))}
+                className="w-[220px] h-[2px] accent-[#7ed957] opacity-80 disabled:opacity-30"
+              />
               <div className="text-[10px] text-white/55 w-10 text-right">{denoise.toFixed(2)}</div>
             </div>
+            {!denoiseAvailable && (
+              <div className="text-[10px] text-white/35">
+                FLUX 2 edit endpoint nepoužívá parametr denoise.
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">CFG</div>
               <input type="range" min={0} max={35} step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="w-[180px] h-[2px] accent-[#7ed957] opacity-80" />

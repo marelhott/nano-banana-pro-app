@@ -62,20 +62,28 @@ async function fetchAsDataUrl(url: string): Promise<string> {
   return base64;
 }
 
-function buildFalLoras(loras: FalLoraConfig[] | undefined): any[] | undefined {
+function buildFalLoras(
+  loras: FalLoraConfig[] | undefined,
+  opts: { includeAdapterNames?: boolean; maxItems?: number } = {}
+): any[] | undefined {
   if (!Array.isArray(loras) || loras.length === 0) return undefined;
+  const maxItems = Number.isFinite(opts.maxItems) ? Math.max(1, Math.floor(opts.maxItems as number)) : loras.length;
+  const inList = loras.slice(0, maxItems);
   const nonce = Date.now().toString(36);
-  return loras.map((l, idx) => {
+  return inList.map((l, idx) => {
     const scale = typeof l.scale === 'number' && Number.isFinite(l.scale) ? l.scale : 1;
-    // fal/diffusers sometimes requires unique adapter names; never derive from URL query.
-    const adapter = `lora_${nonce}_${idx}`;
-    return {
+    const base = {
       path: l.path,
       scale,
+    } as Record<string, any>;
+    if (opts.includeAdapterNames !== false) {
+      // fal/diffusers sometimes requires unique adapter names; never derive from URL query.
+      const adapter = `lora_${nonce}_${idx}`;
       // Try both field names; fal schemas vary.
-      adapter_name: adapter,
-      name: adapter,
-    };
+      base.adapter_name = adapter;
+      base.name = adapter;
+    }
+    return base;
   });
 }
 
@@ -392,6 +400,7 @@ export async function runFalLoraImg2ImgQueued(params: {
 }
 
 export async function runFalFluxLoraImg2ImgQueued(params: {
+  endpointId?: 'fal-ai/flux-lora/image-to-image' | 'fal-ai/flux-2/lora/edit';
   imageUrlOrDataUrl: string;
   prompt: string;
   cfg: number;
@@ -405,23 +414,36 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
   onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
   maxWaitMs?: number;
 }): Promise<{ images: string[]; usedSeed?: number }> {
-  const endpointId = 'fal-ai/flux-lora/image-to-image';
+  const endpointId = params.endpointId || 'fal-ai/flux-lora/image-to-image';
+  const isFlux2Edit = endpointId === 'fal-ai/flux-2/lora/edit';
 
-  // Flux LoRA img2img schema differs from SDXL LoRA endpoint:
-  // - prompt (required)
-  // - image_url (required)
-  // - strength (img2img preserve-vs-remake)
-  // - num_inference_steps, guidance_scale, seed, num_images, loras
-  const input: Record<string, any> = {
-    prompt: params.prompt,
-    image_url: params.imageUrlOrDataUrl,
-    strength: params.denoise,
-    num_inference_steps: params.steps,
-    guidance_scale: params.cfg,
-    num_images: params.numImages,
-  };
+  const numImages = isFlux2Edit ? Math.max(1, Math.min(4, params.numImages)) : params.numImages;
+
+  // Flux.1 LoRA img2img:
+  // - image_url + strength
+  // Flux.2 LoRA edit:
+  // - image_urls[] (required), no strength field in schema
+  const input: Record<string, any> = isFlux2Edit
+    ? {
+      prompt: params.prompt,
+      image_urls: [params.imageUrlOrDataUrl],
+      num_inference_steps: params.steps,
+      guidance_scale: params.cfg,
+      num_images: numImages,
+    }
+    : {
+      prompt: params.prompt,
+      image_url: params.imageUrlOrDataUrl,
+      strength: params.denoise,
+      num_inference_steps: params.steps,
+      guidance_scale: params.cfg,
+      num_images: numImages,
+    };
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
-  const loras = buildFalLoras(params.loras);
+  const loras = buildFalLoras(params.loras, {
+    includeAdapterNames: !isFlux2Edit,
+    maxItems: isFlux2Edit ? 3 : 6,
+  });
   if (loras) input.loras = loras;
   if (params.imageSize) input.image_size = params.imageSize;
   if (params.outputFormat) input.output_format = params.outputFormat;

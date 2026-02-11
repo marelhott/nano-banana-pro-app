@@ -116,11 +116,12 @@ exports.handler = async (event) => {
     const ALLOWED_ENDPOINTS = new Set([
       'fal-ai/lora/image-to-image',
       'fal-ai/flux-lora/image-to-image',
+      'fal-ai/flux-2/lora/edit',
     ]);
     if (!ALLOWED_ENDPOINTS.has(endpointId)) {
       return json(400, {
         error: 'Nepovolený fal.ai endpoint.',
-        hint: 'Použij fal-ai/lora/image-to-image nebo fal-ai/flux-lora/image-to-image.',
+        hint: 'Použij fal-ai/lora/image-to-image, fal-ai/flux-lora/image-to-image nebo fal-ai/flux-2/lora/edit.',
       });
     }
 
