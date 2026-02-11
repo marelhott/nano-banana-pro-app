@@ -72,12 +72,19 @@ const SDXL_LORA_PRESETS: HfPreset[] = [
 
 function buildAutoPrompt(loraLabels: string[]): string {
   const baseHints = loraLabels
-    .map((l) => String(l || '').replace(/^flux lora:\s*/i, '').trim())
+    .map((l) =>
+      String(l || '')
+        .replace(/^flux lora:\s*/i, '')
+        .replace(/\b(flux|sdxl|lora|model|weights?)\b/gi, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    )
     .filter(Boolean)
     .slice(0, 3);
   // Flux endpoint requires a prompt; keep it minimal and "promptless" in UX (user doesn't type).
-  const style = baseHints.length ? `in the style of ${baseHints.join(', ')}` : 'fine art painting';
-  return `high quality, painterly, ${style}`;
+  const style = baseHints.length ? `in the style of ${baseHints.join(', ')}` : 'fine art painting style';
+  return `high quality image-to-image transformation, preserve subject identity and composition, painterly rendering, ${style}`;
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
@@ -125,6 +132,15 @@ async function shrinkDataUrl(dataUrl: string, maxBytes: number): Promise<string>
     if (estimateBytes(out) <= maxBytes) return out;
   }
   return canvas.toDataURL('image/jpeg', 0.45);
+}
+
+function loraHintFromPath(path: string, presets: HfPreset[]): string {
+  const cleanPath = String(path || '').trim();
+  if (!cleanPath) return '';
+  const preset = presets.find((p) => p.url === cleanPath);
+  if (preset?.label) return preset.label;
+  const tail = cleanPath.split('/').pop() || cleanPath;
+  return tail.replace(/\?.*$/, '').replace(/\.safetensors$/i, '');
 }
 
 function Spinner(props: { label?: string }) {
@@ -313,7 +329,7 @@ export function FluxLoraGeneratorScreen(props: {
       const maxBytes = 2_300_000;
       const inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
 
-      const loraLabels = loras.map((l) => l.path);
+      const loraLabels = loras.map((l) => loraHintFromPath(l.path, activeLoraPresets));
       const prompt = customPrompt.trim() || buildAutoPrompt(loraLabels);
       const resolvedLoras =
         loras.length > 0
@@ -421,7 +437,7 @@ export function FluxLoraGeneratorScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [cfg, customPrompt, denoise, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, seed, steps, variants]);
+  }, [activeLoraPresets, cfg, customPrompt, denoise, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, seed, steps, variants]);
 
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
