@@ -35,8 +35,8 @@ type HfPreset = {
 const MULENMARA_FLUX_LORAS: HfPreset[] = [
   {
     id: 'flux_1',
-    label: 'flux 1 prestige',
-    url: 'r2://loras/flux_tuymans_000001400.safetensors',
+    label: 'flux 1',
+    url: 'https://v3b.fal.media/files/b/0a8dd547/4Z_ldmLbgx3Tb3XiOsA12_pytorch_lora_weights.safetensors',
     configUrl: 'https://v3b.fal.media/files/b/0a8dd547/WvQthl3WR-s79eb5K7-qw_config.json',
   },
   {
