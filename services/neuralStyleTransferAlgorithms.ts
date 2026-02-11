@@ -14,6 +14,8 @@ type VggContext = {
   tf: typeof TF;
   extractor: TF.LayersModel;
   styleLayerCount: number;
+  preprocessMode: 'vgg' | 'mobilenet';
+  inputSize: number | null;
 };
 
 let vggContextPromise: Promise<VggContext> | null = null;
@@ -112,32 +114,96 @@ async function getVggContext(): Promise<VggContext> {
     }
     await tf.ready();
 
-    const vgg = await tf.loadLayersModel('https://storage.googleapis.com/tfjs-models/tfjs/vgg16/model.json');
-    const allNames = vgg.layers.map((l) => l.name);
+    const CANDIDATES = [
+      {
+        id: 'vgg16_savedmodel',
+        url: 'https://storage.googleapis.com/tfjs-models/savedmodel/vgg16/model.json',
+        preprocessMode: 'vgg',
+        style: [
+          ['block1_conv2', 'block1_conv1'],
+          ['block2_conv2', 'block2_conv1'],
+          ['block3_conv3', 'block3_conv2', 'block3_conv1'],
+          ['block4_conv3', 'block4_conv2', 'block4_conv1'],
+        ],
+        content: ['block4_conv2', 'block4_conv3', 'block3_conv3'],
+        wct: ['block4_conv3', 'block4_conv2', 'block3_conv3'],
+      },
+      {
+        id: 'vgg16_tfjs',
+        url: 'https://storage.googleapis.com/tfjs-models/tfjs/vgg16/model.json',
+        preprocessMode: 'vgg',
+        style: [
+          ['block1_conv2', 'block1_conv1'],
+          ['block2_conv2', 'block2_conv1'],
+          ['block3_conv3', 'block3_conv2', 'block3_conv1'],
+          ['block4_conv3', 'block4_conv2', 'block4_conv1'],
+        ],
+        content: ['block4_conv2', 'block4_conv3', 'block3_conv3'],
+        wct: ['block4_conv3', 'block4_conv2', 'block3_conv3'],
+      },
+      {
+        id: 'mobilenet_v1',
+        url: 'https://storage.googleapis.com/tfjs-models/tfjs/mobilenet_v1_1.0_224/model.json',
+        preprocessMode: 'mobilenet',
+        style: [
+          ['conv_pw_1_relu'],
+          ['conv_pw_3_relu'],
+          ['conv_pw_5_relu'],
+          ['conv_pw_11_relu'],
+        ],
+        content: ['conv_pw_13_relu', 'conv_pw_11_relu'],
+        wct: ['conv_pw_11_relu', 'conv_pw_9_relu'],
+      },
+    ] as const;
 
-    const styleNames = [
-      pickFirst(allNames, ['block1_conv2', 'block1_conv1']),
-      pickFirst(allNames, ['block2_conv2', 'block2_conv1']),
-      pickFirst(allNames, ['block3_conv3', 'block3_conv2', 'block3_conv1']),
-      pickFirst(allNames, ['block4_conv3', 'block4_conv2', 'block4_conv1']),
-    ].filter((x): x is string => Boolean(x));
+    const errors: string[] = [];
+    for (const candidate of CANDIDATES) {
+      try {
+        const base = await tf.loadLayersModel(candidate.url);
+        const allNames = base.layers.map((l) => l.name);
+        const styleNames = candidate.style
+          .map((alts) => pickFirst(allNames, [...alts]))
+          .filter((x): x is string => Boolean(x));
+        if (styleNames.length < 2) {
+          throw new Error(`Nedostupné style vrstvy (${candidate.id}).`);
+        }
+        const contentName = pickFirst(allNames, [...candidate.content]) || styleNames[styleNames.length - 1];
+        const wctName = pickFirst(allNames, [...candidate.wct]) || contentName;
+        if (!contentName || !wctName) {
+          throw new Error(`Nedostupné content/WCT vrstvy (${candidate.id}).`);
+        }
+        const outputNames = [...styleNames, contentName, wctName];
+        const outputs = outputNames.map((name) => {
+          const layer = base.getLayer(name);
+          return layer.output as TF.SymbolicTensor;
+        });
+        const extractor = tf.model({ inputs: base.inputs, outputs });
+        const inputShape = base.inputs?.[0]?.shape || [];
+        const inputSize = typeof inputShape?.[1] === 'number' && Number.isFinite(inputShape[1]) ? Number(inputShape[1]) : null;
+        console.info(`[StyleTransfer] Backbone loaded: ${candidate.id}`);
+        return { tf, extractor, styleLayerCount: styleNames.length, preprocessMode: candidate.preprocessMode, inputSize };
+      } catch (err: any) {
+        errors.push(`${candidate.id}: ${String(err?.message || err)}`);
+      }
+    }
 
-    const contentName = pickFirst(allNames, ['block4_conv2', 'block4_conv3', 'block3_conv3']) || styleNames[styleNames.length - 1];
-    const wctName = pickFirst(allNames, ['block4_conv3', 'block4_conv2', 'block3_conv3']) || contentName;
-    const outputNames = [...styleNames, contentName, wctName];
-    const outputs = outputNames.map((name) => {
-      const layer = vgg.getLayer(name);
-      return layer.output as TF.SymbolicTensor;
-    });
-    const extractor = tf.model({ inputs: vgg.inputs, outputs });
-
-    return { tf, extractor, styleLayerCount: styleNames.length };
+    throw new Error(`Nelze načíst backbone model pro Gatys/WCT. ${errors.join(' | ')}`);
   })();
   return vggContextPromise;
 }
 
-function preprocessForVgg(tf: typeof TF, pixel01Or255: TF.Tensor4D): TF.Tensor4D {
-  const [r, g, b] = tf.split(pixel01Or255, 3, 3);
+function preprocessForBackbone(ctx: VggContext, pixel255: TF.Tensor4D): TF.Tensor4D {
+  const { tf } = ctx;
+  let x: TF.Tensor4D = pixel255;
+  if (ctx.inputSize && (pixel255.shape[1] !== ctx.inputSize || pixel255.shape[2] !== ctx.inputSize)) {
+    x = tf.image.resizeBilinear(pixel255, [ctx.inputSize, ctx.inputSize], true) as TF.Tensor4D;
+  }
+  if (ctx.preprocessMode === 'mobilenet') {
+    const out = x.div(tf.scalar(127.5)).sub(tf.scalar(1)) as TF.Tensor4D;
+    if (x !== pixel255) x.dispose();
+    return out;
+  }
+  const [r, g, b] = tf.split(x, 3, 3);
   const out = tf.concat([
     (b as TF.Tensor).sub(tf.scalar(103.939)),
     (g as TF.Tensor).sub(tf.scalar(116.779)),
@@ -146,6 +212,7 @@ function preprocessForVgg(tf: typeof TF, pixel01Or255: TF.Tensor4D): TF.Tensor4D
   (r as TF.Tensor).dispose();
   (g as TF.Tensor).dispose();
   (b as TF.Tensor).dispose();
+  if (x !== pixel255) x.dispose();
   return out;
 }
 
@@ -214,7 +281,8 @@ function toCanvasFromPixels255(tf: typeof TF, pixels255: TF.Tensor4D, w: number,
 }
 
 export async function runGatysStyleTransfer(opts: BaseOptions): Promise<{ dataUrl: string }> {
-  const { tf, extractor, styleLayerCount } = await getVggContext();
+  const ctx = await getVggContext();
+  const { tf, extractor, styleLayerCount } = ctx;
   const strength01 = clamp01(opts.strength01);
   const merge01 = clamp01(opts.merge01 ?? 0.5);
   const contentImg = await loadImage(opts.contentDataUrl);
@@ -226,7 +294,7 @@ export async function runGatysStyleTransfer(opts: BaseOptions): Promise<{ dataUr
 
   const contentTensor = tf.browser.fromPixels(contentCanvas).toFloat().expandDims(0) as TF.Tensor4D;
   const styleTensors = styleCanvases.map((c) => tf.browser.fromPixels(c).toFloat().expandDims(0) as TF.Tensor4D);
-  const contentPre = preprocessForVgg(tf, contentTensor);
+  const contentPre = preprocessForBackbone(ctx, contentTensor);
   const contentPred = extractor.predict(contentPre) as TF.Tensor[];
   const contentTarget = (contentPred[styleLayerCount] as TF.Tensor4D).clone();
 
@@ -235,7 +303,7 @@ export async function runGatysStyleTransfer(opts: BaseOptions): Promise<{ dataUr
     for (let i = 0; i < styleLayerCount; i++) {
       let acc: TF.Tensor2D | null = null;
       for (const st of styleTensors) {
-        const sp = preprocessForVgg(tf, st);
+        const sp = preprocessForBackbone(ctx, st);
         const preds = extractor.predict(sp) as TF.Tensor[];
         const g = gramMatrix(tf, preds[i] as TF.Tensor4D);
         preds.forEach((t) => t.dispose());
@@ -269,7 +337,7 @@ export async function runGatysStyleTransfer(opts: BaseOptions): Promise<{ dataUr
   for (let i = 0; i < steps; i++) {
     tf.tidy(() => {
       const { grads } = tf.variableGrads(() => {
-        const pre = preprocessForVgg(tf, imageVar as TF.Tensor4D);
+        const pre = preprocessForBackbone(ctx, imageVar as TF.Tensor4D);
         const preds = extractor.predict(pre) as TF.Tensor[];
         let sLoss = tf.scalar(0);
         for (let k = 0; k < styleLayerCount; k++) {
@@ -317,7 +385,8 @@ export async function runGatysStyleTransfer(opts: BaseOptions): Promise<{ dataUr
 }
 
 export async function runWctStyleTransfer(opts: BaseOptions): Promise<{ dataUrl: string }> {
-  const { tf, extractor, styleLayerCount } = await getVggContext();
+  const ctx = await getVggContext();
+  const { tf, extractor, styleLayerCount } = ctx;
   const strength01 = clamp01(opts.strength01);
   const merge01 = clamp01(opts.merge01 ?? 0.5);
   const contentImg = await loadImage(opts.contentDataUrl);
@@ -329,8 +398,8 @@ export async function runWctStyleTransfer(opts: BaseOptions): Promise<{ dataUrl:
   const contentTensor = tf.browser.fromPixels(contentCanvas).toFloat().expandDims(0) as TF.Tensor4D;
   const styleTensor = tf.browser.fromPixels(styleCanvas).toFloat().expandDims(0) as TF.Tensor4D;
 
-  const contentPre = preprocessForVgg(tf, contentTensor);
-  const stylePre = preprocessForVgg(tf, styleTensor);
+  const contentPre = preprocessForBackbone(ctx, contentTensor);
+  const stylePre = preprocessForBackbone(ctx, styleTensor);
   const contentPred = extractor.predict(contentPre) as TF.Tensor[];
   const stylePred = extractor.predict(stylePre) as TF.Tensor[];
   const contentFeat = (contentPred[styleLayerCount + 1] as TF.Tensor4D).clone();
@@ -351,7 +420,7 @@ export async function runWctStyleTransfer(opts: BaseOptions): Promise<{ dataUrl:
   for (let i = 0; i < steps; i++) {
     tf.tidy(() => {
       const { grads } = tf.variableGrads(() => {
-        const pre = preprocessForVgg(tf, imageVar as TF.Tensor4D);
+        const pre = preprocessForBackbone(ctx, imageVar as TF.Tensor4D);
         const preds = extractor.predict(pre) as TF.Tensor[];
         const featLoss = tf.losses.meanSquaredError(wctTarget, preds[styleLayerCount + 1] as TF.Tensor4D).mean() as TF.Tensor;
         const cLoss = tf.losses.meanSquaredError(contentTarget, preds[styleLayerCount] as TF.Tensor4D).mean() as TF.Tensor;
