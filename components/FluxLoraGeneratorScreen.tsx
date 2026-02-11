@@ -447,28 +447,20 @@ export function FluxLoraGeneratorScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-3 space-y-3">
+          <div className="card-surface p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Referenční obrázek</div>
-              {input && (
-                <button
-                  type="button"
-                  onClick={() => setInput(null)}
-                  className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70"
-                >
-                  Odebrat
-                </button>
-              )}
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70">Referenční obrázky</div>
+              <div className="text-[24px] leading-none font-medium text-[#98a3b8]">{input ? 1 : 0}</div>
             </div>
             <label
               htmlFor={inputFileId}
-              className="block w-full aspect-square rounded-xl bg-black/15 border border-dashed border-white/10 hover:border-white/20 transition-colors cursor-pointer overflow-hidden"
+              className="block w-full aspect-[16/9] rounded-[18px] bg-[#070d17] border border-dashed border-[#16263a] hover:border-[#223a57] transition-colors cursor-pointer overflow-hidden"
             >
               {input?.dataUrl ? (
-                <img src={input.dataUrl} className="w-full h-full object-cover opacity-90 hover:opacity-100 transition-opacity" />
+                <img src={input.dataUrl} className="w-full h-full object-cover opacity-92 hover:opacity-100 transition-opacity" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-white/35">
-                  <Plus className="w-6 h-6" />
+                <div className="w-full h-full flex items-center justify-center text-[#8f9aae]">
+                  <Plus className="w-7 h-7" />
                 </div>
               )}
             </label>

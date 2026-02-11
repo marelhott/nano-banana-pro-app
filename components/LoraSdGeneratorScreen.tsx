@@ -526,10 +526,12 @@ export function LoraSdGeneratorScreen(props: {
           </div>
 
           <div className="card-surface p-3 space-y-2">
-            <div className="space-y-1">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Referenční obrázek</div>
-              <div
-                className="relative aspect-[16/9] rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden cursor-pointer"
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70">Referenční obrázky</div>
+              <div className="text-[24px] leading-none font-medium text-[#98a3b8]">{input ? 1 : 0}</div>
+            </div>
+            <div
+              className="relative aspect-[16/9] rounded-[18px] border border-dashed border-[#16263a] hover:border-[#223a57] bg-[#070d17] transition-all overflow-hidden cursor-pointer"
                 onClick={() => document.getElementById(inputFileId)?.click()}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -566,21 +568,8 @@ export function LoraSdGeneratorScreen(props: {
                   <img src={input.dataUrl} alt="Vstup" className="w-full h-full object-cover opacity-90" draggable={false} />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Plus className="w-4 h-4 text-gray-600" />
+                    <Plus className="w-7 h-7 text-[#8f9aae]" />
                   </div>
-                )}
-
-                {input && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setInput(null);
-                    }}
-                    className="absolute top-1.5 right-1.5 px-2 py-1 bg-black/60 hover:bg-black/75 text-white/80 rounded-md text-[9px] font-bold uppercase tracking-wider"
-                  >
-                    Odebrat
-                  </button>
                 )}
 
                 <input
@@ -596,7 +585,6 @@ export function LoraSdGeneratorScreen(props: {
                     inputEl.value = '';
                   }}
                 />
-              </div>
             </div>
           </div>
 
