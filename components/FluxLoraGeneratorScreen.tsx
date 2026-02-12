@@ -39,6 +39,7 @@ type HfPreset = {
 type ModelFamily = 'flux' | 'sdxl';
 type FluxEndpoint = 'flux1' | 'flux2';
 type Flux2Acceleration = 'none' | 'regular' | 'high';
+type TestProfile = 'balanced' | 'aggressive';
 
 const SDXL_BASE_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
 
@@ -208,19 +209,31 @@ function clampNum(v: number, min: number, max: number, precision = 2): number {
   return Number(Math.max(min, Math.min(max, v)).toFixed(precision));
 }
 
-function buildLoraTestSheets(modelFamily: ModelFamily, fluxEndpoint: FluxEndpoint, baseScale: number): LoraTestCase[][] {
-  const scaleCurve = [1.5, 1.8, 2.1, 2.4, 2.8, 3.2, 3.6, 4.0];
+function buildLoraTestSheets(
+  modelFamily: ModelFamily,
+  fluxEndpoint: FluxEndpoint,
+  baseScale: number,
+  profile: TestProfile
+): LoraTestCase[][] {
+  const scaleCurve =
+    profile === 'aggressive'
+      ? [2.2, 2.4, 2.6, 2.9, 3.2, 3.5, 3.8, 4.0]
+      : [1.5, 1.8, 2.1, 2.4, 2.8, 3.2, 3.6, 4.0];
   const w = (i: number) => clampNum(Math.max(scaleCurve[i], baseScale), 1.5, 4);
 
   if (modelFamily === 'sdxl') {
-    const bands = [
-      // 1-8: konzervativní styl
-      { denoiseStart: 0.24, denoiseStep: 0.03, cfgStart: 5.0, cfgStep: 0.4, stepsStart: 25, stepsStep: 2 },
-      // 9-16: vyvážený styl
-      { denoiseStart: 0.32, denoiseStep: 0.025, cfgStart: 7.5, cfgStep: 0.45, stepsStart: 28, stepsStep: 2 },
-      // 17-24: silný styl
-      { denoiseStart: 0.4, denoiseStep: 0.015, cfgStart: 11.5, cfgStep: 0.5, stepsStart: 31, stepsStep: 2 },
-    ];
+    const bands =
+      profile === 'aggressive'
+        ? [
+          { denoiseStart: 0.32, denoiseStep: 0.02, cfgStart: 8.0, cfgStep: 0.5, stepsStart: 28, stepsStep: 1 },
+          { denoiseStart: 0.38, denoiseStep: 0.015, cfgStart: 10.5, cfgStep: 0.5, stepsStart: 31, stepsStep: 1 },
+          { denoiseStart: 0.44, denoiseStep: 0.01, cfgStart: 12.5, cfgStep: 0.35, stepsStart: 34, stepsStep: 1 },
+        ]
+        : [
+          { denoiseStart: 0.24, denoiseStep: 0.03, cfgStart: 5.0, cfgStep: 0.4, stepsStart: 25, stepsStep: 2 },
+          { denoiseStart: 0.32, denoiseStep: 0.025, cfgStart: 7.5, cfgStep: 0.45, stepsStart: 28, stepsStep: 2 },
+          { denoiseStart: 0.4, denoiseStep: 0.015, cfgStart: 11.5, cfgStep: 0.5, stepsStart: 31, stepsStep: 2 },
+        ];
     return bands.map((b, bandIndex) =>
       scaleCurve.map((_, i) => ({
         label: `${String.fromCharCode(65 + bandIndex)}${i + 1}`,
@@ -233,14 +246,21 @@ function buildLoraTestSheets(modelFamily: ModelFamily, fluxEndpoint: FluxEndpoin
   }
 
   if (fluxEndpoint === 'flux2') {
-    const accelerationBands: Flux2Acceleration[][] = [
-      ['high', 'high', 'high', 'regular', 'regular', 'regular', 'regular', 'none'],
-      ['high', 'high', 'regular', 'regular', 'regular', 'none', 'none', 'none'],
-      ['regular', 'regular', 'regular', 'none', 'none', 'none', 'none', 'none'],
-    ];
-    const cfgStarts = [5.0, 8.0, 11.5];
-    const stepsStarts = [25, 29, 33];
-    const stepsDelta = [2, 1, 1];
+    const accelerationBands: Flux2Acceleration[][] =
+      profile === 'aggressive'
+        ? [
+          ['regular', 'regular', 'regular', 'none', 'none', 'none', 'none', 'none'],
+          ['regular', 'regular', 'none', 'none', 'none', 'none', 'none', 'none'],
+          ['none', 'none', 'none', 'none', 'none', 'none', 'none', 'none'],
+        ]
+        : [
+          ['high', 'high', 'high', 'regular', 'regular', 'regular', 'regular', 'none'],
+          ['high', 'high', 'regular', 'regular', 'regular', 'none', 'none', 'none'],
+          ['regular', 'regular', 'regular', 'none', 'none', 'none', 'none', 'none'],
+        ];
+    const cfgStarts = profile === 'aggressive' ? [8.0, 10.8, 13.0] : [5.0, 8.0, 11.5];
+    const stepsStarts = profile === 'aggressive' ? [28, 32, 35] : [25, 29, 33];
+    const stepsDelta = profile === 'aggressive' ? [1, 1, 1] : [2, 1, 1];
     return accelerationBands.map((band, bandIndex) =>
       band.map((acc, i) => ({
         label: `${String.fromCharCode(65 + bandIndex)}${i + 1}`,
@@ -254,12 +274,17 @@ function buildLoraTestSheets(modelFamily: ModelFamily, fluxEndpoint: FluxEndpoin
   }
 
   const bands = [
-    // 1-8: konzervativní zachování podobnosti
-    { denoiseStart: 0.24, denoiseStep: 0.03, cfgStart: 5.0, cfgStep: 0.4, stepsStart: 25, stepsStep: 2 },
-    // 9-16: vyvážený stylový zásah
-    { denoiseStart: 0.32, denoiseStep: 0.025, cfgStart: 7.5, cfgStep: 0.45, stepsStart: 28, stepsStep: 2 },
-    // 17-24: silný stylový zásah (největší šance vidět malířský rukopis)
-    { denoiseStart: 0.4, denoiseStep: 0.015, cfgStart: 11.5, cfgStep: 0.5, stepsStart: 31, stepsStep: 2 },
+    ...(profile === 'aggressive'
+      ? [
+        { denoiseStart: 0.32, denoiseStep: 0.02, cfgStart: 8.0, cfgStep: 0.5, stepsStart: 28, stepsStep: 1 },
+        { denoiseStart: 0.38, denoiseStep: 0.015, cfgStart: 10.5, cfgStep: 0.5, stepsStart: 31, stepsStep: 1 },
+        { denoiseStart: 0.44, denoiseStep: 0.01, cfgStart: 12.5, cfgStep: 0.35, stepsStart: 34, stepsStep: 1 },
+      ]
+      : [
+        { denoiseStart: 0.24, denoiseStep: 0.03, cfgStart: 5.0, cfgStep: 0.4, stepsStart: 25, stepsStep: 2 },
+        { denoiseStart: 0.32, denoiseStep: 0.025, cfgStart: 7.5, cfgStep: 0.45, stepsStart: 28, stepsStep: 2 },
+        { denoiseStart: 0.4, denoiseStep: 0.015, cfgStart: 11.5, cfgStep: 0.5, stepsStart: 31, stepsStep: 2 },
+      ]),
   ];
   return bands.map((b, bandIndex) =>
     scaleCurve.map((_, i) => ({
@@ -722,7 +747,7 @@ export function FluxLoraGeneratorScreen(props: {
     }
   }, [activeLoraPresets, cfg, customPrompt, denoise, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw, seed, steps, variants]);
 
-  const handleRunLoraTest = React.useCallback(async () => {
+  const handleRunLoraTest = React.useCallback(async (profile: TestProfile = 'balanced') => {
     if (!input?.dataUrl) {
       onToast({ type: 'error', message: 'Nahraj vstupní obrázek.' });
       return;
@@ -736,7 +761,7 @@ export function FluxLoraGeneratorScreen(props: {
     setIsTestingGrid(true);
     setGenError('');
     setFalPhase('queue');
-    setGenPhase('Připravuji full test 24 variant…');
+    setGenPhase(profile === 'aggressive' ? 'Připravuji STYLE PEAK test 24 variant…' : 'Připravuji full test 24 variant…');
 
     const pendingItems: OutputItem[] = Array.from({ length: 3 }).map((_, idx) => ({
       id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-test-sheet-${idx}`,
@@ -786,7 +811,7 @@ export function FluxLoraGeneratorScreen(props: {
           : undefined;
       const testFluxEndpointId = modelFamily === 'flux' ? 'fal-ai/z-image/turbo/image-to-image/lora' : fluxEndpointId;
 
-      const testSheets = buildLoraTestSheets(modelFamily, fluxEndpoint, baseLora.scale || 1);
+      const testSheets = buildLoraTestSheets(modelFamily, fluxEndpoint, baseLora.scale || 1, profile);
       const tests = testSheets
         .flat()
         .map((t, idx) => ({ ...t, label: String(idx + 1) }));
@@ -863,10 +888,10 @@ export function FluxLoraGeneratorScreen(props: {
           subtitle,
           sheetLabel:
             sheetIdx === 0
-              ? 'SHEET 1/3 • varianty 1-8'
+              ? `SHEET 1/3 • varianty 1-8${profile === 'aggressive' ? ' • STYLE PEAK' : ''}`
               : sheetIdx === 1
-                ? 'SHEET 2/3 • varianty 9-16'
-                : 'SHEET 3/3 • varianty 17-24',
+                ? `SHEET 2/3 • varianty 9-16${profile === 'aggressive' ? ' • STYLE PEAK' : ''}`
+                : `SHEET 3/3 • varianty 17-24${profile === 'aggressive' ? ' • STYLE PEAK' : ''}`,
           modelFamily,
           fluxEndpoint,
           entries: sheetEntries,
@@ -897,6 +922,7 @@ export function FluxLoraGeneratorScreen(props: {
             prompt: `LoRA full test • ${loraName} • sheet ${i + 1}`,
             params: {
               mode: 'lora-test-grid',
+              profile,
               sheet: i + 1,
               modelFamily,
               fluxEndpoint: modelFamily === 'flux' ? fluxEndpoint : null,
@@ -909,7 +935,10 @@ export function FluxLoraGeneratorScreen(props: {
         }
       }
 
-      onToast({ type: 'success', message: `Full test hotový (3×8): ${loraName}` });
+      onToast({
+        type: 'success',
+        message: `${profile === 'aggressive' ? 'Style peak test' : 'Full test'} hotový (3×8): ${loraName}`,
+      });
     } catch (e: any) {
       const msg = String(e?.message || e || 'Test grid selhal.');
       setGenError(msg);
@@ -1183,10 +1212,10 @@ export function FluxLoraGeneratorScreen(props: {
                 trigger: <span className="text-[#7ed957]">{selectedTopbarLoraPreset.trigger}</span>
               </div>
             )}
-            <div className="pt-1">
+            <div className="pt-1 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={handleRunLoraTest}
+                onClick={() => void handleRunLoraTest('balanced')}
                 disabled={!input || !loras.length || isGenerating || isTestingGrid}
                 className="px-2.5 py-1 rounded-md border border-white/15 bg-white/5 text-[9px] font-bold uppercase tracking-wider text-white/65 hover:text-white/90 hover:border-white/25 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
                 title={
@@ -1196,6 +1225,15 @@ export function FluxLoraGeneratorScreen(props: {
                 }
               >
                 {modelFamily === 'sdxl' ? 'SDXL test 3×8' : 'Full test 3×8'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRunLoraTest('aggressive')}
+                disabled={!input || !loras.length || isGenerating || isTestingGrid}
+                className="px-2.5 py-1 rounded-md border border-[#7ed957]/30 bg-[#7ed957]/10 text-[9px] font-bold uppercase tracking-wider text-[#9eea83] hover:text-[#c8f6b8] hover:border-[#7ed957]/50 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
+                title="Style peak test: silnější sweep (LoRA+CFG) pro hledání malířského maxima"
+              >
+                Style peak 3×8
               </button>
             </div>
           </div>
