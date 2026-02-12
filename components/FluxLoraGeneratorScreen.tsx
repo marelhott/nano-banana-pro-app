@@ -181,6 +181,16 @@ function derivePresetPrefix(modelFamily: ModelFamily, endpoint: FluxEndpoint, se
   return endpoint === 'flux2' ? 'flux 2' : 'flux 1';
 }
 
+function parseJsonObject(raw: string): Record<string, any> {
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+  const parsed = JSON.parse(trimmed);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Advanced JSON musí být objekt.');
+  }
+  return parsed as Record<string, any>;
+}
+
 function Spinner(props: { label?: string }) {
   return (
     <div className="flex items-center gap-2 text-zinc-200/90">
@@ -210,6 +220,7 @@ export function FluxLoraGeneratorScreen(props: {
   const [imageSize, setImageSize] = React.useState('landscape_4_3');
   const [outputFormat, setOutputFormat] = React.useState<'jpeg' | 'png'>('jpeg');
   const [customPrompt, setCustomPrompt] = React.useState('');
+  const [sdxlAdvancedRaw, setSdxlAdvancedRaw] = React.useState('');
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [genError, setGenError] = React.useState('');
@@ -419,6 +430,14 @@ export function FluxLoraGeneratorScreen(props: {
       const requestedVariants = effectiveVariants;
       const normalizedLorasForRun =
         modelFamily === 'flux' && fluxEndpoint === 'flux2' ? normalizedLoras.slice(0, 3) : normalizedLoras;
+      const sdxlAdvancedInput =
+        modelFamily === 'sdxl'
+          ? (() => {
+            const base: Record<string, any> = { image_format: outputFormat };
+            const extra = parseJsonObject(sdxlAdvancedRaw);
+            return { ...base, ...extra };
+          })()
+          : undefined;
       if (requestedVariants !== variants) {
         onToast({ type: 'info', message: 'FLUX 2 endpoint umožňuje max 4 výstupy. Použito 4.' });
       }
@@ -443,6 +462,7 @@ export function FluxLoraGeneratorScreen(props: {
             seed: seed ?? undefined,
             numImages: requestedVariants,
             loras: normalizedLorasForRun,
+            advancedInput: sdxlAdvancedInput,
             onPhase: phaseHandler,
             maxWaitMs: 12 * 60_000,
           })
@@ -501,6 +521,7 @@ export function FluxLoraGeneratorScreen(props: {
               variants: requestedVariants,
               loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
               promptMode: 'auto',
+              advancedInput: modelFamily === 'sdxl' ? sdxlAdvancedRaw || null : null,
             },
           });
         } catch {
@@ -519,7 +540,7 @@ export function FluxLoraGeneratorScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [activeLoraPresets, cfg, customPrompt, denoise, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, seed, steps, variants]);
+  }, [activeLoraPresets, cfg, customPrompt, denoise, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw, seed, steps, variants]);
 
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
@@ -767,9 +788,8 @@ export function FluxLoraGeneratorScreen(props: {
                     key={fmt}
                     type="button"
                     onClick={() => setOutputFormat(fmt)}
-                    disabled={modelFamily === 'sdxl'}
                     className={`relative flex-1 py-2 text-center text-[11px] font-black uppercase tracking-widest transition-colors ${active ? 'text-[#7ed957]' : 'text-white/45 hover:text-white/75'
-                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                      }`}
                   >
                     {fmt}
                     <span
@@ -781,6 +801,22 @@ export function FluxLoraGeneratorScreen(props: {
               })}
             </div>
           </div>
+
+          {modelFamily === 'sdxl' && (
+            <div className="card-surface p-3 space-y-2">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">SDXL endpoint advanced (JSON)</div>
+              <textarea
+                value={sdxlAdvancedRaw}
+                onChange={(e) => setSdxlAdvancedRaw(e.target.value)}
+                placeholder={'{\n  "enable_safety_checker": false,\n  "embeddings": [],\n  "controlnets": [],\n  "ip_adapter": [],\n  "scheduler": "karras"\n}'}
+                rows={7}
+                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] leading-5 text-[var(--text-primary)] placeholder-white/20 font-mono resize-y"
+              />
+              <div className="text-[9px] text-white/35">
+                Vložené JSON klíče se pošlou přímo do <span className="text-white/55">fal-ai/lora/image-to-image</span> a mohou přepsat defaulty.
+              </div>
+            </div>
+          )}
 
           {/* ── Custom Prompt ── */}
           <div className="card-surface p-3 space-y-2">

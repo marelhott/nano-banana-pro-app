@@ -109,6 +109,7 @@ export async function runFalLoraImg2Img(params: {
   icLightModelUrl?: string;
   icLightModelBackgroundImageUrl?: string;
   icLightImageUrl?: string;
+  advancedInput?: Record<string, any>;
 }): Promise<{ images: string[]; usedSeed?: number }> {
   const input: Record<string, any> = {
     model_name: params.modelName,
@@ -134,6 +135,9 @@ export async function runFalLoraImg2Img(params: {
   if (params.icLightModelUrl?.trim()) input.ic_light_model_url = params.icLightModelUrl.trim();
   if (params.icLightModelBackgroundImageUrl?.trim()) input.ic_light_model_background_image_url = params.icLightModelBackgroundImageUrl.trim();
   if (params.icLightImageUrl?.trim()) input.ic_light_image_url = params.icLightImageUrl.trim();
+  if (params.advancedInput && typeof params.advancedInput === 'object') {
+    Object.assign(input, params.advancedInput);
+  }
 
   const falKey = getFalKeyFromStorage();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -296,6 +300,7 @@ export async function runFalLoraImg2ImgQueued(params: {
   icLightModelUrl?: string;
   icLightModelBackgroundImageUrl?: string;
   icLightImageUrl?: string;
+  advancedInput?: Record<string, any>;
   onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
   maxWaitMs?: number;
 }): Promise<{ images: string[]; usedSeed?: number }> {
@@ -323,6 +328,9 @@ export async function runFalLoraImg2ImgQueued(params: {
   if (params.icLightModelUrl?.trim()) input.ic_light_model_url = params.icLightModelUrl.trim();
   if (params.icLightModelBackgroundImageUrl?.trim()) input.ic_light_model_background_image_url = params.icLightModelBackgroundImageUrl.trim();
   if (params.icLightImageUrl?.trim()) input.ic_light_image_url = params.icLightImageUrl.trim();
+  if (params.advancedInput && typeof params.advancedInput === 'object') {
+    Object.assign(input, params.advancedInput);
+  }
 
   const falKey = getFalKeyFromStorage();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
