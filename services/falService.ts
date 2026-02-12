@@ -528,3 +528,81 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
 
   throw new Error('fal.ai job trvá příliš dlouho (timeout).');
 }
+
+export async function runFalUpscaleQueued(params: {
+  imageUrlOrDataUrl: string;
+  upscaleFactor?: 2 | 4;
+  creativity?: number;
+  resemblance?: number;
+  onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
+  maxWaitMs?: number;
+}): Promise<{ image: string }> {
+  const endpointId = 'fal-ai/clarity-upscaler';
+  const input: Record<string, any> = {
+    image_url: params.imageUrlOrDataUrl,
+    upscale_factor: params.upscaleFactor ?? 2,
+    // Conservative defaults for "keep original + add detail"
+    creativity: typeof params.creativity === 'number' ? params.creativity : 0.2,
+    resemblance: typeof params.resemblance === 'number' ? params.resemblance : 0.82,
+  };
+
+  const falKey = getFalKeyFromStorage();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (falKey) headers['x-fal-key'] = falKey;
+
+  const { statusUrl, resultUrl } = await submitFalJob(headers, input, endpointId);
+  let lastPhase: 'queue' | 'running' | 'finalizing' | '' = '';
+  const setPhase = (p: 'queue' | 'running' | 'finalizing') => {
+    if (lastPhase === p) return;
+    lastPhase = p;
+    try {
+      params.onPhase?.(p);
+    } catch {
+      // ignore UI callback failures
+    }
+  };
+  setPhase('queue');
+
+  const deadline = Date.now() + Math.max(30_000, Math.min(15 * 60_000, params.maxWaitMs ?? 8 * 60_000));
+  let delayMs = 800;
+
+  while (Date.now() < deadline) {
+    const payload: any = await pollFalJob(headers, statusUrl, endpointId);
+    const status = String(payload?.status || payload?.state || '').toLowerCase();
+    if (status === 'running' || status === 'in_progress' || status === 'processing') setPhase('running');
+    else if (status === 'queued' || status === 'pending' || status === 'enqueued') setPhase('queue');
+
+    if (status === 'completed' || status === 'succeeded' || payload?.images || payload?.image || payload?.output?.image) {
+      let finalPayload: any = payload;
+      let urls = extractFalImageUrls(finalPayload);
+      if (urls.length === 0 && resultUrl) {
+        setPhase('finalizing');
+        let attempts = 0;
+        let wait = 650;
+        while (attempts < 8 && Date.now() < deadline) {
+          attempts += 1;
+          finalPayload = await pollFalJob(headers, resultUrl, endpointId);
+          urls = extractFalImageUrls(finalPayload);
+          if (urls.length > 0) break;
+          await sleep(wait);
+          wait = Math.min(2500, Math.floor(wait * 1.25));
+        }
+      }
+      if (urls.length === 0) {
+        throw new Error('Upscaling dokončen, ale endpoint nevrátil obrázek.');
+      }
+      const first = await fetchAsDataUrl(urls[0]);
+      return { image: first };
+    }
+
+    if (status === 'failed' || status === 'error') {
+      const detail = payload?.error || payload?.detail || payload?.message || 'fal.ai upscaling selhal';
+      throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    }
+
+    await sleep(delayMs);
+    delayMs = Math.min(2500, Math.floor(delayMs * 1.25));
+  }
+
+  throw new Error('fal.ai upscaling trvá příliš dlouho (timeout).');
+}

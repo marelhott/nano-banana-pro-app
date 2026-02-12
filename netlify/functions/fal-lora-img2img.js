@@ -117,6 +117,7 @@ exports.handler = async (event) => {
       'fal-ai/lora/image-to-image',
       'fal-ai/flux-lora/image-to-image',
       'fal-ai/flux-2/lora/edit',
+      'fal-ai/clarity-upscaler',
     ]);
     if (!ALLOWED_ENDPOINTS.has(endpointId)) {
       return json(400, {
