@@ -760,7 +760,9 @@ export function FluxLoraGeneratorScreen(props: {
           : undefined;
 
       const testSheets = buildLoraTestSheets(modelFamily, fluxEndpoint, baseLora.scale || 1);
-      const tests = testSheets.flat();
+      const tests = testSheets
+        .flat()
+        .map((t, idx) => ({ ...t, label: String(idx + 1) }));
       const phaseHandler = (p: 'queue' | 'running' | 'finalizing') => {
         setFalPhase(p);
       };
@@ -816,13 +818,22 @@ export function FluxLoraGeneratorScreen(props: {
             ? 'FLUX 2 • fal-ai/flux-2/lora/edit'
             : 'FLUX 1 • fal-ai/flux-lora/image-to-image';
       const sheetDataUrls: string[] = [];
-      for (let sheetIdx = 0; sheetIdx < testSheets.length; sheetIdx++) {
-        const sheetStart = sheetIdx * 8;
-        const sheetEntries = entries.slice(sheetStart, sheetStart + 8);
+      const fixedSheets = [
+        entries.slice(0, 8),   // 1-8
+        entries.slice(8, 16),  // 9-16
+        entries.slice(16, 24), // 17-24
+      ];
+      for (let sheetIdx = 0; sheetIdx < fixedSheets.length; sheetIdx++) {
+        const sheetEntries = fixedSheets[sheetIdx];
         const sheetDataUrl = await composeLoraTestSheet({
           title: `LoRA FULL TEST • ${loraName}`,
           subtitle,
-          sheetLabel: `SHEET ${sheetIdx + 1}/3 • 8 variant`,
+          sheetLabel:
+            sheetIdx === 0
+              ? 'SHEET 1/3 • varianty 1-8'
+              : sheetIdx === 1
+                ? 'SHEET 2/3 • varianty 9-16'
+                : 'SHEET 3/3 • varianty 17-24',
           modelFamily,
           fluxEndpoint,
           entries: sheetEntries,
@@ -857,7 +868,7 @@ export function FluxLoraGeneratorScreen(props: {
               modelFamily,
               fluxEndpoint: modelFamily === 'flux' ? fluxEndpoint : null,
               lora: { path: baseLora.path, scale: baseLora.scale || 1 },
-              tests: testSheets[i] || [],
+              tests: tests.slice(i * 8, i * 8 + 8),
             },
           });
         } catch {
