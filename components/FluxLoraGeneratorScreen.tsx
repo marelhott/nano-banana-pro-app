@@ -56,6 +56,7 @@ const FLUX_LORA_PRESETS: HfPreset[] = [
     label: 'Flux 1a',
     url: 'https://v3b.fal.media/files/b/0a8e0a45/bhN3qNj08efi3T3pZvfT8_pytorch_lora_weights.safetensors',
     configUrl: 'https://v3b.fal.media/files/b/0a8e0a46/AR1PpFip04qZ-dAqRo_Fe_config.json',
+    trigger: 'mvhpaint',
     trainedOn: 'flux',
   },
   {
@@ -209,7 +210,7 @@ function clampNum(v: number, min: number, max: number, precision = 2): number {
 
 function buildLoraTestSheets(modelFamily: ModelFamily, fluxEndpoint: FluxEndpoint, baseScale: number): LoraTestCase[][] {
   const w = (m: number) => clampNum(baseScale * m, 0.15, 4);
-  const scaleMultipliers = [0.65, 0.8, 0.95, 1.1, 1.25, 1.4, 1.6, 1.85];
+  const scaleMultipliers = [0.7, 0.9, 1.1, 1.3, 1.6, 1.9, 2.2, 2.6];
 
   if (modelFamily === 'sdxl') {
     const bands = [
@@ -249,9 +250,12 @@ function buildLoraTestSheets(modelFamily: ModelFamily, fluxEndpoint: FluxEndpoin
   }
 
   const bands = [
-    { denoiseStart: 0.2, denoiseStep: 0.04, cfgStart: 2.0, cfgStep: 0.35, stepsStart: 16, stepsStep: 2 },
-    { denoiseStart: 0.28, denoiseStep: 0.04, cfgStart: 3.4, cfgStep: 0.35, stepsStart: 20, stepsStep: 2 },
-    { denoiseStart: 0.36, denoiseStep: 0.035, cfgStart: 4.8, cfgStep: 0.35, stepsStart: 24, stepsStep: 2 },
+    // Sheet 1: konzervativní zachování podobnosti
+    { denoiseStart: 0.28, denoiseStep: 0.03, cfgStart: 2.4, cfgStep: 0.2, stepsStart: 18, stepsStep: 2 },
+    // Sheet 2: vyvážený stylový zásah
+    { denoiseStart: 0.48, denoiseStep: 0.035, cfgStart: 2.1, cfgStep: 0.2, stepsStart: 24, stepsStep: 2 },
+    // Sheet 3: silný stylový zásah (největší šance vidět malířský rukopis)
+    { denoiseStart: 0.68, denoiseStep: 0.03, cfgStart: 1.8, cfgStep: 0.15, stepsStart: 28, stepsStep: 2 },
   ];
   return bands.map((b, bandIndex) =>
     scaleMultipliers.map((m, i) => ({
@@ -748,7 +752,13 @@ export function FluxLoraGeneratorScreen(props: {
       const inputDataUrl = await shrinkDataUrl(input.dataUrl, 2_300_000);
       const loraLabels = loras.map((l) => loraHintFromPath(l.path, activeLoraPresets));
       const loraTriggers = loras.map((l) => loraTriggerFromPath(l.path, activeLoraPresets)).filter(Boolean);
-      const prompt = customPrompt.trim() || buildAutoPrompt(loraLabels, loraTriggers);
+      const prompt =
+        customPrompt.trim() ||
+        `${buildAutoPrompt(loraLabels, loraTriggers)}, emphasize visible painterly brushwork and style texture`;
+      const testSeed =
+        typeof seed === 'number' && Number.isFinite(seed)
+          ? Math.floor(seed)
+          : Math.floor(Math.random() * 1_000_000_000);
       const resolvedLoras = await Promise.all(
         loras.map(async (l) => {
           const path = String(l.path || '').trim();
@@ -800,6 +810,7 @@ export function FluxLoraGeneratorScreen(props: {
               cfg: t.cfg,
               denoise: t.denoise,
               steps: t.steps,
+              seed: testSeed,
               numImages: 1,
               loras: perTestLora,
               advancedInput: sdxlAdvancedInput,
@@ -814,6 +825,7 @@ export function FluxLoraGeneratorScreen(props: {
               denoise: t.denoise,
               acceleration: fluxEndpoint === 'flux2' ? (t.acceleration || flux2Acceleration) : flux2Acceleration,
               steps: t.steps,
+              seed: testSeed,
               numImages: 1,
               loras: perTestLora,
               imageSize,
