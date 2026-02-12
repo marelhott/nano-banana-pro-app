@@ -209,22 +209,25 @@ function clampNum(v: number, min: number, max: number, precision = 2): number {
 }
 
 function buildLoraTestSheets(modelFamily: ModelFamily, fluxEndpoint: FluxEndpoint, baseScale: number): LoraTestCase[][] {
-  const w = (m: number) => clampNum(baseScale * m, 0.15, 4);
-  const scaleMultipliers = [0.7, 0.9, 1.1, 1.3, 1.6, 1.9, 2.2, 2.6];
+  const scaleCurve = [1.5, 1.8, 2.1, 2.4, 2.8, 3.2, 3.6, 4.0];
+  const w = (i: number) => clampNum(Math.max(scaleCurve[i], baseScale), 1.5, 4);
 
   if (modelFamily === 'sdxl') {
     const bands = [
-      { denoiseStart: 0.24, denoiseStep: 0.04, cfgStart: 4.2, cfgStep: 0.35, stepsStart: 20, stepsStep: 2 },
-      { denoiseStart: 0.34, denoiseStep: 0.04, cfgStart: 5.4, cfgStep: 0.35, stepsStart: 24, stepsStep: 2 },
-      { denoiseStart: 0.46, denoiseStep: 0.03, cfgStart: 6.6, cfgStep: 0.35, stepsStart: 28, stepsStep: 2 },
+      // 1-8: konzervativní styl
+      { denoiseStart: 0.24, denoiseStep: 0.03, cfgStart: 5.0, cfgStep: 0.4, stepsStart: 25, stepsStep: 2 },
+      // 9-16: vyvážený styl
+      { denoiseStart: 0.32, denoiseStep: 0.025, cfgStart: 7.5, cfgStep: 0.45, stepsStart: 28, stepsStep: 2 },
+      // 17-24: silný styl
+      { denoiseStart: 0.4, denoiseStep: 0.015, cfgStart: 11.5, cfgStep: 0.5, stepsStart: 31, stepsStep: 2 },
     ];
     return bands.map((b, bandIndex) =>
-      scaleMultipliers.map((m, i) => ({
+      scaleCurve.map((_, i) => ({
         label: `${String.fromCharCode(65 + bandIndex)}${i + 1}`,
-        denoise: clampNum(b.denoiseStart + i * b.denoiseStep, 0.05, 0.95),
-        cfg: clampNum(b.cfgStart + i * b.cfgStep, 1, 20, 1),
-        steps: Math.max(12, Math.min(60, Math.round(b.stepsStart + i * b.stepsStep))),
-        loraScale: w(m),
+        denoise: clampNum(b.denoiseStart + i * b.denoiseStep, 0.1, 0.5),
+        cfg: clampNum(b.cfgStart + i * b.cfgStep, 5, 15, 1),
+        steps: Math.max(25, Math.min(40, Math.round(b.stepsStart + i * b.stepsStep))),
+        loraScale: w(i),
       }))
     );
   }
@@ -235,35 +238,36 @@ function buildLoraTestSheets(modelFamily: ModelFamily, fluxEndpoint: FluxEndpoin
       ['high', 'high', 'regular', 'regular', 'regular', 'none', 'none', 'none'],
       ['regular', 'regular', 'regular', 'none', 'none', 'none', 'none', 'none'],
     ];
-    const cfgStarts = [2.0, 3.0, 4.2];
-    const stepsStarts = [18, 22, 26];
+    const cfgStarts = [5.0, 8.0, 11.5];
+    const stepsStarts = [25, 29, 33];
+    const stepsDelta = [2, 1, 1];
     return accelerationBands.map((band, bandIndex) =>
       band.map((acc, i) => ({
         label: `${String.fromCharCode(65 + bandIndex)}${i + 1}`,
         denoise: 0.35,
-        cfg: clampNum(cfgStarts[bandIndex] + i * 0.35, 0.5, 12, 1),
-        steps: Math.max(12, Math.min(60, Math.round(stepsStarts[bandIndex] + i * 2))),
-        loraScale: w(scaleMultipliers[i]),
+        cfg: clampNum(cfgStarts[bandIndex] + i * 0.35, 5, 15, 1),
+        steps: Math.max(25, Math.min(40, Math.round(stepsStarts[bandIndex] + i * stepsDelta[bandIndex]))),
+        loraScale: w(i),
         acceleration: acc,
       }))
     );
   }
 
   const bands = [
-    // Sheet 1: konzervativní zachování podobnosti
-    { denoiseStart: 0.28, denoiseStep: 0.03, cfgStart: 2.4, cfgStep: 0.2, stepsStart: 18, stepsStep: 2 },
-    // Sheet 2: vyvážený stylový zásah
-    { denoiseStart: 0.48, denoiseStep: 0.035, cfgStart: 2.1, cfgStep: 0.2, stepsStart: 24, stepsStep: 2 },
-    // Sheet 3: silný stylový zásah (největší šance vidět malířský rukopis)
-    { denoiseStart: 0.68, denoiseStep: 0.03, cfgStart: 1.8, cfgStep: 0.15, stepsStart: 28, stepsStep: 2 },
+    // 1-8: konzervativní zachování podobnosti
+    { denoiseStart: 0.24, denoiseStep: 0.03, cfgStart: 5.0, cfgStep: 0.4, stepsStart: 25, stepsStep: 2 },
+    // 9-16: vyvážený stylový zásah
+    { denoiseStart: 0.32, denoiseStep: 0.025, cfgStart: 7.5, cfgStep: 0.45, stepsStart: 28, stepsStep: 2 },
+    // 17-24: silný stylový zásah (největší šance vidět malířský rukopis)
+    { denoiseStart: 0.4, denoiseStep: 0.015, cfgStart: 11.5, cfgStep: 0.5, stepsStart: 31, stepsStep: 2 },
   ];
   return bands.map((b, bandIndex) =>
-    scaleMultipliers.map((m, i) => ({
+    scaleCurve.map((_, i) => ({
       label: `${String.fromCharCode(65 + bandIndex)}${i + 1}`,
-      denoise: clampNum(b.denoiseStart + i * b.denoiseStep, 0.05, 0.95),
-      cfg: clampNum(b.cfgStart + i * b.cfgStep, 0.5, 12, 1),
-      steps: Math.max(8, Math.min(60, Math.round(b.stepsStart + i * b.stepsStep))),
-      loraScale: w(m),
+      denoise: clampNum(b.denoiseStart + i * b.denoiseStep, 0.1, 0.5),
+      cfg: clampNum(b.cfgStart + i * b.cfgStep, 5, 15, 1),
+      steps: Math.max(25, Math.min(40, Math.round(b.stepsStart + i * b.stepsStep))),
+      loraScale: w(i),
     }))
   );
 }
