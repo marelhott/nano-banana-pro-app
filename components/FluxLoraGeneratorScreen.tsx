@@ -1437,18 +1437,22 @@ export function FluxLoraGeneratorScreen(props: {
       </section>
 
       {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm p-4">
-          <button
-            type="button"
-            onClick={() => setLightbox(null)}
-            className="absolute top-5 right-5 z-20 p-2 rounded-lg bg-black/45 border border-white/15 text-white/85 hover:bg-black/70 hover:text-white transition-colors"
-            aria-label="Zavřít náhled"
-            title="Zavřít"
+        <div
+          className="fixed inset-0 z-50 bg-black/88 backdrop-blur-sm p-4"
+          onClick={() => setLightbox(null)}
+          title="Klikni mimo obrázek pro zavření"
+        >
+          <div
+            className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
           >
-            <X className="w-5 h-5" />
-          </button>
-          <div className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar">
-            <img src={lightbox} alt="Preview" className="block max-w-none h-auto mx-auto" />
+            <img
+              src={lightbox}
+              alt="Preview"
+              onDoubleClick={() => setLightbox(null)}
+              title="Dvojklik pro zavření"
+              className="block w-auto h-auto max-w-[96vw] max-h-[96vh] object-contain"
+            />
           </div>
         </div>
       )}
