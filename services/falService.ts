@@ -408,7 +408,7 @@ export async function runFalLoraImg2ImgQueued(params: {
 }
 
 export async function runFalFluxLoraImg2ImgQueued(params: {
-  endpointId?: 'fal-ai/flux-lora/image-to-image' | 'fal-ai/flux-2/lora/edit';
+  endpointId?: 'fal-ai/flux-lora/image-to-image' | 'fal-ai/flux-2/lora/edit' | 'fal-ai/z-image/turbo/image-to-image/lora';
   imageUrlOrDataUrl: string;
   prompt: string;
   cfg: number;
@@ -425,8 +425,9 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
 }): Promise<{ images: string[]; usedSeed?: number }> {
   const endpointId = params.endpointId || 'fal-ai/flux-lora/image-to-image';
   const isFlux2Edit = endpointId === 'fal-ai/flux-2/lora/edit';
+  const isZImageTurbo = endpointId === 'fal-ai/z-image/turbo/image-to-image/lora';
 
-  const numImages = isFlux2Edit ? Math.max(1, Math.min(4, params.numImages)) : params.numImages;
+  const numImages = isFlux2Edit || isZImageTurbo ? Math.max(1, Math.min(4, params.numImages)) : params.numImages;
 
   // Flux.1 LoRA img2img:
   // - image_url + strength
@@ -450,11 +451,11 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
     };
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
   const loras = buildFalLoras(params.loras, {
-    includeAdapterNames: !isFlux2Edit,
-    maxItems: isFlux2Edit ? 3 : 6,
+    includeAdapterNames: !(isFlux2Edit || isZImageTurbo),
+    maxItems: isFlux2Edit || isZImageTurbo ? 3 : 6,
   });
   if (loras) input.loras = loras;
-  if (isFlux2Edit && params.acceleration) input.acceleration = params.acceleration;
+  if ((isFlux2Edit || isZImageTurbo) && params.acceleration) input.acceleration = params.acceleration;
   if (params.imageSize) input.image_size = params.imageSize;
   if (params.outputFormat) input.output_format = params.outputFormat;
 
