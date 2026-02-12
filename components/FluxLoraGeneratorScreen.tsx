@@ -1174,9 +1174,13 @@ export function FluxLoraGeneratorScreen(props: {
                 onClick={handleRunLoraTest}
                 disabled={!input || !loras.length || isGenerating || isTestingGrid}
                 className="px-2.5 py-1 rounded-md border border-white/15 bg-white/5 text-[9px] font-bold uppercase tracking-wider text-white/65 hover:text-white/90 hover:border-white/25 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
-                title="Vygenerovat full test: 3 obrázky po 8 variantách (24 celkem)"
+                title={
+                  modelFamily === 'sdxl'
+                    ? 'Vygenerovat SDXL full test: 3 obrázky po 8 variantách (24 celkem)'
+                    : 'Vygenerovat full test: 3 obrázky po 8 variantách (24 celkem)'
+                }
               >
-                Full test 3×8
+                {modelFamily === 'sdxl' ? 'SDXL test 3×8' : 'Full test 3×8'}
               </button>
             </div>
           </div>
