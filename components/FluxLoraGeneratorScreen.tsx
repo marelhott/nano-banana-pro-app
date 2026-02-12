@@ -809,8 +809,6 @@ export function FluxLoraGeneratorScreen(props: {
             return { ...base, ...extra };
           })()
           : undefined;
-      const testFluxEndpointId = modelFamily === 'flux' ? 'fal-ai/z-image/turbo/image-to-image/lora' : fluxEndpointId;
-
       const testSheets = buildLoraTestSheets(modelFamily, fluxEndpoint, baseLora.scale || 1, profile);
       const tests = testSheets
         .flat()
@@ -848,7 +846,7 @@ export function FluxLoraGeneratorScreen(props: {
               maxWaitMs: 12 * 60_000,
             })
             : await runFalFluxLoraImg2ImgQueued({
-              endpointId: testFluxEndpointId,
+              endpointId: fluxEndpointId,
               imageUrlOrDataUrl: inputDataUrl,
               prompt,
               cfg: t.cfg,
@@ -874,7 +872,9 @@ export function FluxLoraGeneratorScreen(props: {
       const subtitle =
         modelFamily === 'sdxl'
           ? 'SDXL • fal-ai/lora/image-to-image'
-          : 'TEST MODE • fal-ai/z-image/turbo/image-to-image/lora';
+          : fluxEndpoint === 'flux2'
+            ? 'FLUX 2 • fal-ai/flux-2/lora/edit'
+            : 'FLUX 1 • fal-ai/flux-lora/image-to-image';
       const sheetDataUrls: string[] = [];
       const fixedSheets = [
         entries.slice(0, 8),   // 1-8
