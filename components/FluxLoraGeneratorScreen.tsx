@@ -191,6 +191,152 @@ function parseJsonObject(raw: string): Record<string, any> {
   return parsed as Record<string, any>;
 }
 
+type LoraTestCase = {
+  label: string;
+  cfg: number;
+  steps: number;
+  denoise: number;
+  loraScale: number;
+  acceleration?: Flux2Acceleration;
+};
+
+function clampNum(v: number, min: number, max: number, precision = 2): number {
+  return Number(Math.max(min, Math.min(max, v)).toFixed(precision));
+}
+
+function buildLoraTestCases(modelFamily: ModelFamily, fluxEndpoint: FluxEndpoint, baseScale: number): LoraTestCase[] {
+  const w = (m: number) => clampNum(baseScale * m, 0.15, 4);
+  if (modelFamily === 'sdxl') {
+    return [
+      { label: 'A1', denoise: 0.28, cfg: 4.2, steps: 20, loraScale: w(0.7) },
+      { label: 'A2', denoise: 0.35, cfg: 4.8, steps: 24, loraScale: w(0.85) },
+      { label: 'A3', denoise: 0.42, cfg: 5.2, steps: 28, loraScale: w(1.0) },
+      { label: 'A4', denoise: 0.50, cfg: 5.6, steps: 32, loraScale: w(1.15) },
+      { label: 'A5', denoise: 0.58, cfg: 6.0, steps: 36, loraScale: w(1.3) },
+      { label: 'B1', denoise: 0.30, cfg: 6.4, steps: 24, loraScale: w(0.9) },
+      { label: 'B2', denoise: 0.38, cfg: 6.8, steps: 28, loraScale: w(1.05) },
+      { label: 'B3', denoise: 0.46, cfg: 7.2, steps: 32, loraScale: w(1.2) },
+      { label: 'B4', denoise: 0.54, cfg: 7.6, steps: 36, loraScale: w(1.35) },
+      { label: 'B5', denoise: 0.62, cfg: 8.0, steps: 40, loraScale: w(1.5) },
+    ];
+  }
+
+  if (fluxEndpoint === 'flux2') {
+    return [
+      { label: 'A1', denoise: 0.35, cfg: 2.0, steps: 18, loraScale: w(0.7), acceleration: 'high' },
+      { label: 'A2', denoise: 0.35, cfg: 2.4, steps: 22, loraScale: w(0.85), acceleration: 'high' },
+      { label: 'A3', denoise: 0.35, cfg: 2.8, steps: 26, loraScale: w(1.0), acceleration: 'regular' },
+      { label: 'A4', denoise: 0.35, cfg: 3.2, steps: 30, loraScale: w(1.15), acceleration: 'regular' },
+      { label: 'A5', denoise: 0.35, cfg: 3.6, steps: 34, loraScale: w(1.3), acceleration: 'none' },
+      { label: 'B1', denoise: 0.35, cfg: 4.0, steps: 22, loraScale: w(0.9), acceleration: 'high' },
+      { label: 'B2', denoise: 0.35, cfg: 4.4, steps: 26, loraScale: w(1.05), acceleration: 'regular' },
+      { label: 'B3', denoise: 0.35, cfg: 4.8, steps: 30, loraScale: w(1.2), acceleration: 'regular' },
+      { label: 'B4', denoise: 0.35, cfg: 5.2, steps: 34, loraScale: w(1.35), acceleration: 'none' },
+      { label: 'B5', denoise: 0.35, cfg: 5.6, steps: 38, loraScale: w(1.5), acceleration: 'none' },
+    ];
+  }
+
+  return [
+    { label: 'A1', denoise: 0.22, cfg: 2.2, steps: 16, loraScale: w(0.7) },
+    { label: 'A2', denoise: 0.28, cfg: 2.6, steps: 20, loraScale: w(0.85) },
+    { label: 'A3', denoise: 0.34, cfg: 3.0, steps: 24, loraScale: w(1.0) },
+    { label: 'A4', denoise: 0.40, cfg: 3.4, steps: 28, loraScale: w(1.15) },
+    { label: 'A5', denoise: 0.46, cfg: 3.8, steps: 32, loraScale: w(1.3) },
+    { label: 'B1', denoise: 0.24, cfg: 4.0, steps: 18, loraScale: w(0.9) },
+    { label: 'B2', denoise: 0.30, cfg: 4.4, steps: 22, loraScale: w(1.05) },
+    { label: 'B3', denoise: 0.36, cfg: 4.8, steps: 26, loraScale: w(1.2) },
+    { label: 'B4', denoise: 0.42, cfg: 5.2, steps: 30, loraScale: w(1.35) },
+    { label: 'B5', denoise: 0.48, cfg: 5.6, steps: 34, loraScale: w(1.5) },
+  ];
+}
+
+async function loadImageForCanvas(dataUrl: string): Promise<HTMLImageElement> {
+  return await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Nepodařilo se načíst náhled.'));
+    img.src = dataUrl;
+  });
+}
+
+async function composeLoraTestGrid(params: {
+  title: string;
+  subtitle: string;
+  modelFamily: ModelFamily;
+  fluxEndpoint: FluxEndpoint;
+  entries: Array<{ imageDataUrl: string; testCase: LoraTestCase }>;
+}): Promise<string> {
+  const cols = 5;
+  const rows = Math.ceil(params.entries.length / cols);
+  const cardW = 350;
+  const imageH = 240;
+  const footerH = 82;
+  const cardH = imageH + footerH;
+  const gap = 18;
+  const pad = 28;
+  const headerH = 78;
+  const canvas = document.createElement('canvas');
+  canvas.width = pad * 2 + cols * cardW + (cols - 1) * gap;
+  canvas.height = pad * 2 + headerH + rows * cardH + (rows - 1) * gap;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Nepodařilo se vytvořit test grid.');
+
+  ctx.fillStyle = '#070a12';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#d9e0ee';
+  ctx.font = '700 24px monospace';
+  ctx.fillText(params.title, pad, pad + 24);
+  ctx.fillStyle = 'rgba(217,224,238,0.6)';
+  ctx.font = '500 14px monospace';
+  ctx.fillText(params.subtitle, pad, pad + 52);
+
+  const images = await Promise.all(params.entries.map((e) => loadImageForCanvas(e.imageDataUrl)));
+  for (let i = 0; i < params.entries.length; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = pad + col * (cardW + gap);
+    const y = pad + headerH + row * (cardH + gap);
+    const test = params.entries[i].testCase;
+    const img = images[i];
+
+    ctx.fillStyle = '#0d1421';
+    ctx.fillRect(x, y, cardW, cardH);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(x + 1, y + 1, cardW - 2, cardH - 2);
+
+    const areaX = x + 10;
+    const areaY = y + 10;
+    const areaW = cardW - 20;
+    const areaH = imageH - 16;
+    const scale = Math.min(areaW / Math.max(1, img.width), areaH / Math.max(1, img.height));
+    const drawW = Math.max(1, Math.round(img.width * scale));
+    const drawH = Math.max(1, Math.round(img.height * scale));
+    const dx = areaX + Math.round((areaW - drawW) / 2);
+    const dy = areaY + Math.round((areaH - drawH) / 2);
+    ctx.fillStyle = '#05080f';
+    ctx.fillRect(areaX, areaY, areaW, areaH);
+    ctx.drawImage(img, dx, dy, drawW, drawH);
+
+    ctx.fillStyle = '#7ed957';
+    ctx.font = '700 14px monospace';
+    ctx.fillText(test.label, x + 12, y + imageH + 16);
+
+    const line1 =
+      params.modelFamily === 'flux' && params.fluxEndpoint === 'flux2'
+        ? `cfg ${test.cfg.toFixed(1)}  steps ${test.steps}  acc ${test.acceleration || 'regular'}`
+        : `denoise ${test.denoise.toFixed(2)}  cfg ${test.cfg.toFixed(1)}  steps ${test.steps}`;
+    const line2 = `lora ${test.loraScale.toFixed(2)}`;
+
+    ctx.fillStyle = 'rgba(222,230,242,0.78)';
+    ctx.font = '500 12px monospace';
+    ctx.fillText(line1, x + 12, y + imageH + 38);
+    ctx.fillText(line2, x + 12, y + imageH + 58);
+  }
+
+  return canvas.toDataURL('image/png');
+}
+
 function Spinner(props: { label?: string }) {
   return (
     <div className="flex items-center gap-2 text-zinc-200/90">
@@ -223,6 +369,7 @@ export function FluxLoraGeneratorScreen(props: {
   const [sdxlAdvancedRaw, setSdxlAdvancedRaw] = React.useState('');
 
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isTestingGrid, setIsTestingGrid] = React.useState(false);
   const [genError, setGenError] = React.useState('');
   const [falPhase, setFalPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [genPhase, setGenPhase] = React.useState<string>('');
@@ -377,7 +524,7 @@ export function FluxLoraGeneratorScreen(props: {
     [onToast]
   );
 
-  const canGenerate = Boolean(input?.dataUrl) && !isGenerating;
+  const canGenerate = Boolean(input?.dataUrl) && !isGenerating && !isTestingGrid;
   const fluxEndpointId =
     fluxEndpoint === 'flux2' ? 'fal-ai/flux-2/lora/edit' : 'fal-ai/flux-lora/image-to-image';
   const showDenoise = !(modelFamily === 'flux' && fluxEndpoint === 'flux2');
@@ -542,6 +689,154 @@ export function FluxLoraGeneratorScreen(props: {
     }
   }, [activeLoraPresets, cfg, customPrompt, denoise, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw, seed, steps, variants]);
 
+  const handleRunLoraTest = React.useCallback(async () => {
+    if (!input?.dataUrl) {
+      onToast({ type: 'error', message: 'Nahraj vstupní obrázek.' });
+      return;
+    }
+    if (!loras.length) {
+      onToast({ type: 'error', message: 'Vyber LoRA pro test.' });
+      return;
+    }
+
+    setLightbox(null);
+    setIsTestingGrid(true);
+    setGenError('');
+    setFalPhase('queue');
+    setGenPhase('Připravuji test 10 variant…');
+
+    const pendingId = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-test-grid`;
+    const pendingItem: OutputItem = { id: pendingId, status: 'pending' };
+    setGenerated((prev) => [pendingItem, ...prev]);
+
+    try {
+      if (loras.length > 1) {
+        onToast({ type: 'info', message: 'Test běží na první vybrané LoRA (pro čisté porovnání).' });
+      }
+
+      const inputDataUrl = await shrinkDataUrl(input.dataUrl, 2_300_000);
+      const loraLabels = loras.map((l) => loraHintFromPath(l.path, activeLoraPresets));
+      const loraTriggers = loras.map((l) => loraTriggerFromPath(l.path, activeLoraPresets)).filter(Boolean);
+      const prompt = customPrompt.trim() || buildAutoPrompt(loraLabels, loraTriggers);
+      const resolvedLoras = await Promise.all(
+        loras.map(async (l) => {
+          const path = String(l.path || '').trim();
+          if (!path) return l;
+          if (!isR2Ref(path)) return l;
+          const key = r2KeyFromRef(path);
+          const signed = await presignR2({ op: 'get', key, expires: 3600 });
+          return { ...l, path: signed.signedUrl };
+        })
+      );
+      const baseLora = resolvedLoras[0];
+      if (!baseLora?.path) throw new Error('Vybraná LoRA nemá platnou URL.');
+
+      const sdxlAdvancedInput =
+        modelFamily === 'sdxl'
+          ? (() => {
+            const base: Record<string, any> = { image_format: outputFormat };
+            const extra = parseJsonObject(sdxlAdvancedRaw);
+            return { ...base, ...extra };
+          })()
+          : undefined;
+
+      const tests = buildLoraTestCases(modelFamily, fluxEndpoint, baseLora.scale || 1);
+      const phaseHandler = (p: 'queue' | 'running' | 'finalizing') => {
+        setFalPhase(p);
+      };
+      const entries: Array<{ imageDataUrl: string; testCase: LoraTestCase }> = [];
+
+      for (let i = 0; i < tests.length; i++) {
+        const t = tests[i];
+        setGenPhase(`Test ${i + 1}/10 • cfg ${t.cfg.toFixed(1)} • steps ${t.steps}`);
+        const perTestLora = [{ path: baseLora.path, scale: t.loraScale }];
+        const { images } =
+          modelFamily === 'sdxl'
+            ? await runFalLoraImg2ImgQueued({
+              modelName: SDXL_BASE_MODEL,
+              imageUrlOrDataUrl: inputDataUrl,
+              prompt,
+              negativePrompt: 'blurry, low quality, watermark, text, logo',
+              cfg: t.cfg,
+              denoise: t.denoise,
+              steps: t.steps,
+              numImages: 1,
+              loras: perTestLora,
+              advancedInput: sdxlAdvancedInput,
+              onPhase: phaseHandler,
+              maxWaitMs: 12 * 60_000,
+            })
+            : await runFalFluxLoraImg2ImgQueued({
+              endpointId: fluxEndpointId,
+              imageUrlOrDataUrl: inputDataUrl,
+              prompt,
+              cfg: t.cfg,
+              denoise: t.denoise,
+              acceleration: fluxEndpoint === 'flux2' ? (t.acceleration || flux2Acceleration) : flux2Acceleration,
+              steps: t.steps,
+              numImages: 1,
+              loras: perTestLora,
+              imageSize,
+              outputFormat,
+              onPhase: phaseHandler,
+              maxWaitMs: 12 * 60_000,
+            });
+
+        if (!images?.[0]) {
+          throw new Error(`Test ${i + 1}/10 nevrátil obrázek.`);
+        }
+        entries.push({ imageDataUrl: images[0], testCase: t });
+      }
+
+      const loraName = loraHintFromPath(baseLora.path, activeLoraPresets) || 'LoRA';
+      const subtitle =
+        modelFamily === 'sdxl'
+          ? 'SDXL • fal-ai/lora/image-to-image'
+          : fluxEndpoint === 'flux2'
+            ? 'FLUX 2 • fal-ai/flux-2/lora/edit'
+            : 'FLUX 1 • fal-ai/flux-lora/image-to-image';
+
+      const gridDataUrl = await composeLoraTestGrid({
+        title: `LoRA TEST • ${loraName}`,
+        subtitle,
+        modelFamily,
+        fluxEndpoint,
+        entries,
+      });
+
+      setGenerated((prev) => prev.map((it) => (it.id === pendingId ? { id: pendingId, status: 'done', dataUrl: gridDataUrl } : it)));
+      try {
+        const thumb = await createThumbnail(gridDataUrl, 420);
+        await saveToGallery({
+          id: pendingId,
+          url: gridDataUrl,
+          thumbnail: thumb,
+          prompt: `LoRA test grid • ${loraName}`,
+          params: {
+            mode: 'lora-test-grid',
+            modelFamily,
+            fluxEndpoint: modelFamily === 'flux' ? fluxEndpoint : null,
+            lora: { path: baseLora.path, scale: baseLora.scale || 1 },
+            tests,
+          },
+        });
+      } catch {
+        // best effort
+      }
+
+      onToast({ type: 'success', message: `Test grid hotový (10 variant): ${loraName}` });
+    } catch (e: any) {
+      const msg = String(e?.message || e || 'Test grid selhal.');
+      setGenError(msg);
+      setGenerated((prev) => prev.filter((it) => it.id !== pendingId));
+      onToast({ type: 'error', message: msg });
+    } finally {
+      setIsTestingGrid(false);
+      setFalPhase('');
+      setGenPhase('');
+    }
+  }, [activeLoraPresets, customPrompt, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw]);
+
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
   const topbarLoraScale = loras[0]?.scale ?? 1.0;
@@ -614,10 +909,10 @@ export function FluxLoraGeneratorScreen(props: {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={!input || isGenerating}
+            disabled={!input || isGenerating || isTestingGrid}
             className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
           >
-            {isGenerating ? 'Generuji…' : 'Generovat'}
+            {isTestingGrid ? 'Testuji…' : isGenerating ? 'Generuji…' : 'Generovat'}
           </button>
 
           <div className="card-surface p-3 space-y-2">
@@ -754,6 +1049,17 @@ export function FluxLoraGeneratorScreen(props: {
                 trigger: <span className="text-[#7ed957]">{selectedTopbarLoraPreset.trigger}</span>
               </div>
             )}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={handleRunLoraTest}
+                disabled={!input || !loras.length || isGenerating || isTestingGrid}
+                className="px-2.5 py-1 rounded-md border border-white/15 bg-white/5 text-[9px] font-bold uppercase tracking-wider text-white/65 hover:text-white/90 hover:border-white/25 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
+                title="Vygenerovat testovací grid 10 nastavení pro aktuální LoRA"
+              >
+                Test 10×
+              </button>
+            </div>
           </div>
 
           {/* ── Image Size ── */}
