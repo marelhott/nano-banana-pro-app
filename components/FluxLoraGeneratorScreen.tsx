@@ -16,6 +16,9 @@ type OutputItem = {
   id: string;
   dataUrl?: string;
   status: 'pending' | 'done';
+  testSheetIndex?: number;
+  testSheetRange?: string;
+  isTestSheet?: boolean;
 };
 
 type LoraItem = {
@@ -385,6 +388,12 @@ export function FluxLoraGeneratorScreen(props: {
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isTestingGrid, setIsTestingGrid] = React.useState(false);
+  const [testProgress, setTestProgress] = React.useState<{
+    activeSheet: number;
+    globalIndex: number;
+    cfg: number;
+    steps: number;
+  } | null>(null);
   const [genError, setGenError] = React.useState('');
   const [falPhase, setFalPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [genPhase, setGenPhase] = React.useState<string>('');
@@ -724,6 +733,9 @@ export function FluxLoraGeneratorScreen(props: {
     const pendingItems: OutputItem[] = Array.from({ length: 3 }).map((_, idx) => ({
       id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-test-sheet-${idx}`,
       status: 'pending',
+      isTestSheet: true,
+      testSheetIndex: idx,
+      testSheetRange: idx === 0 ? '1-8' : idx === 1 ? '9-16' : '17-24',
     }));
     const pendingIdSet = new Set(pendingItems.map((p) => p.id));
     setGenerated((prev) => [...pendingItems, ...prev]);
@@ -770,6 +782,12 @@ export function FluxLoraGeneratorScreen(props: {
 
       for (let i = 0; i < tests.length; i++) {
         const t = tests[i];
+        setTestProgress({
+          activeSheet: Math.floor(i / 8),
+          globalIndex: i + 1,
+          cfg: t.cfg,
+          steps: t.steps,
+        });
         setGenPhase(`Test ${i + 1}/24 • cfg ${t.cfg.toFixed(1)} • steps ${t.steps}`);
         const perTestLora = [{ path: baseLora.path, scale: t.loraScale }];
         const { images } =
@@ -884,6 +902,7 @@ export function FluxLoraGeneratorScreen(props: {
       onToast({ type: 'error', message: msg });
     } finally {
       setIsTestingGrid(false);
+      setTestProgress(null);
       setFalPhase('');
       setGenPhase('');
     }
@@ -1323,6 +1342,20 @@ export function FluxLoraGeneratorScreen(props: {
                 const isPending = img.status === 'pending';
                 const canOpen = !isPending && !!img.dataUrl;
                 const isUpscaling = upscalingImageId === img.id;
+                const isTestSheetPending = isPending && !!img.isTestSheet;
+                const isActiveTestSheet =
+                  isTestSheetPending &&
+                  testProgress &&
+                  typeof img.testSheetIndex === 'number' &&
+                  img.testSheetIndex === testProgress.activeSheet;
+                const pendingPrimaryText = isTestSheetPending
+                  ? `SHEET ${(img.testSheetIndex || 0) + 1}/3 • ${img.testSheetRange || ''}`
+                  : falPhaseLabel || 'Generuji';
+                const pendingSecondaryText = isTestSheetPending
+                  ? isActiveTestSheet
+                    ? `Test ${testProgress?.globalIndex || 1}/24 • cfg ${(testProgress?.cfg || 0).toFixed(1)} • steps ${testProgress?.steps || 0}`
+                    : 'Čeká na řadu…'
+                  : genPhase || '…';
                 return (
                   <article key={img.id} className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all animate-fadeIn">
                     <div className="relative bg-black/50 aspect-square overflow-hidden" title={canOpen ? 'Klikni pro plné zobrazení' : 'Generuji…'}>
@@ -1344,9 +1377,9 @@ export function FluxLoraGeneratorScreen(props: {
                         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/55 backdrop-blur-sm px-6 transition-all duration-200">
                           <div className="w-10 h-10 rounded-full border-2 border-white/15 border-t-[#7ed957] animate-spin" />
                           <div className="mt-4 text-[11px] text-white/70 font-black uppercase tracking-widest">
-                            {falPhaseLabel || 'Generuji'}
+                            {pendingPrimaryText}
                           </div>
-                          <div className="mt-1 text-[10px] text-white/40">{genPhase || '…'}</div>
+                          <div className="mt-1 text-[10px] text-white/40">{pendingSecondaryText}</div>
                         </div>
                       )}
 
