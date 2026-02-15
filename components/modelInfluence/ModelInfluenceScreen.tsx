@@ -112,6 +112,10 @@ export function ModelInfluenceScreen(props: {
       if (v.includes('tuymans_style.safetensors')) {
         v = MODEL_PRESETS[0]?.value || '';
       }
+      // Back-compat: if user pasted a presigned R2 URL, normalize back to our r2:// ref.
+      if (v.includes('.r2.cloudflarestorage.com/models/checkpoints/') && v.includes('.safetensors')) {
+        v = MODEL_PRESETS[0]?.value || v;
+      }
       return v || MODEL_PRESETS[0]?.value || 'stabilityai/stable-diffusion-xl-base-1.0';
     } catch {
       return MODEL_PRESETS[0]?.value || 'stabilityai/stable-diffusion-xl-base-1.0';
@@ -175,10 +179,18 @@ export function ModelInfluenceScreen(props: {
     }
     let cleanModel = '';
     let modelDisplay = '';
+    let unetOverride: string | null = null;
     try {
       const resolved = await resolveModelName(modelName);
-      cleanModel = resolved.resolved;
       modelDisplay = resolved.display;
+      if (isR2Ref(modelDisplay)) {
+        // Equivalent to "explicit SDXL VAE": keep SDXL base as model_name (provides VAE + text encoders)
+        // and inject the custom weights as unet_name.
+        cleanModel = 'stabilityai/stable-diffusion-xl-base-1.0';
+        unetOverride = resolved.resolved;
+      } else {
+        cleanModel = resolved.resolved;
+      }
     } catch (e: any) {
       onToast({ type: 'error', message: e?.message || 'Neplatný model.' });
       return;
@@ -203,6 +215,9 @@ export function ModelInfluenceScreen(props: {
       const advancedInput = (() => {
         const base: Record<string, any> = {};
         const extra = parseJsonObject(advancedRaw);
+        // If we are using a custom checkpoint from R2, run it as UNet override on top of SDXL base.
+        // This often fixes VAE mismatch / decode glitches seen with full checkpoint loading.
+        if (unetOverride) base.unet_name = unetOverride;
         return { ...base, ...extra };
       })();
 
