@@ -107,7 +107,11 @@ export function ModelInfluenceScreen(props: {
   const [modelName, setModelName] = React.useState(() => {
     try {
       const raw = localStorage.getItem('modelInfluence.modelName');
-      const v = String(raw || '').trim();
+      let v = String(raw || '').trim();
+      // Back-compat: we deleted the old checkpoint key; if user has it cached, auto-migrate.
+      if (v.includes('tuymans_style.safetensors')) {
+        v = MODEL_PRESETS[0]?.value || '';
+      }
       return v || MODEL_PRESETS[0]?.value || 'stabilityai/stable-diffusion-xl-base-1.0';
     } catch {
       return MODEL_PRESETS[0]?.value || 'stabilityai/stable-diffusion-xl-base-1.0';
