@@ -3,6 +3,7 @@ import { Plus, X } from 'lucide-react';
 import { runFalLoraImg2ImgQueued } from '../../services/falService';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../../utils/galleryDB';
 import { isR2Ref, parseR2Ref, presignR2 } from '../../services/r2Service';
+import { fetchPublicConfig } from '../../services/publicConfig';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -165,7 +166,21 @@ export function ModelInfluenceScreen(props: {
       const b = bucket || 'models';
       if (!key) throw new Error('R2 ref je prázdný.');
 
-      // Give fal enough time to fetch a multi-GB checkpoint (and reuse its cache). This URL stays valid long enough.
+      // fal.ai often validates URLs via HEAD before downloading. Presigned URLs are method-specific
+      // (GET-signed URL fails HEAD), so we strongly prefer a public, stable URL without query params.
+      const cfg = await fetchPublicConfig();
+      const base =
+        b === 'models'
+          ? String(cfg.r2PublicModelsBaseUrl || '').trim()
+          : b === 'loras'
+            ? String(cfg.r2PublicLorasBaseUrl || '').trim()
+            : '';
+      if (base) {
+        const resolved = `${base.replace(/\/+$/, '')}/${key.replace(/^\/+/, '')}`;
+        return { resolved, display: clean };
+      }
+
+      // Fallback: presign (may fail on some fal endpoints due to HEAD validation).
       const { signedUrl } = await presignR2({ op: 'get', bucket: b, key, expires: 24 * 3600 });
       return { resolved: signedUrl, display: clean };
     },
