@@ -2,6 +2,7 @@ import React from 'react';
 import { Plus, X } from 'lucide-react';
 import { runFalLoraImg2ImgQueued } from '../../services/falService';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../../utils/galleryDB';
+import { isR2Ref, parseR2Ref, presignR2 } from '../../services/r2Service';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -76,6 +77,22 @@ function buildPromptlessAutoPrompt(): string {
   return 'image-to-image transformation, preserve subject identity and composition, high quality, detailed';
 }
 
+type ModelPreset = { id: string; label: string; value: string; hint?: string };
+
+const MODEL_PRESETS: ModelPreset[] = [
+  {
+    id: 'tuymans-r2',
+    label: 'Tuymans SDXL (R2 checkpoint)',
+    value: 'r2://models/checkpoints/tuymans_style.safetensors',
+    hint: 'Použije tvůj checkpoint uložený v Cloudflare R2.',
+  },
+  {
+    id: 'sdxl-base',
+    label: 'SDXL base (HF)',
+    value: 'stabilityai/stable-diffusion-xl-base-1.0',
+  },
+];
+
 export function ModelInfluenceScreen(props: {
   onOpenSettings: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
@@ -87,7 +104,15 @@ export function ModelInfluenceScreen(props: {
   const [denoise, setDenoise] = React.useState(0.45);
   const [steps, setSteps] = React.useState(30);
   const [variants, setVariants] = React.useState<1 | 2 | 3 | 4 | 5>(1);
-  const [modelName, setModelName] = React.useState('stabilityai/stable-diffusion-xl-base-1.0');
+  const [modelName, setModelName] = React.useState(() => {
+    try {
+      const raw = localStorage.getItem('modelInfluence.modelName');
+      const v = String(raw || '').trim();
+      return v || MODEL_PRESETS[0]?.value || 'stabilityai/stable-diffusion-xl-base-1.0';
+    } catch {
+      return MODEL_PRESETS[0]?.value || 'stabilityai/stable-diffusion-xl-base-1.0';
+    }
+  });
   const [advancedRaw, setAdvancedRaw] = React.useState('');
 
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -100,6 +125,14 @@ export function ModelInfluenceScreen(props: {
 
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('modelInfluence.modelName', String(modelName || ''));
+    } catch {
+      // ignore
+    }
+  }, [modelName]);
 
   const onPickInputFile = React.useCallback(
     async (file: File) => {
@@ -114,14 +147,36 @@ export function ModelInfluenceScreen(props: {
     [onToast]
   );
 
+  const resolveModelName = React.useCallback(
+    async (rawModel: string): Promise<{ resolved: string; display: string }> => {
+      const clean = String(rawModel || '').trim();
+      if (!clean) throw new Error('Zadej SDXL model (model_name).');
+      if (!isR2Ref(clean)) return { resolved: clean, display: clean };
+
+      const { bucket, key } = parseR2Ref(clean);
+      const b = bucket || 'models';
+      if (!key) throw new Error('R2 ref je prázdný.');
+
+      // Give fal enough time to fetch a multi-GB checkpoint (and reuse its cache). This URL stays valid long enough.
+      const { signedUrl } = await presignR2({ op: 'get', bucket: b, key, expires: 24 * 3600 });
+      return { resolved: signedUrl, display: clean };
+    },
+    []
+  );
+
   const handleGenerate = React.useCallback(async () => {
     if (!input?.dataUrl) {
       onToast({ type: 'error', message: 'Nahraj vstupní obrázek.' });
       return;
     }
-    const cleanModel = String(modelName || '').trim();
-    if (!cleanModel) {
-      onToast({ type: 'error', message: 'Zadej SDXL model (model_name).' });
+    let cleanModel = '';
+    let modelDisplay = '';
+    try {
+      const resolved = await resolveModelName(modelName);
+      cleanModel = resolved.resolved;
+      modelDisplay = resolved.display;
+    } catch (e: any) {
+      onToast({ type: 'error', message: e?.message || 'Neplatný model.' });
       return;
     }
 
@@ -191,7 +246,7 @@ export function ModelInfluenceScreen(props: {
             prompt: 'img2img',
             params: {
               engine: 'fal_sdxl_img2img',
-              modelName: cleanModel,
+              modelName: modelDisplay || String(modelName || '').trim(),
               cfg,
               strength: denoise,
               steps,
@@ -451,4 +506,3 @@ export function ModelInfluenceScreen(props: {
     </div>
   );
 }
-
