@@ -83,7 +83,7 @@ const MODEL_PRESETS: ModelPreset[] = [
   {
     id: 'tuymans-r2',
     label: 'Tuymans SDXL (R2 checkpoint)',
-    value: 'r2://models/checkpoints/tuymans_style.safetensors',
+    value: 'r2://models/checkpoints/Tuymans_SDXL.safetensors',
     hint: 'Použije tvůj checkpoint uložený v Cloudflare R2.',
   },
   {
