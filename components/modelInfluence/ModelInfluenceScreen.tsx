@@ -20,6 +20,19 @@ type OutputItem = {
 
 type FalLogLine = { message: string; level?: string; timestamp?: string };
 
+function pickDownloadProgressLine(lines: FalLogLine[]): string {
+  // Keep this minimal and human, not a wall of logs.
+  // Examples seen in fal logs:
+  // "6.25GB [03:11, 31.1MB/s]" / "6.34GB [03:13, 42.1MB/s]"
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const m = String(lines[i]?.message || '').trim();
+    if (!m) continue;
+    if (/\b\d+(?:\.\d+)?\s*GB\s*\[\d{2}:\d{2},\s*\d+(?:\.\d+)?\s*MB\/s\]/i.test(m)) return m;
+    if (/\b\d+(?:\.\d+)?\s*MB\s*\[\d{2}:\d{2},\s*\d+(?:\.\d+)?\s*MB\/s\]/i.test(m)) return m;
+  }
+  return '';
+}
+
 async function fileToDataUrl(file: File): Promise<string> {
   return await new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -134,6 +147,7 @@ export function ModelInfluenceScreen(props: {
   const [lightbox, setLightbox] = React.useState<string | null>(null);
   const [falLogs, setFalLogs] = React.useState<FalLogLine[]>([]);
   const [debugResolvedUrl, setDebugResolvedUrl] = React.useState('');
+  const [debugWarnings, setDebugWarnings] = React.useState<string[]>([]);
   const inputFileId = React.useMemo(() => `model-influence-input-${Math.random().toString(36).slice(2)}`, []);
 
   const falPhaseLabel =
@@ -213,6 +227,7 @@ export function ModelInfluenceScreen(props: {
 
     setLightbox(null);
     setFalLogs([]);
+    setDebugWarnings([]);
     setIsGenerating(true);
     setGenError('');
     setFalPhase('queue');
@@ -227,11 +242,36 @@ export function ModelInfluenceScreen(props: {
 
     try {
       const inputDataUrl = await shrinkDataUrl(input.dataUrl, 2_300_000);
-      const prompt = buildPromptlessAutoPrompt();
+      // For Dreamlook-style checkpoints, the trigger phrase is often required to “activate” the fine-tune.
+      // Keep it implicit (no prompt UI), but include it for our built-in Tuymans preset.
+      const needsTuymansTrigger =
+        String(modelName || '').includes('Tuymans_SDXL.safetensors') || String(cleanModel || '').includes('Tuymans_SDXL.safetensors');
+      const prompt = `${needsTuymansTrigger ? 'tuypaint, ' : ''}${buildPromptlessAutoPrompt()}`.trim();
       const advancedInput = (() => {
         const base: Record<string, any> = {};
         const extra = parseJsonObject(advancedRaw);
-        return { ...base, ...extra };
+
+        // Guardrails: fal `unet_name` expects a Diffusers-formatted UNet state dict (keys like conv_in.*).
+        // Passing a full .safetensors checkpoint here will hard-fail with "Missing key(s) in state_dict...".
+        // If user is already passing a full checkpoint as model_name, drop unet_name to prevent silent failures.
+        const warnings: string[] = [];
+        const extraOut: Record<string, any> = { ...extra };
+        if (typeof extraOut.unet_name === 'string' && extraOut.unet_name.trim()) {
+          const unet = extraOut.unet_name.trim();
+          const mdl = String(cleanModel || '').trim();
+          const looksLikeFullCkpt = (s: string) => s.endsWith('.safetensors') || s.endsWith('.ckpt');
+          if (mdl && looksLikeFullCkpt(mdl) && looksLikeFullCkpt(unet)) {
+            delete extraOut.unet_name;
+            warnings.push('Ignoruji `unet_name` (plný checkpoint patří do `model_name`, ne do `unet_name`).');
+          }
+          if (unet === mdl) {
+            delete extraOut.unet_name;
+            warnings.push('Ignoruji `unet_name` (stejná hodnota jako `model_name`).');
+          }
+        }
+        if (warnings.length) setDebugWarnings(warnings);
+
+        return { ...base, ...extraOut };
       })();
 
       const phaseHandler = (p: 'queue' | 'running' | 'finalizing') => {
@@ -413,6 +453,13 @@ export function ModelInfluenceScreen(props: {
                   <div className="mt-1">{debugResolvedUrl}</div>
                 </div>
               )}
+              {debugWarnings.length > 0 && (
+                <div className="text-[10px] text-amber-200/70 leading-5">
+                  {debugWarnings.map((w, i) => (
+                    <div key={i}>{w}</div>
+                  ))}
+                </div>
+              )}
               {falLogs.length > 0 && (
                 <div className="text-[10px] text-white/55 leading-5 max-h-[160px] overflow-auto custom-scrollbar font-mono">
                   {falLogs.slice(-18).map((l, i) => (
@@ -484,24 +531,6 @@ export function ModelInfluenceScreen(props: {
             <div className="mb-4 card-surface p-4 border border-rose-400/25">
               <div className="text-[10px] uppercase tracking-widest text-rose-200/80 font-bold">Chyba</div>
               <div className="mt-1 text-[11px] text-white/70 whitespace-pre-wrap break-words">{genError}</div>
-              {debugResolvedUrl && (
-                <div className="mt-3 text-[10px] text-white/40 font-mono break-words">
-                  resolved: {debugResolvedUrl}
-                </div>
-              )}
-            </div>
-          )}
-
-          {isGenerating && falLogs.length > 0 && (
-            <div className="mb-4 card-surface p-3">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">fal.ai log</div>
-              <div className="mt-2 text-[10px] text-white/60 leading-5 max-h-[110px] overflow-auto custom-scrollbar font-mono">
-                {falLogs.slice(-8).map((l, i) => (
-                  <div key={i} className="whitespace-pre-wrap break-words">
-                    {l.message}
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
@@ -539,8 +568,8 @@ export function ModelInfluenceScreen(props: {
                           </div>
                           <div className="mt-1 text-[10px] text-white/40">{genPhase || '…'}</div>
                           {falLogs.length > 0 && (
-                            <div className="mt-3 text-[10px] text-white/55 max-w-[320px] text-center leading-5 font-mono">
-                              {falLogs[falLogs.length - 1]?.message || ''}
+                            <div className="mt-3 text-[10px] text-white/55 max-w-[360px] text-center leading-5 font-mono">
+                              {pickDownloadProgressLine(falLogs) || falLogs[falLogs.length - 1]?.message || ''}
                             </div>
                           )}
                         </div>
