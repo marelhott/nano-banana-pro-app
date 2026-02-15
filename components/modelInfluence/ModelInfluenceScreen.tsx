@@ -198,18 +198,13 @@ export function ModelInfluenceScreen(props: {
     }
     let cleanModel = '';
     let modelDisplay = '';
-    let unetOverride: string | null = null;
     try {
       const resolved = await resolveModelName(modelName);
       modelDisplay = resolved.display;
-      if (isR2Ref(modelDisplay)) {
-        // Equivalent to "explicit SDXL VAE": keep SDXL base as model_name (provides VAE + text encoders)
-        // and inject the custom weights as unet_name.
-        cleanModel = 'stabilityai/stable-diffusion-xl-base-1.0';
-        unetOverride = resolved.resolved;
-      } else {
-        cleanModel = resolved.resolved;
-      }
+      // NOTE: We must pass the full checkpoint as model_name. The fal SDXL endpoint can load
+      // single-file SDXL checkpoints via model_name (URL/HF ID). Using unet_name expects a
+      // Diffusers-formatted UNet state dict and fails for A1111-style checkpoints.
+      cleanModel = resolved.resolved;
       setDebugResolvedUrl(resolved.resolved);
     } catch (e: any) {
       onToast({ type: 'error', message: e?.message || 'Neplatný model.' });
@@ -236,9 +231,6 @@ export function ModelInfluenceScreen(props: {
       const advancedInput = (() => {
         const base: Record<string, any> = {};
         const extra = parseJsonObject(advancedRaw);
-        // If we are using a custom checkpoint from R2, run it as UNet override on top of SDXL base.
-        // This often fixes VAE mismatch / decode glitches seen with full checkpoint loading.
-        if (unetOverride) base.unet_name = unetOverride;
         return { ...base, ...extra };
       })();
 
@@ -488,6 +480,18 @@ export function ModelInfluenceScreen(props: {
         </div>
 
         <div className="p-6">
+          {genError && (
+            <div className="mb-4 card-surface p-4 border border-rose-400/25">
+              <div className="text-[10px] uppercase tracking-widest text-rose-200/80 font-bold">Chyba</div>
+              <div className="mt-1 text-[11px] text-white/70 whitespace-pre-wrap break-words">{genError}</div>
+              {debugResolvedUrl && (
+                <div className="mt-3 text-[10px] text-white/40 font-mono break-words">
+                  resolved: {debugResolvedUrl}
+                </div>
+              )}
+            </div>
+          )}
+
           {isGenerating && falLogs.length > 0 && (
             <div className="mb-4 card-surface p-3">
               <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">fal.ai log</div>
