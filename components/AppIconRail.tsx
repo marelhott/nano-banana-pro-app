@@ -1,7 +1,7 @@
 import React from 'react';
-import { Brush, Grid3X3, Network, Flame } from 'lucide-react';
+import { Brush, Grid3X3, Network, Flame, Layers } from 'lucide-react';
 
-type RailRoute = 'mulen' | 'style-transfer' | 'flux-lora' | 'nodes';
+type RailRoute = 'mulen' | 'model-influence' | 'style-transfer' | 'flux-lora' | 'nodes';
 
 export function AppIconRail(props: {
   active: RailRoute;
@@ -12,6 +12,7 @@ export function AppIconRail(props: {
   const items: Array<{ id: RailRoute; label: string; icon: React.ReactNode }> = [
     // Icons reduced ~30% (18px -> 13px) and kept monochrome/neutral.
     { id: 'mulen', label: 'Mulen Nano', icon: <Grid3X3 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'model-influence', label: 'Model Influence', icon: <Layers className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'flux-lora', label: 'Lora Influence', icon: <Flame className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'nodes', label: 'Nodes', icon: <Network className="w-[13px] h-[13px]" strokeWidth={1.6} /> },

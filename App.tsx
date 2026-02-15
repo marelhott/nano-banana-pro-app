@@ -37,6 +37,7 @@ import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
 import { FluxLoraGeneratorScreen } from './components/FluxLoraGeneratorScreen';
+import { ModelInfluenceScreen } from './components/modelInfluence/ModelInfluenceScreen';
 import { NodesScreen } from './components/NodesScreen';
 import { PinAuth } from './components/PinAuth';
 import { MaskCanvas } from './components/MaskCanvas';
@@ -373,6 +374,7 @@ const App: React.FC = () => {
   const isLoraSdRoute = routePath === '/lora-sd' || routePath.startsWith('/lora-sd/');
   const isFluxLoraRoute = routePath === '/flux-lora' || routePath.startsWith('/flux-lora/');
   const isLoraInfluenceRoute = isFluxLoraRoute || isLoraSdRoute;
+  const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
   const isNodesHubRoute = routePath === '/nodes-hub' || routePath.startsWith('/nodes-hub/');
 
   // Nové state pro featury
@@ -3325,13 +3327,19 @@ ${extra}
             ? 'nodes'
             : isStyleTransferRoute
               ? 'style-transfer'
-              : isLoraInfluenceRoute
-                ? 'flux-lora'
-                : 'mulen'
+              : isModelInfluenceRoute
+                ? 'model-influence'
+                : isLoraInfluenceRoute
+                  ? 'flux-lora'
+                  : 'mulen'
         }
         onNavigate={(route) => {
           if (route === 'mulen') {
             navigate('/');
+            return;
+          }
+          if (route === 'model-influence') {
+            navigate('/model-influence');
             return;
           }
           if (route === 'style-transfer') {
@@ -3363,6 +3371,11 @@ ${extra}
               onBack={() => navigate('/')}
               onToast={(t) => setToast(t)}
               isHoveringGallery={isHoveringGallery}
+            />
+          ) : isModelInfluenceRoute ? (
+            <ModelInfluenceScreen
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onToast={(t) => setToast(t)}
             />
           ) : isNodesHubRoute ? (
             <NodesScreen onToast={(t) => setToast(t)} />
