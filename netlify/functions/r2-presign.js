@@ -15,6 +15,16 @@ function env(name) {
   return v;
 }
 
+function parseAllowedBuckets() {
+  const raw = String(process.env.R2_ALLOWED_BUCKETS || 'loras,models').trim();
+  return new Set(
+    raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+}
+
 function toAmzDate(d) {
   const pad = (n) => String(n).padStart(2, '0');
   return (
@@ -103,6 +113,7 @@ exports.handler = async (event) => {
 
     const op = String(body.op || '').toLowerCase();
     const key = String(body.key || '').replace(/^\/+/, '').trim();
+    const bucketOverride = String(body.bucket || '').trim();
     const expires = Math.max(60, Math.min(7 * 24 * 3600, Number(body.expires || 3600)));
     if (!op || (op !== 'get' && op !== 'put')) return json(400, { error: 'Invalid op (get|put)' });
     if (!key) return json(400, { error: 'Missing key' });
@@ -110,7 +121,15 @@ exports.handler = async (event) => {
     const accountId = env('R2_ACCOUNT_ID');
     const accessKeyId = env('R2_ACCESS_KEY_ID');
     const secretAccessKey = env('R2_SECRET_ACCESS_KEY');
-    const bucket = String(process.env.R2_BUCKET || 'loras').trim();
+    const allowedBuckets = parseAllowedBuckets();
+    const defaultBucket = String(process.env.R2_BUCKET || 'loras').trim();
+    const bucket = bucketOverride || defaultBucket;
+    if (!allowedBuckets.has(bucket)) {
+      return json(400, {
+        error: 'Bucket not allowed',
+        allowed: Array.from(allowedBuckets),
+      });
+    }
     const region = 'auto';
     const host = `${accountId}.r2.cloudflarestorage.com`;
 
@@ -126,4 +145,3 @@ exports.handler = async (event) => {
     return json(500, { error: 'r2 presign failed', detail: String(err?.message || err) });
   }
 };
-

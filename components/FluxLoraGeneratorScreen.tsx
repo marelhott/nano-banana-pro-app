@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, X, Save, Trash2 } from 'lucide-react';
 import { runFalFluxLoraImg2ImgQueued, runFalLoraImg2ImgQueued, runFalUpscaleQueued } from '../services/falService';
-import { presignR2, isR2Ref, r2KeyFromRef } from '../services/r2Service';
+import { presignR2, isR2Ref, parseR2Ref } from '../services/r2Service';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
 import { listFluxPresets, saveFluxPreset, deleteFluxPreset, type FluxPreset } from '../utils/fluxPresetsDB';
 
@@ -624,8 +624,8 @@ export function FluxLoraGeneratorScreen(props: {
               const path = String(l.path || '').trim();
               if (!path) return l;
               if (!isR2Ref(path)) return l;
-              const key = r2KeyFromRef(path);
-              const signed = await presignR2({ op: 'get', key, expires: 3600 });
+              const { bucket, key } = parseR2Ref(path);
+              const signed = await presignR2({ op: 'get', bucket, key, expires: 3600 });
               return { ...l, path: signed.signedUrl };
             })
           )
@@ -793,9 +793,9 @@ export function FluxLoraGeneratorScreen(props: {
           const path = String(l.path || '').trim();
           if (!path) return l;
           if (!isR2Ref(path)) return l;
-          const key = r2KeyFromRef(path);
-          const signed = await presignR2({ op: 'get', key, expires: 3600 });
-            return { ...l, path: signed.signedUrl };
+          const { bucket, key } = parseR2Ref(path);
+          const signed = await presignR2({ op: 'get', bucket, key, expires: 3600 });
+          return { ...l, path: signed.signedUrl };
         })
       );
       const baseLora = resolvedLoras[0];

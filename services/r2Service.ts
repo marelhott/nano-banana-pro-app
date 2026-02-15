@@ -12,6 +12,7 @@ function assertOk(res: Response, message: string) {
 
 export async function presignR2(params: {
   op: 'get' | 'put';
+  bucket?: string;
   key: string;
   expires?: number;
 }): Promise<R2PresignResponse> {
@@ -62,3 +63,16 @@ export function r2KeyFromRef(path: string): string {
   return v;
 }
 
+export function parseR2Ref(path: string): { bucket?: 'loras' | 'models'; key: string } {
+  const v = String(path || '').trim();
+  const raw = v.startsWith('r2://') ? v.slice('r2://'.length) : v.startsWith('r2:') ? v.slice('r2:'.length) : v;
+  const trimmed = raw.replace(/^\/+/, '');
+  const parts = trimmed.split('/').filter(Boolean);
+  const bucket = parts[0] === 'loras' || parts[0] === 'models' ? (parts[0] as 'loras' | 'models') : undefined;
+  const rest = bucket ? parts.slice(1).join('/') : parts.join('/');
+  // Back-compat: older uploads used "loras/<file>" inside bucket loras.
+  if (bucket === 'loras' && rest && !rest.startsWith('loras/')) {
+    return { bucket, key: `loras/${rest}` };
+  }
+  return { bucket, key: rest };
+}
