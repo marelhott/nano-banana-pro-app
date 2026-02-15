@@ -29,6 +29,7 @@ type FalLoraImg2ImgResponse = {
   request_id?: string;
   statusUrl?: string;
   resultUrl?: string;
+  logs?: any[];
 };
 
 function assertOk(res: Response, message: string) {
@@ -302,6 +303,7 @@ export async function runFalLoraImg2ImgQueued(params: {
   icLightImageUrl?: string;
   advancedInput?: Record<string, any>;
   onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
+  onLogs?: (logs: { message: string; level?: string; timestamp?: string }[]) => void;
   maxWaitMs?: number;
 }): Promise<{ images: string[]; usedSeed?: number }> {
   const endpointId = params.endpointId || 'fal-ai/lora/image-to-image';
@@ -353,6 +355,21 @@ export async function runFalLoraImg2ImgQueued(params: {
   let delayMs = 800;
   while (Date.now() < deadline) {
     const payload: any = await pollFalJob(headers, statusUrl, endpointId);
+    try {
+      const logsRaw = (payload?.logs || payload?.output?.logs || payload?.result?.logs || payload?.response?.logs) as any;
+      if (Array.isArray(logsRaw) && logsRaw.length > 0) {
+        const normalized = logsRaw
+          .map((l) => ({
+            message: String(l?.message || l?.msg || l?.text || l || '').trim(),
+            level: l?.level ? String(l.level) : undefined,
+            timestamp: l?.timestamp ? String(l.timestamp) : undefined,
+          }))
+          .filter((l) => !!l.message);
+        if (normalized.length) params.onLogs?.(normalized);
+      }
+    } catch {
+      // ignore log parsing
+    }
 
     // fal queue payloads vary; support common shapes.
     const status = String(payload?.status || payload?.state || '').toLowerCase();

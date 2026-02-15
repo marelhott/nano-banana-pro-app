@@ -18,6 +18,8 @@ type OutputItem = {
   status: 'pending' | 'done';
 };
 
+type FalLogLine = { message: string; level?: string; timestamp?: string };
+
 async function fileToDataUrl(file: File): Promise<string> {
   return await new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -130,6 +132,8 @@ export function ModelInfluenceScreen(props: {
   const [genPhase, setGenPhase] = React.useState<string>('');
   const [generated, setGenerated] = React.useState<OutputItem[]>([]);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
+  const [falLogs, setFalLogs] = React.useState<FalLogLine[]>([]);
+  const [debugResolvedUrl, setDebugResolvedUrl] = React.useState('');
   const inputFileId = React.useMemo(() => `model-influence-input-${Math.random().toString(36).slice(2)}`, []);
 
   const falPhaseLabel =
@@ -206,12 +210,14 @@ export function ModelInfluenceScreen(props: {
       } else {
         cleanModel = resolved.resolved;
       }
+      setDebugResolvedUrl(resolved.resolved);
     } catch (e: any) {
       onToast({ type: 'error', message: e?.message || 'Neplatný model.' });
       return;
     }
 
     setLightbox(null);
+    setFalLogs([]);
     setIsGenerating(true);
     setGenError('');
     setFalPhase('queue');
@@ -252,6 +258,12 @@ export function ModelInfluenceScreen(props: {
         numImages: variants,
         advancedInput,
         onPhase: phaseHandler,
+        onLogs: (lines) => {
+          setFalLogs((prev) => {
+            const next = [...prev, ...lines].slice(-200);
+            return next;
+          });
+        },
         maxWaitMs: 12 * 60_000,
       });
 
@@ -400,6 +412,27 @@ export function ModelInfluenceScreen(props: {
             />
           </div>
 
+          {(debugResolvedUrl || falLogs.length > 0) && (
+            <div className="card-surface p-3 space-y-2">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Debug</div>
+              {debugResolvedUrl && (
+                <div className="text-[10px] text-white/45 break-words font-mono">
+                  <div className="text-white/35">resolved URL</div>
+                  <div className="mt-1">{debugResolvedUrl}</div>
+                </div>
+              )}
+              {falLogs.length > 0 && (
+                <div className="text-[10px] text-white/55 leading-5 max-h-[160px] overflow-auto custom-scrollbar font-mono">
+                  {falLogs.slice(-18).map((l, i) => (
+                    <div key={i} className="whitespace-pre-wrap break-words">
+                      {l.message}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {genError && !isGenerating && (
             <div className="card-surface p-4 border border-rose-400/20">
               <div className="text-[10px] uppercase tracking-widest text-rose-200/80 font-bold">Chyba</div>
@@ -455,6 +488,19 @@ export function ModelInfluenceScreen(props: {
         </div>
 
         <div className="p-6">
+          {isGenerating && falLogs.length > 0 && (
+            <div className="mb-4 card-surface p-3">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">fal.ai log</div>
+              <div className="mt-2 text-[10px] text-white/60 leading-5 max-h-[110px] overflow-auto custom-scrollbar font-mono">
+                {falLogs.slice(-8).map((l, i) => (
+                  <div key={i} className="whitespace-pre-wrap break-words">
+                    {l.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-min">
             {generated.length === 0 ? (
               <div className="md:col-span-3 card-surface p-8 text-center text-white/45 text-[11px] uppercase tracking-widest">
@@ -488,6 +534,11 @@ export function ModelInfluenceScreen(props: {
                             {falPhaseLabel || 'Generuji'}
                           </div>
                           <div className="mt-1 text-[10px] text-white/40">{genPhase || '…'}</div>
+                          {falLogs.length > 0 && (
+                            <div className="mt-3 text-[10px] text-white/55 max-w-[320px] text-center leading-5 font-mono">
+                              {falLogs[falLogs.length - 1]?.message || ''}
+                            </div>
+                          )}
                         </div>
                       )}
 

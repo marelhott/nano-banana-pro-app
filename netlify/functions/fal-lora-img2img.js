@@ -20,6 +20,19 @@ async function requestWithTimeout(url, init = {}, timeoutMs = 180_000) {
   }
 }
 
+function withLogsQuery(url) {
+  // fal queue status endpoint supports `?logs=1` to include server logs.
+  try {
+    const u = new URL(url);
+    if (!u.pathname.endsWith('/status')) return url;
+    if (u.searchParams.has('logs')) return url;
+    u.searchParams.set('logs', '1');
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 function pickFirstHttpUrl(payload, candidates) {
   if (!payload || typeof payload !== 'object') return '';
   for (const c of candidates) {
@@ -131,7 +144,7 @@ exports.handler = async (event) => {
       const statusUrl = String(body?.statusUrl || body?.status_url || '').trim();
       if (!statusUrl || !statusUrl.startsWith('http')) return json(400, { error: 'Missing statusUrl' });
 
-      const upstream = await requestWithTimeout(statusUrl, {
+      const upstream = await requestWithTimeout(withLogsQuery(statusUrl), {
         method: 'GET',
         headers: {
           Authorization: `Key ${falKey}`,
