@@ -248,7 +248,8 @@ export function ModelInfluenceScreen(props: {
         String(modelName || '').includes('Tuymans_SDXL.safetensors') || String(cleanModel || '').includes('Tuymans_SDXL.safetensors');
       const prompt = `${needsTuymansTrigger ? 'tuypaint, ' : ''}${buildPromptlessAutoPrompt()}`.trim();
       const advancedInput = (() => {
-        const base: Record<string, any> = {};
+        // Explicit defaults (match fal schema + Dreamlook SDXL metadata).
+        const base: Record<string, any> = { prediction_type: 'epsilon', image_format: 'png' };
         const extra = parseJsonObject(advancedRaw);
 
         // Guardrails: fal `unet_name` expects a Diffusers-formatted UNet state dict (keys like conv_in.*).
