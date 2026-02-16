@@ -112,7 +112,8 @@ async function normalizeToSquare1024(dataUrl: string): Promise<string> {
   const ctx = canvas.getContext('2d');
   if (!ctx) return dataUrl;
 
-  const scale = Math.max(target / Math.max(1, img.width), target / Math.max(1, img.height));
+  // Keep the whole source visible inside 1024x1024 (no center-crop cut).
+  const scale = Math.min(target / Math.max(1, img.width), target / Math.max(1, img.height));
   const drawW = Math.max(1, Math.round(img.width * scale));
   const drawH = Math.max(1, Math.round(img.height * scale));
   const dx = Math.round((target - drawW) / 2);
@@ -168,6 +169,7 @@ export function ModelInfluenceScreen(props: {
   const [cfg, setCfg] = React.useState(7);
   const [denoise, setDenoise] = React.useState(0.45);
   const [steps, setSteps] = React.useState(30);
+  const [styleWeight, setStyleWeight] = React.useState(1.5);
   const [sampler, setSampler] = React.useState<SamplerId>('dpmpp_3m_sde');
   const [scheduler, setScheduler] = React.useState<SchedulerId>('karras');
   const [variants, setVariants] = React.useState<1 | 2 | 3 | 4 | 5>(1);
@@ -337,7 +339,16 @@ export function ModelInfluenceScreen(props: {
       // Keep it implicit (no prompt UI), but include it for our built-in Tuymans preset.
       const needsTuymansTrigger =
         String(modelName || '').includes('Tuymans_SDXL.safetensors') || String(cleanModel || '').includes('Tuymans_SDXL.safetensors');
-      const prompt = `${needsTuymansTrigger ? 'tuypaint style, ' : ''}style, painterly brushstrokes, oil painting texture, muted palette, preserve subject identity and composition`.trim();
+      const styleDirective =
+        styleWeight < 1
+          ? `subtle painterly style influence (${styleWeight.toFixed(2)})`
+          : styleWeight < 2
+            ? `moderate painterly style influence (${styleWeight.toFixed(2)})`
+            : styleWeight < 3
+              ? `strong painterly style transfer (${styleWeight.toFixed(2)})`
+              : `very strong painterly abstraction and brush texture transfer (${styleWeight.toFixed(2)})`;
+      const prompt = `${needsTuymansTrigger ? 'tuypaint style, ' : ''}${styleDirective}, painterly brushstrokes, oil painting texture, muted palette, preserve subject identity and composition`.trim();
+      const effectiveDenoise = Math.max(0.01, Math.min(1, denoise * (0.45 + styleWeight * 0.55)));
       const advancedInput = (() => {
         // Explicit defaults (match fal schema + Dreamlook SDXL metadata).
         const base: Record<string, any> = {
@@ -389,7 +400,7 @@ export function ModelInfluenceScreen(props: {
               sampler,
               scheduler,
               cfg,
-              denoise,
+              denoise: effectiveDenoise,
               steps,
               numImages: variants,
               advancedInput,
@@ -412,7 +423,7 @@ export function ModelInfluenceScreen(props: {
                 sampler: a1111Sampler,
                 scheduler,
                 cfg,
-                denoise,
+                denoise: effectiveDenoise,
                 steps,
                 batchSize: variants,
                 checkpointName: a1111CheckpointName,
@@ -451,8 +462,9 @@ export function ModelInfluenceScreen(props: {
               engine: backend === 'fal' ? 'fal_sdxl_img2img' : 'a1111_sdxl_img2img',
               modelName: modelDisplay || String(modelName || '').trim(),
               cfg,
-              strength: denoise,
+              strength: effectiveDenoise,
               steps,
+              styleWeight,
               sampler,
               scheduler,
               variants,
@@ -476,7 +488,7 @@ export function ModelInfluenceScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [advancedRaw, backend, cfg, denoise, input?.dataUrl, modelName, onToast, resolveModelName, sampler, scheduler, steps, variants]);
+  }, [advancedRaw, backend, cfg, denoise, input?.dataUrl, modelName, onToast, resolveModelName, sampler, scheduler, steps, styleWeight, variants]);
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -644,6 +656,19 @@ export function ModelInfluenceScreen(props: {
         <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
           <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
             <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Váha</div>
+              <input
+                type="range"
+                min={0.5}
+                max={4}
+                step={0.05}
+                value={styleWeight}
+                onChange={(e) => setStyleWeight(Number(e.target.value))}
+                className="w-[180px] h-[2px] accent-[#7ed957] opacity-80"
+              />
+              <div className="text-[10px] text-white/55 w-10 text-right">{styleWeight.toFixed(2)}</div>
+            </div>
+            <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
               <input
                 type="range"
@@ -795,7 +820,7 @@ export function ModelInfluenceScreen(props: {
           title="Dvojklik pro zavření"
         >
           <div
-            className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
+            className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-start justify-start"
             onDoubleClick={(e) => {
               e.stopPropagation();
               setLightbox(null);

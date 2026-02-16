@@ -223,8 +223,8 @@ async function normalizeToSquare1024(dataUrl: string): Promise<string> {
   const ctx = canvas.getContext('2d');
   if (!ctx) return dataUrl;
 
-  // "Center crop" style scaling like in Comfy ImageScale (crop=center).
-  const scale = Math.max(target / Math.max(1, img.width), target / Math.max(1, img.height));
+  // Keep whole source visible inside 1024x1024 (no crop).
+  const scale = Math.min(target / Math.max(1, img.width), target / Math.max(1, img.height));
   const drawW = Math.max(1, Math.round(img.width * scale));
   const drawH = Math.max(1, Math.round(img.height * scale));
   const dx = Math.round((target - drawW) / 2);
@@ -1263,10 +1263,10 @@ export function FluxLoraGeneratorScreen(props: {
           </div>
 
           {/* ── Model / Endpoint / LoRA ── */}
-          <div className="card-surface p-3 space-y-2">
+          <div className="card-surface p-3 space-y-2 overflow-hidden">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Model + endpoint + lora</div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">Model</div>
               <select
                 value={modelFamily}
@@ -1288,7 +1288,7 @@ export function FluxLoraGeneratorScreen(props: {
                     setSdxlScheduler('karras');
                   }
                 }}
-                className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
               >
                 <option value="flux">flux model</option>
                 <option value="sdxl">sdxl model</option>
@@ -1296,12 +1296,12 @@ export function FluxLoraGeneratorScreen(props: {
             </div>
 
             {modelFamily === 'sdxl' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">Checkpoint</div>
                 <select
                   value={sdxlCheckpointId}
                   onChange={(e) => setSdxlCheckpointId(e.target.value)}
-                  className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                  className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
                 >
                   {SDXL_CHECKPOINT_PRESETS.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -1312,7 +1312,7 @@ export function FluxLoraGeneratorScreen(props: {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">Endpoint</div>
               <select
                 value={fluxEndpoint}
@@ -1326,7 +1326,7 @@ export function FluxLoraGeneratorScreen(props: {
                   }
                 }}
                 disabled={modelFamily !== 'flux'}
-                className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <option value="flux1">flux 1 img2img</option>
                 <option value="flux2">flux 2 lora edit</option>
@@ -1334,11 +1334,11 @@ export function FluxLoraGeneratorScreen(props: {
             </div>
             {modelFamily === 'sdxl' && (
               <div className="text-[9px] text-white/40">
-                SDXL checkpoint režim používá <span className="text-white/60">fal.ai</span> + interní resize na <span className="text-[#7ed957]">1024×1024</span> (center crop).
+                SDXL checkpoint režim používá <span className="text-white/60">fal.ai</span> + interní fit na <span className="text-[#7ed957]">1024×1024</span> (bez ořezu).
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">LoRA</div>
               <select
                 value={selectedTopbarLoraId}
@@ -1354,7 +1354,7 @@ export function FluxLoraGeneratorScreen(props: {
                   const scale = loras[0]?.scale ?? 1.0;
                   setLoras([{ id, path: preset.url, scale }]);
                 }}
-                className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
               >
                 <option value="">(bez LoRA)</option>
                 {activeLoraPresets.map((p) => (
