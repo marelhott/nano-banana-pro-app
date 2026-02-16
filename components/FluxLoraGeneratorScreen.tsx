@@ -243,6 +243,25 @@ async function normalizeToSquare1024(dataUrl: string): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.92);
 }
 
+async function pickFluxImageSizeFromInput(dataUrl: string, fallback = 'square_hd'): Promise<string> {
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Nepodařilo se zjistit poměr vstupu.'));
+      i.src = dataUrl;
+    });
+    const w = Math.max(1, Number(img.width) || 1);
+    const h = Math.max(1, Number(img.height) || 1);
+    const ratio = w / h;
+    if (ratio > 1.22) return 'landscape_4_3';
+    if (ratio < 0.82) return 'portrait_4_3';
+    return 'square_hd';
+  } catch {
+    return fallback;
+  }
+}
+
 function loraHintFromPath(path: string, presets: HfPreset[]): string {
   const cleanPath = String(path || '').trim();
   if (!cleanPath) return '';
@@ -497,7 +516,7 @@ export function FluxLoraGeneratorScreen(props: {
 
   // New parameters (stored in presets)
   const [seed, setSeed] = React.useState<number | null>(null);
-  const [imageSize, setImageSize] = React.useState('landscape_4_3');
+  const [imageSize, setImageSize] = React.useState('auto');
   const [outputFormat, setOutputFormat] = React.useState<'jpeg' | 'png'>('jpeg');
   const [customPrompt, setCustomPrompt] = React.useState('');
   const [sdxlAdvancedRaw, setSdxlAdvancedRaw] = React.useState('');
@@ -763,6 +782,10 @@ export function FluxLoraGeneratorScreen(props: {
       if (normalizedLorasForRun.length !== normalizedLoras.length) {
         onToast({ type: 'info', message: 'FLUX 2 endpoint podporuje max 3 LoRA. Použity první 3.' });
       }
+      let effectiveImageSize = imageSize;
+      if (modelFamily === 'flux' && (!effectiveImageSize || effectiveImageSize === 'auto')) {
+        effectiveImageSize = await pickFluxImageSizeFromInput(inputDataUrl, 'square_hd');
+      }
       const phaseHandler = (p: 'queue' | 'running' | 'finalizing') => {
         setFalPhase(p);
         setGenPhase(p === 'queue' ? 'Ve frontě…' : p === 'running' ? 'Generuji…' : 'Dokončuji…');
@@ -798,7 +821,7 @@ export function FluxLoraGeneratorScreen(props: {
             seed: seed ?? undefined,
             numImages: requestedVariants,
             loras: normalizedLorasForRun,
-            imageSize,
+            imageSize: effectiveImageSize,
             outputFormat,
             onPhase: phaseHandler,
             maxWaitMs: 12 * 60_000,
@@ -836,6 +859,7 @@ export function FluxLoraGeneratorScreen(props: {
               modelName: modelFamily === 'sdxl' ? String(selectedSdxlCheckpoint?.modelName || SDXL_BASE_MODEL) : fluxEndpointId,
               checkpointId: modelFamily === 'sdxl' ? selectedSdxlCheckpoint?.id || null : null,
               fluxEndpoint: modelFamily === 'flux' ? fluxEndpoint : null,
+              imageSize: modelFamily === 'flux' ? effectiveImageSize : null,
               cfg,
               strength: denoise,
               steps,
@@ -955,6 +979,10 @@ export function FluxLoraGeneratorScreen(props: {
       const tests = testSheets
         .flat()
         .map((t, idx) => ({ ...t, label: String(idx + 1) }));
+      let effectiveImageSize = imageSize;
+      if (modelFamily === 'flux' && (!effectiveImageSize || effectiveImageSize === 'auto')) {
+        effectiveImageSize = await pickFluxImageSizeFromInput(inputDataUrl, 'square_hd');
+      }
       const phaseHandler = (p: 'queue' | 'running' | 'finalizing') => {
         setFalPhase(p);
       };
@@ -1000,7 +1028,7 @@ export function FluxLoraGeneratorScreen(props: {
               seed: testSeed,
               numImages: 1,
               loras: perTestLora,
-              imageSize,
+              imageSize: effectiveImageSize,
               outputFormat,
               onPhase: phaseHandler,
               maxWaitMs: 12 * 60_000,
@@ -1419,6 +1447,7 @@ export function FluxLoraGeneratorScreen(props: {
               disabled={modelFamily === 'sdxl'}
               className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] disabled:opacity-40"
             >
+              <option value="auto">Auto (dle vstupu)</option>
               <option value="square_hd">Square HD (1024×1024)</option>
               <option value="square">Square (512×512)</option>
               <option value="portrait_4_3">Portrait 4:3</option>
@@ -1696,12 +1725,15 @@ export function FluxLoraGeneratorScreen(props: {
       {lightbox && (
         <div
           className="fixed inset-0 z-50 bg-black/88 backdrop-blur-sm p-4"
-          onClick={() => setLightbox(null)}
-          title="Klikni mimo obrázek pro zavření"
+          onDoubleClick={() => setLightbox(null)}
+          title="Dvojklik pro zavření"
         >
           <div
             className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setLightbox(null);
+            }}
           >
             <img
               src={lightbox}

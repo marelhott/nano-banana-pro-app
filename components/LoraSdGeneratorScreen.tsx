@@ -1260,10 +1260,19 @@ export function LoraSdGeneratorScreen(props: {
 
       {lightbox && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
-          onClick={() => setLightbox(null)}
+          className="fixed inset-0 z-50 bg-black/88 backdrop-blur-sm p-4"
+          onDoubleClick={() => setLightbox(null)}
+          title="Dvojklik pro zavření"
         >
-          <img src={lightbox} alt="Preview" className="max-w-[92vw] max-h-[92vh] object-contain" />
+          <div
+            className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setLightbox(null);
+            }}
+          >
+            <img src={lightbox} alt="Preview" className="block w-auto h-auto max-w-[96vw] max-h-[96vh] object-contain" />
+          </div>
         </div>
       )}
     </div>

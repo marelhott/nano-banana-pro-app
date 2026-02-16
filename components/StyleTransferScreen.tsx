@@ -530,14 +530,21 @@ export function StyleTransferScreen(props: {
         </div>
 
         {lightboxUrl && (
-          <button
-            type="button"
-            className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setLightboxUrl(null)}
-            title="Zavřít"
+          <div
+            className="fixed inset-0 z-[80] bg-black/88 backdrop-blur-sm p-4"
+            onDoubleClick={() => setLightboxUrl(null)}
+            title="Dvojklik pro zavření"
           >
-            <img src={lightboxUrl} alt="Preview" className="max-w-[95vw] max-h-[92vh] rounded-lg shadow-2xl" />
-          </button>
+            <div
+              className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setLightboxUrl(null);
+              }}
+            >
+              <img src={lightboxUrl} alt="Preview" className="block w-auto h-auto max-w-[96vw] max-h-[96vh] object-contain" />
+            </div>
+          </div>
         )}
       </div>
     </>

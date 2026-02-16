@@ -89,7 +89,7 @@ export function StyleTransferOutputs(props: {
                 className="absolute inset-0"
                 title="Otevřít"
               />
-              <img src={o.url} alt={`Output ${idx + 1}`} className="w-full h-full object-cover opacity-95 group-hover:opacity-100 transition-opacity" draggable={false} />
+              <img src={o.url} alt={`Output ${idx + 1}`} className="w-full h-full object-contain bg-black/20 opacity-95 group-hover:opacity-100 transition-opacity" draggable={false} />
               <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[9px] font-bold uppercase tracking-wider text-white/70">Varianta {idx + 1}</div>

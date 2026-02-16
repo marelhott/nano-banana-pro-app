@@ -820,7 +820,7 @@ export function ModelInfluenceScreen(props: {
           title="Dvojklik pro zavření"
         >
           <div
-            className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-start justify-start"
+            className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
             onDoubleClick={(e) => {
               e.stopPropagation();
               setLightbox(null);
