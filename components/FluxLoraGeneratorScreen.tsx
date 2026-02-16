@@ -135,6 +135,11 @@ const SDXL_LORA_PRESETS: HfPreset[] = [
     label: 'sdxl tuymans',
     url: 'r2://loras/lora_tuymans_style.safetensors',
   },
+  {
+    id: 'sdxl_tuymans_v2',
+    label: 'sdxl tuymans v2',
+    url: 'r2://loras/lora_tuymans_SDXL.safetensors',
+  },
 ];
 
 function buildAutoPrompt(loraLabels: string[], triggers: string[] = []): string {
