@@ -791,12 +791,15 @@ export function ModelInfluenceScreen(props: {
       {lightbox && (
         <div
           className="fixed inset-0 z-50 bg-black/88 backdrop-blur-sm p-4"
-          onClick={() => setLightbox(null)}
-          title="Klikni mimo obrázek pro zavření"
+          onDoubleClick={() => setLightbox(null)}
+          title="Dvojklik pro zavření"
         >
           <div
             className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setLightbox(null);
+            }}
           >
             <img
               src={lightbox}
