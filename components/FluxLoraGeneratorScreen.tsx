@@ -48,6 +48,25 @@ type SdxlCheckpointPreset = {
   modelName: string;
   trigger?: string;
 };
+type GenerationRequest = {
+  inputDataUrl: string;
+  cfg: number;
+  denoise: number;
+  steps: number;
+  variants: 1 | 2 | 3 | 4 | 5;
+  modelFamily: ModelFamily;
+  fluxEndpoint: FluxEndpoint;
+  flux2Acceleration: Flux2Acceleration;
+  imageSize: string;
+  outputFormat: 'jpeg' | 'png';
+  customPrompt: string;
+  seed: number | null;
+  loras: LoraItem[];
+  sdxlAdvancedRaw: string;
+  sdxlSampler: SdxlSampler;
+  sdxlScheduler: SdxlScheduler;
+  sdxlCheckpointId: string;
+};
 
 const SDXL_BASE_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
 const SDXL_DEFAULT_NEGATIVE = 'photorealistic, cgi, 3d render, plastic, smooth, watermark, text, logo, blurry';
@@ -521,7 +540,8 @@ export function FluxLoraGeneratorScreen(props: {
   const [customPrompt, setCustomPrompt] = React.useState('');
   const [sdxlAdvancedRaw, setSdxlAdvancedRaw] = React.useState('');
 
-  const [generationJobs, setGenerationJobs] = React.useState(0);
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [queuedGenerations, setQueuedGenerations] = React.useState(0);
   const [isTestingGrid, setIsTestingGrid] = React.useState(false);
   const [testProgress, setTestProgress] = React.useState<{
     activeSheet: number;
@@ -555,6 +575,8 @@ export function FluxLoraGeneratorScreen(props: {
   const [generated, setGenerated] = React.useState<OutputItem[]>([]);
   const [upscalingImageId, setUpscalingImageId] = React.useState<string | null>(null);
   const [lightbox, setLightbox] = React.useState<string | null>(null);
+  const generationQueueRef = React.useRef<GenerationRequest[]>([]);
+  const queueRunnerRef = React.useRef(false);
   const inputFileId = React.useMemo(() => `flux-input-${Math.random().toString(36).slice(2)}`, []);
 
   React.useEffect(() => {
@@ -694,25 +716,80 @@ export function FluxLoraGeneratorScreen(props: {
     [onToast]
   );
 
-  const isGenerating = generationJobs > 0;
   const canGenerate = Boolean(input?.dataUrl) && !isTestingGrid;
   const fluxEndpointId =
     fluxEndpoint === 'flux2' ? 'fal-ai/flux-2/lora/edit' : 'fal-ai/flux-lora/image-to-image';
   const showDenoise = !(modelFamily === 'flux' && fluxEndpoint === 'flux2');
 
-  const handleGenerate = React.useCallback(async () => {
+  const buildGenerationRequest = React.useCallback((): GenerationRequest | null => {
     if (!input?.dataUrl) {
       onToast({ type: 'error', message: 'Nahraj vstupní obrázek.' });
-      return;
+      return null;
     }
+    return {
+      inputDataUrl: input.dataUrl,
+      cfg,
+      denoise,
+      steps,
+      variants,
+      modelFamily,
+      fluxEndpoint,
+      flux2Acceleration,
+      imageSize,
+      outputFormat,
+      customPrompt,
+      seed,
+      loras: loras.map((l) => ({ id: l.id, path: l.path, scale: l.scale })),
+      sdxlAdvancedRaw,
+      sdxlSampler,
+      sdxlScheduler,
+      sdxlCheckpointId,
+    };
+  }, [
+    cfg,
+    customPrompt,
+    denoise,
+    flux2Acceleration,
+    fluxEndpoint,
+    imageSize,
+    input?.dataUrl,
+    loras,
+    modelFamily,
+    onToast,
+    outputFormat,
+    sdxlAdvancedRaw,
+    sdxlCheckpointId,
+    sdxlSampler,
+    sdxlScheduler,
+    seed,
+    steps,
+    variants,
+  ]);
+
+  const runSingleGeneration = React.useCallback(async (request: GenerationRequest) => {
+    const reqActiveLoraPresets =
+      request.modelFamily === 'sdxl'
+        ? SDXL_LORA_PRESETS
+        : FLUX_LORA_PRESETS.filter((p) => {
+            const trainedOn = String(p.trainedOn || '').toLowerCase();
+            if (request.fluxEndpoint === 'flux2') return trainedOn.includes('flux.2');
+            return !trainedOn.includes('flux.2');
+          });
+    const reqFluxEndpointId =
+      request.fluxEndpoint === 'flux2' ? 'fal-ai/flux-2/lora/edit' : 'fal-ai/flux-lora/image-to-image';
+    const reqSdxlCheckpoint =
+      SDXL_CHECKPOINT_PRESETS.find((p) => p.id === request.sdxlCheckpointId) || SDXL_CHECKPOINT_PRESETS[0];
 
     setLightbox(null);
-    setGenerationJobs((n) => n + 1);
+    setIsGenerating(true);
     setGenError('');
     setFalPhase('queue');
     setGenPhase('Ve frontě…');
 
-    const effectiveVariants = modelFamily === 'flux' && fluxEndpoint === 'flux2' ? Math.min(4, variants) : variants;
+    const effectiveVariants =
+      request.modelFamily === 'flux' && request.fluxEndpoint === 'flux2'
+        ? Math.min(4, request.variants)
+        : request.variants;
 
     const pendingItems: OutputItem[] = Array.from({ length: effectiveVariants }).map((_, idx) => ({
       id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-${idx}`,
@@ -723,24 +800,24 @@ export function FluxLoraGeneratorScreen(props: {
 
     try {
       const maxBytes = 2_300_000;
-      let inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
-      if (modelFamily === 'sdxl') {
+      let inputDataUrl = await shrinkDataUrl(request.inputDataUrl, maxBytes);
+      if (request.modelFamily === 'sdxl') {
         inputDataUrl = await normalizeToSquare1024(inputDataUrl);
       }
 
-      const loraLabels = loras.map((l) => loraHintFromPath(l.path, activeLoraPresets));
-      const loraTriggers = loras
-        .map((l) => loraTriggerFromPath(l.path, activeLoraPresets))
+      const loraLabels = request.loras.map((l) => loraHintFromPath(l.path, reqActiveLoraPresets));
+      const loraTriggers = request.loras
+        .map((l) => loraTriggerFromPath(l.path, reqActiveLoraPresets))
         .filter(Boolean);
       const prompt =
-        customPrompt.trim() ||
-        (modelFamily === 'sdxl'
-          ? buildSdxlCheckpointPrompt(selectedSdxlCheckpoint?.trigger)
+        request.customPrompt.trim() ||
+        (request.modelFamily === 'sdxl'
+          ? buildSdxlCheckpointPrompt(reqSdxlCheckpoint?.trigger)
           : buildAutoPrompt(loraLabels, loraTriggers));
       const resolvedLoras =
-        loras.length > 0
+        request.loras.length > 0
           ? await Promise.all(
-            loras.map(async (l) => {
+            request.loras.map(async (l) => {
               const path = String(l.path || '').trim();
               if (!path) return l;
               if (!isR2Ref(path)) return l;
@@ -754,36 +831,38 @@ export function FluxLoraGeneratorScreen(props: {
       const normalizedLoras = resolvedLoras.map((l) => ({ path: l.path, scale: l.scale }));
       const requestedVariants = effectiveVariants;
       const normalizedLorasForRun =
-        modelFamily === 'flux' && fluxEndpoint === 'flux2' ? normalizedLoras.slice(0, 3) : normalizedLoras;
+        request.modelFamily === 'flux' && request.fluxEndpoint === 'flux2'
+          ? normalizedLoras.slice(0, 3)
+          : normalizedLoras;
       const sdxlModelName =
-        modelFamily === 'sdxl'
+        request.modelFamily === 'sdxl'
           ? (() => {
-            const model = String(selectedSdxlCheckpoint?.modelName || SDXL_BASE_MODEL).trim();
+            const model = String(reqSdxlCheckpoint?.modelName || SDXL_BASE_MODEL).trim();
             if (!isR2Ref(model)) return Promise.resolve(model);
             const { bucket, key } = parseR2Ref(model);
             return presignR2({ op: 'get', bucket, key, expires: 3600 }).then((signed) => signed.signedUrl);
           })()
           : undefined;
       const sdxlAdvancedInput =
-        modelFamily === 'sdxl'
+        request.modelFamily === 'sdxl'
           ? (() => {
             const base: Record<string, any> = {
-              image_format: outputFormat,
-              sampler: sdxlSampler,
-              scheduler: sdxlScheduler,
+              image_format: request.outputFormat,
+              sampler: request.sdxlSampler,
+              scheduler: request.sdxlScheduler,
             };
-            const extra = parseJsonObject(sdxlAdvancedRaw);
+            const extra = parseJsonObject(request.sdxlAdvancedRaw);
             return { ...base, ...extra };
           })()
           : undefined;
-      if (requestedVariants !== variants) {
+      if (requestedVariants !== request.variants) {
         onToast({ type: 'info', message: 'FLUX 2 endpoint umožňuje max 4 výstupy. Použito 4.' });
       }
       if (normalizedLorasForRun.length !== normalizedLoras.length) {
         onToast({ type: 'info', message: 'FLUX 2 endpoint podporuje max 3 LoRA. Použity první 3.' });
       }
-      let effectiveImageSize = imageSize;
-      if (modelFamily === 'flux' && (!effectiveImageSize || effectiveImageSize === 'auto')) {
+      let effectiveImageSize = request.imageSize;
+      if (request.modelFamily === 'flux' && (!effectiveImageSize || effectiveImageSize === 'auto')) {
         effectiveImageSize = await pickFluxImageSizeFromInput(inputDataUrl, 'square_hd');
       }
       const phaseHandler = (p: 'queue' | 'running' | 'finalizing') => {
@@ -792,18 +871,18 @@ export function FluxLoraGeneratorScreen(props: {
       };
 
       const { images, usedSeed } =
-        modelFamily === 'sdxl'
+        request.modelFamily === 'sdxl'
           ? await runFalLoraImg2ImgQueued({
             modelName: await sdxlModelName!,
             imageUrlOrDataUrl: inputDataUrl,
             prompt,
             negativePrompt: SDXL_DEFAULT_NEGATIVE,
-            sampler: sdxlSampler,
-            scheduler: sdxlScheduler,
-            cfg,
-            denoise,
-            steps,
-            seed: seed ?? undefined,
+            sampler: request.sdxlSampler,
+            scheduler: request.sdxlScheduler,
+            cfg: request.cfg,
+            denoise: request.denoise,
+            steps: request.steps,
+            seed: request.seed ?? undefined,
             numImages: requestedVariants,
             loras: normalizedLorasForRun,
             advancedInput: sdxlAdvancedInput,
@@ -811,18 +890,18 @@ export function FluxLoraGeneratorScreen(props: {
             maxWaitMs: 12 * 60_000,
           })
           : await runFalFluxLoraImg2ImgQueued({
-            endpointId: fluxEndpointId,
+            endpointId: reqFluxEndpointId,
             imageUrlOrDataUrl: inputDataUrl,
             prompt,
-            cfg,
-            denoise,
-            acceleration: flux2Acceleration,
-            steps,
-            seed: seed ?? undefined,
+            cfg: request.cfg,
+            denoise: request.denoise,
+            acceleration: request.flux2Acceleration,
+            steps: request.steps,
+            seed: request.seed ?? undefined,
             numImages: requestedVariants,
             loras: normalizedLorasForRun,
             imageSize: effectiveImageSize,
-            outputFormat,
+            outputFormat: request.outputFormat,
             onPhase: phaseHandler,
             maxWaitMs: 12 * 60_000,
           });
@@ -854,22 +933,25 @@ export function FluxLoraGeneratorScreen(props: {
             resolution: undefined,
             aspectRatio: undefined,
             params: {
-              engine: modelFamily === 'sdxl' ? 'fal_lora_img2img' : 'fal_flux_lora_img2img',
-              modelFamily,
-              modelName: modelFamily === 'sdxl' ? String(selectedSdxlCheckpoint?.modelName || SDXL_BASE_MODEL) : fluxEndpointId,
-              checkpointId: modelFamily === 'sdxl' ? selectedSdxlCheckpoint?.id || null : null,
-              fluxEndpoint: modelFamily === 'flux' ? fluxEndpoint : null,
-              imageSize: modelFamily === 'flux' ? effectiveImageSize : null,
-              cfg,
-              strength: denoise,
-              steps,
-              sampler: modelFamily === 'sdxl' ? sdxlSampler : null,
-              scheduler: modelFamily === 'sdxl' ? sdxlScheduler : null,
+              engine: request.modelFamily === 'sdxl' ? 'fal_lora_img2img' : 'fal_flux_lora_img2img',
+              modelFamily: request.modelFamily,
+              modelName:
+                request.modelFamily === 'sdxl'
+                  ? String(reqSdxlCheckpoint?.modelName || SDXL_BASE_MODEL)
+                  : reqFluxEndpointId,
+              checkpointId: request.modelFamily === 'sdxl' ? reqSdxlCheckpoint?.id || null : null,
+              fluxEndpoint: request.modelFamily === 'flux' ? request.fluxEndpoint : null,
+              imageSize: request.modelFamily === 'flux' ? effectiveImageSize : null,
+              cfg: request.cfg,
+              strength: request.denoise,
+              steps: request.steps,
+              sampler: request.modelFamily === 'sdxl' ? request.sdxlSampler : null,
+              scheduler: request.modelFamily === 'sdxl' ? request.sdxlScheduler : null,
               seed: typeof usedSeed === 'number' ? usedSeed : null,
               variants: requestedVariants,
-              loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
+              loras: request.loras.map((l) => ({ path: l.path, scale: l.scale })),
               promptMode: 'auto',
-              advancedInput: modelFamily === 'sdxl' ? sdxlAdvancedRaw || null : null,
+              advancedInput: request.modelFamily === 'sdxl' ? request.sdxlAdvancedRaw || null : null,
             },
           });
         } catch {
@@ -884,16 +966,43 @@ export function FluxLoraGeneratorScreen(props: {
       setGenerated((prev) => prev.filter((it) => !pendingIdSet.has(it.id)));
       onToast({ type: 'error', message: msg });
     } finally {
-      setGenerationJobs((n) => {
-        const next = Math.max(0, n - 1);
-        if (next === 0) {
-          setFalPhase('');
-          setGenPhase('');
-        }
-        return next;
-      });
+      setIsGenerating(false);
+      setFalPhase('');
+      setGenPhase('');
     }
-  }, [activeLoraPresets, cfg, customPrompt, denoise, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw, sdxlCheckpointId, sdxlSampler, sdxlScheduler, seed, selectedSdxlCheckpoint, steps, variants]);
+  }, [onToast]);
+
+  const drainGenerationQueue = React.useCallback(async () => {
+    if (queueRunnerRef.current || isTestingGrid) return;
+    queueRunnerRef.current = true;
+    try {
+      while (generationQueueRef.current.length > 0) {
+        const next = generationQueueRef.current.shift();
+        setQueuedGenerations(generationQueueRef.current.length);
+        if (!next) continue;
+        await runSingleGeneration(next);
+        await new Promise((resolve) => setTimeout(resolve, 180));
+      }
+    } finally {
+      queueRunnerRef.current = false;
+      setQueuedGenerations(generationQueueRef.current.length);
+    }
+  }, [isTestingGrid, runSingleGeneration]);
+
+  const handleGenerate = React.useCallback(() => {
+    const request = buildGenerationRequest();
+    if (!request) return;
+
+    generationQueueRef.current.push(request);
+    const waitingCount = queueRunnerRef.current ? generationQueueRef.current.length : Math.max(0, generationQueueRef.current.length - 1);
+    setQueuedGenerations(waitingCount);
+
+    if (queueRunnerRef.current || isGenerating) {
+      onToast({ type: 'info', message: `Generování zařazeno do fronty (${waitingCount}).` });
+    }
+
+    void drainGenerationQueue();
+  }, [buildGenerationRequest, drainGenerationQueue, isGenerating, onToast]);
 
   const handleRunLoraTest = React.useCallback(async (profile: TestProfile = 'balanced') => {
     if (!input?.dataUrl) {
@@ -1247,7 +1356,7 @@ export function FluxLoraGeneratorScreen(props: {
             disabled={!input || isTestingGrid}
             className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
           >
-            {isTestingGrid ? 'Testuji…' : isGenerating ? `Generuji (${generationJobs})…` : 'Generovat'}
+            {isTestingGrid ? 'Testuji…' : isGenerating ? `Generuji… ${queuedGenerations > 0 ? `(+${queuedGenerations})` : ''}` : 'Generovat'}
           </button>
 
           <div className="card-surface p-3 space-y-2">
