@@ -74,6 +74,8 @@ export async function runA1111Img2Img(params: {
   denoise: number;
   cfg: number;
   steps: number;
+  sampler?: string;
+  scheduler?: string;
   seed?: number; // -1/random if omitted
   batchSize: 1 | 2 | 3 | 4 | 5;
   checkpointName: string; // local checkpoint filename or title known to A1111
@@ -104,13 +106,14 @@ export async function runA1111Img2Img(params: {
     seed,
     batch_size: params.batchSize,
     n_iter: 1,
-    sampler_index: 'Euler a', // stable default
+    sampler_index: params.sampler || 'Euler a', // stable default
     override_settings: {
       sd_model_checkpoint: params.checkpointName,
       sd_vae: vaeToUse,
     },
     override_settings_restore_afterwards: true,
   };
+  if (params.scheduler) payload.scheduler = params.scheduler;
 
   // Fire the generation request and poll progress in parallel.
   let done = false;
@@ -152,4 +155,3 @@ export async function probeA1111Options(): Promise<A1111Options> {
   if (!baseUrl || !baseUrl.startsWith('http')) throw new Error('A1111 není nastavené.');
   return await fetchJson<A1111Options>(`${baseUrl}/sdapi/v1/options`);
 }
-

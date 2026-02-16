@@ -20,6 +20,24 @@ type OutputItem = {
 };
 
 type FalLogLine = { message: string; level?: string; timestamp?: string };
+type SamplerId = 'dpmpp_3m_sde' | 'dpmpp_2m_sde' | 'dpmpp_2m' | 'euler' | 'euler_a' | 'ddim';
+type SchedulerId = 'karras' | 'normal' | 'simple' | 'ddim_uniform' | 'sgm_uniform';
+
+const SAMPLER_OPTIONS: Array<{ id: SamplerId; label: string; a1111: string }> = [
+  { id: 'dpmpp_3m_sde', label: 'dpmpp_3m_sde', a1111: 'DPM++ 3M SDE' },
+  { id: 'dpmpp_2m_sde', label: 'dpmpp_2m_sde', a1111: 'DPM++ 2M SDE' },
+  { id: 'dpmpp_2m', label: 'dpmpp_2m', a1111: 'DPM++ 2M' },
+  { id: 'euler', label: 'euler', a1111: 'Euler' },
+  { id: 'euler_a', label: 'euler_a', a1111: 'Euler a' },
+  { id: 'ddim', label: 'ddim', a1111: 'DDIM' },
+];
+const SCHEDULER_OPTIONS: Array<{ id: SchedulerId; label: string }> = [
+  { id: 'karras', label: 'karras' },
+  { id: 'normal', label: 'normal' },
+  { id: 'simple', label: 'simple' },
+  { id: 'ddim_uniform', label: 'ddim_uniform' },
+  { id: 'sgm_uniform', label: 'sgm_uniform' },
+];
 
 function pickDownloadProgressLine(lines: FalLogLine[]): string {
   // Keep this minimal and human, not a wall of logs.
@@ -79,6 +97,35 @@ async function shrinkDataUrl(dataUrl: string, maxBytes: number): Promise<string>
   return canvas.toDataURL('image/jpeg', 0.45);
 }
 
+async function normalizeToSquare1024(dataUrl: string): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('Nepodařilo se načíst obrázek pro normalizaci 1024.'));
+    i.src = dataUrl;
+  });
+
+  const target = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = target;
+  canvas.height = target;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return dataUrl;
+
+  const scale = Math.max(target / Math.max(1, img.width), target / Math.max(1, img.height));
+  const drawW = Math.max(1, Math.round(img.width * scale));
+  const drawH = Math.max(1, Math.round(img.height * scale));
+  const dx = Math.round((target - drawW) / 2);
+  const dy = Math.round((target - drawH) / 2);
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, target, target);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, dx, dy, drawW, drawH);
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
 function parseJsonObject(raw: string): Record<string, any> {
   const trimmed = raw.trim();
   if (!trimmed) return {};
@@ -117,18 +164,12 @@ export function ModelInfluenceScreen(props: {
   const { onToast } = props;
 
   const [input, setInput] = React.useState<ImageSlot | null>(null);
-  const [backend, setBackend] = React.useState<'fal' | 'a1111'>(() => {
-    try {
-      const raw = localStorage.getItem('modelInfluence.backend');
-      const v = String(raw || '').trim();
-      return v === 'a1111' ? 'a1111' : 'fal';
-    } catch {
-      return 'fal';
-    }
-  });
+  const [backend, setBackend] = React.useState<'fal' | 'a1111'>('fal');
   const [cfg, setCfg] = React.useState(7);
   const [denoise, setDenoise] = React.useState(0.45);
   const [steps, setSteps] = React.useState(30);
+  const [sampler, setSampler] = React.useState<SamplerId>('dpmpp_3m_sde');
+  const [scheduler, setScheduler] = React.useState<SchedulerId>('karras');
   const [variants, setVariants] = React.useState<1 | 2 | 3 | 4 | 5>(1);
   const [modelName, setModelName] = React.useState(() => {
     try {
@@ -290,15 +331,21 @@ export function ModelInfluenceScreen(props: {
     setGenerated((prev) => [...pendingItems, ...prev]);
 
     try {
-      const inputDataUrl = await shrinkDataUrl(input.dataUrl, 2_300_000);
+      let inputDataUrl = await shrinkDataUrl(input.dataUrl, 2_300_000);
+      inputDataUrl = await normalizeToSquare1024(inputDataUrl);
       // For Dreamlook-style checkpoints, the trigger phrase is often required to “activate” the fine-tune.
       // Keep it implicit (no prompt UI), but include it for our built-in Tuymans preset.
       const needsTuymansTrigger =
         String(modelName || '').includes('Tuymans_SDXL.safetensors') || String(cleanModel || '').includes('Tuymans_SDXL.safetensors');
-      const prompt = `${needsTuymansTrigger ? 'tuypaint, ' : ''}${buildPromptlessAutoPrompt()}`.trim();
+      const prompt = `${needsTuymansTrigger ? 'tuypaint style, ' : ''}style, painterly brushstrokes, oil painting texture, muted palette, preserve subject identity and composition`.trim();
       const advancedInput = (() => {
         // Explicit defaults (match fal schema + Dreamlook SDXL metadata).
-        const base: Record<string, any> = { prediction_type: 'epsilon', image_format: 'png' };
+        const base: Record<string, any> = {
+          prediction_type: 'epsilon',
+          image_format: 'png',
+          sampler,
+          scheduler,
+        };
         const extra = parseJsonObject(advancedRaw);
 
         // Guardrails: fal `unet_name` expects a Diffusers-formatted UNet state dict (keys like conv_in.*).
@@ -330,6 +377,7 @@ export function ModelInfluenceScreen(props: {
       };
 
       const negativePrompt = 'blurry, low quality, watermark, text, logo';
+      const a1111Sampler = SAMPLER_OPTIONS.find((s) => s.id === sampler)?.a1111 || 'Euler a';
 
       const { images } =
         backend === 'fal'
@@ -338,6 +386,8 @@ export function ModelInfluenceScreen(props: {
               imageUrlOrDataUrl: inputDataUrl,
               prompt,
               negativePrompt,
+              sampler,
+              scheduler,
               cfg,
               denoise,
               steps,
@@ -359,6 +409,8 @@ export function ModelInfluenceScreen(props: {
                 imageDataUrl: inputDataUrl,
                 prompt,
                 negativePrompt,
+                sampler: a1111Sampler,
+                scheduler,
                 cfg,
                 denoise,
                 steps,
@@ -401,6 +453,8 @@ export function ModelInfluenceScreen(props: {
               cfg,
               strength: denoise,
               steps,
+              sampler,
+              scheduler,
               variants,
               promptMode: 'auto_hidden',
               advancedInput: advancedRaw || null,
@@ -422,7 +476,7 @@ export function ModelInfluenceScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [advancedRaw, cfg, denoise, input?.dataUrl, modelName, onToast, steps, variants]);
+  }, [advancedRaw, backend, cfg, denoise, input?.dataUrl, modelName, onToast, resolveModelName, sampler, scheduler, steps, variants]);
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -447,27 +501,27 @@ export function ModelInfluenceScreen(props: {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setBackend('a1111')}
-                className={`flex-1 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                  backend === 'a1111'
-                    ? 'bg-[#0f1512] border-[#7ed957]/40 text-[#7ed957]'
-                    : 'bg-[var(--bg-input)] border-[var(--border-color)] text-white/55 hover:text-white/80'
-                }`}
-                title="A1111 (doporučeno pro vlastní checkpoint + SDXL VAE)"
-              >
-                A1111
-              </button>
-              <button
-                type="button"
                 onClick={() => setBackend('fal')}
                 className={`flex-1 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-colors ${
                   backend === 'fal'
                     ? 'bg-[#0f1512] border-[#7ed957]/40 text-[#7ed957]'
                     : 'bg-[var(--bg-input)] border-[var(--border-color)] text-white/55 hover:text-white/80'
                 }`}
-                title="fal.ai (rychlé, ale u custom checkpointů může být VAE omezení)"
+                title="fal.ai (výchozí)"
               >
                 FAL
+              </button>
+              <button
+                type="button"
+                onClick={() => setBackend('a1111')}
+                className={`flex-1 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  backend === 'a1111'
+                    ? 'bg-[#0f1512] border-[#7ed957]/40 text-[#7ed957]'
+                    : 'bg-[var(--bg-input)] border-[var(--border-color)] text-white/55 hover:text-white/80'
+                }`}
+                title="A1111 (lokální backend)"
+              >
+                A1111
               </button>
             </div>
           </div>
@@ -534,7 +588,7 @@ export function ModelInfluenceScreen(props: {
               placeholder={backend === 'a1111' ? 'Tuymans_SDXL.safetensors' : 'stabilityai/stable-diffusion-xl-base-1.0'}
             />
             <div className="text-[9px] text-white/35">
-              Bez promptu v UI: posíláme automatický prompt. {backend === 'fal' ? 'Pokročilé věci (scheduler/controlnet/ip-adapter) dej do Advanced JSON.' : 'A1111 backend používá SDXL VAE (auto/podle Nastavení).'}
+              Vstup se před generováním normalizuje na 1024×1024 (center crop). Bez promptu v UI: posíláme automatický stylový prompt s triggerem checkpointu.
             </div>
           </div>
 
@@ -588,7 +642,7 @@ export function ModelInfluenceScreen(props: {
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
         <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-nowrap items-center gap-5 overflow-x-auto custom-scrollbar">
+          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
               <input
@@ -627,6 +681,34 @@ export function ModelInfluenceScreen(props: {
                 className="w-[180px] h-[2px] accent-[#7ed957] opacity-80"
               />
               <div className="text-[10px] text-white/55 w-10 text-right">{steps}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Sampler</div>
+              <select
+                value={sampler}
+                onChange={(e) => setSampler(e.target.value as SamplerId)}
+                className="w-[160px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+              >
+                {SAMPLER_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Scheduler</div>
+              <select
+                value={scheduler}
+                onChange={(e) => setScheduler(e.target.value as SchedulerId)}
+                className="w-[145px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+              >
+                {SCHEDULER_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
