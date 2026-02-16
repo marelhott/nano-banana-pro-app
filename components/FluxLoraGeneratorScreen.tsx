@@ -40,8 +40,47 @@ type ModelFamily = 'flux' | 'sdxl';
 type FluxEndpoint = 'flux1' | 'flux2';
 type Flux2Acceleration = 'none' | 'regular' | 'high';
 type TestProfile = 'balanced' | 'aggressive';
+type SdxlSampler = 'euler' | 'euler_a' | 'dpmpp_2m' | 'dpmpp_2m_sde' | 'dpmpp_3m_sde' | 'ddim';
+type SdxlScheduler = 'karras' | 'normal' | 'simple' | 'ddim_uniform' | 'sgm_uniform';
+type SdxlCheckpointPreset = {
+  id: string;
+  label: string;
+  modelName: string;
+  trigger?: string;
+};
 
 const SDXL_BASE_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
+const SDXL_DEFAULT_NEGATIVE = 'photorealistic, cgi, 3d render, plastic, smooth, watermark, text, logo, blurry';
+const SDXL_DEFAULT_PROMPT_SUFFIX =
+  'style, painterly brushstrokes, oil painting texture, muted palette, preserve subject identity and composition';
+const SDXL_SAMPLER_OPTIONS: Array<{ id: SdxlSampler; label: string }> = [
+  { id: 'dpmpp_3m_sde', label: 'dpmpp_3m_sde' },
+  { id: 'dpmpp_2m_sde', label: 'dpmpp_2m_sde' },
+  { id: 'dpmpp_2m', label: 'dpmpp_2m' },
+  { id: 'euler', label: 'euler' },
+  { id: 'euler_a', label: 'euler_a' },
+  { id: 'ddim', label: 'ddim' },
+];
+const SDXL_SCHEDULER_OPTIONS: Array<{ id: SdxlScheduler; label: string }> = [
+  { id: 'karras', label: 'karras' },
+  { id: 'normal', label: 'normal' },
+  { id: 'simple', label: 'simple' },
+  { id: 'ddim_uniform', label: 'ddim_uniform' },
+  { id: 'sgm_uniform', label: 'sgm_uniform' },
+];
+const SDXL_CHECKPOINT_PRESETS: SdxlCheckpointPreset[] = [
+  {
+    id: 'tuymans_checkpoint',
+    label: 'Tuymans SDXL (R2 checkpoint)',
+    modelName: 'r2://models/checkpoints/Tuymans_SDXL.safetensors',
+    trigger: 'tuypaint',
+  },
+  {
+    id: 'sdxl_base',
+    label: 'SDXL base 1.0',
+    modelName: SDXL_BASE_MODEL,
+  },
+];
 
 // User-provided Flux LoRA export (fal media URLs).
 const FLUX_LORA_PRESETS: HfPreset[] = [
@@ -116,6 +155,12 @@ function buildAutoPrompt(loraLabels: string[], triggers: string[] = []): string 
   return `high quality image-to-image transformation, preserve subject identity and composition, painterly rendering, ${style}${triggerPart}`;
 }
 
+function buildSdxlCheckpointPrompt(trigger?: string): string {
+  const t = String(trigger || '').trim();
+  if (t) return `${t} ${SDXL_DEFAULT_PROMPT_SUFFIX}`;
+  return `painterly ${SDXL_DEFAULT_PROMPT_SUFFIX}`;
+}
+
 async function fileToDataUrl(file: File): Promise<string> {
   const blob = file;
   return await new Promise((resolve, reject) => {
@@ -161,6 +206,36 @@ async function shrinkDataUrl(dataUrl: string, maxBytes: number): Promise<string>
     if (estimateBytes(out) <= maxBytes) return out;
   }
   return canvas.toDataURL('image/jpeg', 0.45);
+}
+
+async function normalizeToSquare1024(dataUrl: string): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('Nepodařilo se načíst obrázek pro normalizaci 1024.'));
+    i.src = dataUrl;
+  });
+
+  const target = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = target;
+  canvas.height = target;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return dataUrl;
+
+  // "Center crop" style scaling like in Comfy ImageScale (crop=center).
+  const scale = Math.max(target / Math.max(1, img.width), target / Math.max(1, img.height));
+  const drawW = Math.max(1, Math.round(img.width * scale));
+  const drawH = Math.max(1, Math.round(img.height * scale));
+  const dx = Math.round((target - drawW) / 2);
+  const dy = Math.round((target - drawH) / 2);
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, target, target);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, dx, dy, drawW, drawH);
+  return canvas.toDataURL('image/jpeg', 0.92);
 }
 
 function loraHintFromPath(path: string, presets: HfPreset[]): string {
@@ -407,6 +482,9 @@ export function FluxLoraGeneratorScreen(props: {
   const [cfg, setCfg] = React.useState(2.5);
   const [denoise, setDenoise] = React.useState(0.35);
   const [steps, setSteps] = React.useState(28);
+  const [sdxlSampler, setSdxlSampler] = React.useState<SdxlSampler>('dpmpp_3m_sde');
+  const [sdxlScheduler, setSdxlScheduler] = React.useState<SdxlScheduler>('karras');
+  const [sdxlCheckpointId, setSdxlCheckpointId] = React.useState<string>(SDXL_CHECKPOINT_PRESETS[0].id);
   const [variants, setVariants] = React.useState<1 | 2 | 3 | 4 | 5>(1);
   const [modelFamily, setModelFamily] = React.useState<ModelFamily>('flux');
   const [fluxEndpoint, setFluxEndpoint] = React.useState<FluxEndpoint>('flux2');
@@ -504,6 +582,12 @@ export function FluxLoraGeneratorScreen(props: {
       if (matchSdxl) {
         setModelFamily('sdxl');
         setFluxEndpoint('flux1');
+        setCfg(6.6);
+        setSteps(36);
+        setDenoise(0.5);
+        setSdxlSampler('dpmpp_3m_sde');
+        setSdxlScheduler('karras');
+        setSdxlCheckpointId(SDXL_CHECKPOINT_PRESETS[0].id);
       } else if (matchFlux) {
         setModelFamily('flux');
         const trainedOn = String(matchFlux.trainedOn || '').toLowerCase();
@@ -568,6 +652,10 @@ export function FluxLoraGeneratorScreen(props: {
     const hit = activeLoraPresets.find((p) => p.url === loras[0].path);
     return hit ? hit.id : '__custom__';
   }, [activeLoraPresets, loras]);
+  const selectedSdxlCheckpoint = React.useMemo(
+    () => SDXL_CHECKPOINT_PRESETS.find((p) => p.id === sdxlCheckpointId) || SDXL_CHECKPOINT_PRESETS[0],
+    [sdxlCheckpointId]
+  );
 
   const onPickInputFile = React.useCallback(
     async (file: File) => {
@@ -610,13 +698,20 @@ export function FluxLoraGeneratorScreen(props: {
 
     try {
       const maxBytes = 2_300_000;
-      const inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
+      let inputDataUrl = await shrinkDataUrl(input.dataUrl, maxBytes);
+      if (modelFamily === 'sdxl') {
+        inputDataUrl = await normalizeToSquare1024(inputDataUrl);
+      }
 
       const loraLabels = loras.map((l) => loraHintFromPath(l.path, activeLoraPresets));
       const loraTriggers = loras
         .map((l) => loraTriggerFromPath(l.path, activeLoraPresets))
         .filter(Boolean);
-      const prompt = customPrompt.trim() || buildAutoPrompt(loraLabels, loraTriggers);
+      const prompt =
+        customPrompt.trim() ||
+        (modelFamily === 'sdxl'
+          ? buildSdxlCheckpointPrompt(selectedSdxlCheckpoint?.trigger)
+          : buildAutoPrompt(loraLabels, loraTriggers));
       const resolvedLoras =
         loras.length > 0
           ? await Promise.all(
@@ -635,10 +730,23 @@ export function FluxLoraGeneratorScreen(props: {
       const requestedVariants = effectiveVariants;
       const normalizedLorasForRun =
         modelFamily === 'flux' && fluxEndpoint === 'flux2' ? normalizedLoras.slice(0, 3) : normalizedLoras;
+      const sdxlModelName =
+        modelFamily === 'sdxl'
+          ? (() => {
+            const model = String(selectedSdxlCheckpoint?.modelName || SDXL_BASE_MODEL).trim();
+            if (!isR2Ref(model)) return Promise.resolve(model);
+            const { bucket, key } = parseR2Ref(model);
+            return presignR2({ op: 'get', bucket, key, expires: 3600 }).then((signed) => signed.signedUrl);
+          })()
+          : undefined;
       const sdxlAdvancedInput =
         modelFamily === 'sdxl'
           ? (() => {
-            const base: Record<string, any> = { image_format: outputFormat };
+            const base: Record<string, any> = {
+              image_format: outputFormat,
+              sampler: sdxlSampler,
+              scheduler: sdxlScheduler,
+            };
             const extra = parseJsonObject(sdxlAdvancedRaw);
             return { ...base, ...extra };
           })()
@@ -657,10 +765,12 @@ export function FluxLoraGeneratorScreen(props: {
       const { images, usedSeed } =
         modelFamily === 'sdxl'
           ? await runFalLoraImg2ImgQueued({
-            modelName: SDXL_BASE_MODEL,
+            modelName: await sdxlModelName!,
             imageUrlOrDataUrl: inputDataUrl,
             prompt,
-            negativePrompt: 'blurry, low quality, watermark, text, logo',
+            negativePrompt: SDXL_DEFAULT_NEGATIVE,
+            sampler: sdxlSampler,
+            scheduler: sdxlScheduler,
             cfg,
             denoise,
             steps,
@@ -717,11 +827,14 @@ export function FluxLoraGeneratorScreen(props: {
             params: {
               engine: modelFamily === 'sdxl' ? 'fal_lora_img2img' : 'fal_flux_lora_img2img',
               modelFamily,
-              modelName: modelFamily === 'sdxl' ? SDXL_BASE_MODEL : fluxEndpointId,
+              modelName: modelFamily === 'sdxl' ? String(selectedSdxlCheckpoint?.modelName || SDXL_BASE_MODEL) : fluxEndpointId,
+              checkpointId: modelFamily === 'sdxl' ? selectedSdxlCheckpoint?.id || null : null,
               fluxEndpoint: modelFamily === 'flux' ? fluxEndpoint : null,
               cfg,
               strength: denoise,
               steps,
+              sampler: modelFamily === 'sdxl' ? sdxlSampler : null,
+              scheduler: modelFamily === 'sdxl' ? sdxlScheduler : null,
               seed: typeof usedSeed === 'number' ? usedSeed : null,
               variants: requestedVariants,
               loras: loras.map((l) => ({ path: l.path, scale: l.scale })),
@@ -745,7 +858,7 @@ export function FluxLoraGeneratorScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [activeLoraPresets, cfg, customPrompt, denoise, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw, seed, steps, variants]);
+  }, [activeLoraPresets, cfg, customPrompt, denoise, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw, sdxlCheckpointId, sdxlSampler, sdxlScheduler, seed, selectedSdxlCheckpoint, steps, variants]);
 
   const handleRunLoraTest = React.useCallback(async (profile: TestProfile = 'balanced') => {
     if (!input?.dataUrl) {
@@ -778,12 +891,17 @@ export function FluxLoraGeneratorScreen(props: {
         onToast({ type: 'info', message: 'Test běží na první vybrané LoRA (pro čisté porovnání).' });
       }
 
-      const inputDataUrl = await shrinkDataUrl(input.dataUrl, 2_300_000);
+      let inputDataUrl = await shrinkDataUrl(input.dataUrl, 2_300_000);
+      if (modelFamily === 'sdxl') {
+        inputDataUrl = await normalizeToSquare1024(inputDataUrl);
+      }
       const loraLabels = loras.map((l) => loraHintFromPath(l.path, activeLoraPresets));
       const loraTriggers = loras.map((l) => loraTriggerFromPath(l.path, activeLoraPresets)).filter(Boolean);
       const prompt =
         customPrompt.trim() ||
-        `${buildAutoPrompt(loraLabels, loraTriggers)}, emphasize visible painterly brushwork and style texture`;
+        (modelFamily === 'sdxl'
+          ? `${buildSdxlCheckpointPrompt(selectedSdxlCheckpoint?.trigger)}, emphasize visible painterly brushwork and style texture`
+          : `${buildAutoPrompt(loraLabels, loraTriggers)}, emphasize visible painterly brushwork and style texture`);
       const testSeed =
         typeof seed === 'number' && Number.isFinite(seed)
           ? Math.floor(seed)
@@ -804,9 +922,22 @@ export function FluxLoraGeneratorScreen(props: {
       const sdxlAdvancedInput =
         modelFamily === 'sdxl'
           ? (() => {
-            const base: Record<string, any> = { image_format: outputFormat };
+            const base: Record<string, any> = {
+              image_format: outputFormat,
+              sampler: sdxlSampler,
+              scheduler: sdxlScheduler,
+            };
             const extra = parseJsonObject(sdxlAdvancedRaw);
             return { ...base, ...extra };
+          })()
+          : undefined;
+      const sdxlModelName =
+        modelFamily === 'sdxl'
+          ? (() => {
+            const model = String(selectedSdxlCheckpoint?.modelName || SDXL_BASE_MODEL).trim();
+            if (!isR2Ref(model)) return Promise.resolve(model);
+            const { bucket, key } = parseR2Ref(model);
+            return presignR2({ op: 'get', bucket, key, expires: 3600 }).then((signed) => signed.signedUrl);
           })()
           : undefined;
       const testSheets = buildLoraTestSheets(modelFamily, fluxEndpoint, baseLora.scale || 1, profile);
@@ -831,10 +962,12 @@ export function FluxLoraGeneratorScreen(props: {
         const { images } =
           modelFamily === 'sdxl'
             ? await runFalLoraImg2ImgQueued({
-              modelName: SDXL_BASE_MODEL,
+              modelName: await sdxlModelName!,
               imageUrlOrDataUrl: inputDataUrl,
               prompt,
-              negativePrompt: 'blurry, low quality, watermark, text, logo',
+              negativePrompt: SDXL_DEFAULT_NEGATIVE,
+              sampler: sdxlSampler,
+              scheduler: sdxlScheduler,
               cfg: t.cfg,
               denoise: t.denoise,
               steps: t.steps,
@@ -950,7 +1083,7 @@ export function FluxLoraGeneratorScreen(props: {
       setFalPhase('');
       setGenPhase('');
     }
-  }, [activeLoraPresets, customPrompt, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw]);
+  }, [activeLoraPresets, customPrompt, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw, sdxlCheckpointId, sdxlSampler, sdxlScheduler, selectedSdxlCheckpoint]);
 
   const handleUpscale = React.useCallback(
     async (source: OutputItem) => {
@@ -1145,8 +1278,14 @@ export function FluxLoraGeneratorScreen(props: {
                     setFlux2Acceleration('regular');
                     setCfg(2.5);
                     setSteps(28);
+                    setDenoise(0.35);
                   } else {
                     setFluxEndpoint('flux1');
+                    setCfg(6.6);
+                    setSteps(36);
+                    setDenoise(0.5);
+                    setSdxlSampler('dpmpp_3m_sde');
+                    setSdxlScheduler('karras');
                   }
                 }}
                 className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
@@ -1155,6 +1294,23 @@ export function FluxLoraGeneratorScreen(props: {
                 <option value="sdxl">sdxl model</option>
               </select>
             </div>
+
+            {modelFamily === 'sdxl' && (
+              <div className="flex items-center gap-2">
+                <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">Checkpoint</div>
+                <select
+                  value={sdxlCheckpointId}
+                  onChange={(e) => setSdxlCheckpointId(e.target.value)}
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                >
+                  {SDXL_CHECKPOINT_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">Endpoint</div>
@@ -1176,6 +1332,11 @@ export function FluxLoraGeneratorScreen(props: {
                 <option value="flux2">flux 2 lora edit</option>
               </select>
             </div>
+            {modelFamily === 'sdxl' && (
+              <div className="text-[9px] text-white/40">
+                SDXL checkpoint režim používá <span className="text-white/60">fal.ai</span> + interní resize na <span className="text-[#7ed957]">1024×1024</span> (center crop).
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">LoRA</div>
@@ -1324,7 +1485,39 @@ export function FluxLoraGeneratorScreen(props: {
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
         <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-nowrap items-center gap-5 overflow-x-auto custom-scrollbar">
+          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
+            {modelFamily === 'sdxl' && (
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Sampler</div>
+                <select
+                  value={sdxlSampler}
+                  onChange={(e) => setSdxlSampler(e.target.value as SdxlSampler)}
+                  className="w-[150px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                >
+                  {SDXL_SAMPLER_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {modelFamily === 'sdxl' && (
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Scheduler</div>
+                <select
+                  value={sdxlScheduler}
+                  onChange={(e) => setSdxlScheduler(e.target.value as SdxlScheduler)}
+                  className="w-[140px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                >
+                  {SDXL_SCHEDULER_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Váha</div>
               <input

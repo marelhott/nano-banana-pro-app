@@ -94,6 +94,8 @@ export async function runFalLoraImg2Img(params: {
   imageUrlOrDataUrl: string;
   prompt: string;
   negativePrompt?: string;
+  sampler?: string;
+  scheduler?: string;
   cfg: number;
   denoise: number;
   steps: number;
@@ -136,6 +138,8 @@ export async function runFalLoraImg2Img(params: {
   if (params.icLightModelUrl?.trim()) input.ic_light_model_url = params.icLightModelUrl.trim();
   if (params.icLightModelBackgroundImageUrl?.trim()) input.ic_light_model_background_image_url = params.icLightModelBackgroundImageUrl.trim();
   if (params.icLightImageUrl?.trim()) input.ic_light_image_url = params.icLightImageUrl.trim();
+  if (params.sampler?.trim()) input.sampler = params.sampler.trim();
+  if (params.scheduler?.trim()) input.scheduler = params.scheduler.trim();
   if (params.advancedInput && typeof params.advancedInput === 'object') {
     Object.assign(input, params.advancedInput);
   }
@@ -285,6 +289,8 @@ export async function runFalLoraImg2ImgQueued(params: {
   imageUrlOrDataUrl: string;
   prompt: string;
   negativePrompt?: string;
+  sampler?: string;
+  scheduler?: string;
   cfg: number;
   denoise: number;
   steps: number;
@@ -317,6 +323,8 @@ export async function runFalLoraImg2ImgQueued(params: {
     num_images: params.numImages,
   };
   if (params.negativePrompt?.trim()) input.negative_prompt = params.negativePrompt.trim();
+  if (params.sampler?.trim()) input.sampler = params.sampler.trim();
+  if (params.scheduler?.trim()) input.scheduler = params.scheduler.trim();
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
   const loras = buildFalLoras(params.loras);
   if (loras) input.loras = loras;
