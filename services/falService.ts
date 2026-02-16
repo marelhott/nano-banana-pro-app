@@ -32,6 +32,47 @@ type FalLoraImg2ImgResponse = {
   logs?: any[];
 };
 
+const FAL_SDXL_SCHEDULERS = new Set([
+  'DPM++ 2M',
+  'DPM++ 2M Karras',
+  'DPM++ 2M SDE',
+  'DPM++ 2M SDE Karras',
+  'Euler',
+  'Euler A',
+  'Euler (trailing timesteps)',
+  'LCM',
+  'LCM (trailing timesteps)',
+  'DDIM',
+  'TCD',
+]);
+
+function isFalSdxlSchedulerValue(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  return FAL_SDXL_SCHEDULERS.has(value.trim());
+}
+
+function toFalSdxlSchedulerValue(sampler?: string, scheduler?: string): string | null {
+  const s = String(sampler || '').trim().toLowerCase();
+  const sch = String(scheduler || '').trim().toLowerCase();
+  const wantsKarras = sch === 'karras';
+  const wantsTrailing = sch === 'simple' || sch === 'ddim_uniform' || sch === 'sgm_uniform';
+
+  if (s === 'dpmpp_2m' || s === 'dpmpp_2m_karras') return wantsKarras ? 'DPM++ 2M Karras' : 'DPM++ 2M';
+  if (s === 'dpmpp_2m_sde' || s === 'dpmpp_3m_sde' || s === 'dpmpp_3m_sde_gpu') {
+    return wantsKarras ? 'DPM++ 2M SDE Karras' : 'DPM++ 2M SDE';
+  }
+  if (s === 'euler_a') return 'Euler A';
+  if (s === 'euler') return wantsTrailing ? 'Euler (trailing timesteps)' : 'Euler';
+  if (s === 'ddim') return 'DDIM';
+  if (s === 'lcm') return wantsTrailing ? 'LCM (trailing timesteps)' : 'LCM';
+  if (s === 'tcd') return 'TCD';
+
+  if (sch === 'karras') return 'DPM++ 2M SDE Karras';
+  if (sch === 'simple' || sch === 'ddim_uniform' || sch === 'sgm_uniform') return 'Euler (trailing timesteps)';
+  if (sch === 'normal') return 'DPM++ 2M SDE';
+  return null;
+}
+
 function assertOk(res: Response, message: string) {
   if (!res.ok) throw new Error(`${message} (HTTP ${res.status})`);
 }
@@ -114,6 +155,7 @@ export async function runFalLoraImg2Img(params: {
   icLightImageUrl?: string;
   advancedInput?: Record<string, any>;
 }): Promise<{ images: string[]; usedSeed?: number }> {
+  const endpointId = params.endpointId || 'fal-ai/lora/image-to-image';
   const input: Record<string, any> = {
     model_name: params.modelName,
     image_url: params.imageUrlOrDataUrl,
@@ -138,10 +180,19 @@ export async function runFalLoraImg2Img(params: {
   if (params.icLightModelUrl?.trim()) input.ic_light_model_url = params.icLightModelUrl.trim();
   if (params.icLightModelBackgroundImageUrl?.trim()) input.ic_light_model_background_image_url = params.icLightModelBackgroundImageUrl.trim();
   if (params.icLightImageUrl?.trim()) input.ic_light_image_url = params.icLightImageUrl.trim();
-  if (params.sampler?.trim()) input.sampler = params.sampler.trim();
-  if (params.scheduler?.trim()) input.scheduler = params.scheduler.trim();
   if (params.advancedInput && typeof params.advancedInput === 'object') {
     Object.assign(input, params.advancedInput);
+  }
+  if (endpointId === 'fal-ai/lora/image-to-image') {
+    const existingScheduler = typeof input.scheduler === 'string' ? input.scheduler.trim() : '';
+    if (!isFalSdxlSchedulerValue(existingScheduler)) {
+      const mappedScheduler = toFalSdxlSchedulerValue(String(input.sampler || params.sampler || ''), String(input.scheduler || params.scheduler || ''));
+      if (mappedScheduler) input.scheduler = mappedScheduler;
+    }
+    if ('sampler' in input) delete input.sampler;
+  } else {
+    if (params.sampler?.trim()) input.sampler = params.sampler.trim();
+    if (params.scheduler?.trim()) input.scheduler = params.scheduler.trim();
   }
 
   const falKey = getFalKeyFromStorage();
@@ -153,7 +204,7 @@ export async function runFalLoraImg2Img(params: {
   const res = await fetch('/api/fal/lora-img2img', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ endpointId: params.endpointId || 'fal-ai/lora/image-to-image', input }),
+    body: JSON.stringify({ endpointId, input }),
   });
 
   const rawText = await res.text();
@@ -323,8 +374,6 @@ export async function runFalLoraImg2ImgQueued(params: {
     num_images: params.numImages,
   };
   if (params.negativePrompt?.trim()) input.negative_prompt = params.negativePrompt.trim();
-  if (params.sampler?.trim()) input.sampler = params.sampler.trim();
-  if (params.scheduler?.trim()) input.scheduler = params.scheduler.trim();
   if (typeof params.seed === 'number' && Number.isFinite(params.seed)) input.seed = Math.floor(params.seed);
   const loras = buildFalLoras(params.loras);
   if (loras) input.loras = loras;
@@ -340,6 +389,17 @@ export async function runFalLoraImg2ImgQueued(params: {
   if (params.icLightImageUrl?.trim()) input.ic_light_image_url = params.icLightImageUrl.trim();
   if (params.advancedInput && typeof params.advancedInput === 'object') {
     Object.assign(input, params.advancedInput);
+  }
+  if (endpointId === 'fal-ai/lora/image-to-image') {
+    const existingScheduler = typeof input.scheduler === 'string' ? input.scheduler.trim() : '';
+    if (!isFalSdxlSchedulerValue(existingScheduler)) {
+      const mappedScheduler = toFalSdxlSchedulerValue(String(input.sampler || params.sampler || ''), String(input.scheduler || params.scheduler || ''));
+      if (mappedScheduler) input.scheduler = mappedScheduler;
+    }
+    if ('sampler' in input) delete input.sampler;
+  } else {
+    if (params.sampler?.trim()) input.sampler = params.sampler.trim();
+    if (params.scheduler?.trim()) input.scheduler = params.scheduler.trim();
   }
 
   const falKey = getFalKeyFromStorage();
