@@ -26,6 +26,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showFalKey, setShowFalKey] = useState(false);
     const [testing, setTesting] = useState<AIProviderType | null>(null);
     const [testingFal, setTestingFal] = useState(false);
+    const [testingA1111, setTestingA1111] = useState(false);
     const [testResults, setTestResults] = useState<Record<AIProviderType, 'success' | 'error' | null>>({
         [AIProviderType.GEMINI]: null,
         [AIProviderType.GROK]: null,
@@ -33,6 +34,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         [AIProviderType.REPLICATE]: null
     });
     const [falTestResult, setFalTestResult] = useState<'success' | 'error' | null>(null);
+    const [a1111TestResult, setA1111TestResult] = useState<'success' | 'error' | null>(null);
 
     useEffect(() => {
         setLocalSettings(settings);
@@ -113,6 +115,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setFalTestResult(null);
     };
 
+    const handleA1111BaseUrlChange = (baseUrl: string) => {
+        setLocalSettings({
+            ...localSettings,
+            a1111: {
+                baseUrl,
+                sdxlVae: localSettings?.a1111?.sdxlVae,
+                enabled: baseUrl.trim() !== ''
+            }
+        });
+        setA1111TestResult(null);
+    };
+
+    const handleA1111VaeChange = (sdxlVae: string) => {
+        setLocalSettings({
+            ...localSettings,
+            a1111: {
+                baseUrl: localSettings?.a1111?.baseUrl || '',
+                sdxlVae,
+                enabled: Boolean(String(localSettings?.a1111?.baseUrl || '').trim())
+            }
+        });
+        setA1111TestResult(null);
+    };
+
     const testFalConnection = async () => {
         const apiKey = String(localSettings?.fal?.apiKey || '').trim();
         if (!apiKey) {
@@ -135,6 +161,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             setFalTestResult('error');
         } finally {
             setTestingFal(false);
+        }
+    };
+
+    const testA1111Connection = async () => {
+        const baseUrl = String(localSettings?.a1111?.baseUrl || '').trim().replace(/\/+$/, '');
+        if (!baseUrl || !baseUrl.startsWith('http')) {
+            setA1111TestResult('error');
+            return;
+        }
+
+        setTestingA1111(true);
+        setA1111TestResult(null);
+        try {
+            // Simple probe: A1111 exposes options endpoint.
+            const res = await fetch(`${baseUrl}/sdapi/v1/options`, { method: 'GET' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            setA1111TestResult('success');
+        } catch (error) {
+            console.error('Test failed for A1111:', error);
+            setA1111TestResult('error');
+        } finally {
+            setTestingA1111(false);
         }
     };
 
@@ -313,6 +361,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
                             >
                                 {testingFal ? 'Testuji...' : 'Otestovat připojení'}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 bg-[var(--bg-input)] rounded flex items-center justify-center">
+                                <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
+                                </svg>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-sm text-[var(--text-primary)] uppercase tracking-wider">SDXL GPU (A1111 API)</h3>
+                                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                                    Pro vlastní SDXL checkpoint + explicitní SDXL VAE (stabilní dekódování bez glitch).
+                                </p>
+                            </div>
+                            {a1111TestResult === 'success' && (
+                                <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 text-green-500 text-xs font-bold rounded">
+                                    ✓ OK
+                                </div>
+                            )}
+                            {a1111TestResult === 'error' && (
+                                <div className="px-2 py-1 bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold rounded">
+                                    ✗ Chyba
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">
+                                    Base URL
+                                </label>
+                                <input
+                                    value={localSettings?.a1111?.baseUrl || ''}
+                                    onChange={(e) => handleA1111BaseUrlChange(e.target.value)}
+                                    placeholder="https://xxxx.proxy.runpod.net"
+                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">
+                                    SDXL VAE (volitelné)
+                                </label>
+                                <input
+                                    value={localSettings?.a1111?.sdxlVae || ''}
+                                    onChange={(e) => handleA1111VaeChange(e.target.value)}
+                                    placeholder="např. sdxl_vae.safetensors (nebo nech prázdné = auto)"
+                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
+                                />
+                                <p className="text-xs text-[var(--text-secondary)] mt-2">
+                                    Pokud je prázdné, aplikace zkusí automaticky vybrat VAE obsahující “sdxl”.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={testA1111Connection}
+                                disabled={!String(localSettings?.a1111?.baseUrl || '').trim() || testingA1111}
+                                className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
+                            >
+                                {testingA1111 ? 'Testuji...' : 'Otestovat připojení'}
                             </button>
                         </div>
                     </div>

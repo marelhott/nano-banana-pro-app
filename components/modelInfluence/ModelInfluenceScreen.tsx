@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, X } from 'lucide-react';
 import { runFalLoraImg2ImgQueued } from '../../services/falService';
+import { runA1111Img2Img } from '../../services/a1111Service';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../../utils/galleryDB';
 import { isR2Ref, parseR2Ref, presignR2 } from '../../services/r2Service';
 import { fetchPublicConfig } from '../../services/publicConfig';
@@ -116,6 +117,15 @@ export function ModelInfluenceScreen(props: {
   const { onToast } = props;
 
   const [input, setInput] = React.useState<ImageSlot | null>(null);
+  const [backend, setBackend] = React.useState<'fal' | 'a1111'>(() => {
+    try {
+      const raw = localStorage.getItem('modelInfluence.backend');
+      const v = String(raw || '').trim();
+      return v === 'a1111' ? 'a1111' : 'fal';
+    } catch {
+      return 'fal';
+    }
+  });
   const [cfg, setCfg] = React.useState(7);
   const [denoise, setDenoise] = React.useState(0.45);
   const [steps, setSteps] = React.useState(30);
@@ -160,6 +170,14 @@ export function ModelInfluenceScreen(props: {
       // ignore
     }
   }, [modelName]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('modelInfluence.backend', backend);
+    } catch {
+      // ignore
+    }
+  }, [backend]);
 
   const onPickInputFile = React.useCallback(
     async (file: File) => {
@@ -212,17 +230,48 @@ export function ModelInfluenceScreen(props: {
     }
     let cleanModel = '';
     let modelDisplay = '';
-    try {
-      const resolved = await resolveModelName(modelName);
-      modelDisplay = resolved.display;
-      // NOTE: We must pass the full checkpoint as model_name. The fal SDXL endpoint can load
-      // single-file SDXL checkpoints via model_name (URL/HF ID). Using unet_name expects a
-      // Diffusers-formatted UNet state dict and fails for A1111-style checkpoints.
-      cleanModel = resolved.resolved;
-      setDebugResolvedUrl(resolved.resolved);
-    } catch (e: any) {
-      onToast({ type: 'error', message: e?.message || 'Neplatný model.' });
-      return;
+    let a1111CheckpointName = '';
+    if (backend === 'fal') {
+      try {
+        const resolved = await resolveModelName(modelName);
+        modelDisplay = resolved.display;
+        // fal: use full checkpoint as model_name
+        cleanModel = resolved.resolved;
+        setDebugResolvedUrl(resolved.resolved);
+      } catch (e: any) {
+        onToast({ type: 'error', message: e?.message || 'Neplatný model.' });
+        return;
+      }
+    } else {
+      // A1111: expects a local checkpoint filename/title, not a remote URL.
+      const raw = String(modelName || '').trim();
+      const fromUrl = (() => {
+        try {
+          if (raw.startsWith('http')) {
+            const u = new URL(raw);
+            const parts = u.pathname.split('/').filter(Boolean);
+            return parts[parts.length - 1] || '';
+          }
+        } catch { }
+        return '';
+      })();
+      const fromR2 = (() => {
+        try {
+          if (isR2Ref(raw)) {
+            const { key } = parseR2Ref(raw);
+            const parts = String(key || '').split('/').filter(Boolean);
+            return parts[parts.length - 1] || '';
+          }
+        } catch { }
+        return '';
+      })();
+      a1111CheckpointName = fromUrl || fromR2 || raw;
+      if (!a1111CheckpointName) {
+        onToast({ type: 'error', message: 'Zadej název checkpointu pro A1111.' });
+        return;
+      }
+      modelDisplay = a1111CheckpointName;
+      setDebugResolvedUrl(''); // not relevant for A1111
     }
 
     setLightbox(null);
@@ -280,25 +329,48 @@ export function ModelInfluenceScreen(props: {
         setGenPhase(p === 'queue' ? 'Ve frontě…' : p === 'running' ? 'Generuji…' : 'Dokončuji…');
       };
 
-      const { images } = await runFalLoraImg2ImgQueued({
-        modelName: cleanModel,
-        imageUrlOrDataUrl: inputDataUrl,
-        prompt,
-        negativePrompt: 'blurry, low quality, watermark, text, logo',
-        cfg,
-        denoise,
-        steps,
-        numImages: variants,
-        advancedInput,
-        onPhase: phaseHandler,
-        onLogs: (lines) => {
-          setFalLogs((prev) => {
-            const next = [...prev, ...lines].slice(-200);
-            return next;
-          });
-        },
-        maxWaitMs: 12 * 60_000,
-      });
+      const negativePrompt = 'blurry, low quality, watermark, text, logo';
+
+      const { images } =
+        backend === 'fal'
+          ? await runFalLoraImg2ImgQueued({
+              modelName: cleanModel,
+              imageUrlOrDataUrl: inputDataUrl,
+              prompt,
+              negativePrompt,
+              cfg,
+              denoise,
+              steps,
+              numImages: variants,
+              advancedInput,
+              onPhase: phaseHandler,
+              onLogs: (lines) => {
+                setFalLogs((prev) => {
+                  const next = [...prev, ...lines].slice(-200);
+                  return next;
+                });
+              },
+              maxWaitMs: 12 * 60_000,
+            })
+          : await (async () => {
+              setFalPhase('running');
+              setGenPhase('Generuji…');
+              const out = await runA1111Img2Img({
+                imageDataUrl: inputDataUrl,
+                prompt,
+                negativePrompt,
+                cfg,
+                denoise,
+                steps,
+                batchSize: variants,
+                checkpointName: a1111CheckpointName,
+                onProgress: (p) => {
+                  const pct = Math.round((p.progress || 0) * 100);
+                  setGenPhase(p.eta ? `${pct}% • ETA ${Math.max(0, Math.round(p.eta))}s` : `${pct}%`);
+                },
+              });
+              return { images: out.images };
+            })();
 
       const resolved = pendingItems.map((p, i) => ({
         id: p.id,
@@ -324,7 +396,7 @@ export function ModelInfluenceScreen(props: {
             thumbnail: thumb,
             prompt: 'img2img',
             params: {
-              engine: 'fal_sdxl_img2img',
+              engine: backend === 'fal' ? 'fal_sdxl_img2img' : 'a1111_sdxl_img2img',
               modelName: modelDisplay || String(modelName || '').trim(),
               cfg,
               strength: denoise,
@@ -369,6 +441,36 @@ export function ModelInfluenceScreen(props: {
           >
             {isGenerating ? 'Generuji…' : 'Generovat'}
           </button>
+
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">BACKEND</div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setBackend('a1111')}
+                className={`flex-1 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  backend === 'a1111'
+                    ? 'bg-[#0f1512] border-[#7ed957]/40 text-[#7ed957]'
+                    : 'bg-[var(--bg-input)] border-[var(--border-color)] text-white/55 hover:text-white/80'
+                }`}
+                title="A1111 (doporučeno pro vlastní checkpoint + SDXL VAE)"
+              >
+                A1111
+              </button>
+              <button
+                type="button"
+                onClick={() => setBackend('fal')}
+                className={`flex-1 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  backend === 'fal'
+                    ? 'bg-[#0f1512] border-[#7ed957]/40 text-[#7ed957]'
+                    : 'bg-[var(--bg-input)] border-[var(--border-color)] text-white/55 hover:text-white/80'
+                }`}
+                title="fal.ai (rychlé, ale u custom checkpointů může být VAE omezení)"
+              >
+                FAL
+              </button>
+            </div>
+          </div>
 
           <div className="card-surface p-3 space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET OBRÁZKŮ</div>
@@ -422,15 +524,17 @@ export function ModelInfluenceScreen(props: {
           </div>
 
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">SDXL checkpoint (model_name)</div>
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">
+              {backend === 'a1111' ? 'SDXL checkpoint (A1111 name)' : 'SDXL checkpoint (model_name)'}
+            </div>
             <input
               value={modelName}
               onChange={(e) => setModelName(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-              placeholder="stabilityai/stable-diffusion-xl-base-1.0"
+              placeholder={backend === 'a1111' ? 'Tuymans_SDXL.safetensors' : 'stabilityai/stable-diffusion-xl-base-1.0'}
             />
             <div className="text-[9px] text-white/35">
-              Bez promptu v UI: backend posílá automatický prompt. Pokročilé věci (scheduler/controlnet/ip-adapter) dej do Advanced JSON.
+              Bez promptu v UI: posíláme automatický prompt. {backend === 'fal' ? 'Pokročilé věci (scheduler/controlnet/ip-adapter) dej do Advanced JSON.' : 'A1111 backend používá SDXL VAE (auto/podle Nastavení).'}
             </div>
           </div>
 

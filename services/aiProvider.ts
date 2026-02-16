@@ -33,6 +33,13 @@ export interface ProviderSettings {
     // fal.ai is used for SDXL base + LoRA (img2img). It's not part of the AIProviderType set
     // because it isn't used through ProviderFactory; we still store the key alongside providerSettings.
     fal?: ProviderConfig;
+    // A1111 (stable-diffusion-webui) is used for custom SDXL checkpoints with explicit VAE selection.
+    a1111?: {
+        baseUrl: string;
+        // Optional: preferred SDXL VAE name as shown by /sdapi/v1/sd-vae
+        sdxlVae?: string;
+        enabled: boolean;
+    };
 }
 
 /**
