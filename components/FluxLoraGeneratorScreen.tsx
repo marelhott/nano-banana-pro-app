@@ -502,7 +502,7 @@ export function FluxLoraGeneratorScreen(props: {
   const [customPrompt, setCustomPrompt] = React.useState('');
   const [sdxlAdvancedRaw, setSdxlAdvancedRaw] = React.useState('');
 
-  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [generationJobs, setGenerationJobs] = React.useState(0);
   const [isTestingGrid, setIsTestingGrid] = React.useState(false);
   const [testProgress, setTestProgress] = React.useState<{
     activeSheet: number;
@@ -675,7 +675,8 @@ export function FluxLoraGeneratorScreen(props: {
     [onToast]
   );
 
-  const canGenerate = Boolean(input?.dataUrl) && !isGenerating && !isTestingGrid;
+  const isGenerating = generationJobs > 0;
+  const canGenerate = Boolean(input?.dataUrl) && !isTestingGrid;
   const fluxEndpointId =
     fluxEndpoint === 'flux2' ? 'fal-ai/flux-2/lora/edit' : 'fal-ai/flux-lora/image-to-image';
   const showDenoise = !(modelFamily === 'flux' && fluxEndpoint === 'flux2');
@@ -687,7 +688,7 @@ export function FluxLoraGeneratorScreen(props: {
     }
 
     setLightbox(null);
-    setIsGenerating(true);
+    setGenerationJobs((n) => n + 1);
     setGenError('');
     setFalPhase('queue');
     setGenPhase('Ve frontě…');
@@ -859,9 +860,14 @@ export function FluxLoraGeneratorScreen(props: {
       setGenerated((prev) => prev.filter((it) => !pendingIdSet.has(it.id)));
       onToast({ type: 'error', message: msg });
     } finally {
-      setIsGenerating(false);
-      setFalPhase('');
-      setGenPhase('');
+      setGenerationJobs((n) => {
+        const next = Math.max(0, n - 1);
+        if (next === 0) {
+          setFalPhase('');
+          setGenPhase('');
+        }
+        return next;
+      });
     }
   }, [activeLoraPresets, cfg, customPrompt, denoise, flux2Acceleration, fluxEndpoint, fluxEndpointId, imageSize, input?.dataUrl, loras, modelFamily, onToast, outputFormat, sdxlAdvancedRaw, sdxlCheckpointId, sdxlSampler, sdxlScheduler, seed, selectedSdxlCheckpoint, steps, variants]);
 
@@ -1210,10 +1216,10 @@ export function FluxLoraGeneratorScreen(props: {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={!input || isGenerating || isTestingGrid}
+            disabled={!input || isTestingGrid}
             className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
           >
-            {isTestingGrid ? 'Testuji…' : isGenerating ? 'Generuji…' : 'Generovat'}
+            {isTestingGrid ? 'Testuji…' : isGenerating ? `Generuji (${generationJobs})…` : 'Generovat'}
           </button>
 
           <div className="card-surface p-3 space-y-2">
