@@ -458,6 +458,191 @@ export function StyleTransferScreen(props: {
         className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
         style={{ marginRight }}
       >
+        <div className="hidden lg:block sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
+          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Engine</div>
+              <div className="flex p-1 rounded-lg control-surface">
+                <button
+                  type="button"
+                  onClick={() => setEngine('fofr')}
+                  className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${
+                    engine === 'fofr' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  FOFR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEngine('quick')}
+                  className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${
+                    engine === 'quick' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  Neural
+                </button>
+              </div>
+            </div>
+
+            {engine === 'quick' ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Metoda</div>
+                  <div className="flex p-1 rounded-lg control-surface">
+                    {(['gatys', 'adain', 'wct'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setLocalMethod(m)}
+                        className={`px-2.5 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${
+                          localMethod === m ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Síla</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={strength}
+                    onChange={(e) => setStrength(Number(e.target.value))}
+                    disabled={activeStyles.length === 0}
+                    className="w-[180px] h-[2px] accent-[#7ed957] disabled:opacity-40"
+                  />
+                  <div className="text-[10px] text-white/55 w-10 text-right">{Math.round(strength)}%</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Merge</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={merge}
+                    onChange={(e) => setMerge(Number(e.target.value))}
+                    disabled={activeStyles.length === 0}
+                    className="w-[180px] h-[2px] accent-[#7ed957] disabled:opacity-40"
+                  />
+                  <div className="text-[10px] text-white/55 w-10 text-right">{Math.round(merge)}%</div>
+                </div>
+                <div className="text-[10px] text-white/35 shrink-0">Iterace: {localIterationHint}x</div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
+                  <select
+                    value={fofrModel}
+                    onChange={(e) => setFofrModel(e.target.value as any)}
+                    className="w-[160px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                  >
+                    <option value="fast">fast</option>
+                    <option value="high-quality">high-quality</option>
+                    <option value="realistic">realistic</option>
+                    <option value="cinematic">cinematic</option>
+                    <option value="animated">animated</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Struktura</div>
+                  <button
+                    type="button"
+                    onClick={() => setFofrUseStructure(!fofrUseStructure)}
+                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
+                      fofrUseStructure ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+                    }`}
+                  >
+                    {fofrUseStructure ? 'On' : 'Off'}
+                  </button>
+                </div>
+                {!fofrUseStructure && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">W</div>
+                      <input
+                        type="number"
+                        min={256}
+                        max={2048}
+                        step={64}
+                        value={fofrWidth}
+                        onChange={(e) => setFofrWidth(Number(e.target.value))}
+                        className="w-[92px] px-2 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">H</div>
+                      <input
+                        type="number"
+                        min={256}
+                        max={2048}
+                        step={64}
+                        value={fofrHeight}
+                        onChange={(e) => setFofrHeight(Number(e.target.value))}
+                        className="w-[92px] px-2 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="flex items-center gap-3">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={fofrStructureDenoisingStrength}
+                    onChange={(e) => setFofrStructureDenoisingStrength(Number(e.target.value))}
+                    className="w-[170px] h-[2px] accent-[#7ed957]"
+                  />
+                  <div className="text-[10px] text-white/55 w-10 text-right">{fofrStructureDenoisingStrength.toFixed(2)}</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Depth</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    value={fofrStructureDepthStrength}
+                    onChange={(e) => setFofrStructureDepthStrength(Number(e.target.value))}
+                    className="w-[170px] h-[2px] accent-[#7ed957]"
+                  />
+                  <div className="text-[10px] text-white/55 w-10 text-right">{fofrStructureDepthStrength.toFixed(2)}</div>
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">High-res</div>
+              <button
+                type="button"
+                onClick={() => setHighRes(!highRes)}
+                className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
+                  highRes ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+                }`}
+              >
+                {highRes ? 'On' : 'Off'}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Barvy</div>
+              <button
+                type="button"
+                onClick={() => setPreserveColors(!preserveColors)}
+                className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
+                  preserveColors ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+                }`}
+              >
+                {preserveColors ? 'On' : 'Off'}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="p-6 lg:p-10 pb-32 w-full">
           <div className="space-y-6 md:space-y-8 w-full">
             <div className="lg:hidden">
@@ -506,20 +691,6 @@ export function StyleTransferScreen(props: {
                 onDropToStyle={dropToStyle}
               />
             </div>
-
-            <header className="hidden lg:flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="w-1 h-4 bg-[#7ed957] rounded-full" />
-                  <h2 className="text-[11px] font-[900] uppercase tracking-[0.28em] text-white/80">
-                    Style Transfer
-                  </h2>
-                </div>
-                <div className="text-[10px] text-white/45 max-w-[520px] leading-relaxed">
-                  Promptless přenos vizuálního stylu (textura, tahy, struktura). Styl se bere přímo z obrazů, ne z textu.
-                </div>
-              </div>
-            </header>
 
             <StyleTransferOutputs
               outputs={outputs}

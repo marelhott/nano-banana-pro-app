@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { ImageSlot } from './utils';
 import { STYLE_REFERENCE_LIMIT } from './utils';
 import type { LocalStyleMethod } from '../StyleTransferScreen';
@@ -56,37 +56,15 @@ export function StyleTransferSidebar(props: {
     setEngine,
     localMethod,
     setLocalMethod,
-    onBack,
     onToast,
     reference,
     styles,
-    strength,
-    setStrength,
-    merge,
-    setMerge,
-    mergePasses,
     variants,
     setVariants,
     fofrNumImages,
     setFofrNumImages,
-    fofrModel,
-    setFofrModel,
-    fofrUseStructure,
-    setFofrUseStructure,
-    fofrWidth,
-    setFofrWidth,
-    fofrHeight,
-    setFofrHeight,
-    fofrStructureDepthStrength,
-    setFofrStructureDepthStrength,
-    fofrStructureDenoisingStrength,
-    setFofrStructureDenoisingStrength,
     isGenerating,
     canGenerate,
-    highRes,
-    setHighRes,
-    colorize,
-    setColorize,
     onGenerate,
     onSetReferenceFromFile,
     onSetStyleFromFile,
@@ -106,16 +84,12 @@ export function StyleTransferSidebar(props: {
   return (
     <div className="hidden lg:flex w-[340px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20">
       <div className="p-6 flex flex-col gap-6 min-h-full">
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-white/5 hover:bg-white/10 text-white/75 hover:text-white rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Zpět
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
+          <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Style Transfer</h2>
+        </div>
 
+        <div className="space-y-3">
           <div className="card-surface p-4 space-y-3">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Engine</div>
             <div className="flex p-1 rounded-lg control-surface">
@@ -326,172 +300,6 @@ export function StyleTransferSidebar(props: {
               })}
             </div>
             <div className="text-[9px] text-white/35">Použij 1 až 3 stylové obrázky. Pro mix se udělá texturový patchwork.</div>
-          </div>
-        </div>
-
-        <div className="card-surface p-4 space-y-3">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Síla stylu</div>
-              <div className="text-[9px] font-black text-white/70">{Math.round(strength)}%</div>
-            </div>
-            {engine === 'quick' ? (
-              <>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={strength}
-                  onChange={(e) => setStrength(Number(e.target.value))}
-                  disabled={styleCount === 0}
-                  className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
-                />
-                {styleCount === 0 && <div className="text-[9px] text-white/35">Nahraj aspoň jeden stylový obrázek.</div>}
-              </>
-            ) : (
-              <div className="text-[9px] text-white/35">FOFR nemá explicitní slider “síla stylu”. Ovládá se přes strukturu a denoise níže.</div>
-            )}
-          </div>
-
-          {engine === 'quick' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Míra merge (struktura)</div>
-                <div className="text-[9px] font-black text-white/70">{Math.round(merge)}%</div>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={merge}
-                onChange={(e) => setMerge(Number(e.target.value))}
-                disabled={styleCount === 0}
-                className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
-              />
-              <div className="text-[9px] text-white/35">
-                Iterace: {mergePasses}x {localMethod === 'gatys' ? '(Gatys: víc textury)' : localMethod === 'wct' ? '(WCT: silný stylový posun)' : '(AdaIN: vyvážené)'}
-              </div>
-            </div>
-          )}
-
-          {engine === 'fofr' && (
-            <div className="space-y-3 pt-1">
-              <div className="space-y-1">
-                <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Model</div>
-                <select
-                  value={fofrModel}
-                  onChange={(e) => setFofrModel(e.target.value as any)}
-                  className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)]"
-                >
-                  <option value="fast">fast</option>
-                  <option value="high-quality">high-quality</option>
-                  <option value="realistic">realistic</option>
-                  <option value="cinematic">cinematic</option>
-                  <option value="animated">animated</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Použít strukturu z reference</div>
-                  <button
-                    type="button"
-                    onClick={() => setFofrUseStructure(!fofrUseStructure)}
-                    className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
-                      fofrUseStructure ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
-                    }`}
-                  >
-                    {fofrUseStructure ? 'On' : 'Off'}
-                  </button>
-                </div>
-                {!fofrUseStructure && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <div className="text-[9px] text-white/45">Width</div>
-                      <input
-                        type="number"
-                        min={256}
-                        max={2048}
-                        step={64}
-                        value={fofrWidth}
-                        onChange={(e) => setFofrWidth(Number(e.target.value))}
-                        className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)]"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[9px] text-white/45">Height</div>
-                      <input
-                        type="number"
-                        min={256}
-                        max={2048}
-                        step={64}
-                        value={fofrHeight}
-                        onChange={(e) => setFofrHeight(Number(e.target.value))}
-                        className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)]"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Structure denoise</div>
-                  <div className="text-[9px] text-white/55">{fofrStructureDenoisingStrength.toFixed(2)}</div>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={fofrStructureDenoisingStrength}
-                  onChange={(e) => setFofrStructureDenoisingStrength(Number(e.target.value))}
-                  className="w-full h-1 accent-[#7ed957]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Structure depth</div>
-                  <div className="text-[9px] text-white/55">{fofrStructureDepthStrength.toFixed(2)}</div>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={2}
-                  step={0.05}
-                  value={fofrStructureDepthStrength}
-                  onChange={(e) => setFofrStructureDepthStrength(Number(e.target.value))}
-                  className="w-full h-1 accent-[#7ed957]"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">High-res (1024px)</div>
-            <button
-              type="button"
-              onClick={() => setHighRes(!highRes)}
-              className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
-                highRes ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
-              }`}
-            >
-              {highRes ? 'On' : 'Off'}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Zachovat barvy fotky</div>
-            <button
-              type="button"
-              onClick={() => setColorize(!colorize)}
-              className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
-                colorize ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
-              }`}
-            >
-              {colorize ? 'On' : 'Off'}
-            </button>
           </div>
         </div>
 
