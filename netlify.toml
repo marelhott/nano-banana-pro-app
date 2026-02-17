@@ -70,6 +70,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/everart"
+  to = "/.netlify/functions/everart"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/r2-presign"
   to = "/.netlify/functions/r2-presign"
   status = 200

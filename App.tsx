@@ -38,6 +38,7 @@ import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
 import { FluxLoraGeneratorScreen } from './components/FluxLoraGeneratorScreen';
 import { ModelInfluenceScreen } from './components/modelInfluence/ModelInfluenceScreen';
+import { EverArtScreen } from './components/EverArtScreen';
 import { NodesScreen } from './components/NodesScreen';
 import { PinAuth } from './components/PinAuth';
 import { MaskCanvas } from './components/MaskCanvas';
@@ -75,7 +76,8 @@ const App: React.FC = () => {
     [AIProviderType.CHATGPT]: { apiKey: '', enabled: false },
     [AIProviderType.GROK]: { apiKey: '', enabled: false },
     [AIProviderType.REPLICATE]: { apiKey: '', enabled: false },
-    fal: { apiKey: '', enabled: false }
+    fal: { apiKey: '', enabled: false },
+    everart: { apiKey: '', enabled: false }
   };
   const [providerSettings, setProviderSettings] = useState<ProviderSettings>(defaultProviderSettings);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -375,6 +377,7 @@ const App: React.FC = () => {
   const isFluxLoraRoute = routePath === '/flux-lora' || routePath.startsWith('/flux-lora/');
   const isLoraInfluenceRoute = isFluxLoraRoute || isLoraSdRoute;
   const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
+  const isEverartRoute = routePath === '/everart' || routePath.startsWith('/everart/');
   const isNodesHubRoute = routePath === '/nodes-hub' || routePath.startsWith('/nodes-hub/');
 
   // Nové state pro featury
@@ -3327,6 +3330,8 @@ ${extra}
             ? 'nodes'
             : isStyleTransferRoute
               ? 'style-transfer'
+              : isEverartRoute
+                ? 'everart'
               : isModelInfluenceRoute
                 ? 'model-influence'
                 : isLoraInfluenceRoute
@@ -3340,6 +3345,10 @@ ${extra}
           }
           if (route === 'model-influence') {
             navigate('/model-influence');
+            return;
+          }
+          if (route === 'everart') {
+            navigate('/everart');
             return;
           }
           if (route === 'style-transfer') {
@@ -3374,6 +3383,12 @@ ${extra}
             />
           ) : isModelInfluenceRoute ? (
             <ModelInfluenceScreen
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onToast={(t) => setToast(t)}
+            />
+          ) : isEverartRoute ? (
+            <EverArtScreen
+              providerSettings={providerSettings}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onToast={(t) => setToast(t)}
             />

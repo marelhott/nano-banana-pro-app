@@ -13,9 +13,24 @@ export const Header: React.FC<HeaderProps> = ({ onSettingsClick, onStyleTransfer
       {/* Logo - Top Left */}
       <div className="flex items-center gap-3">
         <div className="w-8 h-8">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full text-[var(--accent)]" aria-hidden="true">
-            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10 Z"></path>
-            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" className="w-full h-full text-[var(--accent)]" aria-hidden="true">
+            <circle cx="20" cy="20" r="2.4" fill="currentColor" />
+            <circle cx="20" cy="9.5" r="1.7" fill="currentColor" />
+            <circle cx="27.4" cy="12.6" r="1.6" fill="currentColor" opacity="0.95" />
+            <circle cx="30.5" cy="20" r="1.5" fill="currentColor" opacity="0.9" />
+            <circle cx="27.4" cy="27.4" r="1.6" fill="currentColor" opacity="0.95" />
+            <circle cx="20" cy="30.5" r="1.7" fill="currentColor" />
+            <circle cx="12.6" cy="27.4" r="1.6" fill="currentColor" opacity="0.95" />
+            <circle cx="9.5" cy="20" r="1.5" fill="currentColor" opacity="0.9" />
+            <circle cx="12.6" cy="12.6" r="1.6" fill="currentColor" opacity="0.95" />
+            <circle cx="20" cy="5.8" r="1.05" fill="currentColor" opacity="0.55" />
+            <circle cx="30" cy="10" r="1.0" fill="currentColor" opacity="0.45" />
+            <circle cx="34.2" cy="20" r="0.95" fill="currentColor" opacity="0.4" />
+            <circle cx="30" cy="30" r="1.0" fill="currentColor" opacity="0.45" />
+            <circle cx="20" cy="34.2" r="1.05" fill="currentColor" opacity="0.55" />
+            <circle cx="10" cy="30" r="1.0" fill="currentColor" opacity="0.45" />
+            <circle cx="5.8" cy="20" r="0.95" fill="currentColor" opacity="0.4" />
+            <circle cx="10" cy="10" r="1.0" fill="currentColor" opacity="0.45" />
           </svg>
         </div>
         <h1 className="!text-[11px] md:!text-[12px] font-[900] uppercase tracking-[0.32em] text-[var(--text-primary)] leading-none whitespace-nowrap">

@@ -51,6 +51,11 @@ async function testProviderKey(provider, apiKey) {
         headers: { Authorization: `Key ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
+    case "everart":
+      return requestWithTimeout("https://api.everart.ai/v1/models", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+      });
     default:
       return null;
   }
