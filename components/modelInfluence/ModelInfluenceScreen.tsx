@@ -1,5 +1,6 @@
 import React from 'react';
 import { Plus, X } from 'lucide-react';
+import { ImageComparisonModal } from '../ImageComparisonModal';
 import { runFalLoraImg2ImgQueued } from '../../services/falService';
 import { runA1111Img2Img } from '../../services/a1111Service';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../../utils/galleryDB';
@@ -17,6 +18,8 @@ type OutputItem = {
   id: string;
   dataUrl?: string;
   status: 'pending' | 'done';
+  detailsText?: string;
+  originalDataUrl?: string;
 };
 
 type FalLogLine = { message: string; level?: string; timestamp?: string };
@@ -142,6 +145,28 @@ function buildPromptlessAutoPrompt(): string {
   return 'image-to-image transformation, preserve subject identity and composition, high quality, detailed';
 }
 
+function buildModelInfluenceDetailsText(opts: {
+  backend: 'fal' | 'a1111';
+  modelName: string;
+  styleWeight: number;
+  cfg: number;
+  denoise: number;
+  steps: number;
+  sampler: SamplerId;
+  scheduler: SchedulerId;
+  variants: number;
+}) {
+  const lines = [
+    `Backend: ${opts.backend === 'fal' ? 'fal.ai' : 'A1111'}`,
+    `Model: ${opts.modelName || '-'}`,
+    `Váha stylu: ${opts.styleWeight.toFixed(2)}`,
+    `CFG: ${opts.cfg.toFixed(2)} • Denoise: ${opts.denoise.toFixed(2)} • Steps: ${opts.steps}`,
+    `Sampler: ${opts.sampler} • Scheduler: ${opts.scheduler}`,
+    `Varianty: ${opts.variants}`,
+  ];
+  return lines.join('\n');
+}
+
 type ModelPreset = { id: string; label: string; value: string; hint?: string };
 
 const MODEL_PRESETS: ModelPreset[] = [
@@ -197,7 +222,7 @@ export function ModelInfluenceScreen(props: {
   const [falPhase, setFalPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [genPhase, setGenPhase] = React.useState<string>('');
   const [generated, setGenerated] = React.useState<OutputItem[]>([]);
-  const [lightbox, setLightbox] = React.useState<string | null>(null);
+  const [selectedOutputId, setSelectedOutputId] = React.useState<string | null>(null);
   const [falLogs, setFalLogs] = React.useState<FalLogLine[]>([]);
   const [debugResolvedUrl, setDebugResolvedUrl] = React.useState('');
   const [debugWarnings, setDebugWarnings] = React.useState<string[]>([]);
@@ -205,6 +230,20 @@ export function ModelInfluenceScreen(props: {
 
   const falPhaseLabel =
     falPhase === 'queue' ? 'Ve frontě' : falPhase === 'running' ? 'Generuji' : falPhase === 'finalizing' ? 'Dokončuji' : '';
+  const doneOutputs = React.useMemo(
+    () => generated.filter((g) => g.status === 'done' && !!g.dataUrl),
+    [generated]
+  );
+  const selectedOutputIndex = React.useMemo(
+    () => doneOutputs.findIndex((g) => g.id === selectedOutputId),
+    [doneOutputs, selectedOutputId]
+  );
+  const selectedOutput = selectedOutputIndex >= 0 ? doneOutputs[selectedOutputIndex] : null;
+
+  React.useEffect(() => {
+    if (!selectedOutputId) return;
+    if (!doneOutputs.some((g) => g.id === selectedOutputId)) setSelectedOutputId(null);
+  }, [doneOutputs, selectedOutputId]);
 
   React.useEffect(() => {
     try {
@@ -317,7 +356,7 @@ export function ModelInfluenceScreen(props: {
       setDebugResolvedUrl(''); // not relevant for A1111
     }
 
-    setLightbox(null);
+    setSelectedOutputId(null);
     setFalLogs([]);
     setDebugWarnings([]);
     setIsGenerating(true);
@@ -435,10 +474,23 @@ export function ModelInfluenceScreen(props: {
               return { images: out.images };
             })();
 
+      const detailsText = buildModelInfluenceDetailsText({
+        backend,
+        modelName: modelDisplay || String(modelName || '').trim(),
+        styleWeight,
+        cfg,
+        denoise: effectiveDenoise,
+        steps,
+        sampler,
+        scheduler,
+        variants,
+      });
       const resolved = pendingItems.map((p, i) => ({
         id: p.id,
         dataUrl: images[i],
         status: 'done' as const,
+        detailsText,
+        originalDataUrl: input.dataUrl,
       }));
       setGenerated((prev) => {
         let outIdx = 0;
@@ -759,7 +811,7 @@ export function ModelInfluenceScreen(props: {
                   <article key={img.id} className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all animate-fadeIn">
                     <div className="relative bg-black/50 aspect-square overflow-hidden" title={canOpen ? 'Klikni pro plné zobrazení' : 'Generuji…'}>
                       {img.dataUrl ? (
-                        <button type="button" className="block w-full h-full cursor-zoom-in" onClick={() => setLightbox(img.dataUrl || null)}>
+                        <button type="button" className="block w-full h-full cursor-zoom-in" onClick={() => setSelectedOutputId(img.id)}>
                           <img
                             src={img.dataUrl}
                             alt={`Výstup ${idx + 1}`}
@@ -813,29 +865,24 @@ export function ModelInfluenceScreen(props: {
         </div>
       </section>
 
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-50 bg-black/88 backdrop-blur-sm p-4"
-          onDoubleClick={() => setLightbox(null)}
-          title="Dvojklik pro zavření"
-        >
-          <div
-            className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              setLightbox(null);
-            }}
-          >
-            <img
-              src={lightbox}
-              alt="Preview"
-              onDoubleClick={() => setLightbox(null)}
-              title="Dvojklik pro zavření"
-              className="block w-auto h-auto max-w-[96vw] max-h-[96vh] object-contain"
-            />
-          </div>
-        </div>
-      )}
+      <ImageComparisonModal
+        isOpen={!!selectedOutput?.dataUrl}
+        onClose={() => setSelectedOutputId(null)}
+        originalImage={selectedOutput?.originalDataUrl || input?.dataUrl || null}
+        generatedImage={selectedOutput?.dataUrl || null}
+        prompt={selectedOutput?.detailsText || 'Model a parametry nejsou k dispozici.'}
+        promptLabel="Model + Nastavení"
+        hasNext={selectedOutputIndex >= 0 && selectedOutputIndex < doneOutputs.length - 1}
+        hasPrev={selectedOutputIndex > 0}
+        onNext={() => {
+          if (selectedOutputIndex < 0 || selectedOutputIndex >= doneOutputs.length - 1) return;
+          setSelectedOutputId(doneOutputs[selectedOutputIndex + 1].id);
+        }}
+        onPrev={() => {
+          if (selectedOutputIndex <= 0) return;
+          setSelectedOutputId(doneOutputs[selectedOutputIndex - 1].id);
+        }}
+      />
     </div>
   );
 }

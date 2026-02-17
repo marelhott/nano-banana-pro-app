@@ -8,6 +8,7 @@ interface ImageComparisonModalProps {
   originalImage: string | null;
   generatedImage: string | null;
   prompt: string;
+  promptLabel?: string;
   timestamp?: number;
   resolution?: string;
   aspectRatio?: string;
@@ -24,6 +25,7 @@ interface ImageComparisonModalProps {
 
 export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
   isOpen, onClose, originalImage, generatedImage, prompt, timestamp,
+  promptLabel = 'Prompt',
   resolution, aspectRatio, styleCode, groundingMetadata,
   onNext, onPrev, hasNext, hasPrev,
   recipe, lineage, versions,
@@ -223,7 +225,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0 space-y-6 bg-[#0f1512]/50">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Prompt</h4>
+              <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">{promptLabel}</h4>
               <button
                 onClick={handleCopy}
                 className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-md transition-all"

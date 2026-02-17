@@ -1,5 +1,6 @@
 import React from 'react';
 import { Plus, X, Save, Trash2 } from 'lucide-react';
+import { ImageComparisonModal } from './ImageComparisonModal';
 import { runFalFluxLoraImg2ImgQueued, runFalLoraImg2ImgQueued, runFalUpscaleQueued } from '../services/falService';
 import { presignR2, isR2Ref, parseR2Ref } from '../services/r2Service';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
@@ -16,6 +17,8 @@ type OutputItem = {
   id: string;
   dataUrl?: string;
   status: 'pending' | 'done';
+  detailsText?: string;
+  originalDataUrl?: string;
   testSheetIndex?: number;
   testSheetRange?: string;
   isTestSheet?: boolean;
@@ -297,6 +300,50 @@ function loraTriggerFromPath(path: string, presets: HfPreset[]): string {
   return String(preset?.trigger || '').trim();
 }
 
+function buildGenerationDetailsText(opts: {
+  modelFamily: ModelFamily;
+  checkpointLabel?: string;
+  checkpointModelName?: string;
+  endpointId: string;
+  loras: Array<{ path: string; scale: number }>;
+  cfg: number;
+  denoise: number;
+  steps: number;
+  seed?: number | null;
+  imageSize?: string;
+  outputFormat?: string;
+  sampler?: string;
+  scheduler?: string;
+  acceleration?: Flux2Acceleration;
+}) {
+  const lines: string[] = [];
+  lines.push(`Model: ${opts.modelFamily === 'sdxl' ? 'SDXL checkpoint' : 'FLUX LoRA'}`);
+  if (opts.modelFamily === 'sdxl') {
+    lines.push(`Checkpoint: ${opts.checkpointLabel || 'SDXL base'}`);
+    if (opts.checkpointModelName) lines.push(`checkpoint_id: ${opts.checkpointModelName}`);
+  }
+  lines.push(`Endpoint: ${opts.endpointId}`);
+  if (opts.loras.length > 0) {
+    lines.push(
+      `LoRA: ${opts.loras
+        .map((l) => `${loraHintFromPath(l.path, [...FLUX_LORA_PRESETS, ...SDXL_LORA_PRESETS])} (${l.scale.toFixed(2)})`)
+        .join(', ')}`
+    );
+  } else {
+    lines.push('LoRA: žádná');
+  }
+  if (opts.modelFamily === 'flux' && opts.acceleration) lines.push(`Acceleration: ${opts.acceleration}`);
+  lines.push(`CFG: ${opts.cfg.toFixed(2)} • Steps: ${opts.steps}`);
+  lines.push(`Denoise: ${opts.denoise.toFixed(2)}`);
+  if (opts.modelFamily === 'sdxl') {
+    lines.push(`Sampler: ${opts.sampler || '-'} • Scheduler: ${opts.scheduler || '-'}`);
+  }
+  if (opts.imageSize) lines.push(`Velikost: ${opts.imageSize}`);
+  if (opts.outputFormat) lines.push(`Formát: ${opts.outputFormat}`);
+  if (typeof opts.seed === 'number' && Number.isFinite(opts.seed)) lines.push(`Seed: ${Math.floor(opts.seed)}`);
+  return lines.join('\n');
+}
+
 function derivePresetPrefix(modelFamily: ModelFamily, endpoint: FluxEndpoint, selectedLoraLabel?: string): string {
   const lora = String(selectedLoraLabel || '').trim().toLowerCase();
   if (lora) return lora;
@@ -574,7 +621,7 @@ export function FluxLoraGeneratorScreen(props: {
 
   const [generated, setGenerated] = React.useState<OutputItem[]>([]);
   const [upscalingImageId, setUpscalingImageId] = React.useState<string | null>(null);
-  const [lightbox, setLightbox] = React.useState<string | null>(null);
+  const [selectedOutputId, setSelectedOutputId] = React.useState<string | null>(null);
   const generationQueueRef = React.useRef<GenerationRequest[]>([]);
   const queueRunnerRef = React.useRef(false);
   const inputFileId = React.useMemo(() => `flux-input-${Math.random().toString(36).slice(2)}`, []);
@@ -780,7 +827,7 @@ export function FluxLoraGeneratorScreen(props: {
     const reqSdxlCheckpoint =
       SDXL_CHECKPOINT_PRESETS.find((p) => p.id === request.sdxlCheckpointId) || SDXL_CHECKPOINT_PRESETS[0];
 
-    setLightbox(null);
+    setSelectedOutputId(null);
     setIsGenerating(true);
     setGenError('');
     setFalPhase('queue');
@@ -906,10 +953,29 @@ export function FluxLoraGeneratorScreen(props: {
             maxWaitMs: 12 * 60_000,
           });
 
+      const detailsText = buildGenerationDetailsText({
+        modelFamily: request.modelFamily,
+        checkpointLabel: request.modelFamily === 'sdxl' ? reqSdxlCheckpoint?.label : undefined,
+        checkpointModelName: request.modelFamily === 'sdxl' ? String(reqSdxlCheckpoint?.modelName || SDXL_BASE_MODEL) : undefined,
+        endpointId: request.modelFamily === 'sdxl' ? 'fal-ai/lora/image-to-image' : reqFluxEndpointId,
+        loras: normalizedLorasForRun,
+        cfg: request.cfg,
+        denoise: request.denoise,
+        steps: request.steps,
+        seed: typeof usedSeed === 'number' ? usedSeed : request.seed,
+        imageSize: request.modelFamily === 'flux' ? effectiveImageSize : '1024x1024 (normalizace)',
+        outputFormat: request.outputFormat,
+        sampler: request.modelFamily === 'sdxl' ? request.sdxlSampler : undefined,
+        scheduler: request.modelFamily === 'sdxl' ? request.sdxlScheduler : undefined,
+        acceleration: request.modelFamily === 'flux' ? request.flux2Acceleration : undefined,
+      });
+
       const resolved = pendingItems.map((p, i) => ({
         id: p.id,
         dataUrl: images[i],
         status: 'done' as const,
+        detailsText,
+        originalDataUrl: request.inputDataUrl,
       }));
       setGenerated((prev) => {
         let outIdx = 0;
@@ -1014,7 +1080,7 @@ export function FluxLoraGeneratorScreen(props: {
       return;
     }
 
-    setLightbox(null);
+    setSelectedOutputId(null);
     setIsTestingGrid(true);
     setGenError('');
     setFalPhase('queue');
@@ -1185,8 +1251,23 @@ export function FluxLoraGeneratorScreen(props: {
         return prev.map((it) => {
           if (!pendingIdSet.has(it.id)) return it;
           const nextUrl = sheetDataUrls[pendingCounter];
+          const sheetNo = pendingCounter + 1;
           pendingCounter += 1;
-          return nextUrl ? { id: it.id, status: 'done', dataUrl: nextUrl } : it;
+          return nextUrl
+            ? {
+                id: it.id,
+                status: 'done',
+                dataUrl: nextUrl,
+                originalDataUrl: input?.dataUrl,
+                detailsText: [
+                  `Test: ${profile === 'aggressive' ? 'STYLE PEAK 3x8' : 'FULL TEST 3x8'}`,
+                  `Model: ${modelFamily === 'sdxl' ? 'SDXL' : fluxEndpoint === 'flux2' ? 'FLUX 2' : 'FLUX 1'}`,
+                  `LoRA: ${loraName} (${baseLora.scale?.toFixed(2) || '1.00'})`,
+                  `Sheet: ${sheetNo}/3`,
+                  `Varianty: ${sheetNo === 1 ? '1-8' : sheetNo === 2 ? '9-16' : '17-24'}`,
+                ].join('\n'),
+              }
+            : it;
         });
       });
 
@@ -1246,7 +1327,13 @@ export function FluxLoraGeneratorScreen(props: {
           maxWaitMs: 10 * 60_000,
         });
         const newId = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-upscale`;
-        const upscaledItem: OutputItem = { id: newId, status: 'done', dataUrl: image };
+        const upscaledItem: OutputItem = {
+          id: newId,
+          status: 'done',
+          dataUrl: image,
+          originalDataUrl: source.originalDataUrl || source.dataUrl,
+          detailsText: `${source.detailsText || 'LoRA influence'}\nUpscale: fal-ai/clarity-upscaler 2x`,
+        };
         setGenerated((prev) => {
           const idx = prev.findIndex((it) => it.id === source.id);
           if (idx < 0) return [upscaledItem, ...prev];
@@ -1286,6 +1373,20 @@ export function FluxLoraGeneratorScreen(props: {
   const topbarLoraScale = loras[0]?.scale ?? 1.0;
   const selectedTopbarLoraPreset =
     loras.length > 0 ? activeLoraPresets.find((p) => p.url === loras[0].path) ?? null : null;
+  const doneOutputs = React.useMemo(
+    () => generated.filter((g) => g.status === 'done' && !!g.dataUrl),
+    [generated]
+  );
+  const selectedOutputIndex = React.useMemo(
+    () => doneOutputs.findIndex((g) => g.id === selectedOutputId),
+    [doneOutputs, selectedOutputId]
+  );
+  const selectedOutput = selectedOutputIndex >= 0 ? doneOutputs[selectedOutputIndex] : null;
+
+  React.useEffect(() => {
+    if (!selectedOutputId) return;
+    if (!doneOutputs.some((g) => g.id === selectedOutputId)) setSelectedOutputId(null);
+  }, [doneOutputs, selectedOutputId]);
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -1759,7 +1860,7 @@ export function FluxLoraGeneratorScreen(props: {
                   <article key={img.id} className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all animate-fadeIn">
                     <div className="relative bg-black/50 aspect-square overflow-hidden" title={canOpen ? 'Klikni pro plné zobrazení' : 'Generuji…'}>
                       {img.dataUrl ? (
-                        <button type="button" className="block w-full h-full cursor-zoom-in" onClick={() => setLightbox(img.dataUrl || null)}>
+                        <button type="button" className="block w-full h-full cursor-zoom-in" onClick={() => setSelectedOutputId(img.id)}>
                           <img
                             src={img.dataUrl}
                             alt={`Výstup ${idx + 1}`}
@@ -1831,29 +1932,24 @@ export function FluxLoraGeneratorScreen(props: {
         </div>
       </section>
 
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-50 bg-black/88 backdrop-blur-sm p-4"
-          onDoubleClick={() => setLightbox(null)}
-          title="Dvojklik pro zavření"
-        >
-          <div
-            className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              setLightbox(null);
-            }}
-          >
-            <img
-              src={lightbox}
-              alt="Preview"
-              onDoubleClick={() => setLightbox(null)}
-              title="Dvojklik pro zavření"
-              className="block w-auto h-auto max-w-[96vw] max-h-[96vh] object-contain"
-            />
-          </div>
-        </div>
-      )}
+      <ImageComparisonModal
+        isOpen={!!selectedOutput?.dataUrl}
+        onClose={() => setSelectedOutputId(null)}
+        originalImage={selectedOutput?.originalDataUrl || input?.dataUrl || null}
+        generatedImage={selectedOutput?.dataUrl || null}
+        prompt={selectedOutput?.detailsText || 'Model a parametry nejsou k dispozici.'}
+        promptLabel="Model + Nastavení"
+        hasNext={selectedOutputIndex >= 0 && selectedOutputIndex < doneOutputs.length - 1}
+        hasPrev={selectedOutputIndex > 0}
+        onNext={() => {
+          if (selectedOutputIndex < 0 || selectedOutputIndex >= doneOutputs.length - 1) return;
+          setSelectedOutputId(doneOutputs[selectedOutputIndex + 1].id);
+        }}
+        onPrev={() => {
+          if (selectedOutputIndex <= 0) return;
+          setSelectedOutputId(doneOutputs[selectedOutputIndex - 1].id);
+        }}
+      />
     </div>
   );
 }
