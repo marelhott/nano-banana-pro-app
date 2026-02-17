@@ -505,49 +505,40 @@ export function EverArtScreen(props: {
                 </div>
               )}
 
-              <div className="max-h-[360px] overflow-y-auto custom-scrollbar pr-1 space-y-2">
+              <div className="max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
                 {models.length === 0 ? (
                   <div className="text-[10px] text-white/40">Žádné modely.</div>
                 ) : (
-                  models.map((m) => {
-                    const selected = selectedModelIds.includes(m.everartId);
-                    const ready = isModelReady(m);
-                    return (
-                      <button
-                        key={m.everartId}
-                        type="button"
-                        onClick={() => (tab === 'apply' ? toggleModel(m.everartId) : undefined)}
-                        className={`w-full text-left p-2 rounded-lg border transition-all ${
-                          selected
-                            ? 'border-[#7ed957]/45 bg-[#7ed957]/10'
-                            : 'border-white/10 bg-black/15 hover:border-white/20'
-                        } ${tab === 'apply' ? '' : 'cursor-default'}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-9 h-9 rounded-md overflow-hidden bg-black/40 border border-white/10 shrink-0">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {models.map((m) => {
+                      const selected = selectedModelIds.includes(m.everartId);
+                      return (
+                        <button
+                          key={m.everartId}
+                          type="button"
+                          onClick={() => (tab === 'apply' ? toggleModel(m.everartId) : undefined)}
+                          className={`text-left rounded-lg transition-all ${
+                            tab === 'apply' ? '' : 'cursor-default'
+                          }`}
+                        >
+                          <div
+                            className={`relative w-full h-[104px] rounded-lg overflow-hidden border transition-all ${
+                              selected
+                                ? 'border-[#7ed957]/50 shadow-[0_0_0_1px_rgba(126,217,87,0.2)]'
+                                : 'border-white/12 hover:border-white/24'
+                            }`}
+                          >
                             {m.thumbnailUrl ? (
                               <img src={m.thumbnailUrl} className="w-full h-full object-cover" alt={m.name} />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white/25">•</div>
+                              <div className="w-full h-full bg-black/35 flex items-center justify-center text-white/25">•</div>
                             )}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[10px] font-bold text-white/90 truncate">{m.name}</div>
-                            <div className="text-[9px] text-white/45 truncate">{m.everartId}</div>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex items-center gap-1.5">
-                          <span className={`px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded border ${statusBadgeClass(m.status)}`}>
-                            {statusLabel(m.status)}
-                          </span>
-                          <span className="text-[8px] text-white/40">{m.subject || 'STYLE'}</span>
-                          {!ready && tab === 'apply' && (
-                            <span className="text-[8px] text-amber-300/85">(ne READY)</span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })
+                          <div className="mt-1.5 text-[10px] font-bold text-white/88 truncate">{m.name}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
