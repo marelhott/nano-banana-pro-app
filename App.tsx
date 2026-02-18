@@ -3610,7 +3610,7 @@ ${extra}
                                 image.url && (
                                   <img
                                     src={image.url}
-                                    className={`w-full h-full object-cover ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
+                                    className={`w-full h-full object-contain bg-black/30 ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
                                     decoding="sync"
                                     style={{ imageRendering: '-webkit-optimize-contrast' }}
                                   />
