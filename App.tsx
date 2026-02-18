@@ -309,6 +309,7 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
     sourceImages: [],
     styleImages: [],
+    assetImages: [],
     generatedImages: [],
     prompt: '',
     aspectRatio: 'Original',
@@ -349,7 +350,7 @@ const App: React.FC = () => {
   const [isGenerateClicked, setIsGenerateClicked] = useState(false);
   const [referenceImageSource, setReferenceImageSource] = useState<'computer' | 'database'>('computer');
   const [styleImageSource, setStyleImageSource] = useState<'computer' | 'database'>('computer');
-  const [dragOverTarget, setDragOverTarget] = useState<'reference' | 'style' | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<'reference' | 'style' | 'asset' | null>(null);
 
   const [routePath, setRoutePath] = useState('/');
   const navigate = useCallback((to: string) => {
@@ -637,6 +638,34 @@ const App: React.FC = () => {
     });
   }, [state.styleImages]);
 
+  const handleAssetImagesSelected = useCallback((files: File[]) => {
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        if (e.target?.result && typeof e.target.result === 'string') {
+          const dataUrl = e.target.result;
+          const newImage: SourceImage = {
+            id: Math.random().toString(36).substr(2, 9),
+            url: dataUrl,
+            file: file
+          };
+          setState(prev => ({
+            ...prev,
+            assetImages: [...prev.assetImages, newImage],
+            error: null,
+          }));
+
+          try {
+            await ImageDatabase.add(file, dataUrl, 'reference');
+          } catch (error) {
+            console.error('Failed to save asset image to database:', error);
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }, [state.assetImages]);
+
   const handleDatabaseImagesSelected = useCallback((images: { url: string; fileName: string; fileType: string }[]) => {
     images.forEach(async ({ url, fileName, fileType }) => {
       // Konvertuj data URL na File objekt
@@ -679,6 +708,26 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const handleDatabaseAssetImagesSelected = useCallback((images: { url: string; fileName: string; fileType: string }[]) => {
+    images.forEach(async ({ url, fileName, fileType }) => {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const file = new File([blob], fileName, { type: fileType });
+
+      const newImage: SourceImage = {
+        id: Math.random().toString(36).substr(2, 9),
+        url: url,
+        file: file
+      };
+
+      setState(prev => ({
+        ...prev,
+        assetImages: [...prev.assetImages, newImage],
+        error: null,
+      }));
+    });
+  }, []);
+
   const blobToDataUrl = useCallback((blob: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -703,6 +752,12 @@ const App: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverTarget('style');
+  }, []);
+
+  const handleDragOverAsset = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget('asset');
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -932,6 +987,97 @@ const App: React.FC = () => {
     }
   }, [blobToDataUrl, state.styleImages]);
 
+  const handleDropAsset = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget(null);
+
+    try {
+      let imageData = null;
+      const internalData = e.dataTransfer.getData('application/x-mulen-image');
+      const jsonData = e.dataTransfer.getData('application/json');
+
+      if (internalData) {
+        imageData = JSON.parse(internalData);
+      } else if (jsonData) {
+        imageData = JSON.parse(jsonData);
+      } else {
+        const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
+        if (files.length > 0) {
+          const file = files[0];
+          imageData = { file, fileName: file.name, fileType: file.type };
+        } else {
+          const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+          if (url) {
+            imageData = {
+              url: url,
+              fileName: 'asset-image.jpg',
+              fileType: 'image/jpeg'
+            };
+          }
+        }
+      }
+
+      const hasDroppedFile = imageData?.file instanceof File;
+      if (!imageData || (!imageData.url && !hasDroppedFile)) return;
+
+      const { url, fileName, fileType, file: droppedFile } = imageData;
+
+      if (droppedFile instanceof File) {
+        const dataUrl = await fileToDataUrl(droppedFile);
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: dataUrl,
+          file: droppedFile
+        };
+
+        setState(prev => ({
+          ...prev,
+          assetImages: [...prev.assetImages, newImage],
+          error: null,
+        }));
+        return;
+      }
+
+      if (state.assetImages.some(img => img.url === url)) return;
+
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], fileName, { type: fileType });
+
+        const dataUrl = await blobToDataUrl(blob);
+
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: dataUrl,
+          file: file
+        };
+
+        setState(prev => ({
+          ...prev,
+          assetImages: [...prev.assetImages, newImage],
+          error: null,
+        }));
+      } catch (fetchError) {
+        console.error('[Drop Asset] Failed to fetch image, using URL directly:', fetchError);
+        const newImage: SourceImage = {
+          id: Math.random().toString(36).substr(2, 9),
+          url: url,
+          file: new File([], fileName, { type: fileType })
+        };
+
+        setState(prev => ({
+          ...prev,
+          assetImages: [...prev.assetImages, newImage],
+          error: null,
+        }));
+      }
+    } catch (error) {
+      console.error('[Drop Asset] Drop failed:', error);
+    }
+  }, [blobToDataUrl, fileToDataUrl, state.assetImages]);
+
   // Auto-generate effect
   useEffect(() => {
     if (state.shouldAutoGenerate) {
@@ -1154,6 +1300,13 @@ const App: React.FC = () => {
           mimeType: img.file.type
         }))
       );
+      const assetImagesData = await Promise.all(
+        state.assetImages.map(async img => ({
+          data: await urlToDataUrl(img.url),
+          mimeType: img.file.type
+        }))
+      );
+      const providerImages = [...sourceImagesData, ...assetImagesData];
 
       // 2. Generate image for each variant sequentially
       for (let i = 0; i < variants.length; i++) {
@@ -1208,11 +1361,12 @@ const App: React.FC = () => {
               aspectRatio: state.aspectRatio,
               sourceImageCount: state.sourceImages.length,
               styleImageCount: state.styleImages.length,
+              assetImageCount: state.assetImages.length,
               createdAt: Date.now(),
             };
 
             const result = await provider.generateImage(
-              sourceImagesData,
+              providerImages,
               variant.prompt,
               state.resolution,
               state.aspectRatio,
@@ -1345,6 +1499,13 @@ const App: React.FC = () => {
           mimeType: img.file.type
         }))
       );
+      const assetImagesData = await Promise.all(
+        state.assetImages.map(async img => ({
+          data: await urlToDataUrl(img.url),
+          mimeType: img.file.type
+        }))
+      );
+      const providerImages = [...sourceImagesData, ...assetImagesData];
 
       // Create loading entries for all 3
       const ids = AI_PROVIDERS.map((p, i) => `${Date.now()}-3ai-${i}`);
@@ -1375,7 +1536,7 @@ const App: React.FC = () => {
         try {
           const provider = ProviderFactory.getProvider(p.type, providerSettings);
           const result = await provider.generateImage(
-            sourceImagesData,
+            providerImages,
             prompt,
             state.resolution,
             state.aspectRatio,
@@ -1398,6 +1559,7 @@ const App: React.FC = () => {
             aspectRatio: state.aspectRatio,
             sourceImageCount: state.sourceImages.length,
             styleImageCount: state.styleImages.length,
+            assetImageCount: state.assetImages.length,
             createdAt: Date.now(),
           };
 
@@ -1482,11 +1644,11 @@ const App: React.FC = () => {
     if (promptMode === 'simple') {
       const hasFixedSimpleMode = !!simpleLinkMode && state.sourceImages.length > 0 && state.styleImages.length > 0;
       if (!state.prompt.trim() && !hasReferencePrompt && !hasFixedSimpleMode) {
-        setToast({ message: 'Vyberte Styl / Merge / Object (a přidejte referenční + stylový obrázek) nebo napište prompt', type: 'error' });
+        setToast({ message: 'Vyberte Styl / Merge / Object (a přidejte vstupní + stylový obrázek) nebo napište prompt', type: 'error' });
         return;
       }
       if (!!simpleLinkMode && (state.sourceImages.length === 0 || state.styleImages.length === 0)) {
-        setToast({ message: 'Pro Styl / Merge / Object přidejte aspoň 1 referenční a 1 stylový obrázek', type: 'error' });
+        setToast({ message: 'Pro Styl / Merge / Object přidejte aspoň 1 vstupní a 1 stylový obrázek', type: 'error' });
         return;
       }
     }
@@ -1563,22 +1725,29 @@ const App: React.FC = () => {
                 mimeType: img.file.type
               }))
             );
-            const allImages = [...sourceImagesData, ...styleImagesData];
+            const assetImagesData = await Promise.all(
+              state.assetImages.map(async img => ({
+                data: await urlToDataUrl(img.url),
+                mimeType: img.file.type
+              }))
+            );
+            const allImages = [...sourceImagesData, ...styleImagesData, ...assetImagesData];
 
             const buildSimpleLinkPrompt = (
               mode: 'style' | 'merge' | 'object',
               extra: string,
               referenceImageCount: number,
-              styleImageCount: number
+              styleImageCount: number,
+              assetImageCount: number
             ) => {
               const header = `
 [LINK MODE: ${mode.toUpperCase()}]
-Images order: first ${referenceImageCount} reference image(s), then ${styleImageCount} style image(s).
+Images order: first ${referenceImageCount} input image(s), then ${styleImageCount} style image(s), then ${assetImageCount} proprietary asset image(s).
 `;
 
               if (mode === 'style') {
                 return `${header}
-Apply the visual style, composition, lighting, color grading, lens feel, and overall mood from the style image(s) to the reference image(s), while preserving the identity and content of the reference subject(s). Do NOT transfer objects/content from style; transfer only aesthetic and photographic/artistic treatment.
+Apply the visual style, composition, lighting, color grading, lens feel, and overall mood from the style image(s) to the input image(s), while preserving the identity and content of the input subject(s). Do NOT transfer objects/content from style; transfer only aesthetic and photographic/artistic treatment.
 
 ${extra ? `Additional instructions:
 ${extra}
@@ -1587,7 +1756,7 @@ ${extra}
 
               if (mode === 'merge') {
                 return `${header}
-Create a cohesive merge of reference and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality. Use the style image(s) as a compositional template when helpful, but preserve the identity of subjects from the reference image(s).
+Create a cohesive merge of input and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality. Use the style image(s) as a compositional template when helpful, but preserve the identity of subjects from the input image(s).
 
 ${extra ? `Additional instructions:
 ${extra}
@@ -1595,7 +1764,7 @@ ${extra}
               }
 
               return `${header}
-Transfer the dominant object/element from the style image(s) onto the reference image(s) in a realistic way. Keep the reference scene intact and place/replace the matching region with the style object (e.g., decorative wall), with correct perspective, lighting, scale, and shadows.
+Transfer the dominant object/element from the style image(s) onto the input image(s) in a realistic way. Keep the input scene intact and place/replace the matching region with the style object (e.g., decorative wall), with correct perspective, lighting, scale, and shadows.
 
 ${extra ? `Additional instructions:
 ${extra}
@@ -1617,7 +1786,7 @@ ${extra}
             }
 
             if (promptMode === 'simple' && simpleLinkMode) {
-              basePrompt = buildSimpleLinkPrompt(simpleLinkMode, extraPrompt, state.sourceImages.length, state.styleImages.length);
+              basePrompt = buildSimpleLinkPrompt(simpleLinkMode, extraPrompt, state.sourceImages.length, state.styleImages.length, state.assetImages.length);
               setGenerationPromptPreview(basePrompt);
             } else {
               basePrompt = extraPrompt;
@@ -1647,11 +1816,11 @@ ${extra}
             let enhancedPrompt = basePrompt;
             if (state.styleImages.length > 0) {
               const styleImageCount = state.styleImages.length;
-              const referenceImageCount = state.sourceImages.length;
-              enhancedPrompt = `${basePrompt}\n\n[Technická instrukce: První ${referenceImageCount} obrázek${referenceImageCount > 1 ? 'y' : ''} ${referenceImageCount > 1 ? 'jsou' : 'je'} referenční obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu referenčního obsahu.]`;
+              const inputImageCount = state.sourceImages.length;
+              enhancedPrompt = `${basePrompt}\n\n[Technická instrukce: První ${inputImageCount} obrázek${inputImageCount > 1 ? 'y' : ''} ${inputImageCount > 1 ? 'jsou' : 'je'} vstupní obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu vstupního obsahu.]`;
 
-              if (referenceImageCount > 1 && state.multiRefMode !== 'batch') {
-                enhancedPrompt += `\n\n[KOMPOZICE & OBSAH: Vytvoř jednu výslednou scénu, která kombinuje obsah ze všech referenčních obrázků. Použij stylové obrázky také jako kompoziční šablonu (rozvržení, póza, framing) pro výslednou scénu. Zachovej maximálně obličejovou podobnost osob z referencí a zachovej jejich klíčové objekty/rekvizity (např. kytary).]`;
+              if (inputImageCount > 1 && state.multiRefMode !== 'batch') {
+                enhancedPrompt += `\n\n[KOMPOZICE & OBSAH: Vytvoř jednu výslednou scénu, která kombinuje obsah ze všech vstupních obrázků. Použij stylové obrázky také jako kompoziční šablonu (rozvržení, póza, framing) pro výslednou scénu. Zachovej maximálně obličejovou podobnost osob ze vstupů a zachovej jejich klíčové objekty/rekvizity.]`;
               }
 
               // #1 + #6: Propojit analýzu stylu a sílu stylu do promptu
@@ -1669,6 +1838,11 @@ ${extra}
               }
             }
 
+            if (state.assetImages.length > 0) {
+              const assetCount = state.assetImages.length;
+              enhancedPrompt += `\n\n[PROPRIETÁRNÍ ASSET REFERENCE: Po stylových referencích následuje ${assetCount} obrázek${assetCount > 1 ? 'y' : ''} proprietárních prvků (např. logo, klobouk, boty, produkt). Tyto assety NEBER jako styl. Použij je pouze jako obsahové/reference prvky pro přesný vzhled, tvar a umístění ve scéně.]`;
+            }
+
             // #2: Aspect ratio normalizace pro provider
             const providerTypeKey = selectedProvider as unknown as ProviderType;
             const mappedRatio = mapAspectRatio(state.aspectRatio, providerTypeKey);
@@ -1683,6 +1857,8 @@ ${extra}
               styleImageIds: state.styleImages.map(img => img.id),
               sourceImageUrls: state.sourceImages.map(img => img.url),
               styleImageUrls: state.styleImages.map(img => img.url),
+              assetImageIds: state.assetImages.map(img => img.id),
+              assetImageUrls: state.assetImages.map(img => img.url),
             };
 
             const recipe: GenerationRecipe = {
@@ -1699,6 +1875,7 @@ ${extra}
               aspectRatio: state.aspectRatio,
               sourceImageCount: state.sourceImages.length,
               styleImageCount: state.styleImages.length,
+              assetImageCount: state.assetImages.length,
               createdAt: Date.now(),
               styleStrength: state.styleImages.length > 0 ? styleStrength : undefined,
               styleAnalysis: styleAnalysisCache ? {
@@ -1729,7 +1906,7 @@ ${extra}
                 referenceImages: sourceImagesData,
                 styleImages: styleImagesData,
               });
-              providerImages = [composite];
+              providerImages = [composite, ...assetImagesData];
               providerPrompt += `\n\n[POZN.: Vstupní obrázek je KOMPOZIT: levá polovina = reference (osoby/identita), pravá polovina = styl (kompozice, světlo, barevnost). Použij pravou polovinu jako stylovou/kompoziční šablonu pro výsledek.]`;
             }
 
@@ -2052,16 +2229,17 @@ ${extra}
       mode: 'style' | 'merge' | 'object',
       extra: string,
       referenceImageCount: number,
-      styleImageCount: number
+      styleImageCount: number,
+      assetImageCount: number
     ) => {
       const header = `
 [LINK MODE: ${mode.toUpperCase()}]
-Images order: first ${referenceImageCount} reference image(s), then ${styleImageCount} style image(s).
+Images order: first ${referenceImageCount} input image(s), then ${styleImageCount} style image(s), then ${assetImageCount} proprietary asset image(s).
 `;
 
       if (mode === 'style') {
         return `${header}
-Apply the visual style, composition, lighting, color grading, lens feel, and overall mood from the style image(s) to the reference image(s), while preserving the identity and content of the reference subject(s). Do NOT transfer objects/content from style; transfer only aesthetic and photographic/artistic treatment.
+Apply the visual style, composition, lighting, color grading, lens feel, and overall mood from the style image(s) to the input image(s), while preserving the identity and content of the input subject(s). Do NOT transfer objects/content from style; transfer only aesthetic and photographic/artistic treatment.
 
 ${extra ? `Additional instructions:
 ${extra}
@@ -2070,7 +2248,7 @@ ${extra}
 
       if (mode === 'merge') {
         return `${header}
-Create a cohesive merge of reference and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality.
+Create a cohesive merge of input and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality.
 
 ${extra ? `Additional instructions:
 ${extra}
@@ -2078,7 +2256,7 @@ ${extra}
       }
 
       return `${header}
-Transfer the dominant object/element from the style image(s) onto the reference image(s) in a realistic way. Keep the reference scene intact and place/replace the matching region with the style object (e.g., decorative wall), with correct perspective, lighting, scale, and shadows.
+Transfer the dominant object/element from the style image(s) onto the input image(s) in a realistic way. Keep the input scene intact and place/replace the matching region with the style object (e.g., decorative wall), with correct perspective, lighting, scale, and shadows.
 
 ${extra ? `Additional instructions:
 ${extra}
@@ -2094,6 +2272,12 @@ ${extra}
           }))
         )
         : [];
+      const assetImagesData = await Promise.all(
+        state.assetImages.map(async (img) => ({
+          data: await urlToDataUrl(img.url),
+          mimeType: img.file.type,
+        }))
+      );
 
       for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         const chunk = chunks[chunkIndex];
@@ -2112,7 +2296,7 @@ ${extra}
             try {
               const effectivePrompt =
                 promptMode === 'simple' && simpleLinkMode && styleImagesData.length > 0
-                  ? buildSimpleLinkPrompt(simpleLinkMode, state.prompt.trim(), 1, styleImagesData.length)
+                  ? buildSimpleLinkPrompt(simpleLinkMode, state.prompt.trim(), 1, styleImagesData.length, assetImagesData.length)
                   : state.prompt;
 
               const recipe: GenerationRecipe = {
@@ -2129,6 +2313,7 @@ ${extra}
                 aspectRatio: state.aspectRatio,
                 sourceImageCount: 1,
                 styleImageCount: styleImagesData.length,
+                assetImageCount: assetImagesData.length,
                 createdAt: Date.now(),
               };
 
@@ -2139,8 +2324,8 @@ ${extra}
               }];
 
               const allImages = styleImagesData.length > 0
-                ? [...sourceImagesData, ...styleImagesData]
-                : sourceImagesData;
+                ? [...sourceImagesData, ...styleImagesData, ...assetImagesData]
+                : [...sourceImagesData, ...assetImagesData];
 
               // Generate image
               const result = await provider.generateImage(
@@ -2831,9 +3016,9 @@ ${extra}
         {promptMode === 'simple' && (
           <div className="mt-2 grid grid-cols-3 gap-1.5">
             {[
-              { id: 'style' as const, label: 'STYL', subtitle: 'Přenos kompozice', tooltip: 'Přenese kompozici, nasvícení a barvy ze stylu. Obsah/identita zůstává z reference.' },
+              { id: 'style' as const, label: 'STYL', subtitle: 'Přenos kompozice', tooltip: 'Přenese kompozici, nasvícení a barvy ze stylu. Obsah/identita zůstává ze vstupního obrázku.' },
               { id: 'merge' as const, label: 'MERGE', subtitle: 'Volné spojení', tooltip: 'Volně spojí oba obrázky (obsah i formu) do jednoho výsledku.' },
-              { id: 'object' as const, label: 'OBJECT', subtitle: 'Přenos objektu', tooltip: 'Přenese dominantní objekt/prvek ze stylu do reference (např. dekorativní zeď).' },
+              { id: 'object' as const, label: 'OBJECT', subtitle: 'Přenos objektu', tooltip: 'Přenese dominantní objekt/prvek ze stylu do vstupního obrázku (např. dekorativní zeď).' },
             ].map((m) => (
               <button
                 key={m.id}
@@ -3000,10 +3185,10 @@ ${extra}
         </div>
       </div>
 
-      {/* 5. Reference Images (Compacted) */}
+      {/* 5. Input Images (Compacted) */}
       <div className="space-y-1">
         <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center justify-between">
-          <span>Referenční Obrázky</span>
+          <span>Vstupní Obrázky</span>
           <span className="text-[9px] text-[var(--text-secondary)]">{state.sourceImages.length}</span>
         </h3>
 
@@ -3054,7 +3239,7 @@ ${extra}
             <div className="p-1 grid grid-cols-4 gap-1">
               {state.sourceImages.map((img, idx) => (
                 <div key={img.id} className="relative group aspect-square rounded overflow-hidden bg-[var(--bg-card)] border border-[var(--border-color)]">
-                  <img src={img.url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" alt={`Ref ${idx}`} />
+                  <img src={img.url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" alt={`Input ${idx}`} />
                   <button
                     onClick={(e) => { e.stopPropagation(); setState(prev => ({ ...prev, sourceImages: prev.sourceImages.filter(i => i.id !== img.id) })); }}
                     className="absolute top-0 right-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100"
@@ -3201,6 +3386,69 @@ ${extra}
             ))}
           </div>
         )}
+      </div>
+
+      {/* 7. Proprietary Assets (Compacted) */}
+      <div className="space-y-1">
+        <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center justify-between">
+          <span>Proprietární Prvky</span>
+          <span className="text-[9px] text-[var(--text-secondary)]">{state.assetImages.length}</span>
+        </h3>
+        <div
+          className={`relative min-h-[60px] border border-dashed rounded-lg transition-all ${dragOverTarget === 'asset' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50'}`}
+          onDragOver={handleDragOverAsset}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDropAsset}
+        >
+          {state.assetImages.length === 0 ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer" onClick={() => document.getElementById('asset-upload-input')?.click()}>
+              <span className="text-[var(--text-secondary)] text-lg group-hover:text-[var(--text-primary)] transition-colors">+</span>
+              <input
+                id="asset-upload-input"
+                type="file"
+                multiple
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const inputEl = e.currentTarget;
+                  if (e.target.files) handleAssetImagesSelected(Array.from(e.target.files));
+                  inputEl.value = '';
+                }}
+              />
+            </div>
+          ) : (
+            <div className="p-1 grid grid-cols-4 gap-1">
+              {state.assetImages.map((img, idx) => (
+                <div key={img.id} className="relative group aspect-square rounded overflow-hidden bg-[var(--bg-card)] border border-[var(--border-color)]">
+                  <img src={img.url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" alt={`Asset ${idx}`} />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setState(prev => ({ ...prev, assetImages: prev.assetImages.filter(i => i.id !== img.id) })); }}
+                    className="absolute top-0 right-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ))}
+              <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
+                <span className="text-[var(--text-secondary)]">+</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const inputEl = e.currentTarget;
+                    if (e.target.files) handleAssetImagesSelected(Array.from(e.target.files));
+                    inputEl.value = '';
+                  }}
+                />
+              </label>
+            </div>
+          )}
+        </div>
+        <div className="text-[8px] text-[var(--text-secondary)]/80">
+          Logo / klobouk / boty / produkt. Neovlivňuje styl, pouze obsahové doplnění výstupu.
+        </div>
       </div>
 
       {/* #12: Tlačítko pro volné porovnání */}

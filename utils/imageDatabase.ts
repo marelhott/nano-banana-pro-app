@@ -10,7 +10,7 @@ export interface StoredImage {
   fileType: string;
   fileSize: number;
   timestamp: number;
-  category: 'reference' | 'style'; // typ obrázku
+  category: 'reference' | 'style' | 'asset'; // typ obrázku
 }
 
 // Cache pro rychlejší načítání
@@ -38,7 +38,7 @@ export class ImageDatabase {
         fileType: 'image/jpeg', // Default
         fileSize: row.file_size || 0,
         timestamp: new Date(row.created_at).getTime(),
-        category: row.category as 'reference' | 'style'
+        category: row.category as 'reference' | 'style' | 'asset'
       }));
 
       return cachedImages;
@@ -49,19 +49,19 @@ export class ImageDatabase {
   }
 
   // Získat obrázky podle kategorie (synchronní - použije cache)
-  static getByCategory(category: 'reference' | 'style'): StoredImage[] {
+  static getByCategory(category: 'reference' | 'style' | 'asset'): StoredImage[] {
     if (!cachedImages) return [];
     return cachedImages.filter(img => img.category === category);
   }
 
   // Asynchronní verze - načte z databáze
-  static async getByCategoryAsync(category: 'reference' | 'style'): Promise<StoredImage[]> {
+  static async getByCategoryAsync(category: 'reference' | 'style' | 'asset'): Promise<StoredImage[]> {
     const all = await this.getAll();
     return all.filter(img => img.category === category);
   }
 
   // Přidat obrázek do databáze
-  static async add(file: File, dataUrl: string, category: 'reference' | 'style'): Promise<StoredImage> {
+  static async add(file: File, dataUrl: string, category: 'reference' | 'style' | 'asset'): Promise<StoredImage> {
     const userId = getCurrentUserId();
     if (!userId) {
       throw new Error('Uživatel není přihlášen');
@@ -170,7 +170,7 @@ export class ImageDatabase {
   }
 
   // Vymazat obrázky podle kategorie
-  static async clearByCategory(category: 'reference' | 'style'): Promise<void> {
+  static async clearByCategory(category: 'reference' | 'style' | 'asset'): Promise<void> {
     const userId = getCurrentUserId();
     if (!userId) return;
 

@@ -210,7 +210,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
               ? 'border-[#7ed957]/60 ring-1 ring-[#7ed957]/40'
               : 'border-gray-800 hover:border-[#7ed957]'
               }`}
-            title="Přetáhněte do referenčního nebo stylového pole"
+            title="Přetáhněte do vstupního, stylového nebo proprietárního pole"
           >
             <button
               type="button"

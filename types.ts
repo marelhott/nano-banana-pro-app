@@ -18,6 +18,8 @@ export interface LineageEntry {
   styleImageIds: string[];
   sourceImageUrls: string[];
   styleImageUrls: string[];
+  assetImageIds?: string[];
+  assetImageUrls?: string[];
 }
 
 export interface GenerationRecipe {
@@ -34,6 +36,7 @@ export interface GenerationRecipe {
   aspectRatio?: string;
   sourceImageCount: number;
   styleImageCount: number;
+  assetImageCount?: number;
   createdAt: number;
   styleStrength?: number;
   styleAnalysis?: StyleAnalysis;
@@ -105,6 +108,7 @@ export interface SavedPrompt {
 export interface AppState {
   sourceImages: SourceImage[];
   styleImages: SourceImage[];
+  assetImages: SourceImage[];
   generatedImages: GeneratedImage[];
   prompt: string;
   aspectRatio: string;
