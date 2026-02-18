@@ -409,6 +409,7 @@ const App: React.FC = () => {
   const rightPanelRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const mobilePromptRef = useRef<HTMLTextAreaElement>(null);
+  const generationLockRef = useRef(false);
 
   // canGenerate: Check if user can trigger generation
   const canGenerate = useMemo(() => {
@@ -1460,6 +1461,9 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
+    if (generationLockRef.current || isGenerating) return;
+    generationLockRef.current = true;
+    try {
     setIsMobileMenuOpen(false);
     setGenerationPromptPreview(null);
 
@@ -1504,7 +1508,7 @@ const App: React.FC = () => {
 
     // Vytvořit pole s požadovaným počtem obrázků
     const imagesToGenerate = Array.from({ length: countToGenerate }, (_, index) => {
-      const newId = `${Date.now()}-${index}`;
+      const newId = `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
       return {
         id: newId,
         prompt: state.prompt,
@@ -1805,7 +1809,10 @@ ${extra}
       setGenerationProgress(null);
     };
 
-    generateSequentially();
+    await generateSequentially();
+    } finally {
+      generationLockRef.current = false;
+    }
   };
 
   const handleRepopulate = (image: GeneratedImage) => {
@@ -2815,13 +2822,7 @@ ${extra}
             ref={isMobileView ? mobilePromptRef : promptRef}
             value={state.prompt}
             onChange={(e) => { setState(p => ({ ...p, prompt: e.target.value })); promptHistory.add(e.target.value); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleGenerate();
-              }
-              handleKeyDown(e);
-            }}
+            onKeyDown={handleKeyDown}
             placeholder={promptMode === 'advanced' ? "Popište obrázek přirozeně. Vyberte variantu níže pro určení stylu interpretace..." : "Volitelné: doplňující prompt (Styl/Merge/Object funguje i bez textu)…"}
             className="w-full min-h-[120px] max-h-[240px] bg-transparent border-0 border-b border-[var(--border-color)] rounded-none p-2 text-[11px] font-medium text-[var(--text-primary)] placeholder-gray-500 focus:border-[var(--accent)] focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
           />
