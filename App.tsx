@@ -1275,6 +1275,21 @@ const App: React.FC = () => {
   /**
    * Generate 3 sophisticated prompt variants and create images for each
    */
+  const isRetriableProviderError = (err: any): boolean => {
+    const message = String(err?.message || err || '').toLowerCase();
+    return (
+      message.includes('429') ||
+      message.includes('toomanyrequests') ||
+      message.includes('resource_exhausted') ||
+      message.includes('request blocked') ||
+      message.includes('503') ||
+      message.includes('unavailable') ||
+      message.includes('high demand') ||
+      message.includes('temporarily unavailable') ||
+      message.includes('overloaded')
+    );
+  };
+
   const handleGenerate3Variants = async () => {
     if (!state.prompt.trim() || isGenerating) return;
 
@@ -1405,14 +1420,11 @@ const App: React.FC = () => {
             setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
             success = true;
           } catch (err: any) {
-            const is429 = err.message?.includes('429') ||
-              err.message?.includes('TooManyRequests') ||
-              err.message?.includes('RESOURCE_EXHAUSTED');
-
-            if (is429 && retryCount < maxRetries) {
+            const isRetriable = isRetriableProviderError(err);
+            if (isRetriable && retryCount < maxRetries) {
               retryCount++;
-              const waitTime = 5000 * Math.pow(2, retryCount - 1);
-              console.log(`[3 Variants] Rate limit for variant ${i + 1}, waiting ${waitTime / 1000}s (retry ${retryCount}/${maxRetries})`);
+              const waitTime = 6000 * Math.pow(2, retryCount - 1);
+              console.log(`[3 Variants] Provider overload for variant ${i + 1}, waiting ${waitTime / 1000}s (retry ${retryCount}/${maxRetries})`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
             } else {
               console.error(`[3 Variants] Failed to generate variant ${i + 1}:`, err);
@@ -1955,16 +1967,12 @@ ${extra}
 
             success = true; // Úspěch, pokračuj na další obrázek
           } catch (err: any) {
-            const is429 = err.message?.includes('429') ||
-              err.message?.includes('TooManyRequests') ||
-              err.message?.includes('RESOURCE_EXHAUSTED') ||
-              err.message?.includes('Request blocked');
-
-            if (is429 && retryCount < maxRetries) {
+            const isRetriable = isRetriableProviderError(err);
+            if (isRetriable && retryCount < maxRetries) {
               retryCount++;
-              // Exponential backoff: 5s, 10s, 20s
-              const waitTime = 5000 * Math.pow(2, retryCount - 1);
-              console.log(`Rate limit hit for image ${i + 1}, waiting ${waitTime / 1000}s before retry ${retryCount}/${maxRetries}`);
+              // Exponential backoff: 6s, 12s, 24s
+              const waitTime = 6000 * Math.pow(2, retryCount - 1);
+              console.log(`Provider overload hit for image ${i + 1}, waiting ${waitTime / 1000}s before retry ${retryCount}/${maxRetries}`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
             } else {
               // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
