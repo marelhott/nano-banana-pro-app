@@ -12,6 +12,7 @@ import {
  */
 export class GeminiProvider implements AIProvider {
   private static readonly IMAGE_MODEL = 'gemini-3-pro-image-preview';
+  private static readonly IMAGE_FALLBACK_MODEL = 'gemini-2.5-flash-image';
   private static readonly TEXT_MODEL = 'gemini-3-flash-preview';
   private apiKey: string;
   private ai: GoogleGenAI;
@@ -337,57 +338,79 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         config.imageConfig = imageConfig;
       }
 
-      // STRICTLY REQUESTED MODEL
-      const modelName = GeminiProvider.IMAGE_MODEL;
-      console.log('[Gemini] Requesting model:', modelName);
+      const modelCandidates = [GeminiProvider.IMAGE_MODEL, GeminiProvider.IMAGE_FALLBACK_MODEL];
+      let lastError: any = null;
 
-      const response = await this.ai.models.generateContent({
-        model: modelName,
-        contents: parts,
-        config: config,
-      });
+      for (let i = 0; i < modelCandidates.length; i++) {
+        const modelName = modelCandidates[i];
+        const isLast = i === modelCandidates.length - 1;
+        try {
+          console.log('[Gemini] Requesting model:', modelName);
 
-      console.log('[Gemini] Response received');
+          const response = await this.ai.models.generateContent({
+            model: modelName,
+            contents: parts,
+            config: config,
+          });
 
-      // The response structure for multimodal models returning images can vary.
-      // We check for inline data in the candidates.
-      const candidate = response.candidates?.[0];
-      const finishReason = candidate?.finishReason;
+          console.log('[Gemini] Response received from model:', modelName);
 
-      const groundingChunks = candidate?.groundingMetadata?.groundingChunks as any[] | undefined;
-      const groundingMetadata = groundingChunks
-        ? groundingChunks
-          .map((c) => c?.web ? ({ url: c.web.uri, title: c.web.title }) : null)
-          .filter((x): x is { url: string; title: string } => !!x?.url)
-        : undefined;
+          const candidate = response.candidates?.[0];
+          const finishReason = candidate?.finishReason;
 
-      if (finishReason === 'SAFETY') {
-        throw new Error('Generování zablokováno bezpečnostním filtrem (Safety).');
+          const groundingChunks = candidate?.groundingMetadata?.groundingChunks as any[] | undefined;
+          const groundingMetadata = groundingChunks
+            ? groundingChunks
+              .map((c) => c?.web ? ({ url: c.web.uri, title: c.web.title }) : null)
+              .filter((x): x is { url: string; title: string } => !!x?.url)
+            : undefined;
+
+          if (finishReason === 'SAFETY') {
+            throw new Error('Generování zablokováno bezpečnostním filtrem (Safety).');
+          }
+
+          const partsFromCandidates: any[] = (response.candidates || [])
+            .flatMap((c: any) => c?.content?.parts || [])
+            .filter(Boolean);
+          const partsFallback: any[] = (response as any).parts || [];
+          const allParts: any[] = [...partsFromCandidates, ...partsFallback];
+
+          const imagePart = allParts.find((p: any) => p?.inlineData?.data);
+
+          if (imagePart?.inlineData?.data) {
+            const imageBytes = imagePart.inlineData.data;
+            const mime = imagePart.inlineData.mimeType || 'image/jpeg';
+            return {
+              imageBase64: `data:${mime};base64,${imageBytes}`,
+              groundingMetadata
+            };
+          }
+
+          const textOut = response.text?.trim();
+          if (textOut) {
+            throw new Error(`Model nevrátil žádná data obrázku. Model odpověděl textem: ${textOut}`);
+          }
+
+          throw new Error('Model nevrátil žádná data obrázku. Zkuste upravit prompt nebo model.');
+        } catch (error: any) {
+          lastError = error;
+          const msg = String(error?.message || '').toLowerCase();
+          const isOverloaded =
+            msg.includes('503') ||
+            msg.includes('unavailable') ||
+            msg.includes('overloaded') ||
+            msg.includes('high demand');
+
+          if (!isLast && isOverloaded) {
+            console.warn(`[Gemini] Model ${modelName} overloaded, falling back to ${modelCandidates[i + 1]}`);
+            continue;
+          }
+          throw error;
+        }
       }
 
-      const partsFromCandidates: any[] = (response.candidates || [])
-        .flatMap((c: any) => c?.content?.parts || [])
-        .filter(Boolean);
-      const partsFallback: any[] = (response as any).parts || [];
-      const allParts: any[] = [...partsFromCandidates, ...partsFallback];
-
-      const imagePart = allParts.find((p: any) => p?.inlineData?.data);
-
-      if (imagePart?.inlineData?.data) {
-        const imageBytes = imagePart.inlineData.data;
-        const mime = imagePart.inlineData.mimeType || 'image/jpeg';
-        return {
-          imageBase64: `data:${mime};base64,${imageBytes}`,
-          groundingMetadata
-        };
-      }
-
-      const textOut = response.text?.trim();
-      if (textOut) {
-        throw new Error(`Model nevrátil žádná data obrázku. Model odpověděl textem: ${textOut}`);
-      }
-
-      throw new Error('Model nevrátil žádná data obrázku. Zkuste upravit prompt nebo model.');
+      if (lastError) throw lastError;
+      throw new Error('Gemini image generation failed without specific error.');
 
     } catch (error: any) {
       console.error('[Gemini] Image generation error:', error);
