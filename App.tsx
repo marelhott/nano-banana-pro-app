@@ -39,7 +39,6 @@ import { AppIconRail } from './components/AppIconRail';
 import { FluxLoraGeneratorScreen } from './components/FluxLoraGeneratorScreen';
 import { ModelInfluenceScreen } from './components/modelInfluence/ModelInfluenceScreen';
 import { EverArtScreen } from './components/EverArtScreen';
-import { NodesScreen } from './components/NodesScreen';
 import { PinAuth } from './components/PinAuth';
 import { MaskCanvas } from './components/MaskCanvas';
 import { FreeComparisonModal } from './components/FreeComparisonModal';
@@ -379,7 +378,6 @@ const App: React.FC = () => {
   const isLoraInfluenceRoute = isFluxLoraRoute || isLoraSdRoute;
   const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
   const isEverartRoute = routePath === '/everart' || routePath.startsWith('/everart/');
-  const isNodesHubRoute = routePath === '/nodes-hub' || routePath.startsWith('/nodes-hub/');
 
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
@@ -3583,9 +3581,7 @@ ${extra}
 
       <AppIconRail
         active={
-          isNodesHubRoute
-            ? 'nodes'
-            : isStyleTransferRoute
+          isStyleTransferRoute
               ? 'style-transfer'
               : isEverartRoute
                 ? 'everart'
@@ -3615,9 +3611,6 @@ ${extra}
           if (route === 'flux-lora') {
             navigate('/flux-lora');
             return;
-          }
-          if (route === 'nodes') {
-            navigate('/nodes-hub');
           }
         }}
       />
@@ -3649,8 +3642,6 @@ ${extra}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onToast={(t) => setToast(t)}
             />
-          ) : isNodesHubRoute ? (
-            <NodesScreen onToast={(t) => setToast(t)} />
           ) : isLoraInfluenceRoute ? (
             <FluxLoraGeneratorScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}

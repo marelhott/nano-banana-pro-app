@@ -1,7 +1,7 @@
 import React from 'react';
-import { Brush, Grid3X3, Network, Flame, Layers, Sparkles } from 'lucide-react';
+import { Brush, Grid3X3, Flame, Layers, Sparkles } from 'lucide-react';
 
-type RailRoute = 'mulen' | 'model-influence' | 'everart' | 'style-transfer' | 'flux-lora' | 'nodes';
+type RailRoute = 'mulen' | 'model-influence' | 'everart' | 'style-transfer' | 'flux-lora';
 
 export function AppIconRail(props: {
   active: RailRoute;
@@ -16,7 +16,6 @@ export function AppIconRail(props: {
     { id: 'model-influence', label: 'Model Influence', icon: <Layers className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'everart', label: 'EverArt', icon: <Sparkles className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'style-transfer', label: 'Style Transfer', icon: <Brush className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
-    { id: 'nodes', label: 'Nodes', icon: <Network className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
   ];
 
   return (
