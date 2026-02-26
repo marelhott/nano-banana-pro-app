@@ -55,6 +55,8 @@ const RESOLUTIONS = [
 const MAX_GENERATED_IMAGES = 14;
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
+const NANO_BANANA_IMAGE_MODEL_STORAGE_KEY = 'nanoBananaImageModel';
+type NanoBananaImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
 
 const App: React.FC = () => {
   // Supabase connectivity state (separate from app identity)
@@ -70,6 +72,7 @@ const App: React.FC = () => {
 
   // AI Provider state
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType>(AIProviderType.GEMINI);
+  const [nanoBananaImageModel, setNanoBananaImageModel] = useState<NanoBananaImageModel>('gemini-3.1-flash-image-preview');
   const defaultProviderSettings: ProviderSettings = {
     [AIProviderType.GEMINI]: { apiKey: '', enabled: true },
     [AIProviderType.CHATGPT]: { apiKey: '', enabled: false },
@@ -135,6 +138,11 @@ const App: React.FC = () => {
     if (savedProvider && Object.values(AIProviderType).includes(savedProvider as AIProviderType)) {
       setSelectedProvider(savedProvider as AIProviderType);
     }
+
+    const savedNanoBananaModel = localStorage.getItem(NANO_BANANA_IMAGE_MODEL_STORAGE_KEY);
+    if (savedNanoBananaModel === 'gemini-3.1-flash-image-preview' || savedNanoBananaModel === 'gemini-3-pro-image-preview') {
+      setNanoBananaImageModel(savedNanoBananaModel);
+    }
   }, []);
 
   // Resolve PIN-based app identity on every origin (prod + preview domains).
@@ -162,6 +170,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(SELECTED_PROVIDER_STORAGE_KEY, selectedProvider);
   }, [selectedProvider]);
+
+  useEffect(() => {
+    localStorage.setItem(NANO_BANANA_IMAGE_MODEL_STORAGE_KEY, nanoBananaImageModel);
+  }, [nanoBananaImageModel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2878,6 +2890,17 @@ ${extra}
           </h3>
         </div>
         <div className="flex flex-col gap-2">
+          <div className="relative">
+            <select
+              value={nanoBananaImageModel}
+              onChange={(e) => setNanoBananaImageModel(e.target.value as NanoBananaImageModel)}
+              className="w-full h-8 rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-2 text-[10px] font-semibold tracking-wide text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
+              title="Mulen Nano model (Gemini image model)"
+            >
+              <option value="gemini-3.1-flash-image-preview">Nano Banana 2 (Gemini 3.1 Flash Image Preview)</option>
+              <option value="gemini-3-pro-image-preview">Nano Banana Pro (Gemini 3 Pro Image Preview)</option>
+            </select>
+          </div>
           <button
             onClick={handleGenerate}
             disabled={!canGenerate}

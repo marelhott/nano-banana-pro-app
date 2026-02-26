@@ -11,7 +11,8 @@ import {
  * Uses Google's Gemini API for image generation and editing
  */
 export class GeminiProvider implements AIProvider {
-  private static readonly IMAGE_MODEL = 'gemini-3-pro-image-preview';
+  private static readonly IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
+  private static readonly IMAGE_MODEL_ALT = 'gemini-3-pro-image-preview';
   private static readonly IMAGE_FALLBACK_MODEL = 'gemini-2.5-flash-image';
   private static readonly TEXT_MODEL = 'gemini-3-flash-preview';
   private apiKey: string;
@@ -338,7 +339,23 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         config.imageConfig = imageConfig;
       }
 
-      const modelCandidates = [GeminiProvider.IMAGE_MODEL, GeminiProvider.IMAGE_FALLBACK_MODEL];
+      let preferredImageModel = GeminiProvider.IMAGE_MODEL;
+      try {
+        const storedPreferred = localStorage.getItem('nanoBananaImageModel');
+        if (storedPreferred === GeminiProvider.IMAGE_MODEL || storedPreferred === GeminiProvider.IMAGE_MODEL_ALT) {
+          preferredImageModel = storedPreferred;
+        }
+      } catch {
+        // Ignore localStorage access errors and use defaults
+      }
+
+      const modelCandidates = Array.from(
+        new Set([
+          preferredImageModel,
+          preferredImageModel === GeminiProvider.IMAGE_MODEL ? GeminiProvider.IMAGE_MODEL_ALT : GeminiProvider.IMAGE_MODEL,
+          GeminiProvider.IMAGE_FALLBACK_MODEL,
+        ])
+      );
       let lastError: any = null;
 
       for (let i = 0; i < modelCandidates.length; i++) {
