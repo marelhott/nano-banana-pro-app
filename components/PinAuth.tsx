@@ -16,7 +16,10 @@ export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
   useEffect(() => {
     const tryAutoLogin = async () => {
       setIsCheckingAutoLogin(true);
-      const userId = await autoLogin();
+      const userId = await Promise.race<string | null>([
+        autoLogin(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
       if (userId) {
         onAuth(userId);
       } else {

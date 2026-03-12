@@ -235,6 +235,14 @@ async function linkAuthIdentity(appUserId: string, authUserId: string): Promise<
   throw error;
 }
 
+function linkAuthIdentityInBackground(appUserId: string): void {
+  void ensureAnonymousSession()
+    .then((authUserId) => linkAuthIdentity(appUserId, authUserId))
+    .catch((error) => {
+      console.warn('[Supabase] Background auth identity link failed:', error);
+    });
+}
+
 async function sha256Hex(input: string): Promise<string> {
   if (typeof crypto === 'undefined' || !crypto.subtle) {
     // Fallback: do not block login in older environments.
@@ -310,21 +318,11 @@ export async function loginWithPin(pin: string): Promise<string> {
     throw new Error('PIN musí mít 4–6 číslic');
   }
 
-  let supabaseAuthUserId: string | null = null;
-  // Best-effort: keep Supabase auth session alive.
-  try {
-    supabaseAuthUserId = await ensureAnonymousSession();
-  } catch {
-    // ignore; the app tables can still work if RLS is disabled
-  }
-
   const existing = await findUserByPin(normalized);
   if (existing?.id) {
     persistAppUserId(existing.id);
     localStorage.setItem(PIN_HASH_STORAGE_KEY, existing.pin_hash);
-    if (supabaseAuthUserId) {
-      await linkAuthIdentity(existing.id, supabaseAuthUserId);
-    }
+    linkAuthIdentityInBackground(existing.id);
     // Best-effort last_login update.
     void supabase.from('users').update({ last_login: new Date().toISOString() }).eq('id', existing.id);
     return existing.id;
@@ -351,9 +349,7 @@ export async function loginWithPin(pin: string): Promise<string> {
   const created = data as UserRow;
   persistAppUserId(created.id);
   localStorage.setItem(PIN_HASH_STORAGE_KEY, created.pin_hash);
-  if (supabaseAuthUserId) {
-    await linkAuthIdentity(created.id, supabaseAuthUserId);
-  }
+  linkAuthIdentityInBackground(created.id);
   return created.id;
 }
 
@@ -384,15 +380,8 @@ export async function autoLogin(): Promise<string | null> {
       if (error) throw error;
       const row = data as UserRow | null;
       if (row?.id) {
-        let supabaseAuthUserId: string | null = null;
-        try {
-          supabaseAuthUserId = await ensureAnonymousSession();
-        } catch {
-        }
         persistAppUserId(row.id);
-        if (supabaseAuthUserId) {
-          await linkAuthIdentity(row.id, supabaseAuthUserId);
-        }
+        linkAuthIdentityInBackground(row.id);
         return row.id;
       }
     }
