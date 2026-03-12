@@ -63,6 +63,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/pin-auth"
+  to = "/.netlify/functions/pin-auth"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/r2-presign"
   to = "/.netlify/functions/r2-presign"
   status = 200
