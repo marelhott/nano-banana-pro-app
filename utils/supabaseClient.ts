@@ -279,6 +279,42 @@ async function buildPinHashCandidates(pin: string): Promise<string[]> {
 
 type UserRow = { id: string; pin_hash: string };
 
+type PinAuthResponse = {
+  success: boolean;
+  userId?: string | null;
+  pinHash?: string | null;
+  error?: string;
+};
+
+async function requestPinAuth(payload: Record<string, unknown>): Promise<PinAuthResponse | null> {
+  try {
+    const response = await withTimeout(
+      'PIN auth proxy',
+      fetch('/api/pin-auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }),
+      9000
+    );
+
+    const result = (await response.json()) as PinAuthResponse;
+    if (!response.ok) {
+      if (response.status >= 400 && response.status < 500) {
+        return result;
+      }
+      throw new Error(result.error || 'PIN auth request failed');
+    }
+
+    return result;
+  } catch (error) {
+    console.warn('[PIN auth] Netlify proxy failed, falling back to client Supabase flow:', error);
+    return null;
+  }
+}
+
 async function findUserByPin(pin: string): Promise<UserRow | null> {
   await ensureSupabaseClient();
   const candidates = await buildPinHashCandidates(pin);
@@ -324,6 +360,17 @@ export async function loginWithPin(pin: string): Promise<string> {
   const normalized = pin.replace(/\D/g, '');
   if (normalized.length < 4 || normalized.length > 6) {
     throw new Error('PIN musí mít 4–6 číslic');
+  }
+
+  const proxyResult = await requestPinAuth({ action: 'login', pin: normalized });
+  if (proxyResult?.success && proxyResult.userId && proxyResult.pinHash) {
+    persistAppUserId(proxyResult.userId);
+    localStorage.setItem(PIN_HASH_STORAGE_KEY, proxyResult.pinHash);
+    linkAuthIdentityInBackground(proxyResult.userId);
+    return proxyResult.userId;
+  }
+  if (proxyResult && !proxyResult.success) {
+    throw new Error(proxyResult.error || 'Nesprávný PIN');
   }
 
   const existing = await findUserByPin(normalized);
@@ -375,6 +422,25 @@ export async function autoLogin(): Promise<string | null> {
     // and prevents silently landing on the wrong UUID.
     if (!storedPinHash) {
       persistAppUserId(null);
+      return null;
+    }
+
+    const proxyResult = await requestPinAuth({ action: 'auto-login', pinHash: storedPinHash });
+    if (proxyResult?.success) {
+      if (proxyResult.userId && proxyResult.pinHash) {
+        persistAppUserId(proxyResult.userId);
+        localStorage.setItem(PIN_HASH_STORAGE_KEY, proxyResult.pinHash);
+        linkAuthIdentityInBackground(proxyResult.userId);
+        return proxyResult.userId;
+      }
+
+      persistAppUserId(null);
+      localStorage.removeItem(PIN_HASH_STORAGE_KEY);
+      return null;
+    }
+    if (proxyResult && !proxyResult.success) {
+      persistAppUserId(null);
+      localStorage.removeItem(PIN_HASH_STORAGE_KEY);
       return null;
     }
 
