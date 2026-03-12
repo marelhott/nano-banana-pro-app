@@ -416,9 +416,8 @@ const App: React.FC = () => {
   }, []);
 
   const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
-  const isLoraSdRoute = routePath === '/lora-sd' || routePath.startsWith('/lora-sd/');
   const isFluxLoraRoute = routePath === '/flux-lora' || routePath.startsWith('/flux-lora/');
-  const isLoraInfluenceRoute = isFluxLoraRoute || isLoraSdRoute;
+  const isLoraInfluenceRoute = isFluxLoraRoute;
   const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
@@ -2012,7 +2011,7 @@ ${extra}
               await new Promise(resolve => setTimeout(resolve, waitTime));
             } else {
               // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
-              if (err.message === "API_KEY_NOT_FOUND") {
+              if (err?.code === 'API_KEY_NOT_FOUND') {
                 setHasApiKey(false);
               }
               setState(prev => ({
@@ -3675,7 +3674,6 @@ ${extra}
         {/* Top Header */}
         <Header
           onSettingsClick={() => setIsSettingsModalOpen(true)}
-          showNodesLink={false}
         />
 
         <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">

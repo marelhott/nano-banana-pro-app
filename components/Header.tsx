@@ -4,10 +4,9 @@ interface HeaderProps {
   onSettingsClick?: () => void;
   onStyleTransferClick?: () => void;
   isStyleTransferActive?: boolean;
-  showNodesLink?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onSettingsClick, onStyleTransferClick, isStyleTransferActive, showNodesLink = true }) => {
+export const Header: React.FC<HeaderProps> = ({ onSettingsClick, onStyleTransferClick, isStyleTransferActive }) => {
   return (
     <div className="flex items-center justify-between gap-3 bg-[var(--bg-main)] border-b border-[var(--border-color)] px-6 py-4 w-full select-none shrink-0 transition-colors duration-300">
       {/* Logo - Top Left */}
@@ -51,15 +50,6 @@ export const Header: React.FC<HeaderProps> = ({ onSettingsClick, onStyleTransfer
             Style Transfer
           </button>
         )}
-        {showNodesLink && (
-          <a
-            href="/nodes"
-            className="px-3 py-1.5 rounded-md bg-[var(--bg-panel)] border border-[var(--border-soft)] !text-[12px] font-[900] uppercase tracking-[0.32em] text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--bg-panel-hover)] transition-colors"
-          >
-            Nodes
-          </a>
-        )}
-
         {onSettingsClick && (
           <button
             onClick={onSettingsClick}

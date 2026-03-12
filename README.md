@@ -54,14 +54,14 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
 - Apply migrations in `supabase/migrations/` (especially `20260211_enable_rls_with_pin_identity_links.sql`, `20260211_harden_users_and_flux_policies.sql`, and `20260217_security_advisor_restore_rls.sql`) to enable RLS on app tables and remove permissive `USING (true)` policies.
 - `supabase/migrations/disable_rls_for_custom_pin.sql` is intentionally deprecated (no-op) and must not be used to disable table RLS.
 
-### Provider and workflow operations
+### Provider operations
 
 - API key tests now run through backend endpoint `/api/provider-key-test` (no direct browser-to-provider probe).
-- Node Banana exposes runtime endpoints:
-  - `/api/health`
-  - `/api/metrics`
-  - Async generation queue: `POST /api/generate` with `asyncMode=true`, then poll `/api/generate?jobId=...`.
-  - Current queue and metrics storage mode is `memory` (state resets after cold start/redeploy).
+- Runtime helper endpoints used by Mulen Nano:
+  - `/api/public-config`
+  - `/api/r2-presign`
+  - `/api/fal/lora-img2img`
+  - `/api/replicate/predictions`
 
 
 ## Deployment Status

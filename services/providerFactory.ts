@@ -8,6 +8,12 @@ import { ReplicateProvider } from './replicateService';
  * Factory for creating AI provider instances
  */
 export class ProviderFactory {
+    static createMissingApiKeyError(type: AIProviderType): Error {
+        const error = new Error(`Chybí API key pro ${type}. Otevři Nastavení a vlož klíč.`);
+        (error as Error & { code?: string }).code = 'API_KEY_NOT_FOUND';
+        return error;
+    }
+
     /**
      * Create a provider instance based on type and API key
      */
@@ -40,21 +46,11 @@ export class ProviderFactory {
         selectedType: AIProviderType,
         settings: ProviderSettings
     ): AIProvider {
-        // Try to get API key for selected provider
         const providerConfig = settings[selectedType];
-
-        if (providerConfig?.apiKey) {
+        if (providerConfig?.apiKey?.trim()) {
             return this.createProvider(selectedType, providerConfig.apiKey);
         }
-
-        // Fallback to Gemini if available
-        const geminiConfig = settings[AIProviderType.GEMINI];
-        if (geminiConfig?.apiKey) {
-            console.warn(`No API key for ${selectedType}, falling back to Gemini`);
-            return this.createProvider(AIProviderType.GEMINI, geminiConfig.apiKey);
-        }
-
-        throw new Error('No API key available for any provider');
+        throw this.createMissingApiKeyError(selectedType);
     }
 
     /**
