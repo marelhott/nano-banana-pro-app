@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const SAFE_PLACEHOLDER_SUPABASE_KEY = 'missing-supabase-anon-key';
 const SUPABASE_RETRY_ATTEMPTS = 4;
 const SUPABASE_RETRY_BASE_DELAY_MS = 650;
+const SUPABASE_AUTH_TIMEOUT_MS = 8000;
 export const SUPABASE_ANON_DISABLED_ERROR_MESSAGE =
   'Anonymní přihlášení je v Supabase vypnuté. V Supabase Dashboard zapněte Authentication → Providers → Anonymous sign-ins.';
 
@@ -97,6 +98,23 @@ export async function ensureSupabaseClient(): Promise<void> {
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withTimeout<T>(label: string, operation: Promise<T>, timeoutMs = SUPABASE_AUTH_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`${label} timeout po ${Math.round(timeoutMs / 1000)}s`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 function isAnonymousSignInDisabledError(error: unknown): boolean {
   const message = String((error as any)?.message || '').toLowerCase();
@@ -267,14 +285,15 @@ async function findUserByPin(pin: string): Promise<UserRow | null> {
  */
 export async function ensureAnonymousSession(): Promise<string> {
   await ensureSupabaseClient();
-  return await getOrCreateSupabaseAuthUserId();
+  return await withTimeout('Supabase anonymous auth', getOrCreateSupabaseAuthUserId());
 }
 
 /**
  * Aktivně obnoví session; vrací userId pokud je spojení zdravé.
  */
 export async function refreshSupabaseSession(): Promise<string> {
-  return ensureAnonymousSession();
+  await ensureSupabaseClient();
+  return await withTimeout('Supabase session refresh', getOrCreateSupabaseAuthUserId());
 }
 
 /**
@@ -345,13 +364,6 @@ export async function autoLogin(): Promise<string | null> {
   try {
     await ensureSupabaseClient();
 
-    let supabaseAuthUserId: string | null = null;
-    // Best-effort keep auth session alive.
-    try {
-      supabaseAuthUserId = await ensureAnonymousSession();
-    } catch {
-    }
-
     const storedPinHash = localStorage.getItem(PIN_HASH_STORAGE_KEY);
 
     // Without a stored PIN hash, we do not trust any cached app user id.
@@ -372,6 +384,11 @@ export async function autoLogin(): Promise<string | null> {
       if (error) throw error;
       const row = data as UserRow | null;
       if (row?.id) {
+        let supabaseAuthUserId: string | null = null;
+        try {
+          supabaseAuthUserId = await ensureAnonymousSession();
+        } catch {
+        }
         persistAppUserId(row.id);
         if (supabaseAuthUserId) {
           await linkAuthIdentity(row.id, supabaseAuthUserId);

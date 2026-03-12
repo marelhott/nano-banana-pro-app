@@ -32,7 +32,7 @@ import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
-import { ensureAnonymousSession, refreshSupabaseSession, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, autoLogin } from './utils/supabaseClient';
+import { ensureAnonymousSession, ensureSupabaseClient, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, autoLogin } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
@@ -56,6 +56,21 @@ const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
 const NANO_BANANA_IMAGE_MODEL_STORAGE_KEY = 'nanoBananaImageModel';
 type NanoBananaImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
+type GenerationQueueSnapshot = {
+  state: AppState;
+  providerSettings: ProviderSettings;
+  selectedProvider: AIProviderType;
+  nanoBananaImageModel: NanoBananaImageModel;
+  promptMode: 'simple' | 'advanced';
+  advancedVariant: 'A' | 'B' | 'C';
+  faceIdentityMode: boolean;
+  simpleLinkMode: 'style' | 'merge' | 'object' | null;
+  useGrounding: boolean;
+  jsonContext: { fileName: string; content: any } | null;
+  styleStrength: number;
+  styleWeights: Record<string, number>;
+  styleAnalysisCache: { description: string; strength: number } | null;
+};
 
 const getInterRequestDelayMs = (
   provider: AIProviderType,
@@ -254,7 +269,7 @@ const App: React.FC = () => {
       if (!isRetry) setIsAuthBootstrapping(true);
 
       try {
-        await ensureAnonymousSession();
+        await ensureSupabaseClient();
         if (cancelled) return;
 
         hasPermanentAuthFailure = false;
@@ -264,9 +279,12 @@ const App: React.FC = () => {
         setIsSupabaseReady(true);
         void ImageDatabase.getAll();
         void runSmokeIfRequested();
+        void ensureAnonymousSession().catch((error) => {
+          console.warn('[Supabase] Anonymous auth warmup failed:', error);
+        });
       } catch (error: any) {
         if (cancelled) return;
-        const message = error?.message || 'Nepodařilo se inicializovat anonymní přihlášení.';
+        const message = error?.message || 'Nepodařilo se inicializovat Supabase.';
         const isPermanentError =
           message.includes('Anonymní přihlášení je v Supabase vypnuté') ||
           message.includes('Supabase není nakonfigurovaná');
@@ -293,7 +311,7 @@ const App: React.FC = () => {
         if (cancelled) return;
         if (hasPermanentAuthFailure) return;
         try {
-          await refreshSupabaseSession();
+          await ensureSupabaseClient();
           if (cancelled) return;
           setAuthFailureMessage(null);
           setIsSupabaseReady(true);
@@ -387,6 +405,8 @@ const App: React.FC = () => {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isGalleryExpanded, setIsGalleryExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const generationQueueRef = useRef<GenerationQueueSnapshot[]>([]);
+  const [queuedGenerationCount, setQueuedGenerationCount] = useState(0);
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
   const [isGenerateClicked, setIsGenerateClicked] = useState(false);
@@ -449,6 +469,62 @@ const App: React.FC = () => {
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const mobilePromptRef = useRef<HTMLTextAreaElement>(null);
   const generationLockRef = useRef(false);
+
+  const createGenerationSnapshot = useCallback((): GenerationQueueSnapshot => ({
+    state: {
+      ...state,
+      sourceImages: state.sourceImages.map((img) => ({ ...img })),
+      styleImages: state.styleImages.map((img) => ({ ...img })),
+      assetImages: state.assetImages.map((img) => ({ ...img })),
+      generatedImages: [],
+      styleWeights: { ...(state.styleWeights || {}) },
+    },
+    providerSettings: {
+      ...providerSettings,
+      fal: providerSettings.fal ? { ...providerSettings.fal } : undefined,
+      a1111: providerSettings.a1111 ? { ...providerSettings.a1111 } : undefined,
+    },
+    selectedProvider,
+    nanoBananaImageModel,
+    promptMode,
+    advancedVariant,
+    faceIdentityMode,
+    simpleLinkMode,
+    useGrounding,
+    jsonContext: jsonContext ? { fileName: jsonContext.fileName, content: jsonContext.content } : null,
+    styleStrength,
+    styleWeights: { ...styleWeights },
+    styleAnalysisCache: styleAnalysisCache ? { ...styleAnalysisCache } : null,
+  }), [
+    state,
+    providerSettings,
+    selectedProvider,
+    nanoBananaImageModel,
+    promptMode,
+    advancedVariant,
+    faceIdentityMode,
+    simpleLinkMode,
+    useGrounding,
+    jsonContext,
+    styleStrength,
+    styleWeights,
+    styleAnalysisCache,
+  ]);
+
+  const enqueueGenerationSnapshot = useCallback((snapshot: GenerationQueueSnapshot) => {
+    generationQueueRef.current.push(snapshot);
+    setQueuedGenerationCount(generationQueueRef.current.length);
+    setToast({
+      message: `Požadavek přidán do fronty. Ve frontě: ${generationQueueRef.current.length}`,
+      type: 'info',
+    });
+  }, []);
+
+  const dequeueGenerationSnapshot = useCallback((): GenerationQueueSnapshot | null => {
+    const next = generationQueueRef.current.shift() || null;
+    setQueuedGenerationCount(generationQueueRef.current.length);
+    return next;
+  }, []);
 
   // canGenerate: Check if user can trigger generation
   const canGenerate = useMemo(() => {
@@ -1672,10 +1748,25 @@ const App: React.FC = () => {
     }
   };
 
-  const handleGenerate = async () => {
-    if (generationLockRef.current || isGenerating) return;
+  const processGenerationSnapshot = async (snapshot: GenerationQueueSnapshot) => {
     generationLockRef.current = true;
     try {
+    const {
+      state,
+      providerSettings,
+      selectedProvider,
+      nanoBananaImageModel,
+      promptMode,
+      advancedVariant,
+      faceIdentityMode,
+      simpleLinkMode,
+      useGrounding,
+      jsonContext,
+      styleStrength,
+      styleWeights,
+      styleAnalysisCache,
+    } = snapshot;
+
     setIsMobileMenuOpen(false);
     setGenerationPromptPreview(null);
 
@@ -2032,7 +2123,29 @@ ${extra}
     await generateSequentially();
     } finally {
       generationLockRef.current = false;
+      const nextSnapshot = dequeueGenerationSnapshot();
+      if (nextSnapshot) {
+        void processGenerationSnapshot(nextSnapshot);
+      }
     }
+  };
+
+  const handleGenerate = async () => {
+    const snapshot = createGenerationSnapshot();
+
+    if (generationLockRef.current || isGenerating) {
+      if (snapshot.state.sourceImages.length > 1 && snapshot.state.multiRefMode === 'batch') {
+        setToast({
+          message: 'Batch multi-ref zatím nejde řadit do fronty. Počkejte na dokončení aktuálního běhu.',
+          type: 'info',
+        });
+        return;
+      }
+      enqueueGenerationSnapshot(snapshot);
+      return;
+    }
+
+    await processGenerationSnapshot(snapshot);
   };
 
   const handleRepopulate = (image: GeneratedImage) => {
@@ -2935,7 +3048,9 @@ ${extra}
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none`}
           >
             {isGenerating
-              ? `Generating ${Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)))}...`
+              ? queuedGenerationCount > 0
+                ? `Generating… + ${queuedGenerationCount} ve frontě`
+                : `Generating ${Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)))}...`
               : state.sourceImages.length > 1 && state.multiRefMode === 'batch'
                 ? `Generate (${state.sourceImages.length})`
                 : `Generate ${Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)))}`}
