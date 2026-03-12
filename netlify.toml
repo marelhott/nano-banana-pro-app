@@ -21,6 +21,18 @@
   publish = "dist"
 
 [[redirects]]
+  from = "/nodes"
+  to = "/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/nodes/*"
+  to = "/"
+  status = 301
+  force = true
+
+[[redirects]]
   from = "/api/replicate/predictions"
   to = "/.netlify/functions/replicate-predictions"
   status = 200
@@ -54,6 +66,12 @@
   from = "/api/r2-presign"
   to = "/.netlify/functions/r2-presign"
   status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api-not-found"
+  status = 404
   force = true
 
 [[redirects]]
