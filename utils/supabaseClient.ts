@@ -493,6 +493,19 @@ export function getCurrentUserId(): string | null {
   return localStorage.getItem(APP_USER_ID_STORAGE_KEY);
 }
 
+export function ensureLocalAppUserId(): string {
+  const existingUserId = getCurrentUserId();
+  if (existingUserId) return existingUserId;
+
+  const nextUserId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `local-user-${Date.now()}`;
+
+  persistAppUserId(nextUserId);
+  return nextUserId;
+}
+
 /**
  * Legacy helper - zachováno pro kompatibilitu.
  */

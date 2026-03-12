@@ -32,13 +32,12 @@ import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
-import { ensureAnonymousSession, ensureSupabaseClient, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, autoLogin } from './utils/supabaseClient';
+import { ensureAnonymousSession, ensureSupabaseClient, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, ensureLocalAppUserId } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
 import { FluxLoraGeneratorScreen } from './components/FluxLoraGeneratorScreen';
 import { ModelInfluenceScreen } from './components/modelInfluence/ModelInfluenceScreen';
-import { PinAuth } from './components/PinAuth';
 import { MaskCanvas } from './components/MaskCanvas';
 import { FreeComparisonModal } from './components/FreeComparisonModal';
 import { mapAspectRatio, type ProviderType } from './utils/aspectRatioMapping';
@@ -55,7 +54,6 @@ const MAX_GENERATED_IMAGES = 14;
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
 const NANO_BANANA_IMAGE_MODEL_STORAGE_KEY = 'nanoBananaImageModel';
-const APP_USER_BOOTSTRAP_TIMEOUT_MS = 2500;
 type NanoBananaImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
 type GenerationQueueSnapshot = {
   state: AppState;
@@ -197,32 +195,12 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Resolve PIN-based app identity on every origin (prod + preview domains).
-  // If the stored identity is stale or missing, we will show the PIN screen.
   useEffect(() => {
-    let cancelled = false;
-    if (!isSupabaseReady) return;
-
     setIsAppUserBootstrapping(true);
-    Promise.race<string | null>([
-      autoLogin(),
-      new Promise<null>((resolve) => {
-        window.setTimeout(() => resolve(null), APP_USER_BOOTSTRAP_TIMEOUT_MS);
-      }),
-    ])
-      .then((userId) => {
-        if (cancelled) return;
-        setAppUserId(userId);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setIsAppUserBootstrapping(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isSupabaseReady]);
+    setAppUserId(ensureLocalAppUserId());
+    setIsAppUserBootstrapping(false);
+    void ImageDatabase.getAll();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(SELECTED_PROVIDER_STORAGE_KEY, selectedProvider);
@@ -3798,20 +3776,6 @@ ${extra}
       </div>
     );
   }
-
-  if (!appUserId) {
-    return (
-      <PinAuth
-        onAuth={(userId) => {
-          setAppUserId(userId);
-          setToast({ message: 'PIN přihlášení OK. Načítám data…', type: 'success' });
-          void ImageDatabase.getAll();
-        }}
-      />
-    );
-  }
-
-
 
   const handleSaveSettings = async (newSettings: ProviderSettings) => {
     const merged: ProviderSettings = {
