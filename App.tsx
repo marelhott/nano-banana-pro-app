@@ -71,6 +71,11 @@ type GenerationQueueSnapshot = {
   styleWeights: Record<string, number>;
   styleAnalysisCache: { description: string; strength: number } | null;
 };
+type GenerationQueueAction = 'generate' | 'variants' | '3ai';
+type GenerationQueueItem = {
+  action: GenerationQueueAction;
+  snapshot: GenerationQueueSnapshot;
+};
 
 const getInterRequestDelayMs = (
   provider: AIProviderType,
@@ -405,7 +410,7 @@ const App: React.FC = () => {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isGalleryExpanded, setIsGalleryExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const generationQueueRef = useRef<GenerationQueueSnapshot[]>([]);
+  const generationQueueRef = useRef<GenerationQueueItem[]>([]);
   const [queuedGenerationCount, setQueuedGenerationCount] = useState(0);
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
@@ -511,8 +516,8 @@ const App: React.FC = () => {
     styleAnalysisCache,
   ]);
 
-  const enqueueGenerationSnapshot = useCallback((snapshot: GenerationQueueSnapshot) => {
-    generationQueueRef.current.push(snapshot);
+  const enqueueGenerationSnapshot = useCallback((item: GenerationQueueItem) => {
+    generationQueueRef.current.push(item);
     setQueuedGenerationCount(generationQueueRef.current.length);
     setToast({
       message: `Požadavek přidán do fronty. Ve frontě: ${generationQueueRef.current.length}`,
@@ -520,7 +525,7 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const dequeueGenerationSnapshot = useCallback((): GenerationQueueSnapshot | null => {
+  const dequeueGenerationSnapshot = useCallback((): GenerationQueueItem | null => {
     const next = generationQueueRef.current.shift() || null;
     setQueuedGenerationCount(generationQueueRef.current.length);
     return next;
@@ -1404,9 +1409,20 @@ const App: React.FC = () => {
     );
   };
 
-  const handleGenerate3Variants = async () => {
-    if (!state.prompt.trim() || isGenerating) return;
+  const processGenerate3VariantsSnapshot = async (snapshot: GenerationQueueSnapshot) => {
+    const {
+      state,
+      providerSettings,
+      promptMode,
+      advancedVariant,
+      faceIdentityMode,
+      useGrounding,
+      jsonContext,
+    } = snapshot;
 
+    if (!state.prompt.trim()) return;
+
+    generationLockRef.current = true;
     setIsMobileMenuOpen(false);
     setIsGenerating(true);
     setGenerationProgress({ current: 0, total: 3 });
@@ -1561,16 +1577,42 @@ const App: React.FC = () => {
       console.error('[3 Variants] Error:', error);
       setToast({ message: `Failed to generate variants: ${error.message}`, type: 'error' });
     } finally {
+      generationLockRef.current = false;
       setIsGenerating(false);
       setGenerationProgress(null);
       setGenerationPromptPreview(null);
+      const nextItem = dequeueGenerationSnapshot();
+      if (nextItem) {
+        void runQueuedGenerationItem(nextItem);
+      }
     }
   };
 
-  // ── 3 AI: Generate from 3 providers simultaneously ──────────────────────
-  const handleGenerate3AI = async () => {
-    if (!state.prompt.trim() || isGenerating) return;
+  const handleGenerate3Variants = async () => {
+    const snapshot = createGenerationSnapshot();
+    if (!snapshot.state.prompt.trim()) return;
 
+    if (generationLockRef.current || isGenerating) {
+      enqueueGenerationSnapshot({ action: 'variants', snapshot });
+      return;
+    }
+
+    await processGenerate3VariantsSnapshot(snapshot);
+  };
+
+  // ── 3 AI: Generate from 3 providers simultaneously ──────────────────────
+  const processGenerate3AISnapshot = async (snapshot: GenerationQueueSnapshot) => {
+    const {
+      state,
+      providerSettings,
+      promptMode,
+      advancedVariant,
+      faceIdentityMode,
+    } = snapshot;
+
+    if (!state.prompt.trim()) return;
+
+    generationLockRef.current = true;
     setIsMobileMenuOpen(false);
     setIsGenerating(true);
     setGenerationProgress({ current: 0, total: 3 });
@@ -1742,10 +1784,27 @@ const App: React.FC = () => {
       console.error('[3 AI] Error:', error);
       setToast({ message: `3 AI failed: ${error.message}`, type: 'error' });
     } finally {
+      generationLockRef.current = false;
       setIsGenerating(false);
       setGenerationProgress(null);
       setGenerationPromptPreview(null);
+      const nextItem = dequeueGenerationSnapshot();
+      if (nextItem) {
+        void runQueuedGenerationItem(nextItem);
+      }
     }
+  };
+
+  const handleGenerate3AI = async () => {
+    const snapshot = createGenerationSnapshot();
+    if (!snapshot.state.prompt.trim()) return;
+
+    if (generationLockRef.current || isGenerating) {
+      enqueueGenerationSnapshot({ action: '3ai', snapshot });
+      return;
+    }
+
+    await processGenerate3AISnapshot(snapshot);
   };
 
   const processGenerationSnapshot = async (snapshot: GenerationQueueSnapshot) => {
@@ -2123,12 +2182,24 @@ ${extra}
     await generateSequentially();
     } finally {
       generationLockRef.current = false;
-      const nextSnapshot = dequeueGenerationSnapshot();
-      if (nextSnapshot) {
-        void processGenerationSnapshot(nextSnapshot);
+      const nextItem = dequeueGenerationSnapshot();
+      if (nextItem) {
+        void runQueuedGenerationItem(nextItem);
       }
     }
   };
+
+  async function runQueuedGenerationItem(item: GenerationQueueItem) {
+    if (item.action === 'variants') {
+      await processGenerate3VariantsSnapshot(item.snapshot);
+      return;
+    }
+    if (item.action === '3ai') {
+      await processGenerate3AISnapshot(item.snapshot);
+      return;
+    }
+    await processGenerationSnapshot(item.snapshot);
+  }
 
   const handleGenerate = async () => {
     const snapshot = createGenerationSnapshot();
@@ -2141,7 +2212,7 @@ ${extra}
         });
         return;
       }
-      enqueueGenerationSnapshot(snapshot);
+      enqueueGenerationSnapshot({ action: 'generate', snapshot });
       return;
     }
 
@@ -3059,19 +3130,27 @@ ${extra}
           {/* Varianty — same font weight & style as Generate Image */}
           <button
             onClick={handleGenerate3Variants}
-            disabled={!canGenerate || isGenerating}
+            disabled={!canGenerate}
             className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all bg-white/5 hover:bg-white/10 border border-white/8 text-white/80 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
           >
-            {isGenerating ? 'Generuji varianty…' : 'Varianty'}
+            {isGenerating
+              ? queuedGenerationCount > 0
+                ? `Varianty + ${queuedGenerationCount} ve frontě`
+                : 'Generuji varianty…'
+              : 'Varianty'}
           </button>
 
           {/* 3 AI — generates from Nano Banana Pro, ChatGPT 5.2, FLUX 2 simultaneously */}
           <button
             onClick={handleGenerate3AI}
-            disabled={!canGenerate || isGenerating}
+            disabled={!canGenerate}
             className="w-full py-2 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all bg-gradient-to-r from-[#7ed957]/10 via-purple-500/10 to-blue-500/10 hover:from-[#7ed957]/20 hover:via-purple-500/20 hover:to-blue-500/20 border border-white/8 text-white/75 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
           >
-            {isGenerating ? 'Generuji 3 AI…' : '3 AI'}
+            {isGenerating
+              ? queuedGenerationCount > 0
+                ? `3 AI + ${queuedGenerationCount} ve frontě`
+                : 'Generuji 3 AI…'
+              : '3 AI'}
           </button>
         </div>
       </div>
