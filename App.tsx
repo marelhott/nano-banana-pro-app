@@ -55,6 +55,7 @@ const MAX_GENERATED_IMAGES = 14;
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
 const NANO_BANANA_IMAGE_MODEL_STORAGE_KEY = 'nanoBananaImageModel';
+const APP_USER_BOOTSTRAP_TIMEOUT_MS = 6000;
 type NanoBananaImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
 type GenerationQueueSnapshot = {
   state: AppState;
@@ -203,7 +204,12 @@ const App: React.FC = () => {
     if (!isSupabaseReady) return;
 
     setIsAppUserBootstrapping(true);
-    autoLogin()
+    Promise.race<string | null>([
+      autoLogin(),
+      new Promise<null>((resolve) => {
+        window.setTimeout(() => resolve(null), APP_USER_BOOTSTRAP_TIMEOUT_MS);
+      }),
+    ])
       .then((userId) => {
         if (cancelled) return;
         setAppUserId(userId);

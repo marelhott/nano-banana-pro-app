@@ -4,6 +4,7 @@ const SAFE_PLACEHOLDER_SUPABASE_KEY = 'missing-supabase-anon-key';
 const SUPABASE_RETRY_ATTEMPTS = 4;
 const SUPABASE_RETRY_BASE_DELAY_MS = 650;
 const SUPABASE_AUTH_TIMEOUT_MS = 8000;
+const SUPABASE_DB_TIMEOUT_MS = 7000;
 export const SUPABASE_ANON_DISABLED_ERROR_MESSAGE =
   'Anonymní přihlášení je v Supabase vypnuté. V Supabase Dashboard zapněte Authentication → Providers → Anonymous sign-ins.';
 
@@ -99,7 +100,7 @@ export async function ensureSupabaseClient(): Promise<void> {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function withTimeout<T>(label: string, operation: Promise<T>, timeoutMs = SUPABASE_AUTH_TIMEOUT_MS): Promise<T> {
+async function withTimeout<T>(label: string, operation: PromiseLike<T>, timeoutMs = SUPABASE_AUTH_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   try {
@@ -114,6 +115,10 @@ async function withTimeout<T>(label: string, operation: Promise<T>, timeoutMs = 
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+async function withDbTimeout<T>(label: string, operation: PromiseLike<T>): Promise<T> {
+  return withTimeout(label, operation, SUPABASE_DB_TIMEOUT_MS);
 }
 
 function isAnonymousSignInDisabledError(error: unknown): boolean {
@@ -277,11 +282,14 @@ type UserRow = { id: string; pin_hash: string };
 async function findUserByPin(pin: string): Promise<UserRow | null> {
   await ensureSupabaseClient();
   const candidates = await buildPinHashCandidates(pin);
-  const { data, error } = await supabase
-    .from('users')
-    .select('id,pin_hash')
-    .in('pin_hash', candidates)
-    .limit(2);
+  const { data, error } = await withDbTimeout(
+    'Supabase users lookup',
+    supabase
+      .from('users')
+      .select('id,pin_hash')
+      .in('pin_hash', candidates)
+      .limit(2)
+  );
   if (error) throw error;
   const rows = (data as UserRow[]) || [];
   if (rows.length === 0) return null;
@@ -371,12 +379,15 @@ export async function autoLogin(): Promise<string | null> {
     }
 
     if (storedPinHash) {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id,pin_hash')
-        .eq('pin_hash', storedPinHash)
-        .limit(1)
-        .maybeSingle();
+      const { data, error } = await withDbTimeout(
+        'Supabase auto-login lookup',
+        supabase
+          .from('users')
+          .select('id,pin_hash')
+          .eq('pin_hash', storedPinHash)
+          .limit(1)
+          .maybeSingle()
+      );
       if (error) throw error;
       const row = data as UserRow | null;
       if (row?.id) {
