@@ -40,8 +40,6 @@ export interface ProviderSettings {
         sdxlVae?: string;
         enabled: boolean;
     };
-    // EverArt img2img/training key stored locally (not part of ProviderFactory providers)
-    everart?: ProviderConfig;
 }
 
 /**

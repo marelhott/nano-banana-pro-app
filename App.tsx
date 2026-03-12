@@ -38,7 +38,6 @@ import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
 import { FluxLoraGeneratorScreen } from './components/FluxLoraGeneratorScreen';
 import { ModelInfluenceScreen } from './components/modelInfluence/ModelInfluenceScreen';
-import { EverArtScreen } from './components/EverArtScreen';
 import { PinAuth } from './components/PinAuth';
 import { MaskCanvas } from './components/MaskCanvas';
 import { FreeComparisonModal } from './components/FreeComparisonModal';
@@ -57,6 +56,31 @@ const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
 const NANO_BANANA_IMAGE_MODEL_STORAGE_KEY = 'nanoBananaImageModel';
 type NanoBananaImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
+
+const getInterRequestDelayMs = (
+  provider: AIProviderType,
+  imageModel: NanoBananaImageModel,
+  imageIndex: number
+): number => {
+  if (imageIndex <= 0) return 0;
+
+  if (provider === AIProviderType.GEMINI) {
+    return imageModel === 'gemini-3-pro-image-preview' ? 12000 : 8000;
+  }
+
+  if (provider === AIProviderType.CHATGPT || provider === AIProviderType.GROK) {
+    return 3000;
+  }
+
+  return 2000;
+};
+
+const getRetryBackoffMs = (provider: AIProviderType, retryCount: number): number => {
+  if (provider === AIProviderType.GEMINI) {
+    return 12000 * Math.pow(2, retryCount - 1);
+  }
+  return 6000 * Math.pow(2, retryCount - 1);
+};
 
 const App: React.FC = () => {
   // Supabase connectivity state (separate from app identity)
@@ -78,8 +102,7 @@ const App: React.FC = () => {
     [AIProviderType.CHATGPT]: { apiKey: '', enabled: false },
     [AIProviderType.GROK]: { apiKey: '', enabled: false },
     [AIProviderType.REPLICATE]: { apiKey: '', enabled: false },
-    fal: { apiKey: '', enabled: false },
-    everart: { apiKey: '', enabled: false }
+    fal: { apiKey: '', enabled: false }
   };
   const [providerSettings, setProviderSettings] = useState<ProviderSettings>(defaultProviderSettings);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -127,8 +150,16 @@ const App: React.FC = () => {
     try {
       const rawSettings = localStorage.getItem(PROVIDER_SETTINGS_STORAGE_KEY);
       if (rawSettings) {
-        const parsed = JSON.parse(rawSettings) as ProviderSettings;
-        setProviderSettings({ ...defaultProviderSettings, ...parsed });
+        const parsed = JSON.parse(rawSettings) as Record<string, unknown>;
+        const sanitized: ProviderSettings = {
+          [AIProviderType.GEMINI]: (parsed?.[AIProviderType.GEMINI] as ProviderSettings[AIProviderType.GEMINI]) || defaultProviderSettings[AIProviderType.GEMINI],
+          [AIProviderType.CHATGPT]: (parsed?.[AIProviderType.CHATGPT] as ProviderSettings[AIProviderType.CHATGPT]) || defaultProviderSettings[AIProviderType.CHATGPT],
+          [AIProviderType.GROK]: (parsed?.[AIProviderType.GROK] as ProviderSettings[AIProviderType.GROK]) || defaultProviderSettings[AIProviderType.GROK],
+          [AIProviderType.REPLICATE]: (parsed?.[AIProviderType.REPLICATE] as ProviderSettings[AIProviderType.REPLICATE]) || defaultProviderSettings[AIProviderType.REPLICATE],
+          fal: (parsed?.fal as ProviderSettings['fal']) || defaultProviderSettings.fal,
+          a1111: parsed?.a1111 as ProviderSettings['a1111'] | undefined,
+        };
+        setProviderSettings(sanitized);
       }
     } catch (error) {
       console.warn('Failed to load provider settings from localStorage:', error);
@@ -389,8 +420,6 @@ const App: React.FC = () => {
   const isFluxLoraRoute = routePath === '/flux-lora' || routePath.startsWith('/flux-lora/');
   const isLoraInfluenceRoute = isFluxLoraRoute || isLoraSdRoute;
   const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
-  const isEverartRoute = routePath === '/everart' || routePath.startsWith('/everart/');
-
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -1686,9 +1715,10 @@ const App: React.FC = () => {
 
     setIsGenerating(true);
 
-    // Force 1 image if somehow set otherwise, to prevent double generation issues
-    const countToGenerate = 1;
+    // Respect the selected output count while keeping it within the Mulen Nano UI range.
+    const countToGenerate = Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)));
     setGenerationProgress({ current: 0, total: countToGenerate });
+    setToast({ message: `Spouštím generování ${countToGenerate} obrázků…`, type: 'info' });
 
     // Vytvořit pole s požadovaným počtem obrázků
     const imagesToGenerate = Array.from({ length: countToGenerate }, (_, index) => {
@@ -1717,13 +1747,32 @@ const App: React.FC = () => {
     // Generovat obrázky sekvenčně s malým zpožděním mezi požadavky
     // aby nedošlo k rate limitingu API
     const generateSequentially = async () => {
+      const sourceImagesData = await Promise.all(
+        state.sourceImages.map(async img => ({
+          data: await urlToDataUrl(img.url),
+          mimeType: img.file.type
+        }))
+      );
+      const styleImagesData = await Promise.all(
+        state.styleImages.map(async img => ({
+          data: await urlToDataUrl(img.url),
+          mimeType: img.file.type
+        }))
+      );
+      const assetImagesData = await Promise.all(
+        state.assetImages.map(async img => ({
+          data: await urlToDataUrl(img.url),
+          mimeType: img.file.type
+        }))
+      );
+      const allImages = [...sourceImagesData, ...styleImagesData, ...assetImagesData];
+
       for (let i = 0; i < imagesToGenerate.length; i++) {
         const imageData = imagesToGenerate[i];
 
-        // Přidat zpoždění mezi požadavky (kromě prvního)
-        // Pro Nano Banana Pro používáme 5s pauzu kvůli striktnímu rate limitingu
-        if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 5000));
+        const interRequestDelay = getInterRequestDelayMs(selectedProvider, nanoBananaImageModel, i);
+        if (interRequestDelay > 0) {
+          await new Promise(resolve => setTimeout(resolve, interRequestDelay));
         }
 
         // Retry logika pro 429 errory s exponential backoff
@@ -1733,28 +1782,6 @@ const App: React.FC = () => {
 
         while (retryCount <= maxRetries && !success) {
           try {
-            // Sestavit pole obrázků - referenční první, pak stylové
-            // Konvertovat všechny URL na base64 data URL pro Gemini API
-            const sourceImagesData = await Promise.all(
-              state.sourceImages.map(async img => ({
-                data: await urlToDataUrl(img.url),
-                mimeType: img.file.type
-              }))
-            );
-            const styleImagesData = await Promise.all(
-              state.styleImages.map(async img => ({
-                data: await urlToDataUrl(img.url),
-                mimeType: img.file.type
-              }))
-            );
-            const assetImagesData = await Promise.all(
-              state.assetImages.map(async img => ({
-                data: await urlToDataUrl(img.url),
-                mimeType: img.file.type
-              }))
-            );
-            const allImages = [...sourceImagesData, ...styleImagesData, ...assetImagesData];
-
             const buildSimpleLinkPrompt = (
               mode: 'style' | 'merge' | 'object',
               extra: string,
@@ -1980,8 +2007,7 @@ ${extra}
             const isRetriable = isRetriableProviderError(err);
             if (isRetriable && retryCount < maxRetries) {
               retryCount++;
-              // Exponential backoff: 6s, 12s, 24s
-              const waitTime = 6000 * Math.pow(2, retryCount - 1);
+              const waitTime = getRetryBackoffMs(selectedProvider, retryCount);
               console.log(`Provider overload hit for image ${i + 1}, waiting ${waitTime / 1000}s before retry ${retryCount}/${maxRetries}`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
             } else {
@@ -2909,7 +2935,11 @@ ${extra}
               : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40'
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none`}
           >
-            {isGenerating ? 'Generating...' : state.sourceImages.length > 1 && state.multiRefMode === 'batch' ? `Generate (${state.sourceImages.length})` : 'Generate Image'}
+            {isGenerating
+              ? `Generating ${Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)))}...`
+              : state.sourceImages.length > 1 && state.multiRefMode === 'batch'
+                ? `Generate (${state.sourceImages.length})`
+                : `Generate ${Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)))}`}
           </button>
 
           {/* Varianty — same font weight & style as Generate Image */}
@@ -3585,7 +3615,16 @@ ${extra}
 
 
   const handleSaveSettings = async (newSettings: ProviderSettings) => {
-    const merged = { ...defaultProviderSettings, ...newSettings };
+    const merged: ProviderSettings = {
+      ...defaultProviderSettings,
+      ...newSettings,
+      [AIProviderType.GEMINI]: newSettings[AIProviderType.GEMINI] || defaultProviderSettings[AIProviderType.GEMINI],
+      [AIProviderType.CHATGPT]: newSettings[AIProviderType.CHATGPT] || defaultProviderSettings[AIProviderType.CHATGPT],
+      [AIProviderType.GROK]: newSettings[AIProviderType.GROK] || defaultProviderSettings[AIProviderType.GROK],
+      [AIProviderType.REPLICATE]: newSettings[AIProviderType.REPLICATE] || defaultProviderSettings[AIProviderType.REPLICATE],
+      fal: newSettings.fal || defaultProviderSettings.fal,
+      a1111: newSettings.a1111,
+    };
     setProviderSettings(merged);
     localStorage.setItem(PROVIDER_SETTINGS_STORAGE_KEY, JSON.stringify(merged));
     setToast({ message: 'Settings applied for current session.', type: 'success' });
@@ -3606,8 +3645,6 @@ ${extra}
         active={
           isStyleTransferRoute
               ? 'style-transfer'
-              : isEverartRoute
-                ? 'everart'
               : isModelInfluenceRoute
                 ? 'model-influence'
                 : isLoraInfluenceRoute
@@ -3621,10 +3658,6 @@ ${extra}
           }
           if (route === 'model-influence') {
             navigate('/model-influence');
-            return;
-          }
-          if (route === 'everart') {
-            navigate('/everart');
             return;
           }
           if (route === 'style-transfer') {
@@ -3656,12 +3689,6 @@ ${extra}
             />
           ) : isModelInfluenceRoute ? (
             <ModelInfluenceScreen
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onToast={(t) => setToast(t)}
-            />
-          ) : isEverartRoute ? (
-            <EverArtScreen
-              providerSettings={providerSettings}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onToast={(t) => setToast(t)}
             />
