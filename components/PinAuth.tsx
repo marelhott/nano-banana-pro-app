@@ -5,6 +5,8 @@ interface PinAuthProps {
   onAuth: (userId: string) => void;
 }
 
+const AUTO_LOGIN_TIMEOUT_MS = 1500;
+
 export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,7 +20,7 @@ export const PinAuth: React.FC<PinAuthProps> = ({ onAuth }) => {
       setIsCheckingAutoLogin(true);
       const userId = await Promise.race<string | null>([
         autoLogin(),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), AUTO_LOGIN_TIMEOUT_MS)),
       ]);
       if (userId) {
         onAuth(userId);
