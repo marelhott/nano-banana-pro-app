@@ -89,14 +89,10 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
 
 // Získat všechny obrázky z galerie
 export const getAllImages = async (): Promise<GalleryImage[]> => {
-  const userId = getCurrentUserId();
-  if (!userId) return [];
-
   try {
     const { data, error } = await supabase
       .from('generated_images')
       .select('*')
-      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -148,15 +144,11 @@ export const deleteImage = async (id: string): Promise<void> => {
 
 // Vymazat celou galerii
 export const clearGallery = async (): Promise<void> => {
-  const userId = getCurrentUserId();
-  if (!userId) return;
-
   try {
     // 1. Získat všechny storage paths
     const { data } = await supabase
       .from('generated_images')
-      .select('storage_path, thumbnail_path')
-      .eq('user_id', userId);
+      .select('storage_path, thumbnail_path');
 
     if (data) {
       // 2. Smazat všechny obrázky ze storage
@@ -171,8 +163,7 @@ export const clearGallery = async (): Promise<void> => {
     // 3. Smazat z DB
     await supabase
       .from('generated_images')
-      .delete()
-      .eq('user_id', userId);
+      .delete();
   } catch (error) {
     console.error('Error clearing gallery:', error);
     throw error;

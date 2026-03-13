@@ -19,14 +19,10 @@ let cachedImages: StoredImage[] | null = null;
 export class ImageDatabase {
   // Získat všechny obrázky z databáze
   static async getAll(): Promise<StoredImage[]> {
-    const userId = getCurrentUserId();
-    if (!userId) return [];
-
     try {
       const { data, error } = await supabase
         .from('saved_images')
         .select('*')
-        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -138,15 +134,11 @@ export class ImageDatabase {
 
   // Vymazat všechny obrázky
   static async clear(): Promise<void> {
-    const userId = getCurrentUserId();
-    if (!userId) return;
-
     try {
       // Smazat všechny obrázky uživatele
       const { data } = await supabase
         .from('saved_images')
-        .select('storage_path')
-        .eq('user_id', userId);
+        .select('storage_path');
 
       if (data) {
         // Smazat ze storage
@@ -158,8 +150,7 @@ export class ImageDatabase {
       // Smazat z DB
       await supabase
         .from('saved_images')
-        .delete()
-        .eq('user_id', userId);
+        .delete();
 
       // Invalidovat cache
       cachedImages = null;
@@ -171,14 +162,10 @@ export class ImageDatabase {
 
   // Vymazat obrázky podle kategorie
   static async clearByCategory(category: 'reference' | 'style' | 'asset'): Promise<void> {
-    const userId = getCurrentUserId();
-    if (!userId) return;
-
     try {
       const { data } = await supabase
         .from('saved_images')
         .select('storage_path')
-        .eq('user_id', userId)
         .eq('category', category);
 
       if (data) {
@@ -190,7 +177,6 @@ export class ImageDatabase {
       await supabase
         .from('saved_images')
         .delete()
-        .eq('user_id', userId)
         .eq('category', category);
 
       // Invalidovat cache
@@ -203,14 +189,10 @@ export class ImageDatabase {
 
   // Získat velikost databáze v MB (aproximace)
   static async getSize(): Promise<number> {
-    const userId = getCurrentUserId();
-    if (!userId) return 0;
-
     try {
       const { data } = await supabase
         .from('saved_images')
-        .select('file_size')
-        .eq('user_id', userId);
+        .select('file_size');
 
       if (!data) return 0;
 
@@ -224,14 +206,10 @@ export class ImageDatabase {
 
   // Získat počet obrázků
   static async getCount(): Promise<number> {
-    const userId = getCurrentUserId();
-    if (!userId) return 0;
-
     try {
       const { count, error } = await supabase
         .from('saved_images')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
+        .select('*', { count: 'exact', head: true });
 
       if (error) throw error;
       return count || 0;
