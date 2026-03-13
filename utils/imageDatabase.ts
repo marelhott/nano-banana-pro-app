@@ -15,11 +15,43 @@ export interface StoredImage {
 
 // Cache pro rychlejší načítání
 let cachedImages: StoredImage[] | null = null;
+let libraryCachePromise: Promise<{ saved: StoredImage[]; generated: any[] }> | null = null;
+
+async function fetchLibraryFromBackend(): Promise<{ saved: StoredImage[]; generated: any[] }> {
+  if (!libraryCachePromise) {
+    libraryCachePromise = fetch('/api/library-list', {
+      headers: { 'Cache-Control': 'no-store' },
+    })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.error || 'Library endpoint failed');
+        }
+        return {
+          saved: Array.isArray(result.saved) ? result.saved : [],
+          generated: Array.isArray(result.generated) ? result.generated : [],
+        };
+      })
+      .finally(() => {
+        libraryCachePromise = null;
+      });
+  }
+
+  return libraryCachePromise;
+}
 
 export class ImageDatabase {
   // Získat všechny obrázky z databáze
   static async getAll(): Promise<StoredImage[]> {
     try {
+      try {
+        const { saved } = await fetchLibraryFromBackend();
+        cachedImages = saved;
+        return saved;
+      } catch (backendError) {
+        console.warn('[ImageDatabase] Backend library fetch failed, falling back to direct Supabase query:', backendError);
+      }
+
       const { data, error } = await supabase
         .from('saved_images')
         .select('*')

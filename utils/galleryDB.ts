@@ -22,6 +22,19 @@ type SaveToGalleryInput = Omit<GalleryImage, 'id' | 'timestamp'> & {
   timestamp?: number;
 };
 
+async function fetchGeneratedLibraryFromBackend(): Promise<GalleryImage[]> {
+  const response = await fetch('/api/library-list', {
+    headers: { 'Cache-Control': 'no-store' },
+  });
+  const result = await response.json();
+
+  if (!response.ok || !result?.success) {
+    throw new Error(result?.error || 'Library endpoint failed');
+  }
+
+  return Array.isArray(result.generated) ? result.generated : [];
+}
+
 // Uložit obrázek do galerie
 export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> => {
   const userId = getCurrentUserId();
@@ -90,6 +103,12 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
 // Získat všechny obrázky z galerie
 export const getAllImages = async (): Promise<GalleryImage[]> => {
   try {
+    try {
+      return await fetchGeneratedLibraryFromBackend();
+    } catch (backendError) {
+      console.warn('[Gallery] Backend library fetch failed, falling back to direct Supabase query:', backendError);
+    }
+
     const { data, error } = await supabase
       .from('generated_images')
       .select('*')
