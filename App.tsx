@@ -32,7 +32,7 @@ import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
-import { ensureAnonymousSession, ensureSupabaseClient, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, ensureLocalAppUserId } from './utils/supabaseClient';
+import { ensureSupabaseClient, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, ensureLocalAppUserId } from './utils/supabaseClient';
 import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
@@ -268,9 +268,6 @@ const App: React.FC = () => {
         setIsSupabaseReady(true);
         void ImageDatabase.getAll();
         void runSmokeIfRequested();
-        void ensureAnonymousSession().catch((error) => {
-          console.warn('[Supabase] Anonymous auth warmup failed:', error);
-        });
       } catch (error: any) {
         if (cancelled) return;
         const message = error?.message || 'Nepodařilo se inicializovat Supabase.';

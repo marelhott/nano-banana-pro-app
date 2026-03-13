@@ -27,7 +27,7 @@ exports.handler = async (event) => {
   const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
   if (!url || !serviceRoleKey) {
-    return json(500, { success: false, error: 'Missing Supabase service configuration' });
+    return json(200, { success: false, saved: [], generated: [] });
   }
 
   try {
@@ -68,8 +68,10 @@ exports.handler = async (event) => {
 
     return json(200, { success: true, saved, generated });
   } catch (error) {
-    return json(500, {
+    return json(200, {
       success: false,
+      saved: [],
+      generated: [],
       error: String(error?.message || error || 'Failed to load image library'),
     });
   }
