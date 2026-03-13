@@ -1,74 +1,25 @@
-// Utilita pro správu databáze obrázků v Supabase
+import { AIProviderType, ProviderSettings } from '../services/aiProvider';
+import { dataUrlToBlob, deleteImage as deleteStorageImage, uploadImage } from './supabaseStorage';
+import {
+  clearSavedLibraryImages,
+  getSavedLibraryImageRecord,
+  getSavedLibraryImageStats,
+  listSavedLibraryImages,
+  removeSavedLibraryImage,
+  saveSavedLibraryImage,
+  type SingleUserSavedImage,
+} from './singleUserMediaStore';
+import { readJsonStorage, writeJsonStorage } from './singleUserStore';
 
-import { supabase, getCurrentUserId } from './supabaseClient';
-import { uploadImage, getPublicUrl, deleteImage as deleteStorageImage, dataUrlToBlob } from './supabaseStorage';
+export interface StoredImage extends SingleUserSavedImage {}
 
-export interface StoredImage {
-  id: string;
-  url: string; // Public URL z Supabase Storage
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  timestamp: number;
-  category: 'reference' | 'style' | 'asset'; // typ obrázku
-}
-
-// Cache pro rychlejší načítání
-let cachedImages: StoredImage[] | null = null;
-let libraryCachePromise: Promise<{ saved: StoredImage[]; generated: any[] }> | null = null;
-
-async function fetchLibraryFromBackend(): Promise<{ saved: StoredImage[]; generated: any[] }> {
-  if (!libraryCachePromise) {
-    libraryCachePromise = fetch('/api/library-list', {
-      headers: { 'Cache-Control': 'no-store' },
-    })
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok || !result?.success) {
-          throw new Error(result?.error || 'Library endpoint failed');
-        }
-        return {
-          saved: Array.isArray(result.saved) ? result.saved : [],
-          generated: Array.isArray(result.generated) ? result.generated : [],
-        };
-      })
-      .finally(() => {
-        libraryCachePromise = null;
-      });
-  }
-
-  return libraryCachePromise;
-}
+const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
+let cachedImages: StoredImage[] = [];
 
 export class ImageDatabase {
-  // Získat všechny obrázky z databáze
   static async getAll(): Promise<StoredImage[]> {
     try {
-      try {
-        const { saved } = await fetchLibraryFromBackend();
-        cachedImages = saved;
-        return saved;
-      } catch (backendError) {
-        console.warn('[ImageDatabase] Backend library fetch failed, falling back to direct Supabase query:', backendError);
-      }
-
-      const { data, error } = await supabase
-        .from('saved_images')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      cachedImages = data.map(row => ({
-        id: row.id,
-        url: getPublicUrl(row.storage_path),
-        fileName: row.file_name,
-        fileType: 'image/jpeg', // Default
-        fileSize: row.file_size || 0,
-        timestamp: new Date(row.created_at).getTime(),
-        category: row.category as 'reference' | 'style' | 'asset'
-      }));
-
+      cachedImages = await listSavedLibraryImages();
       return cachedImages;
     } catch (error) {
       console.error('Error reading image database:', error);
@@ -76,278 +27,167 @@ export class ImageDatabase {
     }
   }
 
-  // Získat obrázky podle kategorie (synchronní - použije cache)
   static getByCategory(category: 'reference' | 'style' | 'asset'): StoredImage[] {
-    if (!cachedImages) return [];
-    return cachedImages.filter(img => img.category === category);
+    return cachedImages.filter((img) => img.category === category);
   }
 
-  // Asynchronní verze - načte z databáze
   static async getByCategoryAsync(category: 'reference' | 'style' | 'asset'): Promise<StoredImage[]> {
     const all = await this.getAll();
-    return all.filter(img => img.category === category);
+    return all.filter((img) => img.category === category);
   }
 
-  // Přidat obrázek do databáze
   static async add(file: File, dataUrl: string, category: 'reference' | 'style' | 'asset'): Promise<StoredImage> {
-    const userId = getCurrentUserId();
-    if (!userId) {
-      throw new Error('Uživatel není přihlášen');
-    }
+    const blob = await dataUrlToBlob(dataUrl);
 
-    try {
-      // 1. Upload do storage
-      const blob = await dataUrlToBlob(dataUrl);
-      const storagePath = await uploadImage(blob, 'saved');
+    const localRecord = await saveSavedLibraryImage({
+      fileName: file.name,
+      fileType: file.type || blob.type || 'image/jpeg',
+      fileSize: file.size || blob.size || 0,
+      timestamp: Date.now(),
+      category,
+      blob,
+    });
 
-      // 2. Uložit metadata do DB
-      const { data, error } = await supabase
-        .from('saved_images')
-        .insert({
-          user_id: userId,
-          file_name: file.name,
-          storage_path: storagePath,
-          category: category,
-          file_size: file.size
-        })
-        .select()
-        .single();
+    void (async () => {
+      try {
+        const storagePath = await uploadImage(blob, 'saved');
+        await saveSavedLibraryImage({
+          id: localRecord.id,
+          fileName: localRecord.fileName,
+          fileType: localRecord.fileType,
+          fileSize: localRecord.fileSize,
+          timestamp: localRecord.timestamp,
+          category: localRecord.category,
+          blob,
+          remoteStoragePath: storagePath,
+        });
+      } catch (error) {
+        console.warn('[ImageDatabase] Cloud mirror for saved image failed:', error);
+      }
+    })();
 
-      if (error) throw error;
-
-      const newImage: StoredImage = {
-        id: data.id,
-        url: getPublicUrl(storagePath),
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        timestamp: new Date(data.created_at).getTime(),
-        category
-      };
-
-      // Invalidovat cache
-      cachedImages = null;
-
-      return newImage;
-    } catch (error) {
-      console.error('Error adding image:', error);
-      throw error;
-    }
+    return localRecord;
   }
 
-  // Odstranit obrázek z databáze
   static async remove(id: string): Promise<void> {
-    try {
-      // 1. Najít storage path
-      const { data } = await supabase
-        .from('saved_images')
-        .select('storage_path')
-        .eq('id', id)
-        .single();
+    const existing = await getSavedLibraryImageRecord(id);
+    await removeSavedLibraryImage(id);
+    cachedImages = cachedImages.filter((image) => image.id !== id);
 
-      if (data) {
-        // 2. Smazat ze storage
-        await deleteStorageImage(data.storage_path);
-
-        // 3. Smazat z DB
-        await supabase
-          .from('saved_images')
-          .delete()
-          .eq('id', id);
-
-        // Invalidovat cache
-        cachedImages = null;
-      }
-    } catch (error) {
-      console.error('Error removing image:', error);
-      throw error;
+    if (existing?.remoteStoragePath) {
+      void deleteStorageImage(existing.remoteStoragePath).catch((error) => {
+        console.warn('[ImageDatabase] Failed to delete cloud saved image:', error);
+      });
     }
   }
 
-  // Vymazat všechny obrázky
   static async clear(): Promise<void> {
-    try {
-      // Smazat všechny obrázky uživatele
-      const { data } = await supabase
-        .from('saved_images')
-        .select('storage_path');
+    const all = await this.getAll();
+    await clearSavedLibraryImages();
+    cachedImages = [];
 
-      if (data) {
-        // Smazat ze storage
-        for (const row of data) {
-          await deleteStorageImage(row.storage_path);
-        }
-      }
-
-      // Smazat z DB
-      await supabase
-        .from('saved_images')
-        .delete();
-
-      // Invalidovat cache
-      cachedImages = null;
-    } catch (error) {
-      console.error('Error clearing database:', error);
-      throw error;
+    for (const image of all) {
+      if (!image.remoteStoragePath) continue;
+      void deleteStorageImage(image.remoteStoragePath).catch((error) => {
+        console.warn('[ImageDatabase] Failed to delete cloud saved image during clear:', error);
+      });
     }
   }
 
-  // Vymazat obrázky podle kategorie
   static async clearByCategory(category: 'reference' | 'style' | 'asset'): Promise<void> {
-    try {
-      const { data } = await supabase
-        .from('saved_images')
-        .select('storage_path')
-        .eq('category', category);
-
-      if (data) {
-        for (const row of data) {
-          await deleteStorageImage(row.storage_path);
-        }
-      }
-
-      await supabase
-        .from('saved_images')
-        .delete()
-        .eq('category', category);
-
-      // Invalidovat cache
-      cachedImages = null;
-    } catch (error) {
-      console.error('Error clearing category:', error);
-      throw error;
-    }
+    const all = await this.getAll();
+    const toDelete = all.filter((image) => image.category === category);
+    await Promise.all(toDelete.map((image) => this.remove(image.id)));
   }
 
-  // Získat velikost databáze v MB (aproximace)
   static async getSize(): Promise<number> {
-    try {
-      const { data } = await supabase
-        .from('saved_images')
-        .select('file_size');
-
-      if (!data) return 0;
-
-      const totalBytes = data.reduce((sum, row) => sum + (row.file_size || 0), 0);
-      return totalBytes / (1024 * 1024); // MB
-    } catch (error) {
-      console.error('Error getting size:', error);
-      return 0;
-    }
+    const stats = await getSavedLibraryImageStats();
+    return stats.totalBytes / (1024 * 1024);
   }
 
-  // Získat počet obrázků
   static async getCount(): Promise<number> {
-    try {
-      const { count, error } = await supabase
-        .from('saved_images')
-        .select('*', { count: 'exact', head: true });
-
-      if (error) throw error;
-      return count || 0;
-    } catch (error) {
-      console.error('Error getting count:', error);
-      return 0;
-    }
+    const stats = await getSavedLibraryImageStats();
+    return stats.count;
   }
 }
 
-/**
- * Provider Settings Management
- */
-import { AIProviderType, ProviderSettings } from '../services/aiProvider';
-
 export class SettingsDatabase {
-  private static sanitizeProviderSettings(settings: ProviderSettings): Record<string, { enabled: boolean }> {
-    const sanitized: Record<string, { enabled: boolean }> = {};
+  private static sanitizeProviderSettings(settings: ProviderSettings): Record<string, any> {
+    const sanitized: Record<string, any> = {};
 
     for (const provider of Object.values(AIProviderType)) {
       const config = settings[provider];
       sanitized[provider] = {
-        enabled: Boolean(config?.enabled || config?.apiKey)
+        enabled: Boolean(config?.enabled || config?.apiKey),
+      };
+    }
+
+    if (settings.fal) {
+      sanitized.fal = {
+        enabled: Boolean(settings.fal.enabled || settings.fal.apiKey),
+      };
+    }
+
+    if (settings.a1111) {
+      sanitized.a1111 = {
+        enabled: Boolean(settings.a1111.enabled || settings.a1111.baseUrl),
+        baseUrl: settings.a1111.baseUrl || '',
+        sdxlVae: settings.a1111.sdxlVae || '',
       };
     }
 
     return sanitized;
   }
 
-  private static deserializeProviderSettings(payload: unknown): ProviderSettings | null {
-    if (!payload || typeof payload !== 'object') return null;
+  static async saveProviderSettings(settings: ProviderSettings): Promise<void> {
+    writeJsonStorage(PROVIDER_SETTINGS_STORAGE_KEY, {
+      ...settings,
+      __singleUserSavedAt: new Date().toISOString(),
+    });
+  }
 
-    const source = (payload as any).providers && typeof (payload as any).providers === 'object'
-      ? (payload as any).providers
-      : payload;
+  static async loadProviderSettings(): Promise<ProviderSettings | null> {
+    const data = readJsonStorage<Record<string, any> | null>(PROVIDER_SETTINGS_STORAGE_KEY, null);
+    if (!data) return null;
 
     const restored: ProviderSettings = {};
+
     for (const provider of Object.values(AIProviderType)) {
-      const entry = source?.[provider];
+      const entry = data?.[provider];
       if (!entry || typeof entry !== 'object') continue;
       restored[provider] = {
-        apiKey: '',
-        enabled: Boolean((entry as any).enabled)
+        apiKey: String((entry as any).apiKey || ''),
+        enabled: Boolean((entry as any).enabled),
       };
     }
 
-    return Object.keys(restored).length > 0 ? restored : null;
-  }
-
-  /**
-   * Save provider settings to Supabase
-   */
-  static async saveProviderSettings(settings: ProviderSettings): Promise<void> {
-    const userId = getCurrentUserId();
-    if (!userId) {
-      throw new Error('User not authenticated');
+    if (data?.fal) {
+      restored.fal = {
+        apiKey: String(data.fal.apiKey || ''),
+        enabled: Boolean(data.fal.enabled),
+      };
     }
 
-    try {
-      const { error } = await supabase
-        .from('user_settings')
-        .upsert({
-          user_id: userId,
-          settings: {
-            providers: this.sanitizeProviderSettings(settings),
-            storedAt: new Date().toISOString(),
-            includesSecrets: false
+    if (data?.a1111) {
+      restored.a1111 = {
+        baseUrl: String(data.a1111.baseUrl || ''),
+        sdxlVae: String(data.a1111.sdxlVae || ''),
+        enabled: Boolean(data.a1111.enabled),
+      };
+    }
+
+    const sanitized = this.sanitizeProviderSettings(restored);
+    return {
+      ...restored,
+      ...Object.fromEntries(
+        Object.entries(sanitized).map(([provider, value]) => [
+          provider,
+          {
+            ...(restored as any)[provider],
+            enabled: Boolean((value as any).enabled),
           },
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
-      console.log('[Settings] Provider settings saved to Supabase');
-    } catch (error) {
-      console.error('[Settings] Error saving provider settings:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Load provider settings from Supabase
-   */
-  static async loadProviderSettings(): Promise<ProviderSettings | null> {
-    const userId = getCurrentUserId();
-    if (!userId) return null;
-
-    try {
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('settings')  // Changed from provider_settings to settings
-        .eq('user_id', userId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // Not found error is OK
-        throw error;
-      }
-
-      if (data?.settings) {
-        console.log('[Settings] Provider settings loaded from Supabase');
-        return this.deserializeProviderSettings(data.settings);
-      }
-
-      return null;
-    } catch (error) {
-      console.error('[Settings] Error loading provider settings:', error);
-      return null;
-    }
+        ])
+      ),
+    };
   }
 }

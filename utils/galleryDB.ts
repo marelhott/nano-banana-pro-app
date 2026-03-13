@@ -1,195 +1,126 @@
-// Supabase utilita pro ukládání vygenerovaných obrázků do galerie
+import { clearGeneratedLibraryImages, getGeneratedLibraryImageRecord, listGeneratedLibraryImages, removeGeneratedLibraryImage, resolveBlobFromSource, saveGeneratedLibraryImage, type SingleUserGeneratedImage } from './singleUserMediaStore';
+import { dataUrlToBlob, deleteImage as deleteStorageImage, uploadImage } from './supabaseStorage';
 
-import { supabase, getCurrentUserId } from './supabaseClient';
-import { uploadImage, getPublicUrl, deleteImage as deleteStorageImage, dataUrlToBlob } from './supabaseStorage';
-
-export interface GalleryImage {
-  id: string;
-  url: string;
-  prompt: string;
-  timestamp: number;
-  resolution?: string;
-  aspectRatio?: string;
-  thumbnail?: string;
-  params?: any;
-  // #11 + #13 + #14: Rozšířená metadata
-  versions?: Array<{ url: string; prompt: string; timestamp: number; recipe?: any }>;
-  lineage?: { sourceImageIds: string[]; styleImageIds: string[]; sourceImageUrls: string[]; styleImageUrls: string[] };
-}
+export interface GalleryImage extends SingleUserGeneratedImage {}
 
 type SaveToGalleryInput = Omit<GalleryImage, 'id' | 'timestamp'> & {
   id?: string;
   timestamp?: number;
 };
 
-async function fetchGeneratedLibraryFromBackend(): Promise<GalleryImage[]> {
-  const response = await fetch('/api/library-list', {
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  const result = await response.json();
-
-  if (!response.ok || !result?.success) {
-    throw new Error(result?.error || 'Library endpoint failed');
-  }
-
-  return Array.isArray(result.generated) ? result.generated : [];
-}
-
-// Uložit obrázek do galerie
 export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> => {
-  const userId = getCurrentUserId();
-  if (!userId) {
-    throw new Error('Uživatel není přihlášen');
+  let mainBlob: Blob | undefined;
+  let thumbBlob: Blob | undefined;
+
+  try {
+    if (image.url) {
+      mainBlob = image.url.startsWith('data:')
+        ? await dataUrlToBlob(image.url)
+        : await resolveBlobFromSource(image.url);
+    }
+  } catch (error) {
+    console.warn('[Gallery] Failed to persist full image blob locally, falling back to URL only:', error);
   }
 
   try {
-    const fetchImageBlob = async (url: string): Promise<Blob> => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Nepodařilo se stáhnout obrázek (HTTP ${response.status})`);
-      }
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.startsWith('image/')) {
-        throw new Error('URL neobsahuje obrázek.');
-      }
-      return await response.blob();
-    };
-
-    // 1. Upload hlavního obrázku
-    const imageBlob = image.url.startsWith('data:')
-      ? await dataUrlToBlob(image.url)
-      : await fetchImageBlob(image.url);
-    const storagePath = await uploadImage(imageBlob, 'generated');
-
-    // 2. Upload thumbnai (pokud existuje)
-    let thumbnailPath: string | undefined;
     if (image.thumbnail) {
-      const thumbnailBlob = image.thumbnail.startsWith('data:')
+      thumbBlob = image.thumbnail.startsWith('data:')
         ? await dataUrlToBlob(image.thumbnail)
-        : await fetchImageBlob(image.thumbnail);
-      thumbnailPath = await uploadImage(thumbnailBlob, 'generated');
+        : await resolveBlobFromSource(image.thumbnail);
     }
-
-    // 3. Uložit metadata do DB
-    const row: Record<string, any> = {
-      user_id: userId,
-      prompt: image.prompt,
-      storage_path: storagePath,
-      thumbnail_path: thumbnailPath,
-      resolution: image.resolution,
-      aspect_ratio: image.aspectRatio,
-      params: image.params ?? {}
-    };
-
-    if (image.id) {
-      row.id = image.id;
-    }
-
-    if (image.timestamp) {
-      row.created_at = new Date(image.timestamp).toISOString();
-    }
-
-    const { error } = await supabase
-      .from('generated_images')
-      .upsert(row, { onConflict: 'id' });
-
-    if (error) throw error;
   } catch (error) {
-    console.error('Error saving to gallery:', error);
-    throw error;
+    console.warn('[Gallery] Failed to persist thumbnail blob locally, falling back to URL only:', error);
   }
+
+  const localRecord = await saveGeneratedLibraryImage({
+    id: image.id,
+    prompt: image.prompt,
+    timestamp: image.timestamp,
+    resolution: image.resolution,
+    aspectRatio: image.aspectRatio,
+    blob: mainBlob,
+    sourceUrl: mainBlob ? undefined : image.url,
+    thumbnailBlob: thumbBlob,
+    thumbnailUrl: thumbBlob ? undefined : image.thumbnail,
+    params: image.params,
+    versions: image.versions,
+    lineage: image.lineage,
+  });
+
+  void (async () => {
+    if (!mainBlob) return;
+
+    try {
+      const storagePath = await uploadImage(mainBlob, 'generated');
+      let thumbnailPath: string | undefined;
+      if (thumbBlob) {
+        thumbnailPath = await uploadImage(thumbBlob, 'generated');
+      }
+
+      await saveGeneratedLibraryImage({
+        id: localRecord.id,
+        prompt: localRecord.prompt,
+        timestamp: localRecord.timestamp,
+        resolution: localRecord.resolution,
+        aspectRatio: localRecord.aspectRatio,
+        blob: mainBlob,
+        thumbnailBlob: thumbBlob,
+        params: localRecord.params,
+        versions: localRecord.versions,
+        lineage: localRecord.lineage,
+        remoteStoragePath: storagePath,
+        remoteThumbnailPath: thumbnailPath,
+      });
+    } catch (error) {
+      console.warn('[Gallery] Cloud mirror for generated image failed:', error);
+    }
+  })();
 };
 
-// Získat všechny obrázky z galerie
 export const getAllImages = async (): Promise<GalleryImage[]> => {
   try {
-    try {
-      return await fetchGeneratedLibraryFromBackend();
-    } catch (backendError) {
-      console.warn('[Gallery] Backend library fetch failed, falling back to direct Supabase query:', backendError);
-    }
-
-    const { data, error } = await supabase
-      .from('generated_images')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    return data.map(row => ({
-      id: row.id,
-      url: getPublicUrl(row.storage_path),
-      prompt: row.prompt,
-      timestamp: new Date(row.created_at).getTime(),
-      resolution: row.resolution,
-      aspectRatio: row.aspect_ratio,
-      thumbnail: row.thumbnail_path ? getPublicUrl(row.thumbnail_path) : undefined,
-      params: row.params || undefined
-    }));
+    return await listGeneratedLibraryImages();
   } catch (error) {
     console.error('Error loading gallery:', error);
     return [];
   }
 };
 
-// Smazat obrázek z galerie
 export const deleteImage = async (id: string): Promise<void> => {
-  try {
-    // 1. Najít storage paths
-    const { data } = await supabase
-      .from('generated_images')
-      .select('storage_path, thumbnail_path')
-      .eq('id', id)
-      .single();
+  const existing = await getGeneratedLibraryImageRecord(id);
+  await removeGeneratedLibraryImage(id);
 
-    if (data) {
-      // 2. Smazat ze storage
-      await deleteStorageImage(data.storage_path);
-      if (data.thumbnail_path) {
-        await deleteStorageImage(data.thumbnail_path);
-      }
+  if (existing?.remoteStoragePath) {
+    void deleteStorageImage(existing.remoteStoragePath).catch((error) => {
+      console.warn('[Gallery] Failed to delete cloud generated image:', error);
+    });
+  }
 
-      // 3. Smazat z DB
-      await supabase
-        .from('generated_images')
-        .delete()
-        .eq('id', id);
-    }
-  } catch (error) {
-    console.error('Error deleting image:', error);
-    throw error;
+  if (existing?.remoteThumbnailPath) {
+    void deleteStorageImage(existing.remoteThumbnailPath).catch((error) => {
+      console.warn('[Gallery] Failed to delete cloud generated thumbnail:', error);
+    });
   }
 };
 
-// Vymazat celou galerii
 export const clearGallery = async (): Promise<void> => {
-  try {
-    // 1. Získat všechny storage paths
-    const { data } = await supabase
-      .from('generated_images')
-      .select('storage_path, thumbnail_path');
+  const all = await getAllImages();
+  await clearGeneratedLibraryImages();
 
-    if (data) {
-      // 2. Smazat všechny obrázky ze storage
-      for (const row of data) {
-        await deleteStorageImage(row.storage_path);
-        if (row.thumbnail_path) {
-          await deleteStorageImage(row.thumbnail_path);
-        }
-      }
+  for (const image of all) {
+    if (image.remoteStoragePath) {
+      void deleteStorageImage(image.remoteStoragePath).catch((error) => {
+        console.warn('[Gallery] Failed to delete cloud generated image during clear:', error);
+      });
     }
-
-    // 3. Smazat z DB
-    await supabase
-      .from('generated_images')
-      .delete();
-  } catch (error) {
-    console.error('Error clearing gallery:', error);
-    throw error;
+    if (image.remoteThumbnailPath) {
+      void deleteStorageImage(image.remoteThumbnailPath).catch((error) => {
+        console.warn('[Gallery] Failed to delete cloud generated thumbnail during clear:', error);
+      });
+    }
   }
 };
 
-// Vytvořit thumbnail z plného obrázku
 export const createThumbnail = (dataUrl: string, maxSize: number = 400): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -203,23 +134,19 @@ export const createThumbnail = (dataUrl: string, maxSize: number = 400): Promise
           height = (height * maxSize) / width;
           width = maxSize;
         }
-      } else {
-        if (height > maxSize) {
-          width = (width * maxSize) / height;
-          height = maxSize;
-        }
+      } else if (height > maxSize) {
+        width = (width * maxSize) / height;
+        height = maxSize;
       }
 
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        // Zapnout antialiasing pro lepší kvalitu
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
       }
-      // Zvýšit kvalitu JPEG komprese z 0.7 na 0.85
       resolve(canvas.toDataURL('image/jpeg', 0.85));
     };
     img.onerror = () => reject(new Error('Nepodařilo se načíst obrázek pro thumbnail.'));

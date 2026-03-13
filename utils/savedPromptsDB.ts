@@ -1,121 +1,160 @@
 import { SavedPrompt } from '../types';
-import { getCurrentUserId, supabase } from './supabaseClient';
+import { createSingleUserId, readJsonStorage, writeJsonStorage } from './singleUserStore';
 
+const STORAGE_KEY = 'mulenNano.singleUser.savedPrompts.v1';
 const LEGACY_STORAGE_KEY = 'nanoBanana_savedPrompts';
-const MIGRATION_FLAG_KEY = 'nanoBanana_savedPrompts_migratedToSupabase_v1';
+const AUTO_BACKUP_KEY = 'nanoBanana_autoBackup';
+const DEFAULT_PROMPTS_KEY = 'mulenNano.singleUser.savedPrompts.defaults.v1';
+const DEFAULT_PROMPTS: SavedPrompt[] = [
+  {
+    id: 'interior-1',
+    name: 'Interiér - Moderní nábytek',
+    prompt: 'Použij v nezměněné podobě dekorativní zeď, doplň moderní jednoduchý nábytek tak, aby působil co nejpřirozeněji a ne jako reklama nebo ai, rozmísti běžné věci po místnosti a zdech, jako jsou záclony, obrázky, různé předměty denní potřeby. Udělej pohled z více úhlů. Lehce odzoomuj a uprav osvětlení, aby působil obrázek přirozeně a živě.',
+    category: 'Interiér',
+    timestamp: Date.now(),
+  },
+];
 
-type SavedPromptRow = {
-  id: string;
-  user_id: string;
-  name: string;
-  prompt: string;
-  created_at: string;
-  updated_at: string;
-};
+let importPromise: Promise<void> | null = null;
 
-const mapRowToPrompt = (row: SavedPromptRow): SavedPrompt => ({
-  id: row.id,
-  name: row.name,
-  prompt: row.prompt,
-  timestamp: new Date(row.created_at).getTime(),
-});
+function getStoredPrompts(): SavedPrompt[] {
+  const stored = readJsonStorage<SavedPrompt[]>(STORAGE_KEY, []);
+  if (stored.length > 0) return stored;
 
-const migrateLegacyPromptsIfNeeded = async (userId: string) => {
-  const migrated = localStorage.getItem(MIGRATION_FLAG_KEY);
-  if (migrated) return;
-
-  const stored = localStorage.getItem(LEGACY_STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(MIGRATION_FLAG_KEY, '1');
-    return;
+  const defaultsSeeded = readJsonStorage<boolean>(DEFAULT_PROMPTS_KEY, false);
+  if (!defaultsSeeded) {
+    writeJsonStorage(STORAGE_KEY, DEFAULT_PROMPTS);
+    writeJsonStorage(DEFAULT_PROMPTS_KEY, true);
+    return DEFAULT_PROMPTS;
   }
 
-  try {
-    const legacy = JSON.parse(stored) as Array<{ name: string; prompt: string }>;
-    for (const item of legacy) {
-      if (!item?.name?.trim() || !item?.prompt?.trim()) continue;
-      await supabase
-        .from('saved_prompts')
-        .upsert(
-          {
-            user_id: userId,
-            name: item.name.trim(),
-            prompt: item.prompt,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,name' }
-        );
+  return [];
+}
+
+function saveStoredPrompts(prompts: SavedPrompt[]): void {
+  writeJsonStorage(STORAGE_KEY, prompts);
+}
+
+function mergePrompts(current: SavedPrompt[], incoming: SavedPrompt[]): SavedPrompt[] {
+  const byName = new Map<string, SavedPrompt>();
+
+  for (const prompt of current) {
+    if (!prompt?.name?.trim() || !prompt?.prompt?.trim()) continue;
+    byName.set(prompt.name.trim().toLowerCase(), prompt);
+  }
+
+  for (const prompt of incoming) {
+    if (!prompt?.name?.trim() || !prompt?.prompt?.trim()) continue;
+    const key = prompt.name.trim().toLowerCase();
+    const existing = byName.get(key);
+    if (!existing || (prompt.timestamp || 0) > (existing.timestamp || 0)) {
+      byName.set(key, {
+        id: prompt.id || createSingleUserId('prompt'),
+        name: prompt.name.trim(),
+        prompt: prompt.prompt,
+        category: prompt.category,
+        timestamp: Number(prompt.timestamp) || Date.now(),
+      });
     }
-  } catch {
-  } finally {
-    localStorage.setItem(MIGRATION_FLAG_KEY, '1');
+  }
+
+  return Array.from(byName.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
+
+async function importLegacySourcesOnce(): Promise<void> {
+  const current = getStoredPrompts();
+  const incoming: SavedPrompt[] = [];
+
+  const legacyPrompts = readJsonStorage<Array<{ id?: string; name?: string; prompt?: string; category?: string; timestamp?: number }>>(LEGACY_STORAGE_KEY, []);
+  for (const prompt of legacyPrompts) {
+    if (!prompt?.name?.trim() || !prompt?.prompt?.trim()) continue;
+    incoming.push({
+      id: prompt.id || createSingleUserId('prompt'),
+      name: prompt.name.trim(),
+      prompt: prompt.prompt,
+      category: prompt.category,
+      timestamp: Number(prompt.timestamp) || Date.now(),
+    });
+  }
+
+  const backup = readJsonStorage<any | null>(AUTO_BACKUP_KEY, null);
+  const backupPrompts = Array.isArray(backup?.savedPrompts) ? backup.savedPrompts : [];
+  for (const prompt of backupPrompts) {
+    if (!prompt?.name?.trim() || !prompt?.prompt?.trim()) continue;
+    incoming.push({
+      id: prompt.id || createSingleUserId('prompt'),
+      name: prompt.name.trim(),
+      prompt: prompt.prompt,
+      category: prompt.category,
+      timestamp: Number(prompt.timestamp) || Date.now(),
+    });
+  }
+
+  const merged = mergePrompts(current, incoming);
+  saveStoredPrompts(merged);
+
+  if (typeof window !== 'undefined') {
     localStorage.removeItem(LEGACY_STORAGE_KEY);
   }
-};
+
+}
+
+async function ensureImported(): Promise<void> {
+  if (!importPromise) {
+    importPromise = importLegacySourcesOnce().finally(() => {
+      importPromise = null;
+    });
+  }
+
+  await importPromise;
+}
 
 export const listSavedPrompts = async (): Promise<SavedPrompt[]> => {
-  const userId = getCurrentUserId();
-  if (!userId) return [];
-
-  await migrateLegacyPromptsIfNeeded(userId);
-
-  const { data, error } = await supabase
-    .from('saved_prompts')
-    .select('*')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false });
-
-  if (error) throw error;
-  return (data as SavedPromptRow[]).map(mapRowToPrompt);
+  await ensureImported();
+  return getStoredPrompts();
 };
 
 export const upsertSavedPromptByName = async (name: string, prompt: string): Promise<void> => {
-  const userId = getCurrentUserId();
-  if (!userId) throw new Error('Uživatel není přihlášen');
-
   const trimmedName = name.trim();
   if (!trimmedName) throw new Error('Chybí název promptu');
   if (!prompt.trim()) throw new Error('Chybí text promptu');
 
-  const { error } = await supabase
-    .from('saved_prompts')
-    .upsert(
-      {
-        user_id: userId,
-        name: trimmedName,
-        prompt,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,name' }
-    );
-  if (error) throw error;
+  await ensureImported();
+  const prompts = getStoredPrompts();
+  const existing = prompts.find((item) => item.name.trim().toLowerCase() === trimmedName.toLowerCase());
+
+  if (existing) {
+    existing.prompt = prompt;
+    existing.timestamp = Date.now();
+  } else {
+    prompts.unshift({
+      id: createSingleUserId('prompt'),
+      name: trimmedName,
+      prompt,
+      timestamp: Date.now(),
+    });
+  }
+
+  saveStoredPrompts(prompts.sort((a, b) => b.timestamp - a.timestamp));
 };
 
 export const updateSavedPrompt = async (id: string, updates: { name?: string; prompt?: string }): Promise<void> => {
-  const userId = getCurrentUserId();
-  if (!userId) throw new Error('Uživatel není přihlášen');
+  await ensureImported();
+  const prompts = getStoredPrompts();
+  const next = prompts.map((item) => {
+    if (item.id !== id) return item;
+    return {
+      ...item,
+      name: typeof updates.name === 'string' ? updates.name : item.name,
+      prompt: typeof updates.prompt === 'string' ? updates.prompt : item.prompt,
+      timestamp: Date.now(),
+    };
+  });
 
-  const payload: Record<string, any> = { updated_at: new Date().toISOString() };
-  if (typeof updates.name === 'string') payload.name = updates.name;
-  if (typeof updates.prompt === 'string') payload.prompt = updates.prompt;
-
-  const { error } = await supabase
-    .from('saved_prompts')
-    .update(payload)
-    .eq('id', id)
-    .eq('user_id', userId);
-  if (error) throw error;
+  saveStoredPrompts(next.sort((a, b) => b.timestamp - a.timestamp));
 };
 
 export const deleteSavedPrompt = async (id: string): Promise<void> => {
-  const userId = getCurrentUserId();
-  if (!userId) throw new Error('Uživatel není přihlášen');
-
-  const { error } = await supabase
-    .from('saved_prompts')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', userId);
-  if (error) throw error;
+  await ensureImported();
+  saveStoredPrompts(getStoredPrompts().filter((item) => item.id !== id));
 };
-

@@ -279,10 +279,10 @@ const App: React.FC = () => {
           message.includes('Supabase není nakonfigurovaná');
 
         hasPermanentAuthFailure = isPermanentError;
-        setIsSupabaseReady(false);
+        setIsSupabaseReady(true);
         setAuthFailureMessage(message);
         if (message !== lastAuthError) {
-          setToast({ message, type: 'error' });
+          setToast({ message: `${message} Aplikace pokračuje v single-user režimu.`, type: 'error' });
           lastAuthError = message;
         }
         if (isPermanentError) {
@@ -312,10 +312,10 @@ const App: React.FC = () => {
             message.includes('Supabase není nakonfigurovaná');
 
           hasPermanentAuthFailure = isPermanentError;
-          setIsSupabaseReady(false);
+          setIsSupabaseReady(true);
           setAuthFailureMessage(message);
           if (message !== lastAuthError) {
-            setToast({ message: `${message} Obnovuji připojení…`, type: 'error' });
+            setToast({ message: `${message} Cloud sync zkusím znovu na pozadí.`, type: 'error' });
             lastAuthError = message;
           }
           if (isPermanentError) {
