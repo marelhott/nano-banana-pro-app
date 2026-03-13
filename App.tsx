@@ -84,14 +84,14 @@ const getInterRequestDelayMs = (
   if (imageIndex <= 0) return 0;
 
   if (provider === AIProviderType.GEMINI) {
-    return imageModel === 'gemini-3-pro-image-preview' ? 12000 : 8000;
+    return imageModel === 'gemini-3-pro-image-preview' ? 450 : 250;
   }
 
   if (provider === AIProviderType.CHATGPT || provider === AIProviderType.GROK) {
-    return 3000;
+    return 200;
   }
 
-  return 2000;
+  return 150;
 };
 
 const getRetryBackoffMs = (provider: AIProviderType, retryCount: number): number => {
@@ -1877,9 +1877,9 @@ const App: React.FC = () => {
       };
     });
 
-    // Generovat obrázky sekvenčně s malým zpožděním mezi požadavky
-    // aby nedošlo k rate limitingu API
-    const generateSequentially = async () => {
+    // Generovat obrázky téměř souběžně.
+    // Zachováme jen malý stagger startu, aby providery nedostaly burst ve stejnou milisekundu.
+    const generateInParallel = async () => {
       const sourceImagesData = await Promise.all(
         state.sourceImages.map(async img => ({
           data: await urlToDataUrl(img.url),
@@ -1900,21 +1900,20 @@ const App: React.FC = () => {
       );
       const allImages = [...sourceImagesData, ...styleImagesData, ...assetImagesData];
 
-      for (let i = 0; i < imagesToGenerate.length; i++) {
-        const imageData = imagesToGenerate[i];
+      await Promise.all(
+        imagesToGenerate.map(async (imageData, i) => {
+          const interRequestDelay = getInterRequestDelayMs(selectedProvider, nanoBananaImageModel, i);
+          if (interRequestDelay > 0) {
+            await new Promise(resolve => setTimeout(resolve, interRequestDelay));
+          }
 
-        const interRequestDelay = getInterRequestDelayMs(selectedProvider, nanoBananaImageModel, i);
-        if (interRequestDelay > 0) {
-          await new Promise(resolve => setTimeout(resolve, interRequestDelay));
-        }
+          // Retry logika pro 429 errory s exponential backoff
+          let retryCount = 0;
+          const maxRetries = 3;
+          let success = false;
 
-        // Retry logika pro 429 errory s exponential backoff
-        let retryCount = 0;
-        const maxRetries = 3;
-        let success = false;
-
-        while (retryCount <= maxRetries && !success) {
-          try {
+          while (retryCount <= maxRetries && !success) {
+            try {
             const buildSimpleLinkPrompt = (
               mode: 'style' | 'merge' | 'object',
               extra: string,
@@ -2136,34 +2135,37 @@ ${extra}
             setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
 
             success = true; // Úspěch, pokračuj na další obrázek
-          } catch (err: any) {
-            const isRetriable = isRetriableProviderError(err);
-            if (isRetriable && retryCount < maxRetries) {
-              retryCount++;
-              const waitTime = getRetryBackoffMs(selectedProvider, retryCount);
-              console.log(`Provider overload hit for image ${i + 1}, waiting ${waitTime / 1000}s before retry ${retryCount}/${maxRetries}`);
-              await new Promise(resolve => setTimeout(resolve, waitTime));
-            } else {
-              // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
-              if (err?.code === 'API_KEY_NOT_FOUND') {
-                setHasApiKey(false);
+            }
+            catch (err: any) {
+              const isRetriable = isRetriableProviderError(err);
+              if (isRetriable && retryCount < maxRetries) {
+                retryCount++;
+                const waitTime = getRetryBackoffMs(selectedProvider, retryCount);
+                console.log(`Provider overload hit for image ${i + 1}, waiting ${waitTime / 1000}s before retry ${retryCount}/${maxRetries}`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+              } else {
+                // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
+                if (err?.code === 'API_KEY_NOT_FOUND') {
+                  setHasApiKey(false);
+                }
+                setState(prev => ({
+                  ...prev,
+                  generatedImages: prev.generatedImages.map(img =>
+                    img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
+                  ),
+                }));
+                break; // Přeruš retry loop
               }
-              setState(prev => ({
-                ...prev,
-                generatedImages: prev.generatedImages.map(img =>
-                  img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
-                ),
-              }));
-              break; // Přeruš retry loop
             }
           }
-        }
-      }
+        })
+      );
+
       setIsGenerating(false);
       setGenerationProgress(null);
     };
 
-    await generateSequentially();
+    await generateInParallel();
     } finally {
       generationLockRef.current = false;
       const nextItem = dequeueGenerationSnapshot();
