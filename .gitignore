@@ -43,3 +43,9 @@ dist-ssr
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Local Supabase temp artifacts
+supabase/.temp/
+
+# Deno lockfile is not used by this app
+deno.lock
