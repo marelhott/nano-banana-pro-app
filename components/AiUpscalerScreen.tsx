@@ -46,6 +46,7 @@ export function AiUpscalerScreen(props: {
 
   const phaseLabel =
     phase === 'queue' ? 'Ve frontě' : phase === 'running' ? 'Zpracovávám' : phase === 'finalizing' ? 'Dokončuji' : '';
+  const phaseProgress = phase === 'queue' ? 18 : phase === 'running' ? 72 : phase === 'finalizing' ? 94 : 0;
 
   const creativity = detailBoostEnabled ? 0.18 + (detailBoost / 100) * 0.62 : 0.12;
   const resemblance = detailBoostEnabled ? 0.93 - (detailBoost / 100) * 0.38 : 0.92;
@@ -167,6 +168,30 @@ export function AiUpscalerScreen(props: {
             {isGenerating ? (phaseLabel ? `Upscaling • ${phaseLabel}` : 'Upscaling…') : `Upscale ${scale}×`}
           </button>
 
+          {isGenerating ? (
+            <div className="card-surface p-3 space-y-2">
+              <div className="flex items-center justify-between text-[10px] uppercase tracking-widest font-bold">
+                <span className="text-white/55">Progress</span>
+                <span className="text-[#7ed957]">{phaseLabel || 'Startuji'}</span>
+              </div>
+              <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                <div
+                  className="h-full rounded-full bg-[var(--accent)] transition-all duration-500 ease-out shadow-[0_0_14px_rgba(126,217,87,0.35)]"
+                  style={{ width: `${phaseProgress}%` }}
+                />
+              </div>
+              <div className="text-[9px] text-white/35">
+                {phase === 'queue'
+                  ? 'Job je ve frontě fal.ai.'
+                  : phase === 'running'
+                    ? 'Upscaler právě generuje detail a větší rozlišení.'
+                    : phase === 'finalizing'
+                      ? 'Stahuji a ukládám finální výstup.'
+                      : 'Připravuji požadavek…'}
+              </div>
+            </div>
+          ) : null}
+
           <div className="card-surface p-3 space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET PIXELŮ</div>
             <div className="flex items-center justify-between bg-transparent pt-1">
@@ -231,10 +256,10 @@ export function AiUpscalerScreen(props: {
               <button
                 type="button"
                 onClick={() => setDetailBoostEnabled((prev) => !prev)}
-                className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${detailBoostEnabled ? 'bg-[#7ed957]/70' : 'bg-white/10'}`}
+                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${detailBoostEnabled ? 'bg-[#7ed957]/70' : 'bg-white/10'}`}
               >
                 <span
-                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${detailBoostEnabled ? 'translate-x-5' : ''}`}
+                  className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${detailBoostEnabled ? 'translate-x-4' : ''}`}
                 />
               </button>
             </div>
@@ -352,6 +377,17 @@ export function AiUpscalerScreen(props: {
                   <div className="text-[10px] text-white/35 mt-2">
                     Nahraj obrázek vlevo a spusť upscale. Vizuál i akce teď drží stejný panelový styl jako Mulen Nano.
                   </div>
+                  {isGenerating ? (
+                    <div className="w-full max-w-[320px] mt-5 space-y-2">
+                      <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                        <div
+                          className="h-full rounded-full bg-[var(--accent)] transition-all duration-500 ease-out shadow-[0_0_14px_rgba(126,217,87,0.35)]"
+                          style={{ width: `${phaseProgress}%` }}
+                        />
+                      </div>
+                      <div className="text-[10px] text-[#7ed957]">{phaseLabel || 'Pracuji…'}</div>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </article>
