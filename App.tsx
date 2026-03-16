@@ -43,6 +43,7 @@ import { FreeComparisonModal } from './components/FreeComparisonModal';
 import { mapAspectRatio, type ProviderType } from './utils/aspectRatioMapping';
 import { buildStyleStrengthInstruction, buildStyleWeightsInstruction } from './utils/styleStrength';
 import { upscaleImage } from './utils/upscaling';
+import { AiUpscalerScreen } from './components/AiUpscalerScreen';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -425,6 +426,7 @@ const App: React.FC = () => {
   const isFluxLoraRoute = routePath === '/flux-lora' || routePath.startsWith('/flux-lora/');
   const isLoraInfluenceRoute = isFluxLoraRoute;
   const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
+  const isAiUpscalerRoute = routePath === '/ai-upscaler' || routePath.startsWith('/ai-upscaler/');
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -3809,6 +3811,8 @@ ${extra}
               ? 'style-transfer'
               : isModelInfluenceRoute
                 ? 'model-influence'
+                : isAiUpscalerRoute
+                  ? 'ai-upscaler'
                 : isLoraInfluenceRoute
                   ? 'flux-lora'
                   : 'mulen'
@@ -3824,6 +3828,10 @@ ${extra}
           }
           if (route === 'style-transfer') {
             navigate('/style-transfer');
+            return;
+          }
+          if (route === 'ai-upscaler') {
+            navigate('/ai-upscaler');
             return;
           }
           if (route === 'flux-lora') {
@@ -3850,6 +3858,11 @@ ${extra}
             />
           ) : isModelInfluenceRoute ? (
             <ModelInfluenceScreen
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onToast={(t) => setToast(t)}
+            />
+          ) : isAiUpscalerRoute ? (
+            <AiUpscalerScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onToast={(t) => setToast(t)}
             />
