@@ -42,6 +42,7 @@ export function AiUpscalerScreen(props: {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [phase, setPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [output, setOutput] = React.useState<OutputItem | null>(null);
+  const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
   const inputFileId = React.useMemo(() => `ai-upscaler-input-${Math.random().toString(36).slice(2)}`, []);
 
   const phaseLabel =
@@ -369,7 +370,18 @@ export function AiUpscalerScreen(props: {
               </div>
 
               {output?.dataUrl ? (
-                <img src={output.dataUrl} alt="Upscaled output" className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]" />
+                <button
+                  type="button"
+                  onClick={() => setLightboxUrl(output.dataUrl || null)}
+                  className="block w-full cursor-zoom-in"
+                  title="Otevřít na celou obrazovku"
+                >
+                  <img
+                    src={output.dataUrl}
+                    alt="Upscaled output"
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]"
+                  />
+                </button>
               ) : (
                 <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/45 px-6 text-center">
                   <Sparkles className="w-6 h-6 mb-3" />
@@ -394,6 +406,27 @@ export function AiUpscalerScreen(props: {
           </div>
         </div>
       </section>
+
+      {lightboxUrl ? (
+        <div
+          className="fixed inset-0 z-[120] bg-black/92 backdrop-blur-sm flex items-center justify-center p-6"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-5 right-5 px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white"
+          >
+            Zavřít
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Upscaled preview fullscreen"
+            className="max-w-[96vw] max-h-[94vh] object-contain rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
