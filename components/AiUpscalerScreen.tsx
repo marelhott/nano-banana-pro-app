@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Sparkles, Upload } from 'lucide-react';
+import { Download, Maximize2, Sparkles, Upload } from 'lucide-react';
 import { runFalUpscaleQueued } from '../services/falService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
@@ -150,51 +150,63 @@ export function AiUpscalerScreen(props: {
   }, [creativity, detailBoostEnabled, input, onToast, resemblance, scale]);
 
   return (
-    <div className="flex-1 min-w-0 flex overflow-hidden">
-      <div className="w-[360px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] overflow-y-auto custom-scrollbar">
-        <div className="p-6 space-y-6">
-          <div className="space-y-2">
-            <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">AI Upscaler</div>
-            <h2 className="text-2xl font-semibold text-white">Clarity Upscaler</h2>
-            <p className="text-sm text-white/55 leading-relaxed">
-              Zvětší obrázek přes <span className="text-white/80">fal-ai/clarity-upscaler</span> a podle potřeby dopočítá jemné detaily.
-            </p>
+    <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
+      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
+        <div className="p-6 flex flex-col gap-6 min-h-full">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
+            <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">AI Upscaler</h2>
           </div>
 
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={onInputDrop}
-            className="relative rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-4"
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={!input || isGenerating}
+            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
           >
-            {input ? (
-              <div className="space-y-3">
-                <img src={input.dataUrl} alt={input.file.name} className="w-full aspect-[4/3] object-cover rounded-xl border border-white/10" />
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-white truncate">{input.file.name}</div>
-                    <div className="text-xs text-white/45">Přetáhni jiný obrázek nebo nahraj nový.</div>
-                  </div>
-                  <label
-                    htmlFor={inputFileId}
-                    className="shrink-0 px-3 py-2 rounded-xl bg-white/8 hover:bg-white/12 text-xs text-white/80 cursor-pointer transition-colors"
-                  >
-                    Změnit
-                  </label>
+            {isGenerating ? (phaseLabel ? `Upscaling • ${phaseLabel}` : 'Upscaling…') : `Upscale ${scale}×`}
+          </button>
+
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET PIXELŮ</div>
+            <div className="flex items-center justify-between bg-transparent pt-1">
+              {[2, 4].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setScale(value as 2 | 4)}
+                  className={`w-12 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${
+                    scale === value
+                      ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {value}×
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="card-surface p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VSTUPNÍ OBRÁZEK</div>
+              <div className="text-[12px] leading-none font-semibold text-[#9aa5ba]">{input ? 1 : 0}</div>
+            </div>
+            <label
+              htmlFor={inputFileId}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onInputDrop}
+              className="block w-full h-[170px] rounded-[16px] bg-[#060d17] border border-dashed border-[#16263a] hover:border-[#223a57] transition-colors cursor-pointer overflow-hidden"
+            >
+              {input?.dataUrl ? (
+                <img src={input.dataUrl} alt={input.file.name} className="w-full h-full object-cover opacity-92 hover:opacity-100 transition-opacity" />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-[#8f9aae]">
+                  <Upload className="w-5 h-5" strokeWidth={1.8} />
+                  <span className="text-[10px] uppercase tracking-widest">Upload</span>
                 </div>
-              </div>
-            ) : (
-              <label htmlFor={inputFileId} className="block cursor-pointer">
-                <div className="aspect-[4/3] rounded-2xl border border-white/8 bg-gradient-to-br from-white/[0.05] to-white/[0.02] flex flex-col items-center justify-center gap-3 text-center px-6">
-                  <div className="w-12 h-12 rounded-2xl bg-white/8 border border-white/10 flex items-center justify-center">
-                    <Upload className="w-5 h-5 text-white/70" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-white">Nahraj obrázek pro upscale</div>
-                    <div className="text-xs text-white/45 mt-1">Můžeš sem přetáhnout i obrázek z pravé knihovny.</div>
-                  </div>
-                </div>
-              </label>
-            )}
+              )}
+            </label>
             <input
               id={inputFileId}
               type="file"
@@ -205,164 +217,147 @@ export function AiUpscalerScreen(props: {
                 if (file) void pickInputFile(file);
               }}
             />
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-white/45 mb-2">Měřítko</div>
-              <div className="grid grid-cols-2 gap-2">
-                {[2, 4].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setScale(value as 2 | 4)}
-                    className={`px-4 py-3 rounded-xl border text-sm transition-colors ${
-                      scale === value
-                        ? 'border-[#7ed957]/45 bg-[#7ed957]/12 text-[#d9ffbf]'
-                        : 'border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06]'
-                    }`}
-                  >
-                    {value}× upscale
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
-              <label className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-sm font-medium text-white">Dopočítat detail</div>
-                  <div className="text-xs text-white/45">Model může jemně domyslet textury a ostrost místo čistého zvětšení.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDetailBoostEnabled((prev) => !prev)}
-                  className={`relative inline-flex h-7 w-12 rounded-full transition-colors ${detailBoostEnabled ? 'bg-[#7ed957]/70' : 'bg-white/10'}`}
-                >
-                  <span
-                    className={`absolute top-1 left-1 h-5 w-5 rounded-full bg-white transition-transform ${detailBoostEnabled ? 'translate-x-5' : ''}`}
-                  />
-                </button>
-              </label>
-
-              <div className={`${detailBoostEnabled ? 'opacity-100' : 'opacity-50'} transition-opacity`}>
-                <div className="flex items-center justify-between text-xs text-white/45 mb-2">
-                  <span>Síla dopočtu</span>
-                  <span>{detailBoost}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={detailBoost}
-                  disabled={!detailBoostEnabled}
-                  onChange={(e) => setDetailBoost(Number(e.target.value))}
-                  className="w-full accent-[#7ed957]"
-                />
-                <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-white/55">
-                  <div className="rounded-xl border border-white/8 bg-black/10 px-3 py-2">
-                    <div className="text-white/35 uppercase tracking-[0.16em] mb-1">Creativity</div>
-                    <div className="text-white">{creativity.toFixed(2)}</div>
-                  </div>
-                  <div className="rounded-xl border border-white/8 bg-black/10 px-3 py-2">
-                    <div className="text-white/35 uppercase tracking-[0.16em] mb-1">Resemblance</div>
-                    <div className="text-white">{resemblance.toFixed(2)}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-amber-300/15 bg-amber-300/[0.03] px-4 py-3 text-xs text-amber-100/80">
-              Potřebuješ vložený <span className="text-white">fal.ai API key</span>. Když chybí, otevři nastavení a doplň ho.
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={!input || isGenerating}
-                className="flex-1 px-4 py-3 rounded-2xl bg-[#7ed957] text-[#0b120d] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? (phaseLabel ? `AI Upscaler • ${phaseLabel}` : 'Zpracovávám…') : `Spustit ${scale}× upscale`}
-              </button>
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.03] text-sm text-white/75 hover:bg-white/[0.06]"
-              >
-                Settings
-              </button>
+            <div className="text-[9px] text-white/35">
+              Přetáhni obrázek sem nebo z pravé knihovny. Výsledek se uloží i do galerie.
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="flex-1 min-w-0 bg-[var(--bg-main)] overflow-y-auto custom-scrollbar">
-        <div className="p-8">
-          <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center justify-between gap-4">
+          <div className="card-surface p-3 space-y-3">
+            <div className="flex items-center justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Output</div>
-                <h3 className="text-xl font-semibold text-white mt-2">Upscaled výsledky</h3>
+                <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">DOPOČET DETAILU</div>
+                <div className="text-[9px] text-white/35 mt-1">Jemně domyslí texturu a ostrost místo čistého resize.</div>
               </div>
-              {output?.status === 'done' && output.dataUrl ? (
-                <button
-                  type="button"
-                  onClick={() => downloadDataUrl(output.dataUrl!, `ai-upscaler-${scale}x.png`)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/[0.03] text-sm text-white/80 hover:bg-white/[0.06]"
-                >
-                  <Download className="w-4 h-4" />
-                  Stáhnout
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => setDetailBoostEnabled((prev) => !prev)}
+                className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${detailBoostEnabled ? 'bg-[#7ed957]/70' : 'bg-white/10'}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${detailBoostEnabled ? 'translate-x-5' : ''}`}
+                />
+              </button>
             </div>
 
-            {!output ? (
-              <div className="rounded-[28px] border border-white/8 bg-gradient-to-br from-white/[0.04] to-transparent p-10 text-center">
-                <div className="w-14 h-14 mx-auto rounded-2xl border border-white/10 bg-white/[0.04] flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-white/60" />
+            <div className={`${detailBoostEnabled ? 'opacity-100' : 'opacity-45'} transition-opacity`}>
+              <div className="flex items-center justify-between text-[10px] text-white/45 mb-2">
+                <span>Síla detailu</span>
+                <span>{detailBoost}%</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={detailBoost}
+                disabled={!detailBoostEnabled}
+                onChange={(e) => setDetailBoost(Number(e.target.value))}
+                className="w-full h-[2px] accent-[#7ed957] opacity-80"
+              />
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/35">Creativity</div>
+                  <div className="mt-1 text-[10px] text-white/80">{creativity.toFixed(2)}</div>
                 </div>
-                <div className="mt-4 text-lg font-medium text-white">Připraveno na upscale</div>
-                <div className="mt-2 text-sm text-white/45">
-                  Nahraj obrázek vlevo, vyber si 2× nebo 4× a případně zapni dopočet detailu.
+                <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/35">Resemblance</div>
+                  <div className="mt-1 text-[10px] text-white/80">{resemblance.toFixed(2)}</div>
                 </div>
               </div>
-            ) : (
-              <div className="grid xl:grid-cols-[minmax(280px,360px)_1fr] gap-6">
-                <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-5">
-                  <div className="text-xs uppercase tracking-[0.18em] text-white/40 mb-3">Zdroj</div>
-                  {input ? (
-                    <img src={input.dataUrl} alt={input.file.name} className="w-full rounded-2xl border border-white/10 object-cover" />
-                  ) : null}
-                </div>
+            </div>
+          </div>
 
-                <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-5">
-                  <div className="flex items-center justify-between gap-4 mb-4">
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.18em] text-white/40">Výstup</div>
-                      <div className="text-sm text-white/55 mt-1">{output.detailsText}</div>
-                    </div>
-                    {output.status === 'pending' ? (
-                      <div className="text-xs px-3 py-1.5 rounded-full border border-[#7ed957]/25 bg-[#7ed957]/10 text-[#d9ffbf]">
-                        {phaseLabel || 'Čekám…'}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {output.dataUrl ? (
-                    <img src={output.dataUrl} alt="Upscaled output" className="w-full rounded-2xl border border-white/10 object-cover" />
-                  ) : (
-                    <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/10 flex items-center justify-center text-white/45">
-                      {phaseLabel || 'Čekám na výsledek…'}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">FAL ENDPOINT</div>
+            <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[10px] text-white/75">
+              fal-ai/clarity-upscaler
+            </div>
+            <div className="text-[9px] text-white/35">
+              Potřebuješ vložený fal.ai API key. Když chybí, otevři Settings.
+            </div>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors"
+            >
+              Settings
+            </button>
           </div>
         </div>
-      </div>
+      </aside>
+
+      <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
+        <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
+          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Scale</div>
+              <div className="text-[10px] text-white/75">{scale}×</div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Detail Boost</div>
+              <div className="text-[10px] text-white/75">{detailBoostEnabled ? `${detailBoost}%` : 'Off'}</div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Creativity</div>
+              <div className="text-[10px] text-white/75">{creativity.toFixed(2)}</div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Resemblance</div>
+              <div className="text-[10px] text-white/75">{resemblance.toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6 auto-rows-min">
+            <article className="card-surface p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Maximize2 className="w-4 h-4 text-[#7ed957]" />
+                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Zdroj</div>
+              </div>
+              {input?.dataUrl ? (
+                <img src={input.dataUrl} alt={input.file.name} className="w-full aspect-square object-cover rounded-2xl border border-white/10 bg-black/20" />
+              ) : (
+                <div className="aspect-square rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/40">
+                  <Upload className="w-6 h-6 mb-3" />
+                  <div className="text-[11px] uppercase tracking-widest">Nahraj vstup</div>
+                </div>
+              )}
+            </article>
+
+            <article className="card-surface p-4">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Výstup</div>
+                  <div className="mt-1 text-[11px] text-white/45">{output?.detailsText || 'Zatím žádný výstup'}</div>
+                </div>
+                {output?.status === 'done' && output.dataUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => downloadDataUrl(output.dataUrl!, `ai-upscaler-${scale}x.png`)}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Stáhnout
+                  </button>
+                ) : null}
+              </div>
+
+              {output?.dataUrl ? (
+                <img src={output.dataUrl} alt="Upscaled output" className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]" />
+              ) : (
+                <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/45 px-6 text-center">
+                  <Sparkles className="w-6 h-6 mb-3" />
+                  <div className="text-[11px] uppercase tracking-widest font-bold">{phaseLabel || 'Připraveno na upscale'}</div>
+                  <div className="text-[10px] text-white/35 mt-2">
+                    Nahraj obrázek vlevo a spusť upscale. Vizuál i akce teď drží stejný panelový styl jako Mulen Nano.
+                  </div>
+                </div>
+              )}
+            </article>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
