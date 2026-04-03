@@ -25,6 +25,22 @@ export interface ProviderConfig {
     enabled: boolean;
 }
 
+export type HeadSwapPrimaryProvider = 'replicate-easel';
+export type HeadSwapFallbackProvider = 'facefusion' | 'reface';
+export type HeadSwapHairSource = 'user' | 'target';
+export type HeadSwapGender = 'default' | 'a man' | 'a woman' | 'nonbinary person';
+
+export interface HeadSwapSettings {
+    preferredPrimary: HeadSwapPrimaryProvider;
+    hairSource: HeadSwapHairSource;
+    sourceGender: HeadSwapGender;
+    secondarySourceGender: HeadSwapGender;
+    useUpscale: boolean;
+    useDetailer: boolean;
+    facefusionEndpoint?: string;
+    refaceEndpoint?: string;
+}
+
 export interface ProviderSettings {
     [AIProviderType.GEMINI]?: ProviderConfig;
     [AIProviderType.GROK]?: ProviderConfig;
@@ -40,6 +56,7 @@ export interface ProviderSettings {
         sdxlVae?: string;
         enabled: boolean;
     };
+    headSwap?: HeadSwapSettings;
 }
 
 /**

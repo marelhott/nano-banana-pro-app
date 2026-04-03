@@ -439,6 +439,18 @@ export async function getSavedLibraryImageStats(): Promise<{ count: number; tota
   };
 }
 
+export async function getGeneratedLibraryImageStats(): Promise<{ count: number; totalBytes: number }> {
+  const items = await getAllRecords<GeneratedRecord>(GENERATED_STORE);
+  return {
+    count: items.length,
+    totalBytes: items.reduce((sum, item) => {
+      const blobBytes = item.blob?.size || 0;
+      const thumbnailBytes = item.thumbnailBlob?.size || 0;
+      return sum + blobBytes + thumbnailBytes;
+    }, 0),
+  };
+}
+
 export async function resolveBlobFromSource(url: string): Promise<Blob> {
   return fetchBlobFromUrl(url);
 }

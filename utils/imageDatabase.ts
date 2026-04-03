@@ -3,6 +3,7 @@ import { dataUrlToBlob, deleteImage as deleteStorageImage, uploadImage } from '.
 import {
   clearSavedLibraryImages,
   getSavedLibraryImageRecord,
+  getGeneratedLibraryImageStats,
   getSavedLibraryImageStats,
   listSavedLibraryImages,
   removeSavedLibraryImage,
@@ -10,6 +11,7 @@ import {
   type SingleUserSavedImage,
 } from './singleUserMediaStore';
 import { readJsonStorage, writeJsonStorage } from './singleUserStore';
+import { dispatchCloudSyncEvent } from './cloudSyncEvents';
 
 export interface StoredImage extends SingleUserSavedImage {}
 
@@ -63,6 +65,11 @@ export class ImageDatabase {
         });
       } catch (error) {
         console.warn('[ImageDatabase] Cloud mirror for saved image failed:', error);
+        dispatchCloudSyncEvent({
+          status: 'failed',
+          resource: 'saved-image',
+          message: 'Cloud sync se nepodařil. Obrázek zůstal uložený lokálně.',
+        });
       }
     })();
 
@@ -108,6 +115,30 @@ export class ImageDatabase {
   static async getCount(): Promise<number> {
     const stats = await getSavedLibraryImageStats();
     return stats.count;
+  }
+
+  static async getStorageStats(): Promise<{
+    savedCount: number;
+    generatedCount: number;
+    totalBytes: number;
+    usageBytes?: number;
+    quotaBytes?: number;
+  }> {
+    const [savedStats, generatedStats, estimate] = await Promise.all([
+      getSavedLibraryImageStats(),
+      getGeneratedLibraryImageStats(),
+      typeof navigator !== 'undefined' && navigator.storage?.estimate
+        ? navigator.storage.estimate()
+        : Promise.resolve(undefined),
+    ]);
+
+    return {
+      savedCount: savedStats.count,
+      generatedCount: generatedStats.count,
+      totalBytes: savedStats.totalBytes + generatedStats.totalBytes,
+      usageBytes: estimate?.usage,
+      quotaBytes: estimate?.quota,
+    };
   }
 }
 
@@ -173,6 +204,23 @@ export class SettingsDatabase {
         baseUrl: String(data.a1111.baseUrl || ''),
         sdxlVae: String(data.a1111.sdxlVae || ''),
         enabled: Boolean(data.a1111.enabled),
+      };
+    }
+
+    if (data?.headSwap && typeof data.headSwap === 'object') {
+      restored.headSwap = {
+        preferredPrimary: data.headSwap.preferredPrimary === 'replicate-easel' ? 'replicate-easel' : 'replicate-easel',
+        hairSource: data.headSwap.hairSource === 'user' ? 'user' : 'target',
+        sourceGender: ['default', 'a man', 'a woman', 'nonbinary person'].includes(String(data.headSwap.sourceGender))
+          ? data.headSwap.sourceGender
+          : 'default',
+        secondarySourceGender: ['default', 'a man', 'a woman', 'nonbinary person'].includes(String(data.headSwap.secondarySourceGender))
+          ? data.headSwap.secondarySourceGender
+          : 'default',
+        useUpscale: Boolean(data.headSwap.useUpscale ?? true),
+        useDetailer: Boolean(data.headSwap.useDetailer ?? false),
+        facefusionEndpoint: String(data.headSwap.facefusionEndpoint || ''),
+        refaceEndpoint: String(data.headSwap.refaceEndpoint || ''),
       };
     }
 

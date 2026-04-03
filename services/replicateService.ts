@@ -1,5 +1,6 @@
 import type { AIProvider, GenerateImageResult, ImageInput } from './aiProvider';
 import { AIProviderType } from './aiProvider';
+import { fetchAsDataUrl } from '../utils/fetchUtils';
 
 type ReplicatePrediction = {
   id: string;
@@ -9,21 +10,12 @@ type ReplicatePrediction = {
   urls?: { get?: string };
 };
 
+const REPLICATE_FETCH_AS_DATA_URL_OPTIONS = {
+  errorMessage: 'Nepodařilo se stáhnout výstup z Replicate',
+};
+
 function assertOk(res: Response, message: string) {
   if (!res.ok) throw new Error(`${message} (${res.status})`);
-}
-
-async function fetchAsDataUrl(url: string): Promise<string> {
-  const res = await fetch(url);
-  assertOk(res, 'Nepodařilo se stáhnout výstup z Replicate');
-  const blob = await res.blob();
-  const base64 = await new Promise<string>((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error('Nepodařilo se načíst výstupní obrázek.'));
-    r.readAsDataURL(blob);
-  });
-  return base64;
 }
 
 export async function runReplicatePrediction(params: {
@@ -94,7 +86,7 @@ export async function runFluxKontextProMultiImage(params: {
   if (typeof url !== 'string' || url.length === 0) {
     throw new Error('Replicate nevrátil URL obrázku.');
   }
-  return await fetchAsDataUrl(url);
+  return await fetchAsDataUrl(url, REPLICATE_FETCH_AS_DATA_URL_OPTIONS);
 }
 
 export async function runFlux2Pro(params: {
@@ -129,7 +121,7 @@ export async function runFlux2Pro(params: {
   if (typeof url !== 'string' || url.length === 0) {
     throw new Error('Replicate nevrátil URL obrázku.');
   }
-  return await fetchAsDataUrl(url);
+  return await fetchAsDataUrl(url, REPLICATE_FETCH_AS_DATA_URL_OPTIONS);
 }
 
 export async function runFluxKontextProEdit(params: {
@@ -162,7 +154,7 @@ export async function runFluxKontextProEdit(params: {
   if (typeof url !== 'string' || url.length === 0) {
     throw new Error('Replicate nevrátil URL obrázku.');
   }
-  return await fetchAsDataUrl(url);
+  return await fetchAsDataUrl(url, REPLICATE_FETCH_AS_DATA_URL_OPTIONS);
 }
 
 export async function runProSdxlStyleTransfer(params: {
@@ -210,7 +202,7 @@ export async function runProSdxlStyleTransfer(params: {
   const urls = Array.isArray(output) ? output : [output];
   const results: string[] = [];
   for (const u of urls) {
-    if (typeof u === 'string' && u.length > 0) results.push(await fetchAsDataUrl(u));
+    if (typeof u === 'string' && u.length > 0) results.push(await fetchAsDataUrl(u, REPLICATE_FETCH_AS_DATA_URL_OPTIONS));
   }
   if (results.length === 0) throw new Error('Replicate nevrátil žádný výstupní obrázek.');
   return results;
@@ -248,7 +240,7 @@ export async function runNeuralNeighborStyleTransfer(params: {
   if (typeof url !== 'string' || url.length === 0) {
     throw new Error('Replicate nevrátil URL obrázku.');
   }
-  return await fetchAsDataUrl(url);
+  return await fetchAsDataUrl(url, REPLICATE_FETCH_AS_DATA_URL_OPTIONS);
 }
 
 export async function runFofrStyleTransfer(params: {
@@ -297,7 +289,7 @@ export async function runFofrStyleTransfer(params: {
   const urls = Array.isArray(output) ? output : [output];
   const results: string[] = [];
   for (const u of urls) {
-    if (typeof u === 'string' && u.length > 0) results.push(await fetchAsDataUrl(u));
+    if (typeof u === 'string' && u.length > 0) results.push(await fetchAsDataUrl(u, REPLICATE_FETCH_AS_DATA_URL_OPTIONS));
   }
   if (results.length === 0) throw new Error('Replicate nevrátil žádný výstupní obrázek.');
   return results;

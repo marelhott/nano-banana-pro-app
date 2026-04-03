@@ -41,9 +41,30 @@ import { ModelInfluenceScreen } from './components/modelInfluence/ModelInfluence
 import { MaskCanvas } from './components/MaskCanvas';
 import { FreeComparisonModal } from './components/FreeComparisonModal';
 import { mapAspectRatio, type ProviderType } from './utils/aspectRatioMapping';
-import { buildStyleStrengthInstruction, buildStyleWeightsInstruction } from './utils/styleStrength';
 import { upscaleImage } from './utils/upscaling';
 import { AiUpscalerScreen } from './components/AiUpscalerScreen';
+import { FaceSwapScreen } from './components/FaceSwapScreen';
+import { getInterRequestDelayMs, getRetryBackoffMs, type NanoBananaImageModel } from './constants/timings';
+import { useProviderSettings } from './hooks/useProviderSettings';
+import { CLOUD_SYNC_EVENT_NAME, type CloudSyncEventDetail } from './utils/cloudSyncEvents';
+import { toUserFacingAiError } from './utils/aiErrorMessage';
+import { useGenerationQueue, type QueuedGenerationItem } from './hooks/useGenerationQueue';
+import { useGenerationSnapshot, type GenerationQueueSnapshot } from './hooks/useGenerationSnapshot';
+import { useGenerationSettingsGuard } from './hooks/useGenerationSettingsGuard';
+import { getGenerationResultSummary } from './utils/generationFeedback';
+import { useRepopulateActions } from './hooks/useRepopulateActions';
+import { usePromptHistoryActions } from './hooks/usePromptHistoryActions';
+import { buildSimpleLinkPrompt, composeGenerationPrompt } from './utils/promptComposition';
+import { buildGenerationLineage } from './utils/generationLineage';
+import { buildBatchRecipe, buildEditRecipe, buildGenerateRecipe, buildThreeAiRecipe, buildVariantRecipe } from './utils/generationRecipe';
+import {
+  BATCH_PARALLEL_SIZE,
+  chunkBatchImages,
+  combineBatchInputImages,
+  createBatchLoadingImages,
+  getBatchEffectivePrompt,
+  type BatchProcessImage,
+} from './utils/batchProcessing';
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -53,53 +74,10 @@ const RESOLUTIONS = [
 ];
 const MAX_GENERATED_IMAGES = 14;
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
-const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
-const NANO_BANANA_IMAGE_MODEL_STORAGE_KEY = 'nanoBananaImageModel';
-type NanoBananaImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
-type GenerationQueueSnapshot = {
-  state: AppState;
-  providerSettings: ProviderSettings;
-  selectedProvider: AIProviderType;
-  nanoBananaImageModel: NanoBananaImageModel;
-  promptMode: 'simple' | 'advanced';
-  advancedVariant: 'A' | 'B' | 'C';
-  faceIdentityMode: boolean;
-  simpleLinkMode: 'style' | 'merge' | 'object' | null;
-  useGrounding: boolean;
-  jsonContext: { fileName: string; content: any } | null;
-  styleStrength: number;
-  styleWeights: Record<string, number>;
-  styleAnalysisCache: { description: string; strength: number } | null;
-};
 type GenerationQueueAction = 'generate' | 'variants' | '3ai';
 type GenerationQueueItem = {
   action: GenerationQueueAction;
   snapshot: GenerationQueueSnapshot;
-};
-
-const getInterRequestDelayMs = (
-  provider: AIProviderType,
-  imageModel: NanoBananaImageModel,
-  imageIndex: number
-): number => {
-  if (imageIndex <= 0) return 0;
-
-  if (provider === AIProviderType.GEMINI) {
-    return imageModel === 'gemini-3-pro-image-preview' ? 450 : 250;
-  }
-
-  if (provider === AIProviderType.CHATGPT || provider === AIProviderType.GROK) {
-    return 200;
-  }
-
-  return 150;
-};
-
-const getRetryBackoffMs = (provider: AIProviderType, retryCount: number): number => {
-  if (provider === AIProviderType.GEMINI) {
-    return 12000 * Math.pow(2, retryCount - 1);
-  }
-  return 6000 * Math.pow(2, retryCount - 1);
 };
 
 const App: React.FC = () => {
@@ -115,16 +93,15 @@ const App: React.FC = () => {
 
 
   // AI Provider state
-  const [selectedProvider, setSelectedProvider] = useState<AIProviderType>(AIProviderType.GEMINI);
-  const [nanoBananaImageModel, setNanoBananaImageModel] = useState<NanoBananaImageModel>('gemini-3.1-flash-image-preview');
-  const defaultProviderSettings: ProviderSettings = {
-    [AIProviderType.GEMINI]: { apiKey: '', enabled: true },
-    [AIProviderType.CHATGPT]: { apiKey: '', enabled: false },
-    [AIProviderType.GROK]: { apiKey: '', enabled: false },
-    [AIProviderType.REPLICATE]: { apiKey: '', enabled: false },
-    fal: { apiKey: '', enabled: false }
-  };
-  const [providerSettings, setProviderSettings] = useState<ProviderSettings>(defaultProviderSettings);
+  const {
+    defaultProviderSettings,
+    providerSettings,
+    selectedProvider,
+    nanoBananaImageModel,
+    setProviderSettings,
+    setSelectedProvider,
+    setNanoBananaImageModel,
+  } = useProviderSettings();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
@@ -167,36 +144,6 @@ const App: React.FC = () => {
   const [analyzingImageId, setAnalyzingImageId] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const rawSettings = localStorage.getItem(PROVIDER_SETTINGS_STORAGE_KEY);
-      if (rawSettings) {
-        const parsed = JSON.parse(rawSettings) as Record<string, unknown>;
-        const sanitized: ProviderSettings = {
-          [AIProviderType.GEMINI]: (parsed?.[AIProviderType.GEMINI] as ProviderSettings[AIProviderType.GEMINI]) || defaultProviderSettings[AIProviderType.GEMINI],
-          [AIProviderType.CHATGPT]: (parsed?.[AIProviderType.CHATGPT] as ProviderSettings[AIProviderType.CHATGPT]) || defaultProviderSettings[AIProviderType.CHATGPT],
-          [AIProviderType.GROK]: (parsed?.[AIProviderType.GROK] as ProviderSettings[AIProviderType.GROK]) || defaultProviderSettings[AIProviderType.GROK],
-          [AIProviderType.REPLICATE]: (parsed?.[AIProviderType.REPLICATE] as ProviderSettings[AIProviderType.REPLICATE]) || defaultProviderSettings[AIProviderType.REPLICATE],
-          fal: (parsed?.fal as ProviderSettings['fal']) || defaultProviderSettings.fal,
-          a1111: parsed?.a1111 as ProviderSettings['a1111'] | undefined,
-        };
-        setProviderSettings(sanitized);
-      }
-    } catch (error) {
-      console.warn('Failed to load provider settings from localStorage:', error);
-    }
-
-    const savedProvider = localStorage.getItem(SELECTED_PROVIDER_STORAGE_KEY);
-    if (savedProvider && Object.values(AIProviderType).includes(savedProvider as AIProviderType)) {
-      setSelectedProvider(savedProvider as AIProviderType);
-    }
-
-    const savedNanoBananaModel = localStorage.getItem(NANO_BANANA_IMAGE_MODEL_STORAGE_KEY);
-    if (savedNanoBananaModel === 'gemini-3.1-flash-image-preview' || savedNanoBananaModel === 'gemini-3-pro-image-preview') {
-      setNanoBananaImageModel(savedNanoBananaModel);
-    }
-  }, []);
-
-  useEffect(() => {
     setIsAppUserBootstrapping(true);
     setAppUserId(ensureLocalAppUserId());
     setIsAppUserBootstrapping(false);
@@ -204,12 +151,17 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(SELECTED_PROVIDER_STORAGE_KEY, selectedProvider);
-  }, [selectedProvider]);
+    const handleCloudSyncEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<CloudSyncEventDetail>;
+      if (customEvent.detail?.status !== 'failed') return;
+      setToast({ message: customEvent.detail.message, type: 'warning' });
+    };
 
-  useEffect(() => {
-    localStorage.setItem(NANO_BANANA_IMAGE_MODEL_STORAGE_KEY, nanoBananaImageModel);
-  }, [nanoBananaImageModel]);
+    window.addEventListener(CLOUD_SYNC_EVENT_NAME, handleCloudSyncEvent as EventListener);
+    return () => {
+      window.removeEventListener(CLOUD_SYNC_EVENT_NAME, handleCloudSyncEvent as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -392,8 +344,6 @@ const App: React.FC = () => {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isGalleryExpanded, setIsGalleryExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const generationQueueRef = useRef<GenerationQueueItem[]>([]);
-  const [queuedGenerationCount, setQueuedGenerationCount] = useState(0);
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
   const [isGenerateClicked, setIsGenerateClicked] = useState(false);
@@ -423,6 +373,7 @@ const App: React.FC = () => {
   }, []);
 
   const isStyleTransferRoute = routePath === '/style-transfer' || routePath.startsWith('/style-transfer/');
+  const isFaceSwapRoute = routePath === '/face-swap' || routePath.startsWith('/face-swap/');
   const isFluxLoraRoute = routePath === '/flux-lora' || routePath.startsWith('/flux-lora/');
   const isLoraInfluenceRoute = isFluxLoraRoute;
   const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
@@ -432,6 +383,14 @@ const App: React.FC = () => {
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
   const [isRemixModalOpen, setIsRemixModalOpen] = useState(false);
   const [promptHistory] = useState(() => new PromptHistory());
+  const {
+    setPrompt,
+    handleUndoPrompt,
+    handleRedoPrompt,
+  } = usePromptHistoryActions({
+    promptHistory,
+    setState,
+  });
   const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
   const [quickActionsMenu, setQuickActionsMenu] = useState<{
     isOpen: boolean;
@@ -456,34 +415,7 @@ const App: React.FC = () => {
   const rightPanelRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const mobilePromptRef = useRef<HTMLTextAreaElement>(null);
-  const generationLockRef = useRef(false);
-
-  const createGenerationSnapshot = useCallback((): GenerationQueueSnapshot => ({
-    state: {
-      ...state,
-      sourceImages: state.sourceImages.map((img) => ({ ...img })),
-      styleImages: state.styleImages.map((img) => ({ ...img })),
-      assetImages: state.assetImages.map((img) => ({ ...img })),
-      generatedImages: [],
-      styleWeights: { ...(state.styleWeights || {}) },
-    },
-    providerSettings: {
-      ...providerSettings,
-      fal: providerSettings.fal ? { ...providerSettings.fal } : undefined,
-      a1111: providerSettings.a1111 ? { ...providerSettings.a1111 } : undefined,
-    },
-    selectedProvider,
-    nanoBananaImageModel,
-    promptMode,
-    advancedVariant,
-    faceIdentityMode,
-    simpleLinkMode,
-    useGrounding,
-    jsonContext: jsonContext ? { fileName: jsonContext.fileName, content: jsonContext.content } : null,
-    styleStrength,
-    styleWeights: { ...styleWeights },
-    styleAnalysisCache: styleAnalysisCache ? { ...styleAnalysisCache } : null,
-  }), [
+  const createGenerationSnapshot = useGenerationSnapshot({
     state,
     providerSettings,
     selectedProvider,
@@ -497,22 +429,28 @@ const App: React.FC = () => {
     styleStrength,
     styleWeights,
     styleAnalysisCache,
-  ]);
-
-  const enqueueGenerationSnapshot = useCallback((item: GenerationQueueItem) => {
-    generationQueueRef.current.push(item);
-    setQueuedGenerationCount(generationQueueRef.current.length);
-    setToast({
-      message: `Požadavek přidán do fronty. Ve frontě: ${generationQueueRef.current.length}`,
-      type: 'info',
-    });
-  }, []);
-
-  const dequeueGenerationSnapshot = useCallback((): GenerationQueueItem | null => {
-    const next = generationQueueRef.current.shift() || null;
-    setQueuedGenerationCount(generationQueueRef.current.length);
-    return next;
-  }, []);
+  });
+  const {
+    generationLockRef,
+    queuedGenerationCount,
+    createSnapshot: createQueuedGenerationSnapshot,
+    enqueueGenerationSnapshot,
+    dequeueGenerationSnapshot,
+  } = useGenerationQueue<GenerationQueueSnapshot, GenerationQueueAction>({
+    createSnapshot: createGenerationSnapshot,
+    onToast: setToast,
+  });
+  const {
+    handleProviderChange,
+    handleNanoBananaModelChange,
+  } = useGenerationSettingsGuard({
+    isGenerating,
+    queuedGenerationCount,
+    selectedProvider,
+    nanoBananaImageModel,
+    onProviderChange: setSelectedProvider,
+    onModelChange: setNanoBananaImageModel,
+  });
 
   // canGenerate: Check if user can trigger generation
   const canGenerate = useMemo(() => {
@@ -1259,16 +1197,12 @@ const App: React.FC = () => {
         setToast({ message: 'Nepodařilo se vylepšit prompt', type: 'error' });
       } else {
         console.log('[Enhance Prompt] Success:', enhanced);
-        setState(prev => ({ ...prev, prompt: enhanced }));
-        promptHistory.add(enhanced);
+        setPrompt(enhanced);
         setToast({ message: '✨ Prompt vylepšen', type: 'success' });
       }
     } catch (error: any) {
       console.error('[Enhance Prompt] Error:', error);
-      const errorMessage = error.message?.includes('API Key')
-        ? 'Chybí API klíč - nastavte ho v nastavení'
-        : 'Chyba při vylepšování promptu';
-      setToast({ message: errorMessage, type: 'error' });
+      setToast({ message: toUserFacingAiError(error, 'Chyba při vylepšování promptu'), type: 'error' });
     } finally {
       setIsEnhancingPrompt(false);
     }
@@ -1283,55 +1217,31 @@ const App: React.FC = () => {
       const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
       const json = await analyzeImageForJsonWithAI(dataUrl, geminiKey);
       const formatted = formatJsonPromptForImage(json);
-      setState(prev => ({ ...prev, prompt: formatted }));
-      promptHistory.add(formatted);
+      setPrompt(formatted);
       setToast({ message: '✨ Prompt byl extrahován z obrázku', type: 'success' });
     } catch (error: any) {
       console.error('[Extract Prompt] Error:', error);
-      setToast({ message: error?.message?.includes('API Key') ? 'Chybí API klíč - nastavte ho v nastavení' : 'Extrahování promptu selhalo', type: 'error' });
+      setToast({ message: toUserFacingAiError(error, 'Extrahování promptu selhalo'), type: 'error' });
     } finally {
       setAnalyzingImageId(null);
     }
   };
 
-  const applyRecipe = (recipe: GenerationRecipe, autoGenerate: boolean) => {
-    setPromptMode(recipe.promptMode || 'simple');
-    if (recipe.advancedVariant) {
-      setAdvancedVariant(recipe.advancedVariant);
-    }
-    setFaceIdentityMode(!!recipe.faceIdentityMode);
-    setUseGrounding(!!recipe.useGrounding);
-    if (recipe.provider && Object.values(AIProviderType).includes(recipe.provider as any)) {
-      setSelectedProvider(recipe.provider as AIProviderType);
-    }
-
-    setJsonContext(null);
-    setState(prev => ({
-      ...prev,
-      prompt: recipe.prompt ?? prev.prompt,
-      aspectRatio: recipe.aspectRatio || prev.aspectRatio,
-      resolution: recipe.resolution || prev.resolution,
-      shouldAutoGenerate: autoGenerate,
-    }));
-
-    if (isMobile) {
-      setIsMobileMenuOpen(true);
-    }
-  };
-
-  const handleUndoPrompt = () => {
-    const previous = promptHistory.undo();
-    if (previous !== null) {
-      setState(prev => ({ ...prev, prompt: previous }));
-    }
-  };
-
-  const handleRedoPrompt = () => {
-    const next = promptHistory.redo();
-    if (next !== null) {
-      setState(prev => ({ ...prev, prompt: next }));
-    }
-  };
+  const {
+    applyRecipe,
+    handleRepopulate,
+    handleRepopulateFromGallery,
+  } = useRepopulateActions({
+    isMobile,
+    setPromptMode,
+    setAdvancedVariant,
+    setFaceIdentityMode,
+    setUseGrounding,
+    setSelectedProvider,
+    setJsonContext,
+    setIsMobileMenuOpen,
+    setState,
+  });
 
   const handleJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1475,14 +1385,11 @@ const App: React.FC = () => {
 
         while (retryCount <= maxRetries && !success) {
           try {
-            const recipe: GenerationRecipe = {
-              provider: AIProviderType.GEMINI,
-              operation: 'variant',
+            const recipe = buildVariantRecipe({
               prompt: variant.prompt,
-              effectivePrompt: variant.prompt,
               useGrounding,
               promptMode,
-              advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+              advancedVariant,
               faceIdentityMode,
               jsonContextFileName: jsonContext?.fileName,
               resolution: state.resolution,
@@ -1491,7 +1398,7 @@ const App: React.FC = () => {
               styleImageCount: state.styleImages.length,
               assetImageCount: state.assetImages.length,
               createdAt: Date.now(),
-            };
+            });
 
             const result = await provider.generateImage(
               providerImages,
@@ -1524,7 +1431,7 @@ const App: React.FC = () => {
               console.log(`[3 Variants] Variant ${i + 1} saved to gallery`);
             } catch (err) {
               console.error(`[3 Variants] Failed to save variant ${i + 1} to gallery:`, err);
-              setToast({ message: `⚠️ Varianta ${i + 1} se nepodařila uložit do galerie`, type: 'error' });
+              setToast({ message: `⚠️ Varianta ${i + 1} se nepodařila uložit do galerie`, type: 'warning' });
             }
 
             // Track API usage
@@ -1558,7 +1465,7 @@ const App: React.FC = () => {
       setToast({ message: '✨ 3 variants generated successfully!', type: 'success' });
     } catch (error: any) {
       console.error('[3 Variants] Error:', error);
-      setToast({ message: `Failed to generate variants: ${error.message}`, type: 'error' });
+      setToast({ message: toUserFacingAiError(error, 'Generování variant selhalo.'), type: 'error' });
     } finally {
       generationLockRef.current = false;
       setIsGenerating(false);
@@ -1572,7 +1479,7 @@ const App: React.FC = () => {
   };
 
   const handleGenerate3Variants = async () => {
-    const snapshot = createGenerationSnapshot();
+    const snapshot = createQueuedGenerationSnapshot();
     if (!snapshot.state.prompt.trim()) return;
 
     if (generationLockRef.current || isGenerating) {
@@ -1697,14 +1604,12 @@ const App: React.FC = () => {
           // Burn provider label onto the image
           const labelledImage = await burnLabel(result.imageBase64, p.label);
 
-          const recipe: GenerationRecipe = {
+          const recipe = buildThreeAiRecipe({
             provider: p.type,
-            operation: '3ai',
             prompt,
-            effectivePrompt: prompt,
             useGrounding: false,
             promptMode,
-            advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+            advancedVariant,
             faceIdentityMode,
             resolution: state.resolution,
             aspectRatio: state.aspectRatio,
@@ -1712,7 +1617,7 @@ const App: React.FC = () => {
             styleImageCount: state.styleImages.length,
             assetImageCount: state.assetImages.length,
             createdAt: Date.now(),
-          };
+          });
 
           setState(prev => ({
             ...prev,
@@ -1765,7 +1670,7 @@ const App: React.FC = () => {
       }
     } catch (error: any) {
       console.error('[3 AI] Error:', error);
-      setToast({ message: `3 AI failed: ${error.message}`, type: 'error' });
+      setToast({ message: toUserFacingAiError(error, '3 AI běh selhal.'), type: 'error' });
     } finally {
       generationLockRef.current = false;
       setIsGenerating(false);
@@ -1779,7 +1684,7 @@ const App: React.FC = () => {
   };
 
   const handleGenerate3AI = async () => {
-    const snapshot = createGenerationSnapshot();
+    const snapshot = createQueuedGenerationSnapshot();
     if (!snapshot.state.prompt.trim()) return;
 
     if (generationLockRef.current || isGenerating) {
@@ -1899,7 +1804,7 @@ const App: React.FC = () => {
       );
       const allImages = [...sourceImagesData, ...styleImagesData, ...assetImagesData];
 
-      await Promise.all(
+      const generationResults = await Promise.all(
         imagesToGenerate.map(async (imageData, i) => {
           const interRequestDelay = getInterRequestDelayMs(selectedProvider, nanoBananaImageModel, i);
           if (interRequestDelay > 0) {
@@ -1913,114 +1818,39 @@ const App: React.FC = () => {
 
           while (retryCount <= maxRetries && !success) {
             try {
-            const buildSimpleLinkPrompt = (
-              mode: 'style' | 'merge' | 'object',
-              extra: string,
-              referenceImageCount: number,
-              styleImageCount: number,
-              assetImageCount: number
-            ) => {
-              const header = `
-[LINK MODE: ${mode.toUpperCase()}]
-Images order: first ${referenceImageCount} input image(s), then ${styleImageCount} style image(s), then ${assetImageCount} proprietary asset image(s).
-`;
-
-              if (mode === 'style') {
-                return `${header}
-Apply the visual style, composition, lighting, color grading, lens feel, and overall mood from the style image(s) to the input image(s), while preserving the identity and content of the input subject(s). Do NOT transfer objects/content from style; transfer only aesthetic and photographic/artistic treatment.
-
-${extra ? `Additional instructions:
-${extra}
-` : ''}`.trim();
-              }
-
-              if (mode === 'merge') {
-                return `${header}
-Create a cohesive merge of input and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality. Use the style image(s) as a compositional template when helpful, but preserve the identity of subjects from the input image(s).
-
-${extra ? `Additional instructions:
-${extra}
-` : ''}`.trim();
-              }
-
-              return `${header}
-Transfer the dominant object/element from the style image(s) onto the input image(s) in a realistic way. Keep the input scene intact and place/replace the matching region with the style object (e.g., decorative wall), with correct perspective, lighting, scale, and shadows.
-
-${extra ? `Additional instructions:
-${extra}
-` : ''}`.trim();
-            };
-
-            // Handle Advanced Mode: Serialize JSON data first
-            let basePrompt = state.prompt;
-
-            let extraPrompt = basePrompt;
-
-            // Pokud není vyplněn hlavní prompt, použij prompt z prvního referenčního obrázku
-            if (!extraPrompt.trim() && state.sourceImages.length > 0) {
-              const imageWithPrompt = state.sourceImages.find(img => img.prompt);
-              if (imageWithPrompt?.prompt) {
-                extraPrompt = imageWithPrompt.prompt;
-                console.log('[Generation] Using prompt from reference image', { promptLength: extraPrompt.length });
-              }
+            const sourcePrompt = state.sourceImages.find(img => img.prompt)?.prompt;
+            if (!state.prompt.trim() && sourcePrompt) {
+              console.log('[Generation] Using prompt from reference image', { promptLength: sourcePrompt.length });
             }
+
+            const { basePrompt, enhancedPrompt } = composeGenerationPrompt({
+              prompt: state.prompt,
+              promptMode,
+              advancedVariant,
+              faceIdentityMode,
+              simpleLinkMode,
+              jsonContext,
+              sourceImageCount: state.sourceImages.length,
+              styleImageCount: state.styleImages.length,
+              assetImageCount: state.assetImages.length,
+              sourcePrompt,
+              multiRefMode: state.multiRefMode,
+              styleStrength,
+              styleWeights,
+              styleAnalysisCache,
+            });
 
             if (promptMode === 'simple' && simpleLinkMode) {
-              basePrompt = buildSimpleLinkPrompt(simpleLinkMode, extraPrompt, state.sourceImages.length, state.styleImages.length, state.assetImages.length);
               setGenerationPromptPreview(basePrompt);
-            } else {
-              basePrompt = extraPrompt;
             }
 
-            // Append JSON context if present (High Priority Context)
             if (jsonContext) {
-              basePrompt += `\n\n[DODATEČNÝ KONTEXT Z JSON SOUBORU (${jsonContext.fileName})]\n`;
-              basePrompt += JSON.stringify(jsonContext.content, null, 2);
-              basePrompt += `\n\n[INSTRUKCE K JSONU: Použij tato data jako dodatečný kontext, parametry nebo nastavení pro generování obrazu. Mají vysokou prioritu.]`;
               console.log('[Generation] Appended JSON context to prompt');
             }
-
-            // Apply Interpretive Mode Logic
             if (promptMode === 'advanced') {
-              basePrompt = applyAdvancedInterpretation(basePrompt, advancedVariant, faceIdentityMode);
               console.log('[Interpretive Mode] Applied variant:', advancedVariant);
             } else if (faceIdentityMode) {
-              // Apply face identity preservation with creative variation
-              basePrompt = applyAdvancedInterpretation(basePrompt, 'C', true);
-              // Add explicit instruction to maximize variation
-              basePrompt += `\n\n[VARIATION REQUIREMENT: Create a unique and visually distinct interpretation. Vary pose, angle, clothing, environment, lighting, mood, and context significantly. Make each image tell a different story while keeping the same recognizable face.]`;
               console.log('[Face Identity Mode] Applied identity preservation with variation requirement');
-            }
-
-            // Vytvořit prompt s informací o stylu, pokud jsou stylové obrázky
-            let enhancedPrompt = basePrompt;
-            if (state.styleImages.length > 0) {
-              const styleImageCount = state.styleImages.length;
-              const inputImageCount = state.sourceImages.length;
-              enhancedPrompt = `${basePrompt}\n\n[Technická instrukce: První ${inputImageCount} obrázek${inputImageCount > 1 ? 'y' : ''} ${inputImageCount > 1 ? 'jsou' : 'je'} vstupní obsah k úpravě. Následující ${styleImageCount} obrázek${styleImageCount > 1 ? 'y' : ''} ${styleImageCount > 1 ? 'jsou' : 'je'} stylová reference - použij jejich vizuální styl, estetiku a umělecký přístup pro úpravu vstupního obsahu.]`;
-
-              if (inputImageCount > 1 && state.multiRefMode !== 'batch') {
-                enhancedPrompt += `\n\n[KOMPOZICE & OBSAH: Vytvoř jednu výslednou scénu, která kombinuje obsah ze všech vstupních obrázků. Použij stylové obrázky také jako kompoziční šablonu (rozvržení, póza, framing) pro výslednou scénu. Zachovej maximálně obličejovou podobnost osob ze vstupů a zachovej jejich klíčové objekty/rekvizity.]`;
-              }
-
-              // #1 + #6: Propojit analýzu stylu a sílu stylu do promptu
-              const styleStrengthVal = styleStrength ?? 50;
-              const cachedDesc = styleAnalysisCache?.description;
-              const strengthInstruction = buildStyleStrengthInstruction(styleStrengthVal, cachedDesc || undefined);
-              enhancedPrompt += `\n\n${strengthInstruction}`;
-
-              // #7: Patchwork váhový mix pro více stylových obrázků
-              if (styleImageCount > 1 && Object.keys(styleWeights).length > 0) {
-                const weightsInstruction = buildStyleWeightsInstruction(styleWeights, styleImageCount);
-                if (weightsInstruction) {
-                  enhancedPrompt += `\n\n${weightsInstruction}`;
-                }
-              }
-            }
-
-            if (state.assetImages.length > 0) {
-              const assetCount = state.assetImages.length;
-              enhancedPrompt += `\n\n[PROPRIETÁRNÍ ASSET REFERENCE: Po stylových referencích následuje ${assetCount} obrázek${assetCount > 1 ? 'y' : ''} proprietárních prvků (např. logo, klobouk, boty, produkt). Tyto assety NEBER jako styl. Použij je pouze jako obsahové/reference prvky pro přesný vzhled, tvar a umístění ve scéně.]`;
             }
 
             // #2: Aspect ratio normalizace pro provider
@@ -2032,23 +1862,19 @@ ${extra}
             }
 
             // #13 + #14: Lineage tracking + kompletní recipe
-            const lineage: LineageEntry = {
-              sourceImageIds: state.sourceImages.map(img => img.id),
-              styleImageIds: state.styleImages.map(img => img.id),
-              sourceImageUrls: state.sourceImages.map(img => img.url),
-              styleImageUrls: state.styleImages.map(img => img.url),
-              assetImageIds: state.assetImages.map(img => img.id),
-              assetImageUrls: state.assetImages.map(img => img.url),
-            };
+            const lineage = buildGenerationLineage({
+              sourceImages: state.sourceImages,
+              styleImages: state.styleImages,
+              assetImages: state.assetImages,
+            });
 
-            const recipe: GenerationRecipe = {
+            const recipe = buildGenerateRecipe({
               provider: selectedProvider,
-              operation: 'generate',
               prompt: basePrompt,
               effectivePrompt: enhancedPrompt,
               useGrounding,
               promptMode,
-              advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+              advancedVariant,
               faceIdentityMode,
               jsonContextFileName: jsonContext?.fileName,
               resolution: state.resolution,
@@ -2065,7 +1891,7 @@ ${extra}
               } : undefined,
               lineage,
               styleWeights: Object.keys(styleWeights).length > 0 ? styleWeights : undefined,
-            };
+            });
 
             // Get selected AI provider
             const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
@@ -2124,7 +1950,7 @@ ${extra}
               galleryPanelRef.current?.refresh();
             } catch (err) {
               console.error('Failed to save to gallery:', err);
-              setToast({ message: `⚠️ Obrázek se nepodařilo uložit do galerie: ${err instanceof Error ? err.message : 'Neznámá chyba'}`, type: 'error' });
+              setToast({ message: `⚠️ Obrázek se nepodařilo uložit do galerie: ${err instanceof Error ? err.message : 'Neznámá chyba'}`, type: 'warning' });
             }
 
             // Trackovat API usage
@@ -2134,6 +1960,7 @@ ${extra}
             setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
 
             success = true; // Úspěch, pokračuj na další obrázek
+            return { success: true as const };
             }
             catch (err: any) {
               const isRetriable = isRetriableProviderError(err);
@@ -2153,12 +1980,27 @@ ${extra}
                     img.id === imageData.id ? { ...img, status: 'error', error: err instanceof Error ? err.message : 'Generation failed' } : img
                   ),
                 }));
-                break; // Přeruš retry loop
+                return { success: false as const, error: err };
               }
             }
           }
+
+          return { success: false as const, error: new Error('Generování skončilo bez výsledku.') };
         })
       );
+
+      const successfulGenerations = generationResults.filter((result) => result.success).length;
+      const failedGenerations = generationResults.length - successfulGenerations;
+
+      const summaryToast = getGenerationResultSummary({
+        totalCount: generationResults.length,
+        successfulCount: successfulGenerations,
+        failedCount: failedGenerations,
+        firstError: generationResults.find((result) => !result.success)?.error,
+      });
+      if (summaryToast) {
+        setToast(summaryToast);
+      }
 
       setIsGenerating(false);
       setGenerationProgress(null);
@@ -2187,7 +2029,7 @@ ${extra}
   }
 
   const handleGenerate = async () => {
-    const snapshot = createGenerationSnapshot();
+    const snapshot = createQueuedGenerationSnapshot();
 
     if (generationLockRef.current || isGenerating) {
       if (snapshot.state.sourceImages.length > 1 && snapshot.state.multiRefMode === 'batch') {
@@ -2202,43 +2044,6 @@ ${extra}
     }
 
     await processGenerationSnapshot(snapshot);
-  };
-
-  const handleRepopulate = (image: GeneratedImage) => {
-    if (image.recipe) {
-      applyRecipe(image.recipe, true);
-      return;
-    }
-
-    setState(prev => ({
-      ...prev,
-      prompt: image.prompt,
-      aspectRatio: image.aspectRatio || 'Original',
-      resolution: image.resolution || '2K',
-      shouldAutoGenerate: true,
-    }));
-    if (isMobile) {
-      setIsMobileMenuOpen(true);
-    }
-  };
-
-  const handleRepopulateFromGallery = (image: GalleryImage) => {
-    const recipe = image.params as GenerationRecipe | undefined;
-    if (recipe) {
-      applyRecipe(recipe, true);
-      return;
-    }
-
-    setState(prev => ({
-      ...prev,
-      prompt: image.prompt,
-      aspectRatio: image.aspectRatio || 'Original',
-      resolution: image.resolution || '2K',
-      shouldAutoGenerate: true,
-    }));
-    if (isMobile) {
-      setIsMobileMenuOpen(true);
-    }
   };
 
   const handleEditImage = async (imageId: string) => {
@@ -2306,21 +2111,18 @@ ${extra}
       console.log('[Edit] Sending request to Gemini...', { promptLength: editPrompt.length, imageCount: sourceImages.length });
 
       const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
-      const recipe: GenerationRecipe = {
-        provider: AIProviderType.GEMINI,
-        operation: 'edit',
+      const recipe = buildEditRecipe({
         prompt: editPrompt,
-        effectivePrompt: editPrompt,
         useGrounding,
         promptMode,
-        advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+        advancedVariant,
         faceIdentityMode,
         resolution: image.resolution,
         aspectRatio: image.aspectRatio,
         sourceImageCount: sourceImages.length,
         styleImageCount: 0,
         createdAt: Date.now(),
-      };
+      });
       const result = await provider.generateImage(sourceImages, editPrompt, image.resolution, image.aspectRatio, useGrounding);
 
       console.log('[Edit] Success! updating gallery...');
@@ -2376,10 +2178,7 @@ ${extra}
       }
     } catch (err: any) {
       console.error('Edit error:', err);
-      setToast({
-        message: `Chyba při úpravě: ${err instanceof Error ? err.message : 'Neznámá chyba'}`,
-        type: 'error'
-      });
+      setToast({ message: toUserFacingAiError(err, 'Úprava obrázku selhala.'), type: 'error' });
 
       setState(prev => ({
         ...prev,
@@ -2390,7 +2189,7 @@ ${extra}
     }
   };
   // Batch processing handler
-  const handleBatchProcess = async (images: any[]) => {
+  const handleBatchProcess = async (images: BatchProcessImage[]) => {
     console.log('[Batch] Starting batch process with', images.length, 'images');
     console.log('[Batch] Prompt metadata', { promptLength: state.prompt.length });
 
@@ -2405,21 +2204,13 @@ ${extra}
       return;
     }
 
-    const PARALLEL_BATCH_SIZE = 5;
-    const chunks: any[][] = [];
-    for (let i = 0; i < images.length; i += PARALLEL_BATCH_SIZE) {
-      chunks.push(images.slice(i, i + PARALLEL_BATCH_SIZE));
-    }
-
-    // Create loading placeholders for all images
-    const loadingImages = images.map((_, index) => ({
-      id: `batch_${Date.now()}_${index}`,
+    const chunks = chunkBatchImages(images);
+    const loadingImages = createBatchLoadingImages({
+      images,
       prompt: state.prompt,
-      timestamp: Date.now() + index,
-      status: 'loading' as const,
       resolution: state.resolution,
       aspectRatio: state.aspectRatio,
-    }));
+    });
 
     // Add all loading images to state
     setState(prev => ({
@@ -2436,44 +2227,6 @@ ${extra}
 
     let processedCount = 0;
     const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
-
-    const buildSimpleLinkPrompt = (
-      mode: 'style' | 'merge' | 'object',
-      extra: string,
-      referenceImageCount: number,
-      styleImageCount: number,
-      assetImageCount: number
-    ) => {
-      const header = `
-[LINK MODE: ${mode.toUpperCase()}]
-Images order: first ${referenceImageCount} input image(s), then ${styleImageCount} style image(s), then ${assetImageCount} proprietary asset image(s).
-`;
-
-      if (mode === 'style') {
-        return `${header}
-Apply the visual style, composition, lighting, color grading, lens feel, and overall mood from the style image(s) to the input image(s), while preserving the identity and content of the input subject(s). Do NOT transfer objects/content from style; transfer only aesthetic and photographic/artistic treatment.
-
-${extra ? `Additional instructions:
-${extra}
-` : ''}`.trim();
-      }
-
-      if (mode === 'merge') {
-        return `${header}
-Create a cohesive merge of input and style images. You may blend both aesthetic and content elements to produce a unified result that feels intentional, natural, and high quality.
-
-${extra ? `Additional instructions:
-${extra}
-` : ''}`.trim();
-      }
-
-      return `${header}
-Transfer the dominant object/element from the style image(s) onto the input image(s) in a realistic way. Keep the input scene intact and place/replace the matching region with the style object (e.g., decorative wall), with correct perspective, lighting, scale, and shadows.
-
-${extra ? `Additional instructions:
-${extra}
-` : ''}`.trim();
-    };
 
     try {
       const styleImagesData = canRunFixedSimpleBatch
@@ -2502,23 +2255,25 @@ ${extra}
         // Generate chunk in parallel
         const results = await Promise.all(
           chunk.map(async (image, indexInChunk) => {
-            const globalIndex = chunkIndex * PARALLEL_BATCH_SIZE + indexInChunk;
+            const globalIndex = chunkIndex * BATCH_PARALLEL_SIZE + indexInChunk;
             const loadingId = loadingImages[globalIndex].id;
 
             try {
-              const effectivePrompt =
-                promptMode === 'simple' && simpleLinkMode && styleImagesData.length > 0
-                  ? buildSimpleLinkPrompt(simpleLinkMode, state.prompt.trim(), 1, styleImagesData.length, assetImagesData.length)
-                  : state.prompt;
+              const effectivePrompt = getBatchEffectivePrompt({
+                prompt: state.prompt,
+                promptMode,
+                simpleLinkMode,
+                styleImageCount: styleImagesData.length,
+                assetImageCount: assetImagesData.length,
+              });
 
-              const recipe: GenerationRecipe = {
+              const recipe = buildBatchRecipe({
                 provider: selectedProvider,
-                operation: 'batch',
                 prompt: state.prompt,
                 effectivePrompt,
                 useGrounding,
                 promptMode,
-                advancedVariant: promptMode === 'advanced' ? advancedVariant : undefined,
+                advancedVariant,
                 faceIdentityMode,
                 jsonContextFileName: jsonContext?.fileName,
                 resolution: state.resolution,
@@ -2527,17 +2282,19 @@ ${extra}
                 styleImageCount: styleImagesData.length,
                 assetImageCount: assetImagesData.length,
                 createdAt: Date.now(),
-              };
+              });
 
               // Prepare image data
               const sourceImagesData = [{
                 data: await urlToDataUrl(image.url),
-                mimeType: image.fileType || 'image/jpeg'
+                mimeType: image.file?.type || image.fileType || 'image/jpeg'
               }];
 
-              const allImages = styleImagesData.length > 0
-                ? [...sourceImagesData, ...styleImagesData, ...assetImagesData]
-                : [...sourceImagesData, ...assetImagesData];
+              const allImages = combineBatchInputImages({
+                sourceImagesData,
+                styleImagesData,
+                assetImagesData,
+              });
 
               // Generate image
               const result = await provider.generateImage(
@@ -2618,10 +2375,7 @@ ${extra}
       });
     } catch (error) {
       setBatchProgress(null);
-      setToast({
-        message: `❌ Chyba při batch zpracování: ${error instanceof Error ? error.message : 'Neznámá chyba'}`,
-        type: 'error'
-      });
+      setToast({ message: toUserFacingAiError(error, 'Batch zpracování selhalo.'), type: 'error' });
     }
   };
 
@@ -2763,7 +2517,7 @@ ${extra}
       setToast({ message: `Obrázek zvětšen ${factor}× (${result.newWidth}×${result.newHeight}px)`, type: 'success' });
     } catch (err: any) {
       console.error('[Upscale] Error:', err);
-      setToast({ message: `Upscaling selhal: ${err.message}`, type: 'error' });
+      setToast({ message: toUserFacingAiError(err, 'Upscaling selhal.'), type: 'error' });
     } finally {
       setUpscalingImageId(null);
     }
@@ -2906,7 +2660,7 @@ ${extra}
       setToast({ message: mode === 'inpaint' ? 'Inpainting dokončen!' : 'Outpainting dokončen!', type: 'success' });
     } catch (err: any) {
       console.error(`[${mode}] Error:`, err);
-      setToast({ message: `${mode === 'inpaint' ? 'Inpainting' : 'Outpainting'} selhal: ${err.message}`, type: 'error' });
+      setToast({ message: toUserFacingAiError(err, `${mode === 'inpaint' ? 'Inpainting' : 'Outpainting'} selhal.`), type: 'error' });
       setState(prev => ({
         ...prev,
         generatedImages: prev.generatedImages.map(img =>
@@ -3087,7 +2841,7 @@ ${extra}
           <div className="relative">
             <select
               value={nanoBananaImageModel}
-              onChange={(e) => setNanoBananaImageModel(e.target.value as NanoBananaImageModel)}
+              onChange={(e) => handleNanoBananaModelChange(e.target.value as NanoBananaImageModel)}
               className="w-full h-8 rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-2 text-[10px] font-semibold tracking-wide text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
               title="Mulen Nano model (Gemini image model)"
             >
@@ -3807,7 +3561,9 @@ ${extra}
 
       <AppIconRail
         active={
-          isStyleTransferRoute
+          isFaceSwapRoute
+              ? 'face-swap'
+            : isStyleTransferRoute
               ? 'style-transfer'
               : isModelInfluenceRoute
                 ? 'model-influence'
@@ -3824,6 +3580,10 @@ ${extra}
           }
           if (route === 'model-influence') {
             navigate('/model-influence');
+            return;
+          }
+          if (route === 'face-swap') {
+            navigate('/face-swap');
             return;
           }
           if (route === 'style-transfer') {
@@ -3848,7 +3608,13 @@ ${extra}
         />
 
         <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
-          {isStyleTransferRoute ? (
+          {isFaceSwapRoute ? (
+            <FaceSwapScreen
+              providerSettings={providerSettings}
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onToast={(t) => setToast(t)}
+            />
+          ) : isStyleTransferRoute ? (
             <StyleTransferScreen
               providerSettings={providerSettings}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -3884,7 +3650,7 @@ ${extra}
                     {renderGroundingControl()}
                     <ProviderSelector
                       selectedProvider={selectedProvider}
-                      onChange={setSelectedProvider}
+                      onChange={handleProviderChange}
                       settings={providerSettings}
                     />
                   </div>

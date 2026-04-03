@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { AIProviderType, ProviderSettings, PROVIDER_METADATA } from '../services/aiProvider';
+import { AIProviderType, ProviderSettings, PROVIDER_METADATA, type HeadSwapGender, type HeadSwapHairSource } from '../services/aiProvider';
 import { ProviderFactory } from '../services/providerFactory';
-import { SettingsDatabase } from '../utils/imageDatabase';
+import { ImageDatabase, SettingsDatabase } from '../utils/imageDatabase';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -35,6 +35,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
     const [falTestResult, setFalTestResult] = useState<'success' | 'error' | null>(null);
     const [a1111TestResult, setA1111TestResult] = useState<'success' | 'error' | null>(null);
+    const [storageStats, setStorageStats] = useState<{
+        savedCount: number;
+        generatedCount: number;
+        totalBytes: number;
+        usageBytes?: number;
+        quotaBytes?: number;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        let mounted = true;
+        void ImageDatabase.getStorageStats().then((stats) => {
+            if (mounted) {
+                setStorageStats(stats);
+            }
+        }).catch((error) => {
+            console.warn('Failed to load storage stats:', error);
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, [isOpen]);
 
     useEffect(() => {
         setLocalSettings(settings);
@@ -200,6 +224,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     const providers = Object.values(AIProviderType);
+    const headSwapSettings = {
+        preferredPrimary: 'replicate-easel' as const,
+        hairSource: 'target' as HeadSwapHairSource,
+        sourceGender: 'default' as HeadSwapGender,
+        secondarySourceGender: 'default' as HeadSwapGender,
+        useUpscale: true,
+        useDetailer: false,
+        facefusionEndpoint: '',
+        refaceEndpoint: '',
+        ...(localSettings.headSwap || {}),
+    };
+    const usageRatio = storageStats?.usageBytes && storageStats?.quotaBytes
+        ? storageStats.usageBytes / storageStats.quotaBytes
+        : null;
+    const totalLocalMb = storageStats ? storageStats.totalBytes / (1024 * 1024) : 0;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fadeIn">
@@ -311,6 +350,227 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                         );
                     })}
+
+                    <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                        <div className="flex items-start justify-between gap-4 mb-4">
+                            <div>
+                                <h3 className="font-bold text-sm text-[var(--text-primary)] uppercase tracking-wider">Lokální úložiště</h3>
+                                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                                    Obrázky se ukládají do prohlížeče. Při zaplnění úložiště může ukládání nových obrázků selhat.
+                                </p>
+                            </div>
+                            {usageRatio !== null && usageRatio >= 0.8 && (
+                                <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold rounded">
+                                    {Math.round(usageRatio * 100)}% zaplněno
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-3 gap-3 text-xs">
+                                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-3">
+                                    <div className="text-[var(--text-secondary)] uppercase tracking-wider">Saved</div>
+                                    <div className="mt-1 text-lg font-bold text-[var(--text-primary)]">{storageStats?.savedCount ?? '—'}</div>
+                                </div>
+                                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-3">
+                                    <div className="text-[var(--text-secondary)] uppercase tracking-wider">Generated</div>
+                                    <div className="mt-1 text-lg font-bold text-[var(--text-primary)]">{storageStats?.generatedCount ?? '—'}</div>
+                                </div>
+                                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-3">
+                                    <div className="text-[var(--text-secondary)] uppercase tracking-wider">Lokálně</div>
+                                    <div className="mt-1 text-lg font-bold text-[var(--text-primary)]">{storageStats ? `${totalLocalMb.toFixed(1)} MB` : '—'}</div>
+                                </div>
+                            </div>
+
+                            {usageRatio !== null && (
+                                <div>
+                                    <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] mb-1">
+                                        <span>Odhad zaplnění prohlížečového úložiště</span>
+                                        <span>{Math.round(usageRatio * 100)}%</span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-[var(--bg-input)] overflow-hidden">
+                                        <div
+                                            className={`h-full ${usageRatio >= 0.8 ? 'bg-amber-300' : 'bg-[#7ed957]'}`}
+                                            style={{ width: `${Math.min(100, Math.round(usageRatio * 100))}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-[var(--text-secondary)] mt-2">
+                                        {usageRatio >= 0.8
+                                            ? 'Úložiště je skoro plné. Zvaž promazání galerie nebo export zálohy.'
+                                            : 'Kapacita je zatím v bezpečném pásmu.'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 bg-[var(--bg-input)] rounded flex items-center justify-center">
+                                <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-4.553a1.5 1.5 0 10-2.121-2.121L12.88 7.88m2.12 2.12L9 16l-4 1 1-4 5.879-5.879m3.242 0a3 3 0 114.243 4.243" />
+                                </svg>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-sm text-[var(--text-primary)] uppercase tracking-wider">Head Swap Service</h3>
+                                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                                    Primární engine je Replicate Easel. Self-hosted fallbacky můžeš připojit přes FaceFusion wrapper nebo REFace endpoint.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">Primární engine</label>
+                                    <select
+                                        value={headSwapSettings.preferredPrimary}
+                                        onChange={(e) => setLocalSettings({
+                                            ...localSettings,
+                                            headSwap: {
+                                                ...headSwapSettings,
+                                                preferredPrimary: 'replicate-easel',
+                                            }
+                                        })}
+                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
+                                    >
+                                        <option value="replicate-easel">Replicate Easel Advanced Face Swap</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">Zachovat vlasy</label>
+                                    <select
+                                        value={headSwapSettings.hairSource}
+                                        onChange={(e) => setLocalSettings({
+                                            ...localSettings,
+                                            headSwap: {
+                                                ...headSwapSettings,
+                                                hairSource: e.target.value as HeadSwapHairSource,
+                                            }
+                                        })}
+                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
+                                    >
+                                        <option value="target">Cíl (stabilnější blend)</option>
+                                        <option value="user">Zdroj (víc identity / vlasů)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">Gender zdroje</label>
+                                    <select
+                                        value={headSwapSettings.sourceGender}
+                                        onChange={(e) => setLocalSettings({
+                                            ...localSettings,
+                                            headSwap: {
+                                                ...headSwapSettings,
+                                                sourceGender: e.target.value as HeadSwapGender,
+                                            }
+                                        })}
+                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
+                                    >
+                                        <option value="default">Auto</option>
+                                        <option value="a man">Muž</option>
+                                        <option value="a woman">Žena</option>
+                                        <option value="nonbinary person">Non-binary</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">2. zdroj gender</label>
+                                    <select
+                                        value={headSwapSettings.secondarySourceGender}
+                                        onChange={(e) => setLocalSettings({
+                                            ...localSettings,
+                                            headSwap: {
+                                                ...headSwapSettings,
+                                                secondarySourceGender: e.target.value as HeadSwapGender,
+                                            }
+                                        })}
+                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
+                                    >
+                                        <option value="default">Auto</option>
+                                        <option value="a man">Muž</option>
+                                        <option value="a woman">Žena</option>
+                                        <option value="nonbinary person">Non-binary</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <label className="flex items-center gap-3 text-sm text-[var(--text-primary)]">
+                                <input
+                                    type="checkbox"
+                                    checked={headSwapSettings.useUpscale}
+                                    onChange={(e) => setLocalSettings({
+                                        ...localSettings,
+                                        headSwap: {
+                                            ...headSwapSettings,
+                                            useUpscale: e.target.checked,
+                                        }
+                                    })}
+                                    className="rounded border-[var(--border-color)] bg-[var(--bg-input)]"
+                                />
+                                Zapnout interní upscale v Easel
+                            </label>
+
+                            <label className="flex items-center gap-3 text-sm text-[var(--text-primary)]">
+                                <input
+                                    type="checkbox"
+                                    checked={headSwapSettings.useDetailer}
+                                    onChange={(e) => setLocalSettings({
+                                        ...localSettings,
+                                        headSwap: {
+                                            ...headSwapSettings,
+                                            useDetailer: e.target.checked,
+                                        }
+                                    })}
+                                    className="rounded border-[var(--border-color)] bg-[var(--bg-input)]"
+                                />
+                                Zapnout detailer v Easel
+                            </label>
+
+                            <div>
+                                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">
+                                    FaceFusion fallback endpoint
+                                </label>
+                                <input
+                                    value={headSwapSettings.facefusionEndpoint || ''}
+                                    onChange={(e) => setLocalSettings({
+                                        ...localSettings,
+                                        headSwap: {
+                                            ...headSwapSettings,
+                                            facefusionEndpoint: e.target.value,
+                                        }
+                                    })}
+                                    placeholder="https://your-facefusion-wrapper.example.com/swap"
+                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">
+                                    REFace fallback endpoint
+                                </label>
+                                <input
+                                    value={headSwapSettings.refaceEndpoint || ''}
+                                    onChange={(e) => setLocalSettings({
+                                        ...localSettings,
+                                        headSwap: {
+                                            ...headSwapSettings,
+                                            refaceEndpoint: e.target.value,
+                                        }
+                                    })}
+                                    placeholder="https://your-reface-wrapper.example.com/swap"
+                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
+                                />
+                                <p className="text-xs text-[var(--text-secondary)] mt-2">
+                                    Očekávaný JSON kontrakt fallbacku: přijme `sourceImage`, `targetImage`, `mode`, `hairSource` a vrátí `imageBase64` nebo URL obrázku.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
                     <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
                         <div className="flex items-center gap-3 mb-4">

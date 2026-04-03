@@ -29,8 +29,7 @@ async function loadModels() {
 
     // Mirrors a known perf workaround used by the original TFJS demo.
     try {
-      // @ts-expect-error - ENV is not typed in all TFJS builds.
-      tf.ENV.set('WEBGL_PACK', false);
+      (tf as any).ENV?.set?.('WEBGL_PACK', false);
     } catch {
       // ignore
     }

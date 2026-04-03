@@ -1,3 +1,5 @@
+import { fetchAsDataUrl } from '../utils/fetchUtils';
+
 type FalLoraConfig = { path: string; scale?: number };
 
 type FalImage = { url: string; content_type?: string; width?: number; height?: number };
@@ -30,6 +32,11 @@ type FalLoraImg2ImgResponse = {
   statusUrl?: string;
   resultUrl?: string;
   logs?: any[];
+};
+
+const FAL_FETCH_AS_DATA_URL_OPTIONS = {
+  errorMessage: 'Nepodařilo se stáhnout výstup z fal.ai',
+  forceHttps: true,
 };
 
 const FAL_SDXL_SCHEDULERS = new Set([
@@ -73,10 +80,6 @@ function toFalSdxlSchedulerValue(sampler?: string, scheduler?: string): string |
   return null;
 }
 
-function assertOk(res: Response, message: string) {
-  if (!res.ok) throw new Error(`${message} (HTTP ${res.status})`);
-}
-
 function getFalKeyFromStorage(): string {
   try {
     const raw = localStorage.getItem('providerSettings');
@@ -87,21 +90,6 @@ function getFalKeyFromStorage(): string {
   } catch {
     return '';
   }
-}
-
-async function fetchAsDataUrl(url: string): Promise<string> {
-  // Some upstreams may return http URLs; enforce https to avoid Mixed Content blocks.
-  const safeUrl = url.startsWith('http://') ? `https://${url.slice('http://'.length)}` : url;
-  const res = await fetch(safeUrl);
-  assertOk(res, 'Nepodařilo se stáhnout výstup z fal.ai');
-  const blob = await res.blob();
-  const base64 = await new Promise<string>((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error('Nepodařilo se načíst výstupní obrázek.'));
-    r.readAsDataURL(blob);
-  });
-  return base64;
 }
 
 function buildFalLoras(
@@ -233,7 +221,7 @@ export async function runFalLoraImg2Img(params: {
   if (urls.length === 0) throw new Error('fal.ai nevrátil žádné obrázky.');
 
   const out: string[] = [];
-  for (const u of urls) out.push(await fetchAsDataUrl(u));
+  for (const u of urls) out.push(await fetchAsDataUrl(u, FAL_FETCH_AS_DATA_URL_OPTIONS));
 
   return { images: out, usedSeed: typeof payload.seed === 'number' ? payload.seed : undefined };
 }
@@ -471,7 +459,7 @@ export async function runFalLoraImg2ImgQueued(params: {
         throw new Error(`fal.ai: job dokončen, ale nevrátil obrázky. (${JSON.stringify(info).slice(0, 320)})`);
       }
       const out: string[] = [];
-      for (const u of urls) out.push(await fetchAsDataUrl(u));
+      for (const u of urls) out.push(await fetchAsDataUrl(u, FAL_FETCH_AS_DATA_URL_OPTIONS));
       const usedSeed =
         typeof finalPayload.seed === 'number'
           ? finalPayload.seed
@@ -593,7 +581,7 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
         throw new Error(`fal.ai: job dokončen, ale nevrátil obrázky. (${JSON.stringify(info).slice(0, 320)})`);
       }
       const out: string[] = [];
-      for (const u of urls) out.push(await fetchAsDataUrl(u));
+      for (const u of urls) out.push(await fetchAsDataUrl(u, FAL_FETCH_AS_DATA_URL_OPTIONS));
       const usedSeed =
         typeof finalPayload.seed === 'number'
           ? finalPayload.seed
@@ -677,7 +665,7 @@ export async function runFalUpscaleQueued(params: {
       if (urls.length === 0) {
         throw new Error('Upscaling dokončen, ale endpoint nevrátil obrázek.');
       }
-      const first = await fetchAsDataUrl(urls[0]);
+      const first = await fetchAsDataUrl(urls[0], FAL_FETCH_AS_DATA_URL_OPTIONS);
       return { image: first };
     }
 

@@ -237,8 +237,8 @@ function svdDecompose(tf: typeof TF, cov: TF.Tensor2D): { u: TF.Tensor2D; s: TF.
 
 function wctTransform(tf: typeof TF, contentFeat: TF.Tensor4D, styleFeat: TF.Tensor4D, strength01: number): TF.Tensor4D {
   return tf.tidy(() => {
-    const c = contentFeat.squeeze<[number, number, number]>(); // [H, W, C]
-    const s = styleFeat.squeeze<[number, number, number]>();
+    const c = contentFeat.squeeze() as TF.Tensor3D; // [H, W, C]
+    const s = styleFeat.squeeze() as TF.Tensor3D;
     const [hc, wc, cc] = c.shape;
     const [hs, ws] = s.shape;
     const nc = hc * wc;
@@ -270,7 +270,7 @@ function wctTransform(tf: typeof TF, contentFeat: TF.Tensor4D, styleFeat: TF.Ten
 }
 
 function toCanvasFromPixels255(tf: typeof TF, pixels255: TF.Tensor4D, w: number, h: number): Promise<HTMLCanvasElement> {
-  const clamped = pixels255.clipByValue(0, 255).squeeze<[number, number, number]>().cast('int32');
+  const clamped = pixels255.clipByValue(0, 255).squeeze().cast('int32') as TF.Tensor3D;
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -350,7 +350,7 @@ export async function runGatysStyleTransfer(opts: BaseOptions): Promise<{ dataUr
           sLoss = next;
         }
         const cLoss = tf.losses.meanSquaredError(contentTarget, preds[styleLayerCount] as TF.Tensor4D).mean() as TF.Tensor;
-        const tv = tf.image.totalVariation(imageVar as TF.Tensor4D).mean() as TF.Tensor;
+        const tv = ((tf.image as any).totalVariation(imageVar as TF.Tensor4D) as TF.Tensor).mean() as TF.Tensor;
         const loss = cLoss.mul(tf.scalar(contentWeight))
           .add(sLoss.mul(tf.scalar(styleWeight)))
           .add(tv.mul(tf.scalar(tvWeight))) as TF.Scalar;
@@ -362,9 +362,9 @@ export async function runGatysStyleTransfer(opts: BaseOptions): Promise<{ dataUr
         sLoss.dispose();
         return loss;
       }, [imageVar]);
-      optimizer.applyGradients(grads);
+      optimizer.applyGradients(grads as any);
       Object.values(grads).forEach((g) => g.dispose());
-      imageVar.assign(imageVar.clipByValue(0, 255));
+      imageVar.assign(imageVar.clipByValue(0, 255) as TF.Tensor4D);
     });
     if (i % 8 === 0) await tf.nextFrame();
   }
@@ -424,7 +424,7 @@ export async function runWctStyleTransfer(opts: BaseOptions): Promise<{ dataUrl:
         const preds = extractor.predict(pre) as TF.Tensor[];
         const featLoss = tf.losses.meanSquaredError(wctTarget, preds[styleLayerCount + 1] as TF.Tensor4D).mean() as TF.Tensor;
         const cLoss = tf.losses.meanSquaredError(contentTarget, preds[styleLayerCount] as TF.Tensor4D).mean() as TF.Tensor;
-        const tv = tf.image.totalVariation(imageVar as TF.Tensor4D).mean() as TF.Tensor;
+        const tv = ((tf.image as any).totalVariation(imageVar as TF.Tensor4D) as TF.Tensor).mean() as TF.Tensor;
         const loss = featLoss.mul(tf.scalar(wctWeight))
           .add(cLoss.mul(tf.scalar(contentWeight)))
           .add(tv.mul(tf.scalar(tvWeight))) as TF.Scalar;
@@ -435,9 +435,9 @@ export async function runWctStyleTransfer(opts: BaseOptions): Promise<{ dataUrl:
         tv.dispose();
         return loss;
       }, [imageVar]);
-      optimizer.applyGradients(grads);
+      optimizer.applyGradients(grads as any);
       Object.values(grads).forEach((g) => g.dispose());
-      imageVar.assign(imageVar.clipByValue(0, 255));
+      imageVar.assign(imageVar.clipByValue(0, 255) as TF.Tensor4D);
     });
     if (i % 8 === 0) await tf.nextFrame();
   }

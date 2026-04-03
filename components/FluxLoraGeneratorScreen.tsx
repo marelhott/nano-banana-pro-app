@@ -876,7 +876,11 @@ export function FluxLoraGeneratorScreen(props: {
           : [];
 
       const normalizedLoras = resolvedLoras.map((l) => ({ path: l.path, scale: l.scale }));
-      const requestedVariants = effectiveVariants;
+      const requestedVariants: GenerationRequest['variants'] =
+        effectiveVariants === 1 ? 1 :
+        effectiveVariants === 2 ? 2 :
+        effectiveVariants === 3 ? 3 :
+        effectiveVariants === 4 ? 4 : 5;
       const normalizedLorasForRun =
         request.modelFamily === 'flux' && request.fluxEndpoint === 'flux2'
           ? normalizedLoras.slice(0, 3)

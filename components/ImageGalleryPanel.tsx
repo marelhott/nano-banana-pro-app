@@ -24,10 +24,33 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [visibleSavedCount, setVisibleSavedCount] = useState(40);
+  const [visibleGeneratedCount, setVisibleGeneratedCount] = useState(40);
 
   useEffect(() => {
     loadImages();
   }, []);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel) return;
+
+    const root = contentRef.current;
+    const observer = new IntersectionObserver((entries) => {
+      const firstEntry = entries[0];
+      if (!firstEntry?.isIntersecting) return;
+
+      if (activeTab === 'saved') {
+        setVisibleSavedCount((prev) => Math.min(savedImages.length, prev + 40));
+      } else {
+        setVisibleGeneratedCount((prev) => Math.min(generatedImages.length, prev + 40));
+      }
+    }, { root, rootMargin: '200px 0px' });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [activeTab, savedImages.length, generatedImages.length]);
 
   const loadImages = async (options?: { preserveScroll?: boolean }) => {
     setLoading(true);
@@ -37,10 +60,12 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       const saved = await ImageDatabase.getAll();
       saved.sort((a, b) => b.timestamp - a.timestamp);
       setSavedImages(saved);
+      setVisibleSavedCount((prev) => Math.min(Math.max(prev, 40), Math.max(saved.length, 40)));
 
       // Načíst vygenerované obrázky z Supabase
       const generated = await getAllImages();
       setGeneratedImages(generated);
+      setVisibleGeneratedCount((prev) => Math.min(Math.max(prev, 40), Math.max(generated.length, 40)));
     } catch (error) {
       console.error('Failed to load images:', error);
     } finally {
@@ -174,6 +199,8 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
   };
 
   const renderSavedTab = () => {
+    const visibleSavedImages = savedImages.slice(0, visibleSavedCount);
+
     if (savedImages.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
@@ -201,7 +228,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             : undefined
         }
       >
-        {savedImages.map((image) => (
+        {visibleSavedImages.map((image) => (
           <div
             key={image.id}
             draggable
@@ -261,7 +288,19 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
     );
   };
 
+  const renderLoadMoreFooter = (hasMore: boolean, remainingCount: number) => {
+    if (!hasMore) return null;
+
+    return (
+      <div ref={loadMoreRef} className="px-4 pb-4 pt-2 text-center text-xs text-gray-500">
+        Načítám další položky… zbývá {remainingCount}
+      </div>
+    );
+  };
+
   const renderGeneratedTab = () => {
+    const visibleGeneratedImages = generatedImages.slice(0, visibleGeneratedCount);
+
     if (generatedImages.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
@@ -283,7 +322,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             : undefined
         }
       >
-        {generatedImages.map((image) => (
+        {visibleGeneratedImages.map((image) => (
           <div
             key={image.id}
             draggable
@@ -426,7 +465,9 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             </button>
           )}
           <button
-            onClick={loadImages}
+            onClick={() => {
+              void loadImages();
+            }}
             className="p-1.5 transition-colors icon-btn"
             title="Refresh"
           >
@@ -447,6 +488,8 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           <>
             {activeTab === 'saved' && renderSavedTab()}
             {activeTab === 'generated' && renderGeneratedTab()}
+            {activeTab === 'saved' && renderLoadMoreFooter(visibleSavedCount < savedImages.length, savedImages.length - visibleSavedCount)}
+            {activeTab === 'generated' && renderLoadMoreFooter(visibleGeneratedCount < generatedImages.length, generatedImages.length - visibleGeneratedCount)}
           </>
         )}
       </div>

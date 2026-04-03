@@ -1,7 +1,7 @@
 import React from 'react';
-import { Brush, Grid3X3, Flame, Layers, Maximize2 } from 'lucide-react';
+import { Brush, Grid3X3, Flame, Layers, Maximize2, User } from 'lucide-react';
 
-type RailRoute = 'mulen' | 'model-influence' | 'style-transfer' | 'flux-lora' | 'ai-upscaler';
+type RailRoute = 'mulen' | 'face-swap' | 'model-influence' | 'style-transfer' | 'flux-lora' | 'ai-upscaler';
 
 export function AppIconRail(props: {
   active: RailRoute;
@@ -12,6 +12,7 @@ export function AppIconRail(props: {
   const items: Array<{ id: RailRoute; label: string; icon: React.ReactNode }> = [
     // Icons reduced ~30% (18px -> 13px) and kept monochrome/neutral.
     { id: 'mulen', label: 'Mulen Nano', icon: <Grid3X3 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'face-swap', label: 'Face Swap', icon: <User className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'flux-lora', label: 'Lora Influence', icon: <Flame className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'model-influence', label: 'Model Influence', icon: <Layers className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'ai-upscaler', label: 'AI Upscaler', icon: <Maximize2 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },

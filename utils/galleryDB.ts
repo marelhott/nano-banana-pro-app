@@ -1,5 +1,6 @@
 import { clearGeneratedLibraryImages, getGeneratedLibraryImageRecord, listGeneratedLibraryImages, removeGeneratedLibraryImage, resolveBlobFromSource, saveGeneratedLibraryImage, type SingleUserGeneratedImage } from './singleUserMediaStore';
 import { dataUrlToBlob, deleteImage as deleteStorageImage, uploadImage } from './supabaseStorage';
+import { dispatchCloudSyncEvent } from './cloudSyncEvents';
 
 export interface GalleryImage extends SingleUserGeneratedImage {}
 
@@ -73,6 +74,11 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
       });
     } catch (error) {
       console.warn('[Gallery] Cloud mirror for generated image failed:', error);
+      dispatchCloudSyncEvent({
+        status: 'failed',
+        resource: 'generated-image',
+        message: 'Cloud sync se nepodařil. Vygenerovaný obrázek zůstal uložený lokálně.',
+      });
     }
   })();
 };
