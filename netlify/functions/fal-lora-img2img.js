@@ -132,11 +132,12 @@ exports.handler = async (event) => {
       'fal-ai/flux-2/lora/edit',
       'fal-ai/z-image/turbo/image-to-image/lora',
       'fal-ai/clarity-upscaler',
+      'easel-ai/advanced-face-swap',
     ]);
     if (!ALLOWED_ENDPOINTS.has(endpointId)) {
       return json(400, {
         error: 'Nepovolený fal.ai endpoint.',
-        hint: 'Použij fal-ai/lora/image-to-image, fal-ai/flux-lora/image-to-image, fal-ai/flux-2/lora/edit nebo fal-ai/z-image/turbo/image-to-image/lora.',
+        hint: 'Použij povolený endpoint, například fal-ai/lora/image-to-image, fal-ai/clarity-upscaler nebo easel-ai/advanced-face-swap.',
       });
     }
 
