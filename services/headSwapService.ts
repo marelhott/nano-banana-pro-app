@@ -110,6 +110,7 @@ async function runReplicateEaselHeadSwap(params: {
 }
 
 async function runFalEaselHeadSwap(params: {
+  apiKey: string;
   request: HeadSwapRequest;
   settings: HeadSwapSettings;
 }): Promise<string> {
@@ -121,6 +122,7 @@ async function runFalEaselHeadSwap(params: {
 
   const result = await runFalModelQueued({
     endpointId: FAL_EASEL_ENDPOINT,
+    apiKey: params.apiKey,
     input: {
       target_image_url: params.request.targetImage,
       swap_image_url: params.request.sourceImage,
@@ -197,6 +199,7 @@ export async function runHeadSwap(params: {
     attemptedProviders.push('fal-easel');
     try {
       const imageBase64 = await runFalEaselHeadSwap({
+        apiKey: falKey,
         request: params.request,
         settings: headSwapSettings,
       });

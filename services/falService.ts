@@ -325,11 +325,12 @@ function extractFalImageUrls(payload: any): string[] {
 export async function runFalModelQueued(params: {
   endpointId: string;
   input: Record<string, any>;
+  apiKey?: string;
   onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
   onLogs?: (logs: { message: string; level?: string; timestamp?: string }[]) => void;
   maxWaitMs?: number;
 }): Promise<{ images: string[]; usedSeed?: number }> {
-  const falKey = getFalKeyFromStorage();
+  const falKey = String(params.apiKey || '').trim() || getFalKeyFromStorage();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (falKey) headers['x-fal-key'] = falKey;
 
