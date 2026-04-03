@@ -326,37 +326,7 @@ export function FaceSwapScreen(props: {
         </div>
 
         <div className="p-6">
-          <div className="grid grid-cols-1 xl:grid-cols-[320px_320px_1fr] gap-6 auto-rows-min">
-            <article className="card-surface p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <User className="w-4 h-4 text-[#7ed957]" />
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Zdroj</div>
-              </div>
-              {source?.dataUrl ? (
-                <img src={source.dataUrl} alt={source.file.name} className="w-full aspect-square object-cover rounded-2xl border border-white/10 bg-black/20" />
-              ) : (
-                <div className="aspect-square rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/40">
-                  <Upload className="w-6 h-6 mb-3" />
-                  <div className="text-[11px] uppercase tracking-widest">Nahraj zdroj</div>
-                </div>
-              )}
-            </article>
-
-            <article className="card-surface p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <ArrowRightLeft className="w-4 h-4 text-[#7ed957]" />
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Cíl</div>
-              </div>
-              {target?.dataUrl ? (
-                <img src={target.dataUrl} alt={target.file.name} className="w-full aspect-square object-cover rounded-2xl border border-white/10 bg-black/20" />
-              ) : (
-                <div className="aspect-square rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/40">
-                  <Upload className="w-6 h-6 mb-3" />
-                  <div className="text-[11px] uppercase tracking-widest">Nahraj cíl</div>
-                </div>
-              )}
-            </article>
-
+          <div className="grid grid-cols-1 gap-6 auto-rows-min">
             <article className="card-surface p-4">
               <div className="flex items-center justify-between gap-4 mb-4">
                 <div>
