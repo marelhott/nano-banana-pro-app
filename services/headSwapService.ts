@@ -42,7 +42,7 @@ type SelfHostedFallbackRequest = {
 
 function getDefaultHeadSwapSettings(settings: ProviderSettings): HeadSwapSettings {
   return {
-    preferredPrimary: 'replicate-easel',
+    preferredPrimary: 'fal-easel',
     hairSource: 'target',
     sourceGender: 'default',
     secondarySourceGender: 'default',

@@ -97,6 +97,30 @@ function extractImageUrls(payload) {
   return [];
 }
 
+function safeJsonParse(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function extractFalErrorDetail(text, fallback) {
+  const parsed = safeJsonParse(text);
+  if (parsed) {
+    const detail =
+      parsed.detail ||
+      parsed.error ||
+      parsed.message ||
+      parsed?.error?.message ||
+      parsed?.errors;
+    if (typeof detail === 'string' && detail.trim()) return detail.trim();
+    if (detail) return JSON.stringify(detail).slice(0, 2000);
+  }
+  const raw = String(text || '').trim();
+  return raw ? raw.slice(0, 2000) : fallback;
+}
+
 exports.handler = async (event) => {
   try {
     if (event.httpMethod !== 'POST') {
@@ -154,6 +178,14 @@ exports.handler = async (event) => {
       }, 30_000);
 
       const text = await upstream.text();
+      if (!upstream.ok) {
+        return json(upstream.status, {
+          error: 'fal status request failed',
+          detail: extractFalErrorDetail(text, `HTTP ${upstream.status}`),
+          endpointId,
+          mode,
+        });
+      }
 
       // Some fal queue status endpoints return only metadata + response_url when completed.
       // In that case, fetch the response payload and return it (so the client receives images).
@@ -203,6 +235,15 @@ exports.handler = async (event) => {
     }, shouldSubmit ? 60_000 : 180_000);
 
     const text = await upstream.text();
+    if (!upstream.ok) {
+      return json(upstream.status, {
+        error: 'fal upstream request failed',
+        detail: extractFalErrorDetail(text, `HTTP ${upstream.status}`),
+        endpointId,
+        mode,
+        targetUrl,
+      });
+    }
     if (shouldSubmit && upstream.ok) {
       // Normalize submit response: ensure we return statusUrl for polling.
       try {
@@ -224,6 +265,10 @@ exports.handler = async (event) => {
       body: text,
     };
   } catch (err) {
-    return json(500, { error: 'fal proxy failed', detail: String(err?.message || err) });
+    return json(500, {
+      error: 'fal proxy failed',
+      detail: String(err?.message || err),
+      stack: err?.stack ? String(err.stack).slice(0, 2000) : undefined,
+    });
   }
 };
