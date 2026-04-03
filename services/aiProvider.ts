@@ -25,7 +25,7 @@ export interface ProviderConfig {
     enabled: boolean;
 }
 
-export type HeadSwapPrimaryProvider = 'replicate-easel';
+export type HeadSwapPrimaryProvider = 'fal-easel' | 'replicate-easel';
 export type HeadSwapFallbackProvider = 'facefusion' | 'reface';
 export type HeadSwapHairSource = 'user' | 'target';
 export type HeadSwapGender = 'default' | 'a man' | 'a woman' | 'nonbinary person';

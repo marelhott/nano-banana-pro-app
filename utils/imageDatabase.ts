@@ -209,7 +209,7 @@ export class SettingsDatabase {
 
     if (data?.headSwap && typeof data.headSwap === 'object') {
       restored.headSwap = {
-        preferredPrimary: data.headSwap.preferredPrimary === 'replicate-easel' ? 'replicate-easel' : 'replicate-easel',
+        preferredPrimary: data.headSwap.preferredPrimary === 'replicate-easel' ? 'replicate-easel' : 'fal-easel',
         hairSource: data.headSwap.hairSource === 'user' ? 'user' : 'target',
         sourceGender: ['default', 'a man', 'a woman', 'nonbinary person'].includes(String(data.headSwap.sourceGender))
           ? data.headSwap.sourceGender

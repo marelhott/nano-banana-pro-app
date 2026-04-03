@@ -2,8 +2,10 @@ import type { HeadSwapHairSource, HeadSwapSettings, HeadSwapGender, ProviderSett
 import { AIProviderType } from './aiProvider';
 import { fetchAsDataUrl } from '../utils/fetchUtils';
 import { runReplicatePrediction } from './replicateService';
+import { runFalModelQueued } from './falService';
 
 const REPLICATE_EASEL_MODEL = 'easel/advanced-face-swap';
+const FAL_EASEL_ENDPOINT = 'easel-ai/advanced-face-swap';
 
 type SelfHostedFallbackId = 'facefusion' | 'reface';
 
@@ -24,8 +26,8 @@ export interface HeadSwapRequest {
 
 export interface HeadSwapResult {
   imageBase64: string;
-  provider: 'replicate-easel' | SelfHostedFallbackId;
-  attemptedProviders: Array<'replicate-easel' | SelfHostedFallbackId>;
+  provider: 'fal-easel' | 'replicate-easel' | SelfHostedFallbackId;
+  attemptedProviders: Array<'fal-easel' | 'replicate-easel' | SelfHostedFallbackId>;
 }
 
 type SelfHostedFallbackRequest = {
@@ -86,6 +88,9 @@ async function runReplicateEaselHeadSwap(params: {
       target_image: params.request.targetImage,
       swap_image: params.request.sourceImage,
       swap_image_b: params.request.secondarySourceImage || undefined,
+      // Replicate versions have used `user_desc*`; keep legacy aliases too for compatibility.
+      user_desc: sourceGender === 'default' ? undefined : sourceGender,
+      user_desc_b: secondarySourceGender === 'default' ? undefined : secondarySourceGender,
       user_gender: sourceGender === 'default' ? undefined : sourceGender,
       user_b_gender: secondarySourceGender === 'default' ? undefined : secondarySourceGender,
       hair_source: hairSource,
@@ -102,6 +107,39 @@ async function runReplicateEaselHeadSwap(params: {
   const output = prediction.output;
   const imageUrl = Array.isArray(output) ? output[0] : output;
   return normalizeImageOutput(imageUrl, 'Replicate Easel nevrátil validní výstupní obrázek.');
+}
+
+async function runFalEaselHeadSwap(params: {
+  request: HeadSwapRequest;
+  settings: HeadSwapSettings;
+}): Promise<string> {
+  const hairSource = params.request.hairSource || params.settings.hairSource;
+  const sourceGender = params.request.sourceGender || params.settings.sourceGender;
+  const secondarySourceGender = params.request.secondarySourceGender || params.settings.secondarySourceGender;
+  const useUpscale = params.request.useUpscale ?? params.settings.useUpscale;
+  const useDetailer = params.request.useDetailer ?? params.settings.useDetailer;
+
+  const result = await runFalModelQueued({
+    endpointId: FAL_EASEL_ENDPOINT,
+    input: {
+      target_image_url: params.request.targetImage,
+      swap_image_url: params.request.sourceImage,
+      swap_image_b_url: params.request.secondarySourceImage || undefined,
+      user_desc: sourceGender === 'default' ? undefined : sourceGender,
+      user_desc_b: secondarySourceGender === 'default' ? undefined : secondarySourceGender,
+      hair_source: hairSource,
+      upscale: useUpscale,
+      detailer: useDetailer,
+    },
+    maxWaitMs: params.request.timeoutMs ?? 180_000,
+  });
+
+  const image = result.images[0];
+  if (!image) {
+    throw new Error('fal Easel nevrátil žádný výstupní obrázek.');
+  }
+
+  return image;
 }
 
 async function runSelfHostedFallback(params: {
@@ -140,6 +178,7 @@ export async function runHeadSwap(params: {
 }): Promise<HeadSwapResult> {
   const headSwapSettings = getDefaultHeadSwapSettings(params.settings);
   const attemptedProviders: HeadSwapResult['attemptedProviders'] = [];
+  const failureMessages: string[] = [];
   const mode = params.request.mode || 'head';
   const fallbackRequest: SelfHostedFallbackRequest = {
     sourceImage: params.request.sourceImage,
@@ -151,8 +190,28 @@ export async function runHeadSwap(params: {
     secondarySourceGender: params.request.secondarySourceGender || headSwapSettings.secondarySourceGender,
   };
 
+  const falKey = String(params.settings.fal?.apiKey || '').trim();
   const replicateToken = String(params.settings[AIProviderType.REPLICATE]?.apiKey || '').trim();
-  if (headSwapSettings.preferredPrimary === 'replicate-easel' && replicateToken) {
+
+  if (headSwapSettings.preferredPrimary === 'fal-easel' && falKey) {
+    attemptedProviders.push('fal-easel');
+    try {
+      const imageBase64 = await runFalEaselHeadSwap({
+        request: params.request,
+        settings: headSwapSettings,
+      });
+      return {
+        imageBase64,
+        provider: 'fal-easel',
+        attemptedProviders,
+      };
+    } catch (error: any) {
+      failureMessages.push(`fal Easel: ${error?.message || 'neznámá chyba'}`);
+      console.warn('[HeadSwap] fal Easel failed, trying fallbacks:', error);
+    }
+  }
+
+  if (replicateToken) {
     attemptedProviders.push('replicate-easel');
     try {
       const imageBase64 = await runReplicateEaselHeadSwap({
@@ -165,7 +224,8 @@ export async function runHeadSwap(params: {
         provider: 'replicate-easel',
         attemptedProviders,
       };
-    } catch (error) {
+    } catch (error: any) {
+      failureMessages.push(`Replicate Easel: ${error?.message || 'neznámá chyba'}`);
       console.warn('[HeadSwap] Replicate Easel failed, trying fallbacks:', error);
     }
   }
@@ -184,7 +244,8 @@ export async function runHeadSwap(params: {
         provider: 'facefusion',
         attemptedProviders,
       };
-    } catch (error) {
+    } catch (error: any) {
+      failureMessages.push(`FaceFusion: ${error?.message || 'neznámá chyba'}`);
       console.warn('[HeadSwap] FaceFusion fallback failed:', error);
     }
   }
@@ -203,14 +264,16 @@ export async function runHeadSwap(params: {
         provider: 'reface',
         attemptedProviders,
       };
-    } catch (error) {
+    } catch (error: any) {
+      failureMessages.push(`REFace: ${error?.message || 'neznámá chyba'}`);
       console.warn('[HeadSwap] REFace fallback failed:', error);
     }
   }
 
-  if (!replicateToken && !facefusionEndpoint && !refaceEndpoint) {
-    throw new Error('Head swap není nakonfigurovaný. Přidej Replicate API klíč nebo self-hosted fallback endpoint.');
+  if (!falKey && !replicateToken && !facefusionEndpoint && !refaceEndpoint) {
+    throw new Error('Head swap není nakonfigurovaný. Přidej fal.ai nebo Replicate API klíč, případně self-hosted fallback endpoint.');
   }
 
-  throw new Error('Head swap selhal na všech dostupných providerech.');
+  const detail = failureMessages.filter(Boolean).join(' | ');
+  throw new Error(detail ? `Head swap selhal. ${detail}` : 'Head swap selhal na všech dostupných providerech.');
 }

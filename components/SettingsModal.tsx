@@ -225,7 +225,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const providers = Object.values(AIProviderType);
     const headSwapSettings = {
-        preferredPrimary: 'replicate-easel' as const,
+        preferredPrimary: 'fal-easel' as const,
         hairSource: 'target' as HeadSwapHairSource,
         sourceGender: 'default' as HeadSwapGender,
         secondarySourceGender: 'default' as HeadSwapGender,
@@ -434,6 +434,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         })}
                                         className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
                                     >
+                                        <option value="fal-easel">fal.ai Easel Advanced Face Swap</option>
                                         <option value="replicate-easel">Replicate Easel Advanced Face Swap</option>
                                     </select>
                                 </div>

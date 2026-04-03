@@ -14,7 +14,7 @@ function getDefaultProviderSettings(): ProviderSettings {
     [AIProviderType.REPLICATE]: { apiKey: '', enabled: false },
     fal: { apiKey: '', enabled: false },
     headSwap: {
-      preferredPrimary: 'replicate-easel',
+      preferredPrimary: 'fal-easel',
       hairSource: 'target',
       sourceGender: 'default',
       secondarySourceGender: 'default',

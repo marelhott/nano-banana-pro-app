@@ -322,6 +322,96 @@ function extractFalImageUrls(payload: any): string[] {
   return [];
 }
 
+export async function runFalModelQueued(params: {
+  endpointId: string;
+  input: Record<string, any>;
+  onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
+  onLogs?: (logs: { message: string; level?: string; timestamp?: string }[]) => void;
+  maxWaitMs?: number;
+}): Promise<{ images: string[]; usedSeed?: number }> {
+  const falKey = getFalKeyFromStorage();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (falKey) headers['x-fal-key'] = falKey;
+
+  const { statusUrl, resultUrl } = await submitFalJob(headers, params.input, params.endpointId);
+  let lastPhase: 'queue' | 'running' | 'finalizing' | '' = '';
+  const setPhase = (phase: 'queue' | 'running' | 'finalizing') => {
+    if (lastPhase === phase) return;
+    lastPhase = phase;
+    try {
+      params.onPhase?.(phase);
+    } catch {
+      // ignore UI callback failures
+    }
+  };
+  setPhase('queue');
+
+  const deadline = Date.now() + Math.max(30_000, Math.min(15 * 60_000, params.maxWaitMs ?? 12 * 60_000));
+  let delayMs = 800;
+  while (Date.now() < deadline) {
+    const payload: any = await pollFalJob(headers, statusUrl, params.endpointId);
+    try {
+      const logsRaw = (payload?.logs || payload?.output?.logs || payload?.result?.logs || payload?.response?.logs) as any;
+      if (Array.isArray(logsRaw) && logsRaw.length > 0) {
+        const normalized = logsRaw
+          .map((item) => ({
+            message: String(item?.message || item?.msg || item?.text || item || '').trim(),
+            level: item?.level ? String(item.level) : undefined,
+            timestamp: item?.timestamp ? String(item.timestamp) : undefined,
+          }))
+          .filter((item) => !!item.message);
+        if (normalized.length) params.onLogs?.(normalized);
+      }
+    } catch {
+      // ignore log parsing
+    }
+
+    const status = String(payload?.status || payload?.state || '').toLowerCase();
+    if (status === 'running' || status === 'in_progress' || status === 'processing') setPhase('running');
+    else if (status === 'queued' || status === 'pending' || status === 'enqueued') setPhase('queue');
+
+    if (status === 'completed' || status === 'succeeded' || payload?.images || payload?.output?.images) {
+      let finalPayload: any = payload;
+      let urls = extractFalImageUrls(finalPayload);
+      if (urls.length === 0 && resultUrl) {
+        setPhase('finalizing');
+        let attempts = 0;
+        let wait = 650;
+        while (attempts < 10 && Date.now() < deadline) {
+          attempts += 1;
+          finalPayload = await pollFalJob(headers, resultUrl, params.endpointId);
+          urls = extractFalImageUrls(finalPayload);
+          if (urls.length > 0) break;
+          await sleep(wait);
+          wait = Math.min(2500, Math.floor(wait * 1.25));
+        }
+      }
+      if (urls.length === 0) {
+        throw new Error('fal.ai job dokončen, ale nevrátil obrázky.');
+      }
+      const images: string[] = [];
+      for (const url of urls) images.push(await fetchAsDataUrl(url, FAL_FETCH_AS_DATA_URL_OPTIONS));
+      const usedSeed =
+        typeof finalPayload.seed === 'number'
+          ? finalPayload.seed
+          : typeof finalPayload?.output?.seed === 'number'
+            ? finalPayload.output.seed
+            : undefined;
+      return { images, usedSeed };
+    }
+
+    if (status === 'failed' || status === 'error') {
+      const detail = payload?.error || payload?.detail || payload?.message || 'fal.ai job selhal';
+      throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    }
+
+    await sleep(delayMs);
+    delayMs = Math.min(2500, Math.floor(delayMs * 1.25));
+  }
+
+  throw new Error('fal.ai job trvá příliš dlouho (timeout).');
+}
+
 export async function runFalLoraImg2ImgQueued(params: {
   endpointId?: 'fal-ai/lora/image-to-image';
   modelName: string;
