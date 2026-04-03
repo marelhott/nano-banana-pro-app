@@ -3,11 +3,14 @@ import { AIProviderType } from './aiProvider';
 import { fetchAsDataUrl } from '../utils/fetchUtils';
 import { runReplicatePrediction } from './replicateService';
 import { runFalModelQueued } from './falService';
+import { ProviderFactory } from './providerFactory';
+import { buildHeadSwapIdentityLockPrompt } from '../utils/headSwapPrompt';
 
 const REPLICATE_EASEL_MODEL = 'easel/advanced-face-swap';
 const FAL_EASEL_ENDPOINT = 'easel-ai/advanced-face-swap';
 
 type SelfHostedFallbackId = 'facefusion' | 'reface';
+type PromptFallbackId = 'gemini-identity-edit' | 'openai-identity-edit';
 
 export type HeadSwapMode = 'face' | 'head';
 
@@ -26,8 +29,13 @@ export interface HeadSwapRequest {
 
 export interface HeadSwapResult {
   imageBase64: string;
-  provider: 'fal-easel' | 'replicate-easel' | SelfHostedFallbackId;
-  attemptedProviders: Array<'fal-easel' | 'replicate-easel' | SelfHostedFallbackId>;
+  provider: 'fal-easel' | 'replicate-easel' | SelfHostedFallbackId | PromptFallbackId;
+  attemptedProviders: Array<'fal-easel' | 'replicate-easel' | SelfHostedFallbackId | PromptFallbackId>;
+  variants?: Array<{
+    provider: 'fal-easel' | 'replicate-easel' | SelfHostedFallbackId | PromptFallbackId;
+    imageBase64: string;
+    label: string;
+  }>;
 }
 
 type SelfHostedFallbackRequest = {
@@ -174,6 +182,75 @@ async function runSelfHostedFallback(params: {
   return normalizeImageOutput(output, `${params.provider} fallback nevrátil validní výstupní obrázek.`);
 }
 
+function dataUrlToImageInput(dataUrl: string) {
+  const mimeType = dataUrl.match(/^data:([^;]+);base64,/)?.[1] || 'image/png';
+  return {
+    data: dataUrl,
+    mimeType,
+  };
+}
+
+async function runPromptFallbackVariants(params: {
+  request: HeadSwapRequest;
+  settings: ProviderSettings;
+}): Promise<HeadSwapResult | null> {
+  const geminiKey = String(params.settings[AIProviderType.GEMINI]?.apiKey || '').trim();
+  const openAiKey = String(params.settings[AIProviderType.CHATGPT]?.apiKey || '').trim();
+
+  if (!geminiKey && !openAiKey) {
+    return null;
+  }
+
+  const prompt = buildHeadSwapIdentityLockPrompt({
+    mode: params.request.mode || 'head',
+    hairSource: params.request.hairSource || 'target',
+  });
+
+  const images = [
+    dataUrlToImageInput(params.request.targetImage),
+    dataUrlToImageInput(params.request.sourceImage),
+  ];
+
+  const settled = await Promise.allSettled([
+    geminiKey
+      ? ProviderFactory.createProvider(AIProviderType.GEMINI, geminiKey)
+          .generateImage(images, prompt, 'match', 'Original', false)
+          .then((result) => ({
+            provider: 'gemini-identity-edit' as const,
+            imageBase64: result.imageBase64,
+            label: 'Gemini Identity Edit',
+          }))
+      : Promise.reject(new Error('Gemini API key missing')),
+    openAiKey
+      ? ProviderFactory.createProvider(AIProviderType.CHATGPT, openAiKey)
+          .generateImage(images, prompt, 'match', 'Original', false)
+          .then((result) => ({
+            provider: 'openai-identity-edit' as const,
+            imageBase64: result.imageBase64,
+            label: 'OpenAI Identity Edit',
+          }))
+      : Promise.reject(new Error('OpenAI API key missing')),
+  ]);
+
+  const variants = settled
+    .flatMap((attempt) => (attempt.status === 'fulfilled' ? [attempt.value] : []));
+
+  if (variants.length === 0) {
+    const detail = settled
+      .filter((attempt): attempt is PromiseRejectedResult => attempt.status === 'rejected')
+      .map((attempt) => attempt.reason?.message || 'unknown error')
+      .join(' | ');
+    throw new Error(`Gemini/OpenAI fallback selhal: ${detail}`);
+  }
+
+  return {
+    imageBase64: variants[0].imageBase64,
+    provider: variants[0].provider,
+    attemptedProviders: variants.map((variant) => variant.provider),
+    variants,
+  };
+}
+
 export async function runHeadSwap(params: {
   request: HeadSwapRequest;
   settings: ProviderSettings;
@@ -273,8 +350,29 @@ export async function runHeadSwap(params: {
     }
   }
 
-  if (!falKey && !replicateToken && !facefusionEndpoint && !refaceEndpoint) {
-    throw new Error('Head swap není nakonfigurovaný. Přidej fal.ai nebo Replicate API klíč, případně self-hosted fallback endpoint.');
+  try {
+    const promptFallback = await runPromptFallbackVariants({
+      request: {
+        ...params.request,
+        hairSource: params.request.hairSource || headSwapSettings.hairSource,
+      },
+      settings: params.settings,
+    });
+
+    if (promptFallback) {
+      attemptedProviders.push(...promptFallback.attemptedProviders);
+      return {
+        ...promptFallback,
+        attemptedProviders,
+      };
+    }
+  } catch (error: any) {
+    failureMessages.push(`Gemini/OpenAI fallback: ${error?.message || 'neznámá chyba'}`);
+    console.warn('[HeadSwap] Gemini/OpenAI fallback failed:', error);
+  }
+
+  if (!falKey && !replicateToken && !facefusionEndpoint && !refaceEndpoint && !String(params.settings[AIProviderType.GEMINI]?.apiKey || '').trim() && !String(params.settings[AIProviderType.CHATGPT]?.apiKey || '').trim()) {
+    throw new Error('Head swap není nakonfigurovaný. Přidej fal.ai, Replicate, Gemini nebo OpenAI API klíč, případně self-hosted fallback endpoint.');
   }
 
   const detail = failureMessages.filter(Boolean).join(' | ');

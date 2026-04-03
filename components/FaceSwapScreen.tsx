@@ -20,6 +20,12 @@ type FaceSwapOutput = {
   status: 'pending' | 'done';
   createdAt: number;
   detailsText?: string;
+  variants?: Array<{
+    id: string;
+    provider: string;
+    label: string;
+    dataUrl: string;
+  }>;
 };
 
 export function FaceSwapScreen(props: {
@@ -43,7 +49,7 @@ export function FaceSwapScreen(props: {
   const targetInputId = React.useMemo(() => `face-swap-target-${Math.random().toString(36).slice(2)}`, []);
 
   const headSwapSettings = React.useMemo(() => ({
-    preferredPrimary: 'replicate-easel' as const,
+    preferredPrimary: 'fal-easel' as const,
     hairSource: 'target' as const,
     sourceGender: 'default' as const,
     secondarySourceGender: 'default' as const,
@@ -56,6 +62,9 @@ export function FaceSwapScreen(props: {
 
   const configuredProviders = React.useMemo(() => {
     const providers: string[] = [];
+    if (String(providerSettings.fal?.apiKey || '').trim()) {
+      providers.push('fal Easel');
+    }
     if (String(providerSettings.replicate?.apiKey || '').trim()) {
       providers.push('Replicate Easel');
     }
@@ -65,8 +74,11 @@ export function FaceSwapScreen(props: {
     if (String(headSwapSettings.refaceEndpoint || '').trim()) {
       providers.push('REFace fallback');
     }
+    if (String(providerSettings.gemini?.apiKey || '').trim() || String(providerSettings.chatgpt?.apiKey || '').trim()) {
+      providers.push('Gemini + OpenAI fallback');
+    }
     return providers;
-  }, [headSwapSettings.facefusionEndpoint, headSwapSettings.refaceEndpoint, providerSettings.replicate?.apiKey]);
+  }, [headSwapSettings.facefusionEndpoint, headSwapSettings.refaceEndpoint, providerSettings.chatgpt?.apiKey, providerSettings.fal?.apiKey, providerSettings.gemini?.apiKey, providerSettings.replicate?.apiKey]);
 
   const pickSlotFile = React.useCallback(
     async (kind: 'source' | 'target', file: File) => {
@@ -141,35 +153,54 @@ export function FaceSwapScreen(props: {
         status: 'done',
         createdAt: Date.now(),
         detailsText: `${result.provider} • ${result.attemptedProviders.join(' → ')}`,
+        variants: (result.variants || [
+          {
+            provider: result.provider,
+            imageBase64: result.imageBase64,
+            label: result.provider,
+          },
+        ]).map((variant, index) => ({
+          id: `${pendingId}-${variant.provider}-${index}`,
+          provider: variant.provider,
+          label: variant.label,
+          dataUrl: variant.imageBase64,
+        })),
       };
       setOutput(completed);
 
       try {
-        const thumbnail = await createThumbnail(result.imageBase64, 420);
-        await saveToGallery({
-          id: pendingId,
-          url: result.imageBase64,
-          thumbnail,
-          prompt: mode === 'head' ? 'Head Swap' : 'Face Swap',
-          resolution: 'match',
-          aspectRatio: 'Original',
-          params: {
-            operation: 'head-swap',
-            mode,
-            hairSource: preserveHair,
-            provider: result.provider,
-            attemptedProviders: result.attemptedProviders,
-          },
-        });
+        for (const [index, variant] of (result.variants || [{ provider: result.provider, imageBase64: result.imageBase64, label: result.provider }]).entries()) {
+          const galleryId = index === 0 ? pendingId : `${pendingId}-${variant.provider}-${index}`;
+          const thumbnail = await createThumbnail(variant.imageBase64, 420);
+          await saveToGallery({
+            id: galleryId,
+            url: variant.imageBase64,
+            thumbnail,
+            prompt: `${mode === 'head' ? 'Head Swap' : 'Face Swap'} • ${variant.label}`,
+            resolution: 'match',
+            aspectRatio: 'Original',
+            params: {
+              operation: 'head-swap',
+              mode,
+              hairSource: preserveHair,
+              provider: variant.provider,
+              attemptedProviders: result.attemptedProviders,
+            },
+          });
+        }
       } catch (error) {
         console.error('[FaceSwap] Failed to save output to gallery:', error);
       }
 
       onToast({
         type: 'success',
-        message: result.provider === 'replicate-easel'
-          ? 'Swap hotový přes Replicate Easel.'
-          : `Swap hotový přes fallback ${result.provider}.`,
+        message: result.variants && result.variants.length > 1
+          ? 'Swap hotový. Připravil jsem Gemini i OpenAI variantu.'
+          : result.provider === 'fal-easel'
+            ? 'Swap hotový přes fal Easel.'
+            : result.provider === 'replicate-easel'
+              ? 'Swap hotový přes Replicate Easel.'
+              : `Swap hotový přes fallback ${result.provider}.`,
       });
     } catch (error: any) {
       setOutput(null);
@@ -294,7 +325,7 @@ export function FaceSwapScreen(props: {
               {configuredProviders.length > 0 ? configuredProviders.join(' → ') : 'Není nakonfigurováno'}
             </div>
             <div className="text-[9px] text-white/35">
-              Primárně běží Replicate Easel. Když selže, použijí se self-hosted fallbacky v pořadí podle nastavení.
+              Primárně běží fal Easel. Když selže, pokračuje Replicate, self-hosted fallback a nakonec Gemini + OpenAI identity edit.
             </div>
             <button
               type="button"
@@ -345,19 +376,36 @@ export function FaceSwapScreen(props: {
                 ) : null}
               </div>
 
-              {output?.dataUrl ? (
-                <button
-                  type="button"
-                  onClick={() => setLightboxUrl(output.dataUrl || null)}
-                  className="block w-full cursor-zoom-in"
-                  title="Otevřít na celou obrazovku"
-                >
-                  <img
-                    src={output.dataUrl}
-                    alt="Face swap output"
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]"
-                  />
-                </button>
+              {output?.variants?.length ? (
+                <div className={`grid gap-4 ${output.variants.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+                  {output.variants.map((variant) => (
+                    <article key={variant.id} className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">{variant.label}</div>
+                        <button
+                          type="button"
+                          onClick={() => downloadDataUrl(variant.dataUrl, `mulen-face-swap-${variant.provider}-${mode}.png`)}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
+                        >
+                          <Download className="w-4 h-4" />
+                          Stáhnout
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(variant.dataUrl)}
+                        className="block w-full cursor-zoom-in"
+                        title="Otevřít na celou obrazovku"
+                      >
+                        <img
+                          src={variant.dataUrl}
+                          alt={variant.label}
+                          className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]"
+                        />
+                      </button>
+                    </article>
+                  ))}
+                </div>
               ) : (
                 <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/45 px-6 text-center">
                   <Sparkles className="w-6 h-6 mb-3" />
