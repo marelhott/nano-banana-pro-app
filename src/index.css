@@ -446,6 +446,27 @@
     color: var(--text-primary) !important;
   }
 
+  :root[data-theme='light'] .text-\[\#0a0f0d\],
+  :root[data-theme='light'] .text-black,
+  :root[data-theme='light'] .text-ink {
+    color: var(--text-primary);
+  }
+
+  :root[data-theme='light'] .bg-\[var\(--accent\)\].text-\[var\(--accent-contrast\)\],
+  :root[data-theme='light'] .bg-\[var\(--accent\)\].text-\[\#0a0f0d\],
+  :root[data-theme='light'] .bg-\[\#7ed957\].text-\[\#0a0f0d\],
+  :root[data-theme='light'] .bg-monstera-300.text-ink,
+  :root[data-theme='light'] .bg-monstera-400.text-ink,
+  :root[data-theme='light'] .bg-monstera-500.text-ink {
+    color: var(--accent-contrast) !important;
+  }
+
+  :root[data-theme='light'] .hover\:text-\[\#0a0f0d\]:hover,
+  :root[data-theme='light'] .hover\:text-black:hover,
+  :root[data-theme='light'] .hover\:text-ink:hover {
+    color: var(--accent-contrast) !important;
+  }
+
   :root[data-theme='light'] .bg-gradient-to-t.from-black\/80,
   :root[data-theme='light'] .bg-gradient-to-t.from-black\/60 {
     --tw-gradient-from: rgba(245, 247, 242, 0.92) var(--tw-gradient-from-position) !important;

@@ -3003,7 +3003,7 @@ const App: React.FC = () => {
           <button
             onClick={() => setPromptMode('simple')}
             className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded transition-all ${promptMode === 'simple'
-              ? 'bg-[var(--accent)] text-[#0a0f0d] shadow-sm'
+              ? 'bg-[var(--accent)] text-[var(--accent-contrast)] shadow-sm'
               : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-input)]'
               }`}
           >
@@ -3012,7 +3012,7 @@ const App: React.FC = () => {
           <button
             onClick={() => setPromptMode('advanced')}
             className={`flex-1 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded transition-all ${promptMode === 'advanced'
-              ? 'bg-[var(--accent)] text-[#0a0f0d] shadow-sm'
+              ? 'bg-[var(--accent)] text-[var(--accent-contrast)] shadow-sm'
               : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-input)]'
               }`}
           >
