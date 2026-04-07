@@ -9,7 +9,7 @@
 }
 
 @theme {
-  --font-sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: 'Calling Code', 'JetBrains Mono', monospace;
   --font-serif: 'Merriweather', serif;
   --font-mono: 'Calling Code', 'JetBrains Mono', monospace;
 
