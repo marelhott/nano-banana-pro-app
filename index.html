@@ -13,24 +13,49 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Internal:wght@100&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@100..800&display=swap"
     rel="stylesheet">
+  <script>
+    (() => {
+      const storageKey = 'mulen-theme';
+      const fallback = 'dark';
+      const stored = window.localStorage.getItem(storageKey);
+      const theme = stored === 'light' || stored === 'dark' ? stored : fallback;
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+    })();
+  </script>
   <style>
     :root {
       --app-bg: #0a0f0d;
-      --font-sans: 'Calling Code', 'JetBrains Mono', monospace;
+      --app-bg-alt: #0f1512;
+      --app-text: #f3f4f6;
+      --app-dot: rgba(255, 255, 255, 0.06);
+      --app-border: rgba(255, 255, 255, 0.1);
+      --font-ui: 'Calling Code', 'JetBrains Mono', monospace;
+    }
+
+    :root[data-theme='light'] {
+      --app-bg: #f5f7f2;
+      --app-bg-alt: #fcfffa;
+      --app-text: #132219;
+      --app-dot: rgba(46, 148, 93, 0.12);
+      --app-border: rgba(19, 34, 25, 0.12);
+      --font-ui: 'Inter', 'Helvetica Neue', Arial, sans-serif;
     }
 
     html {
-      background-color: #0a0f0d !important;
+      background-color: var(--app-bg) !important;
+      color-scheme: light dark;
     }
 
     body {
-      font-family: 'Calling Code', 'JetBrains Mono', monospace !important;
-      background-color: #0a0f0d !important;
-      background-image: radial-gradient(#1f2937 1px, transparent 1px);
+      font-family: var(--font-ui) !important;
+      background-color: var(--app-bg) !important;
+      background-image: radial-gradient(var(--app-dot) 1px, transparent 1px);
       background-size: 24px 24px;
-      color: #f3f4f6;
+      color: var(--app-text);
       -webkit-font-smoothing: antialiased;
       overscroll-behavior: none;
+      transition: background-color 0.25s ease, color 0.25s ease;
     }
 
     /* Refined custom scrollbar */
@@ -153,7 +178,7 @@
   <div id="root">
     <!-- Initial Splash Screen (Removed by React hydration) -->
     <div
-      style="position: fixed; inset: 0; background-color: #0a0f0d; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;">
+      style="position: fixed; inset: 0; background-color: var(--app-bg); color: var(--app-text); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;">
       <div style="opacity: 0.8; animation: spin-slow 20s linear infinite;">
         <svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <style>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import './src/index.css'; // ENFORCE NEW STYLES
-import { Sun, Moon, Upload, X, FileJson, ArrowLeftRight, Folder, Sparkles } from 'lucide-react'; // Added icons for design
+import { Upload, X, FileJson, ArrowLeftRight, Folder, Sparkles } from 'lucide-react'; // Added icons for design
 import { ImageUpload } from './components/ImageUpload';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { analyzeImageForJsonWithAI, enhancePromptWithAI, analyzeStyleTransferWithAI } from './services/geminiService';
@@ -74,6 +74,7 @@ const RESOLUTIONS = [
 ];
 const MAX_GENERATED_IMAGES = 14;
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
+const THEME_STORAGE_KEY = 'mulen-theme';
 type GenerationQueueAction = 'generate' | 'variants' | '3ai';
 type GenerationQueueItem = {
   action: GenerationQueueAction;
@@ -87,9 +88,17 @@ const App: React.FC = () => {
   const [authFailureMessage, setAuthFailureMessage] = useState<string | null>(null);
   const [appUserId, setAppUserId] = useState<string | null>(null);
   const [isAppUserBootstrapping, setIsAppUserBootstrapping] = useState(true);
-  // Theme state
-  // Theme state - Enforced Dark Mode (v2)
-  const isDark = true;
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof document !== 'undefined') {
+      const domTheme = document.documentElement.dataset.theme;
+      if (domTheme === 'dark' || domTheme === 'light') return domTheme;
+    }
+    if (typeof window !== 'undefined') {
+      const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+      if (storedTheme === 'dark' || storedTheme === 'light') return storedTheme;
+    }
+    return 'dark';
+  });
 
 
   // AI Provider state
@@ -148,6 +157,24 @@ const App: React.FC = () => {
     setAppUserId(ensureLocalAppUserId());
     setIsAppUserBootstrapping(false);
     void ImageDatabase.getAll();
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    const themeColor = theme === 'dark' ? '#0a0f0d' : '#f5f7f2';
+
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    document.body.style.colorScheme = theme;
+    if (themeColorMeta) {
+      themeColorMeta.setAttribute('content', themeColor);
+    }
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
 
   useEffect(() => {
@@ -3605,6 +3632,8 @@ const App: React.FC = () => {
         {/* Top Header */}
         <Header
           onSettingsClick={() => setIsSettingsModalOpen(true)}
+          theme={theme}
+          onThemeToggle={toggleTheme}
         />
 
         <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">

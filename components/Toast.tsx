@@ -43,11 +43,11 @@ export const Toast: React.FC<ToastProps> = ({
     return (
         <div className="fixed top-3 right-3 z-[100] toast-pop">
             <div
-                className={`relative flex items-start gap-2.5 pl-3 pr-2.5 py-2 rounded-[12px] max-w-[360px] border border-white/10 bg-[rgba(13,15,18,0.86)] backdrop-blur-md ${theme.glow}`}
+                className={`relative flex items-start gap-2.5 pl-3 pr-2.5 py-2 rounded-[12px] max-w-[360px] border border-[var(--border-strong)] bg-[var(--bg-elevated-soft)] backdrop-blur-md ${theme.glow}`}
             >
                 <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-[12px] ${theme.bar}`} />
 
-                <div className="pt-[1px] text-white/75">
+                <div className="pt-[1px] text-[var(--text-2)]">
                     {type === 'success' && (
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                             <path
@@ -86,11 +86,11 @@ export const Toast: React.FC<ToastProps> = ({
                     )}
                 </div>
 
-                <p className="text-[10px] leading-snug text-white/70 flex-1 pr-2">{message}</p>
+                <p className="text-[10px] leading-snug text-[var(--text-2)] flex-1 pr-2">{message}</p>
 
                 <button
                     onClick={onClose}
-                    className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+                    className="p-1 rounded-md text-[var(--text-3)] hover:text-[var(--text-2)] hover:bg-[var(--bg-panel-hover)] transition-colors"
                     title="Zavřít"
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

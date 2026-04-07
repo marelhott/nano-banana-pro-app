@@ -1,12 +1,21 @@
 import React from 'react';
+import { Moon, Sun } from 'lucide-react';
 
 interface HeaderProps {
   onSettingsClick?: () => void;
   onStyleTransferClick?: () => void;
   isStyleTransferActive?: boolean;
+  theme: 'dark' | 'light';
+  onThemeToggle: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onSettingsClick, onStyleTransferClick, isStyleTransferActive }) => {
+export const Header: React.FC<HeaderProps> = ({
+  onSettingsClick,
+  onStyleTransferClick,
+  isStyleTransferActive,
+  theme,
+  onThemeToggle,
+}) => {
   return (
     <div className="flex items-center justify-between gap-3 bg-[var(--bg-main)] border-b border-[var(--border-color)] px-6 py-4 w-full select-none shrink-0 transition-colors duration-300">
       {/* Logo - Top Left */}
@@ -38,6 +47,15 @@ export const Header: React.FC<HeaderProps> = ({ onSettingsClick, onStyleTransfer
       </div>
 
       <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={onThemeToggle}
+          className="inline-flex items-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-1.5 text-[10px] font-[900] uppercase tracking-[0.24em] text-[var(--text-2)] transition-colors hover:bg-[var(--bg-panel-hover)] hover:text-[var(--text-1)]"
+          title={theme === 'dark' ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim'}
+        >
+          {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        </button>
         {onStyleTransferClick && (
           <button
             type="button"
@@ -53,7 +71,7 @@ export const Header: React.FC<HeaderProps> = ({ onSettingsClick, onStyleTransfer
         {onSettingsClick && (
           <button
             onClick={onSettingsClick}
-            className="p-1.5 hover:bg-white/5 rounded-md transition-colors text-[var(--text-3)] hover:text-[var(--text-2)]"
+            className="p-1.5 rounded-md transition-colors text-[var(--text-3)] hover:bg-[var(--bg-panel-hover)] hover:text-[var(--text-2)]"
             title="Settings"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
