@@ -6,10 +6,12 @@ import {
 } from './aiProvider';
 
 /**
- * ChatGPT (DALL·E 3) Provider Implementation
- * Uses OpenAI's DALL·E 3 API for image generation
+ * ChatGPT / OpenAI provider implementation
+ * Uses OpenAI chat + image APIs for prompt enhancement and image generation/editing.
  */
 export class ChatGPTProvider implements AIProvider {
+    private static readonly PROMPT_MODEL = 'gpt-5.2-chat-latest';
+    private static readonly IMAGE_MODEL = 'chatgpt-image-latest';
     private apiKey: string;
     private baseUrl = 'https://api.openai.com/v1';
 
@@ -34,7 +36,7 @@ export class ChatGPTProvider implements AIProvider {
                     'Authorization': `Bearer ${this.apiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'gpt-5.2-chat-latest',
+                    model: ChatGPTProvider.PROMPT_MODEL,
                     messages: [{
                         role: 'user',
                         content: `You are a professional prompt engineer. Take the following short image generation prompt and expand it into a detailed, vivid description that will produce better AI-generated images.
@@ -82,7 +84,7 @@ Enhanced prompt:`
         useGrounding: boolean = false
     ): Promise<GenerateImageResult> {
         try {
-            console.log('[ChatGPT] Generating image with GPT Image...');
+            console.log('[ChatGPT] Generating image with OpenAI image model...', ChatGPTProvider.IMAGE_MODEL);
 
             const mapSize = (): string => {
                 if (aspectRatio === '9:16' || aspectRatio === '2:3' || aspectRatio === '4:5') return '1024x1536';
@@ -102,7 +104,7 @@ Enhanced prompt:`
                     },
                     body: (() => {
                         const form = new FormData();
-                        form.set('model', 'gpt-image-1.5');
+                        form.set('model', ChatGPTProvider.IMAGE_MODEL);
                         form.set('prompt', prompt);
                         form.set('n', '1');
                         form.set('size', size);
@@ -124,7 +126,7 @@ Enhanced prompt:`
                         'Authorization': `Bearer ${this.apiKey}`
                     },
                     body: JSON.stringify({
-                        model: 'gpt-image-1.5',
+                        model: ChatGPTProvider.IMAGE_MODEL,
                         prompt,
                         n: 1,
                         size,
@@ -142,7 +144,7 @@ Enhanced prompt:`
             const imageB64 = data.data?.[0]?.b64_json || data.data?.[0]?.b64;
 
             if (!imageB64) {
-                throw new Error('No image data returned from DALL·E 3');
+                throw new Error('No image data returned from OpenAI image API');
             }
 
             console.log('[ChatGPT] Image generated successfully');

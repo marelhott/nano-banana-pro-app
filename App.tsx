@@ -1536,7 +1536,7 @@ const App: React.FC = () => {
 
     const AI_PROVIDERS: Array<{ type: AIProviderType; label: string }> = [
       { type: AIProviderType.GEMINI, label: 'Nano Banana Pro' },
-      { type: AIProviderType.CHATGPT, label: 'ChatGPT 5.2' },
+      { type: AIProviderType.CHATGPT, label: 'ChatGPT Image Latest' },
       { type: AIProviderType.REPLICATE, label: 'FLUX 2' },
     ];
 
