@@ -126,7 +126,7 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
     },
     [AIProviderType.CHATGPT]: {
         type: AIProviderType.CHATGPT,
-        name: 'ChatGPT Image Latest (OpenAI)',
+        name: 'GPT Image 2 (OpenAI)',
         icon: 'chatgpt',
         requiresApiKey: true,
         supportsGrounding: false,

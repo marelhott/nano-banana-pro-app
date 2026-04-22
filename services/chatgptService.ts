@@ -11,7 +11,7 @@ import {
  */
 export class ChatGPTProvider implements AIProvider {
     private static readonly PROMPT_MODEL = 'gpt-5.2-chat-latest';
-    private static readonly IMAGE_MODEL = 'chatgpt-image-latest';
+    private static readonly IMAGE_MODEL = 'gpt-image-2';
     private apiKey: string;
     private baseUrl = 'https://api.openai.com/v1';
 
