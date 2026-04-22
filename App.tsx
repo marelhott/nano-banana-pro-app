@@ -2855,63 +2855,106 @@ const App: React.FC = () => {
     return <ApiKeyModal onKeySelected={handleKeySelected} />;
   }
 
+  const imageModelPresets: Array<{
+    id: string;
+    provider: AIProviderType;
+    model?: NanoBananaImageModel;
+    title: string;
+    subtitle: string;
+  }> = [
+    {
+      id: 'gemini-flash',
+      provider: AIProviderType.GEMINI,
+      model: 'gemini-3.1-flash-image-preview',
+      title: 'Nano 2',
+      subtitle: 'Gemini 3.1 Flash',
+    },
+    {
+      id: 'gemini-pro',
+      provider: AIProviderType.GEMINI,
+      model: 'gemini-3-pro-image-preview',
+      title: 'Nano Pro',
+      subtitle: 'Gemini 3 Pro',
+    },
+    {
+      id: 'openai-image',
+      provider: AIProviderType.CHATGPT,
+      title: 'GPT Img 2',
+      subtitle: 'OpenAI',
+    },
+    {
+      id: 'grok-image',
+      provider: AIProviderType.GROK,
+      title: 'Grok Img',
+      subtitle: 'xAI',
+    },
+  ];
+
+  const selectedImagePresetId =
+    selectedProvider === AIProviderType.GEMINI
+      ? nanoBananaImageModel === 'gemini-3-pro-image-preview'
+        ? 'gemini-pro'
+        : 'gemini-flash'
+      : selectedProvider === AIProviderType.CHATGPT
+        ? 'openai-image'
+        : selectedProvider === AIProviderType.GROK
+          ? 'grok-image'
+          : null;
+
+  const handleImageModelPresetSelect = useCallback((presetId: string) => {
+    const preset = imageModelPresets.find((item) => item.id === presetId);
+    if (!preset) return;
+
+    const nextProvider = preset.provider;
+    const nextGeminiModel = preset.model;
+    const providerWillChange = nextProvider !== selectedProvider;
+    const geminiModelWillChange =
+      nextProvider === AIProviderType.GEMINI &&
+      !!nextGeminiModel &&
+      nextGeminiModel !== nanoBananaImageModel;
+
+    if (!providerWillChange && !geminiModelWillChange) return;
+
+    if (isGenerating || queuedGenerationCount > 0) {
+      const confirmed = window.confirm(
+        'Generování právě běží nebo čeká ve frontě. Opravdu chceš změnit provider nebo model? Nové nastavení se projeví až pro další běh.'
+      );
+      if (!confirmed) return;
+    }
+
+    setSelectedProvider(nextProvider);
+    if (nextProvider === AIProviderType.GEMINI && nextGeminiModel) {
+      setNanoBananaImageModel(nextGeminiModel);
+    }
+  }, [imageModelPresets, isGenerating, nanoBananaImageModel, queuedGenerationCount, selectedProvider, setNanoBananaImageModel, setSelectedProvider]);
+
   const renderSidebarControls = (isMobileView: boolean = false) => (
     <div className="space-y-4">
       {/* 1. Generate Button Section */}
       <div className="space-y-2">
-        {(() => {
-          const modelOptions = selectedProvider === AIProviderType.GEMINI
-            ? [
-                { value: 'gemini-3.1-flash-image-preview', label: 'Nano Banana 2 (Gemini 3.1 Flash Image Preview)' },
-                { value: 'gemini-3-pro-image-preview', label: 'Nano Banana Pro (Gemini 3 Pro Image Preview)' },
-              ]
-            : selectedProvider === AIProviderType.CHATGPT
-              ? [
-                  { value: 'gpt-image-2', label: 'GPT Image 2 (OpenAI)' },
-                ]
-              : selectedProvider === AIProviderType.GROK
-                ? [
-                    { value: 'grok-imagine-image', label: 'Grok Imagine Image (xAI)' },
-                  ]
-                : [];
-
-          const selectedModelValue = selectedProvider === AIProviderType.GEMINI
-            ? nanoBananaImageModel
-            : selectedProvider === AIProviderType.CHATGPT
-              ? 'gpt-image-2'
-              : selectedProvider === AIProviderType.GROK
-                ? 'grok-imagine-image'
-                : '';
-
-          const modelLabel = selectedProvider === AIProviderType.GEMINI
-            ? 'Gemini image model'
-            : selectedProvider === AIProviderType.CHATGPT
-              ? 'OpenAI image model'
-              : selectedProvider === AIProviderType.GROK
-                ? 'Grok image model'
-                : 'Image model';
-
-          return (
-            <div className="relative">
-              <select
-                value={selectedModelValue}
-                onChange={(e) => {
-                  if (selectedProvider !== AIProviderType.GEMINI) return;
-                  handleNanoBananaModelChange(e.target.value as NanoBananaImageModel);
-                }}
-                disabled={selectedProvider !== AIProviderType.GEMINI}
-                className="w-full h-8 rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-2 text-[10px] font-semibold tracking-wide text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-80"
-                title={modelLabel}
+        <div className="grid grid-cols-4 gap-2">
+          {imageModelPresets.map((preset) => {
+            const isActive = selectedImagePresetId === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handleImageModelPresetSelect(preset.id)}
+                className={`min-h-[64px] rounded-xl border px-2 py-2 text-center transition-all ${
+                  isActive
+                    ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)] shadow-lg shadow-[#7ed957]/20'
+                    : 'border-[var(--border-color)] bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:border-[var(--accent)]/40 hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)]'
+                }`}
+                title={`${preset.title} — ${preset.subtitle}`}
               >
-                {modelOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          );
-        })()}
+                <div className="text-[9px] font-black uppercase tracking-[0.18em] leading-tight">{preset.title}</div>
+                <div className={`mt-1 text-[8px] font-semibold leading-tight ${isActive ? 'text-[var(--accent-contrast)]/80' : 'text-[var(--text-3)]'}`}>
+                  {preset.subtitle}
+                </div>
+              </button>
+            );
+          })}
+        </div>
         <div className="flex justify-between items-baseline">
           <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
             Action
