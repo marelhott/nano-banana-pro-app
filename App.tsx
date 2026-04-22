@@ -2859,23 +2859,65 @@ const App: React.FC = () => {
     <div className="space-y-4">
       {/* 1. Generate Button Section */}
       <div className="space-y-2">
+        {(() => {
+          const modelOptions = selectedProvider === AIProviderType.GEMINI
+            ? [
+                { value: 'gemini-3.1-flash-image-preview', label: 'Nano Banana 2 (Gemini 3.1 Flash Image Preview)' },
+                { value: 'gemini-3-pro-image-preview', label: 'Nano Banana Pro (Gemini 3 Pro Image Preview)' },
+              ]
+            : selectedProvider === AIProviderType.CHATGPT
+              ? [
+                  { value: 'gpt-image-2', label: 'GPT Image 2 (OpenAI)' },
+                ]
+              : selectedProvider === AIProviderType.GROK
+                ? [
+                    { value: 'grok-imagine-image', label: 'Grok Imagine Image (xAI)' },
+                  ]
+                : [];
+
+          const selectedModelValue = selectedProvider === AIProviderType.GEMINI
+            ? nanoBananaImageModel
+            : selectedProvider === AIProviderType.CHATGPT
+              ? 'gpt-image-2'
+              : selectedProvider === AIProviderType.GROK
+                ? 'grok-imagine-image'
+                : '';
+
+          const modelLabel = selectedProvider === AIProviderType.GEMINI
+            ? 'Gemini image model'
+            : selectedProvider === AIProviderType.CHATGPT
+              ? 'OpenAI image model'
+              : selectedProvider === AIProviderType.GROK
+                ? 'Grok image model'
+                : 'Image model';
+
+          return (
+            <div className="relative">
+              <select
+                value={selectedModelValue}
+                onChange={(e) => {
+                  if (selectedProvider !== AIProviderType.GEMINI) return;
+                  handleNanoBananaModelChange(e.target.value as NanoBananaImageModel);
+                }}
+                disabled={selectedProvider !== AIProviderType.GEMINI}
+                className="w-full h-8 rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-2 text-[10px] font-semibold tracking-wide text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-80"
+                title={modelLabel}
+              >
+                {modelOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })()}
         <div className="flex justify-between items-baseline">
           <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
             Action
           </h3>
         </div>
         <div className="flex flex-col gap-2">
-          <div className="relative">
-            <select
-              value={nanoBananaImageModel}
-              onChange={(e) => handleNanoBananaModelChange(e.target.value as NanoBananaImageModel)}
-              className="w-full h-8 rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-2 text-[10px] font-semibold tracking-wide text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
-              title="Mulen Nano model (Gemini image model)"
-            >
-              <option value="gemini-3.1-flash-image-preview">Nano Banana 2 (Gemini 3.1 Flash Image Preview)</option>
-              <option value="gemini-3-pro-image-preview">Nano Banana Pro (Gemini 3 Pro Image Preview)</option>
-            </select>
-          </div>
           <button
             onClick={handleGenerate}
             disabled={!canGenerate}
