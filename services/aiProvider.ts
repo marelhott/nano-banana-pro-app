@@ -18,6 +18,7 @@ export interface ImageInput {
 export interface GenerateImageResult {
     imageBase64: string;
     groundingMetadata?: any;
+    modelId?: string;
 }
 
 export interface ProviderConfig {

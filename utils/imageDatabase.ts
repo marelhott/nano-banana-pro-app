@@ -1,5 +1,5 @@
 import { AIProviderType, ProviderSettings } from '../services/aiProvider';
-import { dataUrlToBlob, deleteImage as deleteStorageImage, uploadImage } from './supabaseStorage';
+import { dataUrlToBlob, deleteImage as deleteStorageImage, deleteSavedImageMetadataByStoragePath, saveSavedImageMetadata, uploadImage } from './supabaseStorage';
 import {
   clearSavedLibraryImages,
   getSavedLibraryImageRecord,
@@ -53,6 +53,12 @@ export class ImageDatabase {
     void (async () => {
       try {
         const storagePath = await uploadImage(blob, 'saved');
+        await saveSavedImageMetadata({
+          fileName: localRecord.fileName,
+          storagePath,
+          category: localRecord.category,
+          fileSize: localRecord.fileSize,
+        });
         await saveSavedLibraryImage({
           id: localRecord.id,
           fileName: localRecord.fileName,
@@ -85,6 +91,9 @@ export class ImageDatabase {
       void deleteStorageImage(existing.remoteStoragePath).catch((error) => {
         console.warn('[ImageDatabase] Failed to delete cloud saved image:', error);
       });
+      void deleteSavedImageMetadataByStoragePath(existing.remoteStoragePath).catch((error) => {
+        console.warn('[ImageDatabase] Failed to delete saved image metadata:', error);
+      });
     }
   }
 
@@ -97,6 +106,9 @@ export class ImageDatabase {
       if (!image.remoteStoragePath) continue;
       void deleteStorageImage(image.remoteStoragePath).catch((error) => {
         console.warn('[ImageDatabase] Failed to delete cloud saved image during clear:', error);
+      });
+      void deleteSavedImageMetadataByStoragePath(image.remoteStoragePath).catch((error) => {
+        console.warn('[ImageDatabase] Failed to delete saved image metadata during clear:', error);
       });
     }
   }

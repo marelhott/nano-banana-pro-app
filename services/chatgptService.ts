@@ -175,7 +175,8 @@ Enhanced prompt:`
 
                 return {
                     imageBase64: `data:image/png;base64,${imageB64}`,
-                    groundingMetadata: undefined
+                    groundingMetadata: undefined,
+                    modelId: imageModel
                 };
             }
             throw new Error('OpenAI image generation failed for all configured fallback models.');

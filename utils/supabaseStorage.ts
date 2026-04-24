@@ -2,7 +2,50 @@
  * Supabase Storage helper pro upload a správu obrázků
  */
 
-import { supabase, getCurrentUserId } from './supabaseClient';
+import { listGeneratedLibraryImages, listSavedLibraryImages } from './singleUserMediaStore';
+import { supabase, ensureAnonymousSession, getCurrentUserId } from './supabaseClient';
+
+let metadataBackfillPromise: Promise<{ saved: number; generated: number }> | null = null;
+
+function normalizeSavedCategory(category: 'reference' | 'style' | 'asset'): 'reference' | 'style' {
+  return category === 'style' ? 'style' : 'reference';
+}
+
+function extractStoragePathFromPublicUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+
+  try {
+    const parsed = new URL(url);
+    const marker = '/storage/v1/object/public/images/';
+    const idx = parsed.pathname.indexOf(marker);
+    if (idx === -1) return undefined;
+    return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
+  } catch {
+    return undefined;
+  }
+}
+
+async function savedMetadataExists(storagePath: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('saved_images')
+    .select('id')
+    .eq('storage_path', storagePath)
+    .limit(1);
+
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
+}
+
+async function generatedMetadataExists(storagePath: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('generated_images')
+    .select('id')
+    .eq('storage_path', storagePath)
+    .limit(1);
+
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
+}
 
 /**
  * Upload obrázku do Supabase Storage
@@ -12,16 +55,13 @@ import { supabase, getCurrentUserId } from './supabaseClient';
  * @returns Storage path
  */
 export async function uploadImage(file: File | Blob, folder: 'saved' | 'generated'): Promise<string> {
-  const userId = getCurrentUserId();
-  if (!userId) {
-    throw new Error('Uživatel není přihlášen');
-  }
+  const authUserId = await ensureAnonymousSession();
 
   // Vytvoř unikátní název souboru
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 9);
   const extension = file instanceof File ? file.name.split('.').pop() : 'jpg';
-  const fileName = `${userId}/${folder}/${timestamp}-${random}.${extension}`;
+  const fileName = `${authUserId}/${folder}/${timestamp}-${random}.${extension}`;
 
   // Upload do storage
   const { data, error } = await supabase.storage
@@ -61,6 +101,159 @@ export async function deleteImage(path: string): Promise<void> {
   if (error) {
     console.error('Delete error:', error);
     throw new Error(`Nepodařilo se smazat obrázek: ${error.message}`);
+  }
+}
+
+export async function saveSavedImageMetadata(input: {
+  fileName: string;
+  storagePath: string;
+  category: 'reference' | 'style' | 'asset';
+  fileSize?: number;
+}): Promise<void> {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('Chybí lokální app user ID pro zápis saved_images.');
+  }
+
+  await ensureAnonymousSession();
+
+  const { error } = await supabase
+    .from('saved_images')
+    .insert({
+      user_id: userId,
+      file_name: input.fileName,
+      storage_path: input.storagePath,
+      category: normalizeSavedCategory(input.category),
+      file_size: input.fileSize || 0,
+    });
+
+  if (error) {
+    console.error('saved_images insert error:', error);
+    throw new Error(`Nepodařilo se zapsat saved_images: ${error.message}`);
+  }
+}
+
+export async function saveGeneratedImageMetadata(input: {
+  prompt: string;
+  storagePath: string;
+  thumbnailPath?: string;
+  resolution?: string;
+  aspectRatio?: string;
+  params?: any;
+}): Promise<void> {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('Chybí lokální app user ID pro zápis generated_images.');
+  }
+
+  await ensureAnonymousSession();
+
+  const { error } = await supabase
+    .from('generated_images')
+    .insert({
+      user_id: userId,
+      prompt: input.prompt,
+      storage_path: input.storagePath,
+      thumbnail_path: input.thumbnailPath || null,
+      resolution: input.resolution || null,
+      aspect_ratio: input.aspectRatio || null,
+      params: input.params || {},
+    });
+
+  if (error) {
+    console.error('generated_images insert error:', error);
+    throw new Error(`Nepodařilo se zapsat generated_images: ${error.message}`);
+  }
+}
+
+export async function deleteSavedImageMetadataByStoragePath(storagePath: string): Promise<void> {
+  if (!storagePath) return;
+  await ensureAnonymousSession();
+
+  const { error } = await supabase
+    .from('saved_images')
+    .delete()
+    .eq('storage_path', storagePath);
+
+  if (error) {
+    console.error('saved_images delete error:', error);
+    throw new Error(`Nepodařilo se smazat saved_images metadata: ${error.message}`);
+  }
+}
+
+export async function deleteGeneratedImageMetadataByStoragePath(storagePath: string): Promise<void> {
+  if (!storagePath) return;
+  await ensureAnonymousSession();
+
+  const { error } = await supabase
+    .from('generated_images')
+    .delete()
+    .eq('storage_path', storagePath);
+
+  if (error) {
+    console.error('generated_images delete error:', error);
+    throw new Error(`Nepodařilo se smazat generated_images metadata: ${error.message}`);
+  }
+}
+
+export async function backfillLocalLibraryMetadataToCloud(): Promise<{ saved: number; generated: number }> {
+  if (metadataBackfillPromise) {
+    return metadataBackfillPromise;
+  }
+
+  metadataBackfillPromise = (async () => {
+    await ensureAnonymousSession();
+    const [savedItems, generatedItems] = await Promise.all([
+      listSavedLibraryImages(),
+      listGeneratedLibraryImages(),
+    ]);
+
+    let saved = 0;
+    let generated = 0;
+
+    for (const item of savedItems) {
+      const storagePath = item.remoteStoragePath || extractStoragePathFromPublicUrl(item.url);
+      if (!storagePath) continue;
+
+      const exists = await savedMetadataExists(storagePath);
+      if (exists) continue;
+
+      await saveSavedImageMetadata({
+        fileName: item.fileName,
+        storagePath,
+        category: item.category,
+        fileSize: item.fileSize,
+      });
+      saved += 1;
+    }
+
+    for (const item of generatedItems) {
+      const storagePath = item.remoteStoragePath || extractStoragePathFromPublicUrl(item.url);
+      if (!storagePath) continue;
+
+      const exists = await generatedMetadataExists(storagePath);
+      if (exists) continue;
+
+      const thumbnailPath = item.remoteThumbnailPath || extractStoragePathFromPublicUrl(item.thumbnail);
+
+      await saveGeneratedImageMetadata({
+        prompt: item.prompt,
+        storagePath,
+        thumbnailPath,
+        resolution: item.resolution,
+        aspectRatio: item.aspectRatio,
+        params: item.params,
+      });
+      generated += 1;
+    }
+
+    return { saved, generated };
+  })();
+
+  try {
+    return await metadataBackfillPromise;
+  } finally {
+    metadataBackfillPromise = null;
   }
 }
 

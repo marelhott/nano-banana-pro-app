@@ -57,6 +57,7 @@ const REMOTE_IMPORT_TIMEOUT_MS = 6000;
 let dbPromise: Promise<IDBDatabase> | null = null;
 const objectUrlCache = new Map<string, string>();
 let primedOnce = false;
+let remotePrimePromise: Promise<boolean> | null = null;
 
 function getCachedObjectUrl(key: string, blob?: Blob, fallbackUrl?: string): string {
   if (blob) {
@@ -196,68 +197,115 @@ async function primeFromAutoBackupIfNeeded(): Promise<void> {
   localStorage.setItem(BACKUP_IMPORT_FLAG, '1');
 }
 
-async function primeFromRemoteLibraryIfAllowed(): Promise<void> {
-  if (typeof window === 'undefined') return;
-  if (!shouldRetryTimedMigration(REMOTE_IMPORT_ATTEMPT_KEY, REMOTE_IMPORT_COOLDOWN_MS)) return;
+async function getLocalLibraryCounts(): Promise<{ saved: number; generated: number }> {
+  const [saved, generated] = await Promise.all([
+    getAllRecords<SavedRecord>(SAVED_STORE),
+    getAllRecords<GeneratedRecord>(GENERATED_STORE),
+  ]);
 
-  markTimedMigrationAttempt(REMOTE_IMPORT_ATTEMPT_KEY);
+  return {
+    saved: saved.length,
+    generated: generated.length,
+  };
+}
 
-  try {
-    const response = await withTimeout(
-      fetch('/api/library-list', { headers: { 'Cache-Control': 'no-store' } }),
-      REMOTE_IMPORT_TIMEOUT_MS,
-      'remote library import'
-    );
+async function primeFromRemoteLibraryIfAllowed(options?: { force?: boolean }): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  const force = Boolean(options?.force);
 
-    const payload = await response.json() as RemoteLibraryPayload;
-    if (!response.ok || payload?.success === false) return;
-
-    const existingSaved = new Set((await getAllRecords<SavedRecord>(SAVED_STORE)).map((item) => item.id));
-    const existingGenerated = new Set((await getAllRecords<GeneratedRecord>(GENERATED_STORE)).map((item) => item.id));
-
-    for (const image of payload.saved || []) {
-      if (!image?.id || existingSaved.has(image.id) || !image.url) continue;
-
-      await putRecord<SavedRecord>(SAVED_STORE, {
-        id: image.id,
-        fileName: image.fileName,
-        fileType: image.fileType,
-        fileSize: image.fileSize,
-        timestamp: image.timestamp,
-        category: image.category,
-        sourceUrl: image.url,
-      });
-    }
-
-    for (const image of payload.generated || []) {
-      if (!image?.id || existingGenerated.has(image.id) || !image.url) continue;
-
-      await putRecord<GeneratedRecord>(GENERATED_STORE, {
-        id: image.id,
-        prompt: image.prompt,
-        timestamp: image.timestamp,
-        resolution: image.resolution,
-        aspectRatio: image.aspectRatio,
-        sourceUrl: image.url,
-        thumbnailUrl: image.thumbnail,
-        params: image.params,
-      });
-    }
-  } catch (error) {
-    console.warn('[single-user-library] Remote import skipped:', error);
+  if (!force && !shouldRetryTimedMigration(REMOTE_IMPORT_ATTEMPT_KEY, REMOTE_IMPORT_COOLDOWN_MS)) {
+    return false;
   }
+
+  if (remotePrimePromise) {
+    return remotePrimePromise;
+  }
+
+  remotePrimePromise = (async () => {
+    markTimedMigrationAttempt(REMOTE_IMPORT_ATTEMPT_KEY);
+
+    try {
+      const response = await withTimeout(
+        fetch('/api/library-list', { headers: { 'Cache-Control': 'no-store' } }),
+        REMOTE_IMPORT_TIMEOUT_MS,
+        'remote library import'
+      );
+
+      const payload = await response.json() as RemoteLibraryPayload;
+      if (!response.ok || payload?.success === false) return false;
+
+      const existingSaved = new Set((await getAllRecords<SavedRecord>(SAVED_STORE)).map((item) => item.id));
+      const existingGenerated = new Set((await getAllRecords<GeneratedRecord>(GENERATED_STORE)).map((item) => item.id));
+      let importedAny = false;
+
+      for (const image of payload.saved || []) {
+        if (!image?.id || existingSaved.has(image.id) || !image.url) continue;
+
+        await putRecord<SavedRecord>(SAVED_STORE, {
+          id: image.id,
+          fileName: image.fileName,
+          fileType: image.fileType,
+          fileSize: image.fileSize,
+          timestamp: image.timestamp,
+          category: image.category,
+          sourceUrl: image.url,
+        });
+        importedAny = true;
+      }
+
+      for (const image of payload.generated || []) {
+        if (!image?.id || existingGenerated.has(image.id) || !image.url) continue;
+
+        await putRecord<GeneratedRecord>(GENERATED_STORE, {
+          id: image.id,
+          prompt: image.prompt,
+          timestamp: image.timestamp,
+          resolution: image.resolution,
+          aspectRatio: image.aspectRatio,
+          sourceUrl: image.url,
+          thumbnailUrl: image.thumbnail,
+          params: image.params,
+        });
+        importedAny = true;
+      }
+
+      return importedAny;
+    } catch (error) {
+      console.warn('[single-user-library] Remote import skipped:', error);
+      return false;
+    } finally {
+      remotePrimePromise = null;
+    }
+  })();
+
+  return remotePrimePromise;
 }
 
 async function ensurePrimed(): Promise<void> {
   if (primedOnce) return;
   primedOnce = true;
   await primeFromAutoBackupIfNeeded();
+  const counts = await getLocalLibraryCounts();
+
+  if (counts.saved === 0 && counts.generated === 0) {
+    await primeFromRemoteLibraryIfAllowed({ force: true });
+    return;
+  }
+
   void primeFromRemoteLibraryIfAllowed();
 }
 
 export async function listSavedLibraryImages(): Promise<SingleUserSavedImage[]> {
   await ensurePrimed();
-  const records = await getAllRecords<SavedRecord>(SAVED_STORE);
+  let records = await getAllRecords<SavedRecord>(SAVED_STORE);
+
+  if (records.length === 0) {
+    const counts = await getLocalLibraryCounts();
+    if (counts.saved === 0 && counts.generated === 0) {
+      await primeFromRemoteLibraryIfAllowed({ force: true });
+      records = await getAllRecords<SavedRecord>(SAVED_STORE);
+    }
+  }
 
   return records
     .map((record) => ({
@@ -275,7 +323,15 @@ export async function listSavedLibraryImages(): Promise<SingleUserSavedImage[]> 
 
 export async function listGeneratedLibraryImages(): Promise<SingleUserGeneratedImage[]> {
   await ensurePrimed();
-  const records = await getAllRecords<GeneratedRecord>(GENERATED_STORE);
+  let records = await getAllRecords<GeneratedRecord>(GENERATED_STORE);
+
+  if (records.length === 0) {
+    const counts = await getLocalLibraryCounts();
+    if (counts.saved === 0 && counts.generated === 0) {
+      await primeFromRemoteLibraryIfAllowed({ force: true });
+      records = await getAllRecords<GeneratedRecord>(GENERATED_STORE);
+    }
+  }
 
   return records
     .map((record) => ({

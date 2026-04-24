@@ -13,7 +13,7 @@ import { SavedPromptsDropdown } from './components/SavedPromptsDropdown';
 import { slugify } from './utils/stringUtils.ts';
 import { GalleryImage, saveToGallery, createThumbnail } from './utils/galleryDB';
 import { ImageDatabase } from './utils/imageDatabase';
-import { urlToDataUrl } from './utils/supabaseStorage';
+import { backfillLocalLibraryMetadataToCloud, urlToDataUrl } from './utils/supabaseStorage';
 import JSZip from 'jszip';
 import { ApiUsagePanel } from './components/ApiUsagePanel';
 import { CollectionsModal } from './components/CollectionsModal';
@@ -151,6 +151,7 @@ const App: React.FC = () => {
   // Refs
   const galleryPanelRef = useRef<any>(null);
   const [analyzingImageId, setAnalyzingImageId] = useState<string | null>(null);
+  const hasTriggeredCloudMetadataBackfill = useRef(false);
 
   useEffect(() => {
     setIsAppUserBootstrapping(true);
@@ -247,6 +248,23 @@ const App: React.FC = () => {
         setAuthFailureMessage(null);
         setIsSupabaseReady(true);
         void ImageDatabase.getAll();
+        if (!hasTriggeredCloudMetadataBackfill.current) {
+          hasTriggeredCloudMetadataBackfill.current = true;
+          void backfillLocalLibraryMetadataToCloud()
+            .then((result) => {
+              if (cancelled) return;
+              if (result.saved > 0 || result.generated > 0) {
+                setToast({
+                  message: `Obnoveno do cloudu: ${result.saved} ulozenych a ${result.generated} generovanych obrazku.`,
+                  type: 'success',
+                });
+              }
+            })
+            .catch((error) => {
+              hasTriggeredCloudMetadataBackfill.current = false;
+              console.warn('[Cloud Backfill] Metadata sync failed:', error);
+            });
+        }
         void runSmokeIfRequested();
       } catch (error: any) {
         if (cancelled) return;
@@ -1434,12 +1452,13 @@ const App: React.FC = () => {
               state.aspectRatio,
               useGrounding
             );
+            const recipeWithModel = result.modelId ? { ...recipe, modelId: result.modelId } : recipe;
 
             setState(prev => ({
               ...prev,
               generatedImages: prev.generatedImages.map(img =>
                 img.id === newId
-                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata, recipe }
+                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata, recipe: recipeWithModel }
                   : img
               )
             }));
@@ -1453,7 +1472,7 @@ const App: React.FC = () => {
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
                 thumbnail,
-                params: recipe
+                params: recipeWithModel
               });
               console.log(`[3 Variants] Variant ${i + 1} saved to gallery`);
             } catch (err) {
@@ -1950,13 +1969,14 @@ const App: React.FC = () => {
               effectiveAspectRatio,
               useGrounding
             );
+            const recipeWithModel = result.modelId ? { ...recipe, modelId: result.modelId } : recipe;
 
 
             setState(prev => ({
               ...prev,
               generatedImages: prev.generatedImages.map(img =>
                 img.id === imageData.id
-                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata, prompt: basePrompt, recipe, lineage }
+                  ? { ...img, status: 'success', url: result.imageBase64, groundingMetadata: result.groundingMetadata, prompt: basePrompt, recipe: recipeWithModel, lineage }
                   : img
               ),
             }));
@@ -1970,7 +1990,7 @@ const App: React.FC = () => {
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
                 thumbnail,
-                params: recipe,
+                params: recipeWithModel,
               });
               console.log('[Gallery] Image saved successfully');
               // Refresh gallery to show new image
@@ -2331,6 +2351,7 @@ const App: React.FC = () => {
                 state.aspectRatio,
                 useGrounding
               );
+              const recipeWithModel = result.modelId ? { ...recipe, modelId: result.modelId } : recipe;
 
               // Update state with generated image
               setState(prev => ({
@@ -2342,7 +2363,7 @@ const App: React.FC = () => {
                       status: 'success' as const,
                       url: result.imageBase64,
                       timestamp: Date.now(),
-                      recipe,
+                      recipe: recipeWithModel,
                     }
                     : img
                 ),
@@ -2356,7 +2377,7 @@ const App: React.FC = () => {
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
                 thumbnail,
-                params: recipe
+                params: recipeWithModel
               });
 
               processedCount++;
@@ -3925,7 +3946,7 @@ const App: React.FC = () => {
                             onContextMenu={(e) => image.status === 'success' && handleImageContextMenu(e, image.id)}
                           >
                             <div
-                              className="relative bg-black/50 cursor-zoom-in aspect-square overflow-hidden"
+                              className="relative bg-[var(--bg-panel)] cursor-zoom-in aspect-square overflow-hidden"
                               onClick={() => setSelectedImage(image)}
                             >
                               {/* Image Rendering Logic - Simplified for brevity, assume existing mostly works but ensure styles are updated */}
@@ -3962,7 +3983,7 @@ const App: React.FC = () => {
                                 image.url && (
                                   <img
                                     src={image.url}
-                                    className={`w-full h-full object-contain bg-black/30 ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
+                                    className={`w-full h-full object-contain bg-[var(--bg-contrast)] ${image.isEditing ? 'blur-sm scale-105' : ''} transition-all duration-500`}
                                     decoding="sync"
                                     style={{ imageRendering: '-webkit-optimize-contrast' }}
                                   />
@@ -3980,10 +4001,10 @@ const App: React.FC = () => {
                             </div>
 
                             {/* Card Footer */}
-                            < div className="px-4 py-3 flex flex-col gap-2 border-t border-white/5 bg-transparent" >
+                            < div className="px-4 py-3 flex flex-col gap-2 border-t border-[color:var(--border-color)] bg-[var(--bg-card)]" >
                               {/* Prompt + Actions Row */}
                               < div className="flex items-center gap-2" >
-                                <p className="text-[9px] font-medium text-white/75 leading-snug line-clamp-1 flex-1" title={image.prompt}>
+                                <p className="text-[9px] font-medium text-[var(--text-muted)] leading-snug line-clamp-1 flex-1" title={image.prompt}>
                                   {image.prompt}
                                 </p>
                                 <div className="flex gap-1 shrink-0">
@@ -3994,7 +4015,7 @@ const App: React.FC = () => {
                                       navigator.clipboard.writeText(image.prompt);
                                       setToast({ message: 'Prompt zkopírován', type: 'success' });
                                     }}
-                                    className="p-1.5 text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors"
+                                    className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-highlight)] rounded transition-colors"
                                     title="Kopírovat prompt"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
@@ -4003,7 +4024,7 @@ const App: React.FC = () => {
                                   {/* Repopulate */}
                                   <button
                                     onClick={(e) => { e.stopPropagation(); handleRepopulate(image); }}
-                                    className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors"
+                                    className="p-1.5 text-[var(--text-secondary)] hover:text-blue-500 hover:bg-blue-500/10 rounded transition-colors"
                                     title="Repopulate (nahrát do editoru)"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -4015,7 +4036,7 @@ const App: React.FC = () => {
                                       href={image.url}
                                       download
                                       onClick={(e) => e.stopPropagation()}
-                                      className="p-1.5 text-gray-500 hover:text-[#7ed957] hover:bg-[#7ed957]/10 rounded transition-colors"
+                                      className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[color:var(--selection-surface)] rounded transition-colors"
                                       title="Stáhnout"
                                     >
                                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -4032,7 +4053,7 @@ const App: React.FC = () => {
                                       }));
                                       setToast({ message: 'Obrázek smazán', type: 'success' });
                                     }}
-                                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
+                                    className="p-1.5 text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
                                     title="Smazat"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -4057,7 +4078,7 @@ const App: React.FC = () => {
                                     </a>
                                   ))}
                                   {image.groundingMetadata.length > 3 && (
-                                    <span className="text-[9px] text-gray-500 px-2 py-0.5">
+                                    <span className="text-[9px] text-[var(--text-secondary)] px-2 py-0.5">
                                       +{image.groundingMetadata.length - 3} více
                                     </span>
                                   )}
@@ -4067,14 +4088,14 @@ const App: React.FC = () => {
 
                             {/* Inline Edit Section */}
                             {image.status === 'success' && image.url && (
-                              <div className="px-4 py-3 border-t border-gray-800/50 bg-[#0a0f0d]/30 space-y-2.5">
+                              <div className="px-4 py-3 border-t border-[color:var(--border-color)] bg-[var(--bg-card)] space-y-2.5">
                                 {/* Header Row */}
                                 <div className="flex items-center justify-between px-1">
                                   <div className="flex items-center gap-1.5">
                                     <svg className="w-3 h-3 text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
-                                    <span className="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-[var(--text-secondary)]">
                                       Upravit prompt
                                     </span>
                                   </div>
@@ -4090,7 +4111,7 @@ const App: React.FC = () => {
                                             return next;
                                           });
                                         }}
-                                        className="px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                                        className="px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded bg-[var(--surface-highlight)] hover:bg-[var(--surface-highlight-strong)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                                         title="Vrátit původní text"
                                       >
                                         Vrátit
@@ -4121,7 +4142,7 @@ const App: React.FC = () => {
                                             })
                                           }));
                                         }}
-                                        className="px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                                        className="px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded bg-[var(--surface-highlight)] hover:bg-[var(--surface-highlight-strong)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                                         title="Vrátit obrázek na původní verzi"
                                       >
                                         Původní
@@ -4139,7 +4160,7 @@ const App: React.FC = () => {
                                       }}
                                       className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${showReferenceUpload[image.id]
                                         ? 'bg-[#7ed957] text-[#0a0f0d] border border-[#7ed957]'
-                                        : 'bg-[#0f1512] text-gray-500 hover:text-gray-300 border border-gray-800 hover:border-gray-700'
+                                        : 'bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[color:var(--border-color)] hover:border-[color:var(--border-strong)]'
                                         }`}
                                       title="Přidat referenční obrázky"
                                     >
@@ -4169,14 +4190,14 @@ const App: React.FC = () => {
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   placeholder="Popište úpravy a stiskněte Enter..."
-                                  className="w-full min-h-[80px] bg-[#0f1512] border border-gray-800 hover:border-gray-700 focus:border-[#7ed957] rounded-md p-2 text-xs text-gray-200 placeholder-gray-600 focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
+                                  className="w-full min-h-[80px] bg-[var(--bg-elevated)] border border-[color:var(--border-color)] hover:border-[color:var(--border-strong)] focus:border-[var(--accent)] rounded-md p-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-soft)] focus:ring-0 outline-none transition-all resize-none custom-scrollbar"
                                 />
 
                                 {/* Inline Reference Images (Conditional) */}
                                 {showReferenceUpload[image.id] && (
-                                  <div className="grid grid-cols-4 gap-1 p-2 bg-[#0a0f0d] border border-gray-800 rounded-md">
+                                  <div className="grid grid-cols-4 gap-1 p-2 bg-[var(--bg-elevated)] border border-[color:var(--border-color)] rounded-md">
                                     {(inlineEditStates[image.id]?.referenceImages || []).map((img, idx) => (
-                                      <div key={idx} className="relative group aspect-square rounded overflow-hidden bg-gray-900 border border-gray-800">
+                                      <div key={idx} className="relative group aspect-square rounded overflow-hidden bg-[var(--bg-panel)] border border-[color:var(--border-color)]">
                                         <img src={img.url} className="w-full h-full object-cover" alt={`Ref ${idx}`} />
                                         <button
                                           onClick={(e) => {
@@ -4195,8 +4216,8 @@ const App: React.FC = () => {
                                         </button>
                                       </div>
                                     ))}
-                                    <label className="flex items-center justify-center aspect-square rounded border border-dashed border-gray-700 hover:border-gray-600 hover:bg-gray-900/50 cursor-pointer transition-colors">
-                                      <span className="text-gray-500">+</span>
+                                    <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[color:var(--border-strong)] hover:border-[var(--accent)] hover:bg-[var(--surface-highlight)] cursor-pointer transition-colors">
+                                      <span className="text-[var(--text-secondary)]">+</span>
                                       <input
                                         type="file"
                                         multiple

@@ -1,5 +1,5 @@
 import { clearGeneratedLibraryImages, getGeneratedLibraryImageRecord, listGeneratedLibraryImages, removeGeneratedLibraryImage, resolveBlobFromSource, saveGeneratedLibraryImage, type SingleUserGeneratedImage } from './singleUserMediaStore';
-import { dataUrlToBlob, deleteImage as deleteStorageImage, uploadImage } from './supabaseStorage';
+import { dataUrlToBlob, deleteGeneratedImageMetadataByStoragePath, deleteImage as deleteStorageImage, saveGeneratedImageMetadata, uploadImage } from './supabaseStorage';
 import { dispatchCloudSyncEvent } from './cloudSyncEvents';
 
 export interface GalleryImage extends SingleUserGeneratedImage {}
@@ -58,6 +58,15 @@ export const saveToGallery = async (image: SaveToGalleryInput): Promise<void> =>
         thumbnailPath = await uploadImage(thumbBlob, 'generated');
       }
 
+      await saveGeneratedImageMetadata({
+        prompt: localRecord.prompt,
+        storagePath,
+        thumbnailPath,
+        resolution: localRecord.resolution,
+        aspectRatio: localRecord.aspectRatio,
+        params: localRecord.params,
+      });
+
       await saveGeneratedLibraryImage({
         id: localRecord.id,
         prompt: localRecord.prompt,
@@ -100,6 +109,9 @@ export const deleteImage = async (id: string): Promise<void> => {
     void deleteStorageImage(existing.remoteStoragePath).catch((error) => {
       console.warn('[Gallery] Failed to delete cloud generated image:', error);
     });
+    void deleteGeneratedImageMetadataByStoragePath(existing.remoteStoragePath).catch((error) => {
+      console.warn('[Gallery] Failed to delete generated image metadata:', error);
+    });
   }
 
   if (existing?.remoteThumbnailPath) {
@@ -117,6 +129,9 @@ export const clearGallery = async (): Promise<void> => {
     if (image.remoteStoragePath) {
       void deleteStorageImage(image.remoteStoragePath).catch((error) => {
         console.warn('[Gallery] Failed to delete cloud generated image during clear:', error);
+      });
+      void deleteGeneratedImageMetadataByStoragePath(image.remoteStoragePath).catch((error) => {
+        console.warn('[Gallery] Failed to delete generated image metadata during clear:', error);
       });
     }
     if (image.remoteThumbnailPath) {
