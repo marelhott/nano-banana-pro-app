@@ -226,7 +226,13 @@ async function primeFromRemoteLibraryIfAllowed(options?: { force?: boolean }): P
 
     try {
       const response = await withTimeout(
-        fetch('/api/library-list', { headers: { 'Cache-Control': 'no-store' } }),
+        fetch('/api/library-list', {
+          headers: {
+            'Cache-Control': 'no-store',
+            'X-App-User-Id': String(localStorage.getItem('userId') || '').trim(),
+            'X-Auth-User-Id': String(localStorage.getItem('supabaseAuthUserId') || '').trim(),
+          }
+        }),
         REMOTE_IMPORT_TIMEOUT_MS,
         'remote library import'
       );

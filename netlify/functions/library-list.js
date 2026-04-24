@@ -6,6 +6,7 @@ const JSON_HEADERS = {
 };
 const STORAGE_LOOKBACK_DAYS = 14;
 const STORAGE_LIST_PAGE_SIZE = 100;
+const ROOT_LIST_PAGE_SIZE = 25;
 
 function json(statusCode, payload) {
   return {
@@ -85,21 +86,26 @@ async function listAllStorageObjects(supabase, prefix) {
   return all;
 }
 
-async function loadStorageFallbackLibrary(supabase) {
-  const { data: roots, error: rootsError } = await supabase.storage.from('images').list('', {
-    limit: STORAGE_LIST_PAGE_SIZE,
-    sortBy: { column: 'name', order: 'asc' },
-  });
+async function loadStorageFallbackLibrary(supabase, candidateRoots) {
+  const uniqueRoots = Array.from(new Set((candidateRoots || []).map((value) => String(value || '').trim()).filter(Boolean)));
+  let roots = uniqueRoots;
 
-  if (rootsError) throw rootsError;
+  if (roots.length === 0) {
+    const { data: listedRoots, error: rootsError } = await supabase.storage.from('images').list('', {
+      limit: ROOT_LIST_PAGE_SIZE,
+      sortBy: { column: 'name', order: 'asc' },
+    });
+
+    if (rootsError) throw rootsError;
+    roots = (listedRoots || []).map((root) => String(root?.name || '').trim()).filter(Boolean);
+  }
 
   const cutoff = Date.now() - STORAGE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
   const saved = [];
   const generated = [];
 
   for (const root of roots || []) {
-    if (!root?.name) continue;
-    const userRoot = String(root.name).replace(/^\/+|\/+$/g, '');
+    const userRoot = String(root || '').replace(/^\/+|\/+$/g, '');
     if (!userRoot) continue;
 
     for (const folder of ['saved', 'generated']) {
@@ -133,6 +139,9 @@ exports.handler = async (event) => {
 
   const url = String(process.env.VITE_SUPABASE_URL || '').trim();
   const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const appUserId = String(event.headers['x-app-user-id'] || event.headers['X-App-User-Id'] || '').trim();
+  const authUserId = String(event.headers['x-auth-user-id'] || event.headers['X-Auth-User-Id'] || '').trim();
+  const candidateRoots = [appUserId, authUserId].filter(Boolean);
 
   if (!url || !serviceRoleKey) {
     return json(200, { success: false, saved: [], generated: [] });
@@ -143,10 +152,15 @@ exports.handler = async (event) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const [savedRes, generatedRes] = await Promise.all([
-      supabase.from('saved_images').select('*').order('created_at', { ascending: false }),
-      supabase.from('generated_images').select('*').order('created_at', { ascending: false }),
-    ]);
+    let savedQuery = supabase.from('saved_images').select('*').order('created_at', { ascending: false }).limit(500);
+    let generatedQuery = supabase.from('generated_images').select('*').order('created_at', { ascending: false }).limit(500);
+
+    if (appUserId) {
+      savedQuery = savedQuery.eq('user_id', appUserId);
+      generatedQuery = generatedQuery.eq('user_id', appUserId);
+    }
+
+    const [savedRes, generatedRes] = await Promise.all([savedQuery, generatedQuery]);
 
     if (savedRes.error) throw savedRes.error;
     if (generatedRes.error) throw generatedRes.error;
@@ -176,7 +190,7 @@ exports.handler = async (event) => {
       storagePath: row.storage_path,
     }));
 
-    const fallback = await loadStorageFallbackLibrary(supabase);
+    const fallback = await loadStorageFallbackLibrary(supabase, candidateRoots);
     const savedByPath = new Map(saved.map((item) => [item.storagePath, item]));
     const generatedByPath = new Map(generated.map((item) => [item.storagePath, item]));
 
