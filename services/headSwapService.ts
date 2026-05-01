@@ -197,10 +197,6 @@ async function runPromptFallbackVariants(params: {
   const geminiKey = String(params.settings[AIProviderType.GEMINI]?.apiKey || '').trim();
   const openAiKey = String(params.settings[AIProviderType.CHATGPT]?.apiKey || '').trim();
 
-  if (!geminiKey && !openAiKey) {
-    return null;
-  }
-
   const prompt = buildHeadSwapIdentityLockPrompt({
     mode: params.request.mode || 'head',
     hairSource: params.request.hairSource || 'target',
@@ -212,24 +208,20 @@ async function runPromptFallbackVariants(params: {
   ];
 
   const settled = await Promise.allSettled([
-    geminiKey
-      ? ProviderFactory.createProvider(AIProviderType.GEMINI, geminiKey)
-          .generateImage(images, prompt, 'match', 'Original', false)
-          .then((result) => ({
-            provider: 'gemini-identity-edit' as const,
-            imageBase64: result.imageBase64,
-            label: 'Gemini Identity Edit',
-          }))
-      : Promise.reject(new Error('Gemini API key missing')),
-    openAiKey
-      ? ProviderFactory.createProvider(AIProviderType.CHATGPT, openAiKey)
-          .generateImage(images, prompt, 'match', 'Original', false)
-          .then((result) => ({
-            provider: 'openai-identity-edit' as const,
-            imageBase64: result.imageBase64,
-            label: 'OpenAI Identity Edit',
-          }))
-      : Promise.reject(new Error('OpenAI API key missing')),
+    ProviderFactory.createProvider(AIProviderType.GEMINI, geminiKey)
+      .generateImage(images, prompt, 'match', 'Original', false)
+      .then((result) => ({
+        provider: 'gemini-identity-edit' as const,
+        imageBase64: result.imageBase64,
+        label: 'Gemini Identity Edit',
+      })),
+    ProviderFactory.createProvider(AIProviderType.CHATGPT, openAiKey)
+      .generateImage(images, prompt, 'match', 'Original', false)
+      .then((result) => ({
+        provider: 'openai-identity-edit' as const,
+        imageBase64: result.imageBase64,
+        label: 'OpenAI Identity Edit',
+      })),
   ]);
 
   const variants = settled
@@ -371,8 +363,8 @@ export async function runHeadSwap(params: {
     console.warn('[HeadSwap] Gemini/OpenAI fallback failed:', error);
   }
 
-  if (!falKey && !replicateToken && !facefusionEndpoint && !refaceEndpoint && !String(params.settings[AIProviderType.GEMINI]?.apiKey || '').trim() && !String(params.settings[AIProviderType.CHATGPT]?.apiKey || '').trim()) {
-    throw new Error('Head swap není nakonfigurovaný. Přidej fal.ai, Replicate, Gemini nebo OpenAI API klíč, případně self-hosted fallback endpoint.');
+  if (!falKey && !replicateToken && !facefusionEndpoint && !refaceEndpoint) {
+    throw new Error('Head swap selhal i přes serverový Gemini/OpenAI fallback. Zkontroluj Netlify env klíče nebo přidej fal.ai/Replicate/self-hosted fallback.');
   }
 
   const detail = failureMessages.filter(Boolean).join(' | ');

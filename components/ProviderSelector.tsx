@@ -10,13 +10,9 @@ interface ProviderSelectorProps {
 export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
     selectedProvider,
     onChange,
-    settings
+    settings: _settings
 }) => {
     const providers = Object.values(AIProviderType);
-    const selectedMetadata = PROVIDER_METADATA[selectedProvider];
-    const hasApiKey = (provider: AIProviderType) => {
-        return !!settings[provider]?.apiKey;
-    };
 
     return (
         <div className="relative">
@@ -32,19 +28,14 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
                 >
                     {providers.map((provider) => {
                         const metadata = PROVIDER_METADATA[provider];
-                        const hasKey = hasApiKey(provider);
                         return (
                             <option key={provider} value={provider}>
-                                {metadata.name}{hasKey ? '' : ' — Bez klíče'}
+                                {metadata.name}
                             </option>
                         );
                     })}
                 </select>
             </div>
-
-            {!hasApiKey(selectedProvider) && (
-                <div className="mt-1 text-[9px] font-bold uppercase tracking-wider text-amber-300/70">Bez klíče</div>
-            )}
         </div>
     );
 };

@@ -4,6 +4,7 @@ import {
     ImageInput,
     GenerateImageResult
 } from './aiProvider';
+import { serverProviderProxy } from './serverProviderProxy';
 
 /**
  * ChatGPT / OpenAI provider implementation
@@ -42,6 +43,10 @@ export class ChatGPTProvider implements AIProvider {
     }
 
     async enhancePrompt(shortPrompt: string): Promise<string> {
+        if (!this.apiKey.trim()) {
+            return serverProviderProxy.enhancePrompt(AIProviderType.CHATGPT, shortPrompt);
+        }
+
         try {
             const response = await fetch(`${this.baseUrl}/chat/completions`, {
                 method: 'POST',
@@ -97,6 +102,17 @@ Enhanced prompt:`
         aspectRatio?: string,
         useGrounding: boolean = false
     ): Promise<GenerateImageResult> {
+        if (!this.apiKey.trim()) {
+            return serverProviderProxy.generateImage({
+                provider: AIProviderType.CHATGPT,
+                images,
+                prompt,
+                resolution,
+                aspectRatio,
+                useGrounding,
+            });
+        }
+
         try {
             const mapSize = (): string => {
                 if (aspectRatio === '9:16' || aspectRatio === '2:3' || aspectRatio === '4:5') return '1024x1536';

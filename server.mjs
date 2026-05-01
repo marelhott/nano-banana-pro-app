@@ -3,6 +3,10 @@ import { createProxyMiddleware } from 'http-proxy-middleware'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const providerGenerateFunction = require('./netlify/functions/provider-generate-core.cjs')
 
 const HOST_PORT = Number(process.env.PORT || 3000)
 const WORKFLOW_PORT = Number(process.env.WORKFLOW_PORT || 3001)
@@ -187,6 +191,22 @@ async function start() {
       return res.status(200).json({ success: true })
     } catch {
       return res.status(500).json({ success: false, error: 'Provider key probe failed' })
+    }
+  })
+
+  app.post('/api/provider-generate', async (req, res) => {
+    try {
+      const response = await providerGenerateFunction.handler({
+        httpMethod: 'POST',
+        body: JSON.stringify(req.body || {}),
+      })
+      res.status(response.statusCode || 500)
+      for (const [key, value] of Object.entries(response.headers || {})) {
+        res.setHeader(key, value)
+      }
+      return res.send(response.body)
+    } catch (error) {
+      return res.status(500).json({ success: false, error: error?.message || 'Provider generation failed' })
     }
   })
 

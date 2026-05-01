@@ -5,6 +5,7 @@ import {
   ImageInput,
   GenerateImageResult
 } from './aiProvider';
+import { serverProviderProxy } from './serverProviderProxy';
 
 /**
  * Gemini AI Provider Implementation
@@ -16,11 +17,11 @@ export class GeminiProvider implements AIProvider {
   private static readonly IMAGE_FALLBACK_MODEL = 'gemini-2.5-flash-image';
   private static readonly TEXT_MODEL = 'gemini-3-flash-preview';
   private apiKey: string;
-  private ai: GoogleGenAI;
+  private ai: GoogleGenAI | null;
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.ai = new GoogleGenAI({ apiKey: this.apiKey });
+    this.ai = this.apiKey.trim() ? new GoogleGenAI({ apiKey: this.apiKey }) : null;
   }
 
   getName(): string {
@@ -33,6 +34,10 @@ export class GeminiProvider implements AIProvider {
 
 
   async enhancePrompt(shortPrompt: string): Promise<string> {
+    if (!this.ai) {
+      return serverProviderProxy.enhancePrompt(AIProviderType.GEMINI, shortPrompt);
+    }
+
     try {
       const enhancementInstruction = `Jsi profesionální prompt engineer. Vezmi následující krátký prompt pro generování obrázků a rozšiř ho do detailního, živého popisu, který vytvoří lepší AI-generované obrázky.
 
@@ -73,6 +78,10 @@ Vylepšený prompt:`;
    * Each variant uses a different approach while maintaining the same core content
    */
   async generate3PromptVariants(simplePrompt: string): Promise<Array<{ variant: string; approach: string; prompt: string }>> {
+    if (!this.ai) {
+      return serverProviderProxy.generate3PromptVariants(simplePrompt);
+    }
+
     try {
       const systemInstruction = `Jsi expert na vytváření variant promptů pro AI generování obrázů.
 
@@ -171,6 +180,10 @@ VYPIŠ POUZE JSON POLE:`;
    * Used for JSON prompt enrichment
    */
   async generateText(prompt: string, systemInstruction?: string): Promise<string> {
+    if (!this.ai) {
+      return serverProviderProxy.enhancePrompt(AIProviderType.GEMINI, systemInstruction ? `${systemInstruction}\n\n${prompt}` : prompt);
+    }
+
     try {
       const config: any = {
         model: GeminiProvider.TEXT_MODEL,
@@ -196,6 +209,10 @@ VYPIŠ POUZE JSON POLE:`;
    * Used for Reference Image Analysis (Phase 3)
    */
   async analyzeImageForJson(imageDataUrl: string): Promise<string> {
+    if (!this.ai) {
+      return serverProviderProxy.analyzeImageForJson(imageDataUrl);
+    }
+
     try {
       const base64Data = imageDataUrl.split(',')[1];
       const mimeType = imageDataUrl.split(';')[0].split(':')[1];
@@ -283,6 +300,17 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
     aspectRatio: string = '1:1',
     useGrounding: boolean = false
   ): Promise<GenerateImageResult> {
+    if (!this.ai) {
+      return serverProviderProxy.generateImage({
+        provider: AIProviderType.GEMINI,
+        images,
+        prompt,
+        resolution,
+        aspectRatio,
+        useGrounding,
+      });
+    }
+
     try {
       console.log('[Gemini] Generating image with prompt:', prompt);
 
@@ -455,10 +483,6 @@ const getStoredApiKey = () => {
 export const enhancePromptWithAI = async (shortPrompt: string, apiKey?: string): Promise<string> => {
   const keyToUse = apiKey || getStoredApiKey() || '';
 
-  if (!keyToUse) {
-    throw new Error('API Key missing. Please configure it in settings.');
-  }
-
   // Always create a fresh provider to ensure correct key usage
   const tempProvider = new GeminiProvider(keyToUse);
   return tempProvider.enhancePrompt(shortPrompt);
@@ -473,20 +497,12 @@ export const editImageWithGemini = async (
 ): Promise<GenerateImageResult> => {
   const keyToUse = apiKey || getStoredApiKey() || '';
 
-  if (!keyToUse) {
-    throw new Error('API Key missing. Please configure it in settings.');
-  }
-
   const tempProvider = new GeminiProvider(keyToUse);
   return tempProvider.generateImage(images, prompt, resolution, aspectRatio, useGrounding);
 };
 
 export const analyzeImageForJsonWithAI = async (imageDataUrl: string, apiKey?: string): Promise<string> => {
   const keyToUse = apiKey || getStoredApiKey() || '';
-
-  if (!keyToUse) {
-    throw new Error('API Key missing. Please configure it in settings.');
-  }
 
   const tempProvider = new GeminiProvider(keyToUse);
   return tempProvider.analyzeImageForJson(imageDataUrl);
@@ -500,7 +516,7 @@ export const analyzeStyleTransferWithAI = async (
 ): Promise<{ recommendedStrength: number; styleDescription: string; negativePrompt: string }> => {
   const keyToUse = apiKey || getStoredApiKey() || '';
   if (!keyToUse) {
-    throw new Error('API Key missing. Please configure it in settings.');
+    return serverProviderProxy.analyzeStyleTransfer(referenceDataUrl, styleDataUrl, undefined, options);
   }
 
   const refBase64 = referenceDataUrl.split(',')[1];

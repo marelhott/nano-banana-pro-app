@@ -4,6 +4,7 @@ import {
     ImageInput,
     GenerateImageResult
 } from './aiProvider';
+import { serverProviderProxy } from './serverProviderProxy';
 
 /**
  * Grok AI Provider Implementation
@@ -26,6 +27,10 @@ export class GrokProvider implements AIProvider {
     }
 
     async enhancePrompt(shortPrompt: string): Promise<string> {
+        if (!this.apiKey.trim()) {
+            return serverProviderProxy.enhancePrompt(AIProviderType.GROK, shortPrompt);
+        }
+
         try {
             const response = await fetch(`${this.baseUrl}/chat/completions`, {
                 method: 'POST',
@@ -67,6 +72,17 @@ export class GrokProvider implements AIProvider {
         aspectRatio?: string,
         useGrounding: boolean = false
     ): Promise<GenerateImageResult> {
+        if (!this.apiKey.trim()) {
+            return serverProviderProxy.generateImage({
+                provider: AIProviderType.GROK,
+                images,
+                prompt,
+                resolution,
+                aspectRatio,
+                useGrounding,
+            });
+        }
+
         try {
             console.log('[Grok] Generating image with grok-imagine-image...');
 

@@ -317,36 +317,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     )}
                                 </div>
 
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">
-                                            API Klíč
-                                        </label>
-                                        <div className="relative">
-                                            <input
-                                                type={showKeys[provider] ? 'text' : 'password'}
-                                                value={config?.apiKey || ''}
-                                                onChange={(e) => handleApiKeyChange(provider, e.target.value)}
-                                                placeholder={`Zadejte API klíč pro ${metadata.name}...`}
-                                                className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 pr-24 transition-colors"
-                                            />
-                                            <button
-                                                onClick={() => toggleShowKey(provider)}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                                            >
-                                                {showKeys[provider] ? 'Skrýt' : 'Zobrazit'}
-                                            </button>
+                                {metadata.requiresApiKey ? (
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">
+                                                API Klíč
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type={showKeys[provider] ? 'text' : 'password'}
+                                                    value={config?.apiKey || ''}
+                                                    onChange={(e) => handleApiKeyChange(provider, e.target.value)}
+                                                    placeholder={`Volitelný API klíč pro ${metadata.name}...`}
+                                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 pr-24 transition-colors"
+                                                />
+                                                <button
+                                                    onClick={() => toggleShowKey(provider)}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                                                >
+                                                    {showKeys[provider] ? 'Skrýt' : 'Zobrazit'}
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <button
-                                        onClick={() => testConnection(provider)}
-                                        disabled={!config?.apiKey || testing === provider}
-                                        className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
-                                    >
-                                        {testing === provider ? 'Testuji...' : 'Otestovat připojení'}
-                                    </button>
-                                </div>
+                                        <button
+                                            onClick={() => testConnection(provider)}
+                                            disabled={!config?.apiKey || testing === provider}
+                                            className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
+                                        >
+                                            {testing === provider ? 'Testuji...' : 'Otestovat připojení'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                                        Tento provider používá serverový klíč z Netlify. V aplikaci už není potřeba nic vkládat.
+                                    </div>
+                                )}
                             </div>
                         );
                     })}

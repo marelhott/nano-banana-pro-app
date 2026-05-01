@@ -1180,7 +1180,6 @@ const App: React.FC = () => {
       return;
     }
     const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
-    if (!geminiKey) return;
 
     let cancelled = false;
     const analyze = async () => {

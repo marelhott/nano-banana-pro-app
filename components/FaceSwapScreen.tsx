@@ -74,11 +74,9 @@ export function FaceSwapScreen(props: {
     if (String(headSwapSettings.refaceEndpoint || '').trim()) {
       providers.push('REFace fallback');
     }
-    if (String(providerSettings.gemini?.apiKey || '').trim() || String(providerSettings.chatgpt?.apiKey || '').trim()) {
-      providers.push('Gemini + OpenAI fallback');
-    }
+    providers.push('Gemini + OpenAI fallback');
     return providers;
-  }, [headSwapSettings.facefusionEndpoint, headSwapSettings.refaceEndpoint, providerSettings.chatgpt?.apiKey, providerSettings.fal?.apiKey, providerSettings.gemini?.apiKey, providerSettings.replicate?.apiKey]);
+  }, [headSwapSettings.facefusionEndpoint, headSwapSettings.refaceEndpoint, providerSettings.fal?.apiKey, providerSettings.replicate?.apiKey]);
 
   const pickSlotFile = React.useCallback(
     async (kind: 'source' | 'target', file: File) => {
