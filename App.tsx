@@ -6,7 +6,6 @@ import { LoadingSpinner } from './components/LoadingSpinner';
 import { analyzeImageForJsonWithAI, enhancePromptWithAI, analyzeStyleTransferWithAI } from './services/geminiService';
 import { AppState, GeneratedImage, GenerationRecipe, SourceImage, LineageEntry } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
-import { ApiKeyModal } from './components/ApiKeyModal';
 import { Header } from './components/Header';
 import { GalleryModal } from './components/GalleryModal';
 import { SavedPromptsDropdown } from './components/SavedPromptsDropdown';
@@ -382,7 +381,6 @@ const App: React.FC = () => {
   const [gridCols, setGridCols] = useState<number>(3);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightPanelWidth, setRightPanelWidth] = useState(280);
-  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
@@ -511,25 +509,6 @@ const App: React.FC = () => {
   }, [promptMode, simpleLinkMode, state.prompt, state.sourceImages, state.styleImages]);
 
   useEffect(() => {
-    const checkKey = async () => {
-      try {
-        // @ts-ignore
-        if (typeof window !== 'undefined' && window.aistudio?.hasSelectedApiKey) {
-          // @ts-ignore
-          const hasKey = await window.aistudio.hasSelectedApiKey();
-          setHasApiKey(hasKey);
-        } else {
-          // Running locally, assume API key is in environment
-          setHasApiKey(true);
-        }
-      } catch (err) {
-        console.error('Failed to check API key:', err);
-        // Assume true to allow local development
-        setHasApiKey(true);
-      }
-    };
-    checkKey();
-
     // Check for prompt in URL params
     const params = new URLSearchParams(window.location.search);
     const urlPrompt = params.get('prompt');
@@ -611,10 +590,6 @@ const App: React.FC = () => {
     window.addEventListener('resize', enforceMaxWidth);
     return () => window.removeEventListener('resize', enforceMaxWidth);
   }, [rightPanelWidth, isMobile, sidebarWidth]);
-
-  const handleKeySelected = () => {
-    setHasApiKey(true);
-  };
 
   const startResizing = useCallback(() => {
     isResizingRef.current = true;
@@ -2018,9 +1993,6 @@ const App: React.FC = () => {
                 await new Promise(resolve => setTimeout(resolve, waitTime));
               } else {
                 // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
-                if (err?.code === 'API_KEY_NOT_FOUND') {
-                  setHasApiKey(false);
-                }
                 setState(prev => ({
                   ...prev,
                   generatedImages: prev.generatedImages.map(img =>
@@ -2944,10 +2916,6 @@ const App: React.FC = () => {
       setNanoBananaImageModel(nextGeminiModel);
     }
   }, [imageModelPresets, isGenerating, nanoBananaImageModel, queuedGenerationCount, selectedProvider, setNanoBananaImageModel, setSelectedProvider]);
-
-  if (hasApiKey === false) {
-    return <ApiKeyModal onKeySelected={handleKeySelected} />;
-  }
 
   const renderSidebarControls = (isMobileView: boolean = false) => (
     <div className="space-y-4">
