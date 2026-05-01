@@ -2872,10 +2872,6 @@ const App: React.FC = () => {
     }
   };
 
-  if (hasApiKey === false) {
-    return <ApiKeyModal onKeySelected={handleKeySelected} />;
-  }
-
   const imageModelPresets: Array<{
     id: string;
     provider: AIProviderType;
@@ -2948,6 +2944,10 @@ const App: React.FC = () => {
       setNanoBananaImageModel(nextGeminiModel);
     }
   }, [imageModelPresets, isGenerating, nanoBananaImageModel, queuedGenerationCount, selectedProvider, setNanoBananaImageModel, setSelectedProvider]);
+
+  if (hasApiKey === false) {
+    return <ApiKeyModal onKeySelected={handleKeySelected} />;
+  }
 
   const renderSidebarControls = (isMobileView: boolean = false) => (
     <div className="space-y-4">
