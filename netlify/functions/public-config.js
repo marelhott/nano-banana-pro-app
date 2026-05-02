@@ -8,6 +8,9 @@ exports.handler = async () => {
   const supabaseAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || '').trim();
   const r2PublicModelsBaseUrl = (process.env.R2_PUBLIC_MODELS_BASE_URL || '').trim();
   const r2PublicLorasBaseUrl = (process.env.R2_PUBLIC_LORAS_BASE_URL || '').trim();
+  const geminiApiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
+  const openaiApiKey = (process.env.OPENAI_API_KEY || process.env.CHATGPT_API_KEY || '').trim();
+  const grokApiKey = (process.env.GROK_API_KEY || process.env.XAI_API_KEY || '').trim();
 
   return {
     statusCode: 200,
@@ -17,6 +20,9 @@ exports.handler = async () => {
       supabaseAnonKey,
       r2PublicModelsBaseUrl,
       r2PublicLorasBaseUrl,
+      geminiApiKey,
+      openaiApiKey,
+      grokApiKey,
     }),
   };
 };

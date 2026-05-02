@@ -3,6 +3,9 @@ export type PublicConfig = {
   supabaseAnonKey?: string;
   r2PublicModelsBaseUrl?: string;
   r2PublicLorasBaseUrl?: string;
+  geminiApiKey?: string;
+  openaiApiKey?: string;
+  grokApiKey?: string;
 };
 
 let cached: { value: PublicConfig; at: number } | null = null;
@@ -28,6 +31,9 @@ export async function fetchPublicConfig(opts: { maxAgeMs?: number } = {}): Promi
       supabaseAnonKey: String(json?.supabaseAnonKey || '').trim() || undefined,
       r2PublicModelsBaseUrl: normalizeBaseUrl(json?.r2PublicModelsBaseUrl || json?.r2_public_models_base_url),
       r2PublicLorasBaseUrl: normalizeBaseUrl(json?.r2PublicLorasBaseUrl || json?.r2_public_loras_base_url),
+      geminiApiKey: String(json?.geminiApiKey || '').trim() || undefined,
+      openaiApiKey: String(json?.openaiApiKey || '').trim() || undefined,
+      grokApiKey: String(json?.grokApiKey || '').trim() || undefined,
     };
     cached = { value, at: Date.now() };
     return value;
@@ -36,4 +42,3 @@ export async function fetchPublicConfig(opts: { maxAgeMs?: number } = {}): Promi
     return cached?.value || {};
   }
 }
-
