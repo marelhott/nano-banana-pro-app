@@ -70,7 +70,7 @@ const extractGeminiImage = (data) => {
 async function enhanceGemini(shortPrompt, apiKey) {
   const instruction = `Jsi profesionální prompt engineer. Vezmi následující krátký prompt pro generování obrázků a rozšiř ho do detailního, živého popisu. Vrať POUZE vylepšený prompt v češtině, nic jiného.\n\nKrátký prompt: "${shortPrompt}"\n\nVylepšený prompt:`;
   const data = await callGemini(geminiModels.text, {
-    contents: { parts: [{ text: instruction }] },
+    contents: [{ parts: [{ text: instruction }] }],
     generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
   }, apiKey);
   return extractGeminiText(data) || shortPrompt;
@@ -84,8 +84,12 @@ async function generateGeminiImage(payload, apiKey) {
   }
   parts.push({ text: payload.prompt || '' });
 
-  const config = {
+  const generationConfig = {
     responseModalities: ['IMAGE'],
+  };
+  const request = {
+    contents: [{ parts }],
+    generationConfig,
     safetySettings: [
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
       { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
@@ -94,16 +98,16 @@ async function generateGeminiImage(payload, apiKey) {
     ],
   };
 
-  if (payload.useGrounding) config.tools = [{ googleSearch: {} }];
+  if (payload.useGrounding) request.tools = [{ googleSearch: {} }];
   if (payload.aspectRatio && payload.aspectRatio !== 'Original') {
-    config.imageConfig = { aspectRatio: payload.aspectRatio };
+    generationConfig.imageConfig = { aspectRatio: payload.aspectRatio };
   }
 
   const candidates = [geminiModels.image, geminiModels.imageAlt, geminiModels.imageFallback];
   let lastError;
   for (const model of candidates) {
     try {
-      const data = await callGemini(model, { contents: { parts }, config }, apiKey);
+      const data = await callGemini(model, request, apiKey);
       const imageBase64 = extractGeminiImage(data);
       if (imageBase64) {
         const groundingChunks = data?.candidates?.[0]?.groundingMetadata?.groundingChunks;
@@ -129,7 +133,7 @@ async function generateGeminiImage(payload, apiKey) {
 async function generateGeminiVariants(prompt, apiKey) {
   const instruction = `Jsi expert na vytváření variant promptů pro AI generování obrázků. Vytvoř 3 malé, ale znatelné variace stejného tématu. Vrať POUZE JSON pole ve formátu [{"variant":"...","approach":"...","prompt":"..."}].\n\nUživatelův prompt: "${prompt}"`;
   const data = await callGemini(geminiModels.text, {
-    contents: { parts: [{ text: instruction }] },
+    contents: [{ parts: [{ text: instruction }] }],
     generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
   }, apiKey);
   const text = extractGeminiText(data).replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -141,12 +145,12 @@ async function analyzeImageForJson(imageDataUrl, apiKey) {
   const mimeType = header?.match(/^data:([^;]+)/)?.[1] || 'image/png';
   const instruction = `Analyze this image and output ONLY valid JSON describing subject, environment, lighting, camera, aesthetic, and technical quality.`;
   const data = await callGemini(geminiModels.image, {
-    contents: {
+    contents: [{
       parts: [
         { inlineData: { data: b64 || '', mimeType } },
         { text: instruction },
       ],
-    },
+    }],
   }, apiKey);
   return extractGeminiText(data).replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 }
@@ -158,13 +162,13 @@ async function analyzeStyleTransfer(payload, apiKey) {
   const styleMime = String(payload.styleDataUrl || '').match(/^data:([^;]+)/)?.[1] || 'image/png';
   const instruction = `Compare image A (content reference) and image B (style reference). Return ONLY JSON: {"recommendedStrength": number 0-100, "styleDescription": string, "negativePrompt": string}.`;
   const data = await callGemini(geminiModels.image, {
-    contents: {
+    contents: [{
       parts: [
         { inlineData: { data: refB64 || '', mimeType: refMime } },
         { inlineData: { data: styleB64 || '', mimeType: styleMime } },
         { text: instruction },
       ],
-    },
+    }],
   }, apiKey);
   const text = extractGeminiText(data).replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   return JSON.parse(text);
