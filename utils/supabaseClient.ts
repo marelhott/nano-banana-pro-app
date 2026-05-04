@@ -5,6 +5,7 @@ const SUPABASE_RETRY_ATTEMPTS = 4;
 const SUPABASE_RETRY_BASE_DELAY_MS = 650;
 const SUPABASE_AUTH_TIMEOUT_MS = 8000;
 const SUPABASE_DB_TIMEOUT_MS = 7000;
+const ENABLE_AUTH_IDENTITY_LINKING = false;
 export const SUPABASE_ANON_DISABLED_ERROR_MESSAGE =
   'Anonymní přihlášení je v Supabase vypnuté. V Supabase Dashboard zapněte Authentication → Providers → Anonymous sign-ins.';
 
@@ -241,6 +242,8 @@ async function linkAuthIdentity(appUserId: string, authUserId: string): Promise<
 }
 
 function linkAuthIdentityInBackground(appUserId: string): void {
+  if (!ENABLE_AUTH_IDENTITY_LINKING) return;
+
   void ensureAnonymousSession()
     .then((authUserId) => linkAuthIdentity(appUserId, authUserId))
     .catch((error) => {
@@ -278,6 +281,10 @@ async function buildPinHashCandidates(pin: string): Promise<string[]> {
 }
 
 type UserRow = { id: string; pin_hash: string };
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 
 type PinAuthResponse = {
   success: boolean;
@@ -495,15 +502,59 @@ export function getCurrentUserId(): string | null {
 
 export function ensureLocalAppUserId(): string {
   const existingUserId = getCurrentUserId();
-  if (existingUserId) return existingUserId;
+  if (existingUserId && isUuid(existingUserId)) return existingUserId;
 
   const nextUserId =
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
-      : `local-user-${Date.now()}`;
+      : '';
+
+  if (!nextUserId) {
+    throw new Error('Pro lokální app user ID je potřeba prostředí s crypto.randomUUID().');
+  }
 
   persistAppUserId(nextUserId);
   return nextUserId;
+}
+
+/**
+ * Zajistí, že lokální app identita má odpovídající řádek v public.users.
+ * Uploady do Storage používají Supabase Auth UUID, metadata v app tabulkách ale FK
+ * odkazují na app user UUID. Na novém zařízení proto musíme řádek jemně doplnit.
+ */
+export async function ensureCurrentAppUserRecord(): Promise<string> {
+  await ensureSupabaseClient();
+  const appUserId = ensureLocalAppUserId();
+
+  const { data: existing, error: lookupError } = await withDbTimeout(
+    'Supabase users ensure lookup',
+    supabase
+      .from('users')
+      .select('id')
+      .eq('id', appUserId)
+      .maybeSingle()
+  );
+  if (lookupError) throw lookupError;
+
+  if (!existing?.id) {
+    const { error: insertError } = await withDbTimeout(
+      'Supabase users ensure insert',
+      supabase
+        .from('users')
+        .insert({
+          id: appUserId,
+          pin_hash: `local:${appUserId}`,
+          last_login: new Date().toISOString(),
+        })
+    );
+
+    if (insertError && String((insertError as any).code || '') !== '23505') {
+      throw insertError;
+    }
+  }
+
+  linkAuthIdentityInBackground(appUserId);
+  return appUserId;
 }
 
 /**

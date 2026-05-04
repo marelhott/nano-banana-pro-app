@@ -24,12 +24,7 @@ type ServerProviderRequest = {
 };
 
 async function callServerProvider<T>(payload: ServerProviderRequest): Promise<T> {
-  const endpoint =
-    typeof window !== 'undefined' && /^localhost$|^127\.0\.0\.1$/.test(window.location.hostname)
-      ? '/api/provider-generate'
-      : '/.netlify/functions/provider-generate';
-
-  const response = await fetch(endpoint, {
+  const response = await fetch('/api/provider-generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

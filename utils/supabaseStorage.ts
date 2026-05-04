@@ -3,7 +3,7 @@
  */
 
 import { listGeneratedLibraryImages, listSavedLibraryImages } from './singleUserMediaStore';
-import { supabase, ensureAnonymousSession, getCurrentUserId } from './supabaseClient';
+import { supabase, ensureAnonymousSession, ensureCurrentAppUserRecord } from './supabaseClient';
 
 let metadataBackfillPromise: Promise<{ saved: number; generated: number }> | null = null;
 
@@ -110,12 +110,7 @@ export async function saveSavedImageMetadata(input: {
   category: 'reference' | 'style' | 'asset';
   fileSize?: number;
 }): Promise<void> {
-  const userId = getCurrentUserId();
-  if (!userId) {
-    throw new Error('Chybí lokální app user ID pro zápis saved_images.');
-  }
-
-  await ensureAnonymousSession();
+  const userId = await ensureCurrentAppUserRecord();
 
   const { error } = await supabase
     .from('saved_images')
@@ -141,12 +136,7 @@ export async function saveGeneratedImageMetadata(input: {
   aspectRatio?: string;
   params?: any;
 }): Promise<void> {
-  const userId = getCurrentUserId();
-  if (!userId) {
-    throw new Error('Chybí lokální app user ID pro zápis generated_images.');
-  }
-
-  await ensureAnonymousSession();
+  const userId = await ensureCurrentAppUserRecord();
 
   const { error } = await supabase
     .from('generated_images')

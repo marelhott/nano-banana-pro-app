@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AIProviderType, ProviderSettings } from '../services/aiProvider';
 import type { NanoBananaImageModel } from '../constants/timings';
-import { fetchPublicConfig } from '../services/publicConfig';
 
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const SELECTED_PROVIDER_STORAGE_KEY = 'selectedProvider';
@@ -34,7 +33,6 @@ export function useProviderSettings() {
   const [providerSettings, setProviderSettings] = useState<ProviderSettings>(defaultProviderSettings);
 
   useEffect(() => {
-    let cancelled = false;
     try {
       const rawSettings = localStorage.getItem(PROVIDER_SETTINGS_STORAGE_KEY);
       if (rawSettings) {
@@ -66,31 +64,6 @@ export function useProviderSettings() {
       setNanoBananaImageModel(savedNanoBananaModel);
     }
 
-    void fetchPublicConfig({ maxAgeMs: 0 }).then((config) => {
-      if (cancelled) return;
-      setProviderSettings((prev) => ({
-        ...prev,
-        [AIProviderType.GEMINI]: {
-          ...(prev[AIProviderType.GEMINI] || defaultProviderSettings[AIProviderType.GEMINI]),
-          apiKey: prev[AIProviderType.GEMINI]?.apiKey || config.geminiApiKey || '',
-          enabled: true,
-        },
-        [AIProviderType.CHATGPT]: {
-          ...(prev[AIProviderType.CHATGPT] || defaultProviderSettings[AIProviderType.CHATGPT]),
-          apiKey: prev[AIProviderType.CHATGPT]?.apiKey || config.openaiApiKey || '',
-          enabled: true,
-        },
-        [AIProviderType.GROK]: {
-          ...(prev[AIProviderType.GROK] || defaultProviderSettings[AIProviderType.GROK]),
-          apiKey: prev[AIProviderType.GROK]?.apiKey || config.grokApiKey || '',
-          enabled: Boolean(prev[AIProviderType.GROK]?.apiKey || config.grokApiKey),
-        },
-      }));
-    });
-
-    return () => {
-      cancelled = true;
-    };
   }, [defaultProviderSettings]);
 
   useEffect(() => {

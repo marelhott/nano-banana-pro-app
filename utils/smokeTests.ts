@@ -1,8 +1,27 @@
 import { supabase, getCurrentUserId } from './supabaseClient';
 import { ImageDatabase } from './imageDatabase';
 import { deleteImage, saveToGallery } from './galleryDB';
+import { getGeneratedLibraryImageRecord, getSavedLibraryImageRecord } from './singleUserMediaStore';
 
 type SmokeLog = (message: string, data?: unknown) => void;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitForRemotePath(
+  label: string,
+  readRecord: () => Promise<{ remoteStoragePath?: string } | undefined>,
+  timeoutMs = 20000
+): Promise<string> {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    const record = await readRecord();
+    if (record?.remoteStoragePath) return record.remoteStoragePath;
+    await sleep(750);
+  }
+
+  throw new Error(`${label}: cloud sync nedoběhl do ${Math.round(timeoutMs / 1000)}s`);
+}
 
 export async function runSupabaseSmokeTests(log: SmokeLog): Promise<{ ok: boolean; failures: string[] }> {
   const failures: string[] = [];
@@ -35,6 +54,8 @@ export async function runSupabaseSmokeTests(log: SmokeLog): Promise<{ ok: boolea
       thumbnail: pixel,
       timestamp: Date.now()
     });
+    const remotePath = await waitForRemotePath('saveToGallery', () => getGeneratedLibraryImageRecord(galleryTestId));
+    log('Supabase: generated cloud path', remotePath);
   } catch (e: any) {
     failures.push(`saveToGallery: ${e?.message || String(e)}`);
   }
@@ -45,6 +66,8 @@ export async function runSupabaseSmokeTests(log: SmokeLog): Promise<{ ok: boolea
     const file = new File([blob], 'smoke.png', { type: 'image/png' });
     const stored = await ImageDatabase.add(file, pixel, 'reference');
     savedTestId = stored.id;
+    const remotePath = await waitForRemotePath('ImageDatabase.add', () => getSavedLibraryImageRecord(stored.id));
+    log('Supabase: saved cloud path', remotePath);
   } catch (e: any) {
     failures.push(`ImageDatabase.add: ${e?.message || String(e)}`);
   }

@@ -49,3 +49,7 @@ supabase/.temp/
 
 # Deno lockfile is not used by this app
 deno.lock
+.vercel
+
+# Local browser test artifacts
+.playwright-mcp/
