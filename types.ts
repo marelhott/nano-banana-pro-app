@@ -5,7 +5,7 @@ export interface ImageVersion {
   timestamp: number;
 }
 
-export type ProviderId = 'gemini' | 'grok' | 'chatgpt' | 'replicate';
+export type ProviderId = 'gemini' | 'grok' | 'chatgpt' | 'replicate' | 'flux_pro';
 
 export interface StyleAnalysis {
   recommendedStrength: number;

@@ -21,7 +21,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         [AIProviderType.GEMINI]: false,
         [AIProviderType.GROK]: false,
         [AIProviderType.CHATGPT]: false,
-        [AIProviderType.REPLICATE]: false
+        [AIProviderType.REPLICATE]: false,
+        [AIProviderType.FLUX_PRO]: false,
     });
     const [showFalKey, setShowFalKey] = useState(false);
     const [testing, setTesting] = useState<AIProviderType | null>(null);
@@ -31,7 +32,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         [AIProviderType.GEMINI]: null,
         [AIProviderType.GROK]: null,
         [AIProviderType.CHATGPT]: null,
-        [AIProviderType.REPLICATE]: null
+        [AIProviderType.REPLICATE]: null,
+        [AIProviderType.FLUX_PRO]: null,
     });
     const [falTestResult, setFalTestResult] = useState<'success' | 'error' | null>(null);
     const [a1111TestResult, setA1111TestResult] = useState<'success' | 'error' | null>(null);

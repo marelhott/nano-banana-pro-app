@@ -157,6 +157,7 @@ exports.handler = async (event) => {
       'fal-ai/z-image/turbo/image-to-image/lora',
       'fal-ai/clarity-upscaler',
       'easel-ai/advanced-face-swap',
+      'fal-ai/flux-pro/v1.1-ultra',
     ]);
     if (!ALLOWED_ENDPOINTS.has(endpointId)) {
       return json(400, {

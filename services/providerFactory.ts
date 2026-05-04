@@ -3,6 +3,7 @@ import { GeminiProvider } from './geminiService';
 import { GrokProvider } from './grokService';
 import { ChatGPTProvider } from './chatgptService';
 import { ReplicateProvider } from './replicateService';
+import { FluxProProvider } from './fluxProService';
 
 /**
  * Factory for creating AI provider instances
@@ -24,6 +25,8 @@ export class ProviderFactory {
                 return new ChatGPTProvider(apiKey);
             case AIProviderType.REPLICATE:
                 return new ReplicateProvider(apiKey);
+            case AIProviderType.FLUX_PRO:
+                return new FluxProProvider(apiKey);
             default:
                 throw new Error(`Unknown provider type: ${type}`);
         }
@@ -61,6 +64,8 @@ export class ProviderFactory {
                 return (apiKey.startsWith('sk-') || apiKey.startsWith('sk-proj-')) && apiKey.length > 20;
             case AIProviderType.REPLICATE:
                 return (apiKey.startsWith('r8_') || apiKey.length > 20);
+            case AIProviderType.FLUX_PRO:
+                return apiKey.length > 10;
             default:
                 return false;
         }

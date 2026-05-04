@@ -7,7 +7,8 @@ export enum AIProviderType {
     GEMINI = 'gemini',
     GROK = 'grok',
     CHATGPT = 'chatgpt',
-    REPLICATE = 'replicate'
+    REPLICATE = 'replicate',
+    FLUX_PRO = 'flux_pro'
 }
 
 export interface ImageInput {
@@ -47,6 +48,7 @@ export interface ProviderSettings {
     [AIProviderType.GROK]?: ProviderConfig;
     [AIProviderType.CHATGPT]?: ProviderConfig;
     [AIProviderType.REPLICATE]?: ProviderConfig;
+    [AIProviderType.FLUX_PRO]?: ProviderConfig;
     // fal.ai is used for SDXL base + LoRA (img2img). It's not part of the AIProviderType set
     // because it isn't used through ProviderFactory; we still store the key alongside providerSettings.
     fal?: ProviderConfig;
@@ -140,5 +142,13 @@ export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
         requiresApiKey: true,
         supportsGrounding: false,
         maxImages: 8
+    },
+    [AIProviderType.FLUX_PRO]: {
+        type: AIProviderType.FLUX_PRO,
+        name: 'FLUX Pro 1.1 Ultra (fal.ai)',
+        icon: 'flux',
+        requiresApiKey: false,
+        supportsGrounding: false,
+        maxImages: 4
     }
 };

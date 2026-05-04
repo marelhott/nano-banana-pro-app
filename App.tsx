@@ -387,6 +387,7 @@ const App: React.FC = () => {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isGalleryExpanded, setIsGalleryExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const activeGenerationsRef = useRef(0);
   const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
   const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
   const [isGenerateClicked, setIsGenerateClicked] = useState(false);
@@ -1716,7 +1717,6 @@ const App: React.FC = () => {
   };
 
   const processGenerationSnapshot = async (snapshot: GenerationQueueSnapshot) => {
-    generationLockRef.current = true;
     try {
     const {
       state,
@@ -1770,6 +1770,7 @@ const App: React.FC = () => {
       console.log(language);
     }
 
+    activeGenerationsRef.current++;
     setIsGenerating(true);
 
     // Respect the selected output count while keeping it within the Mulen Nano UI range.
@@ -1924,7 +1925,7 @@ const App: React.FC = () => {
             let providerPrompt = enhancedPrompt;
 
             if (
-              (selectedProvider === AIProviderType.CHATGPT || selectedProvider === AIProviderType.GROK) &&
+              selectedProvider === AIProviderType.CHATGPT &&
               sourceImagesData.length > 0 &&
               styleImagesData.length > 0
             ) {
@@ -2020,13 +2021,13 @@ const App: React.FC = () => {
         setToast(summaryToast);
       }
 
-      setIsGenerating(false);
+      activeGenerationsRef.current = Math.max(0, activeGenerationsRef.current - 1);
+      if (activeGenerationsRef.current === 0) setIsGenerating(false);
       setGenerationProgress(null);
     };
 
     await generateInParallel();
     } finally {
-      generationLockRef.current = false;
       const nextItem = dequeueGenerationSnapshot();
       if (nextItem) {
         void runQueuedGenerationItem(nextItem);
@@ -2049,7 +2050,8 @@ const App: React.FC = () => {
   const handleGenerate = async () => {
     const snapshot = createQueuedGenerationSnapshot();
 
-    if (generationLockRef.current || isGenerating) {
+    if (generationLockRef.current) {
+      // Complex operation (3variants/3AI) is holding the lock — queue behind it
       if (snapshot.state.sourceImages.length > 1 && snapshot.state.multiRefMode === 'batch') {
         setToast({
           message: 'Batch multi-ref zatím nejde řadit do fronty. Počkejte na dokončení aktuálního běhu.',
@@ -2061,7 +2063,8 @@ const App: React.FC = () => {
       return;
     }
 
-    await processGenerationSnapshot(snapshot);
+    // Fire immediately in parallel with any other running generations
+    void processGenerationSnapshot(snapshot);
   };
 
   const handleEditImage = async (imageId: string) => {
@@ -2871,10 +2874,10 @@ const App: React.FC = () => {
       subtitle: 'OpenAI',
     },
     {
-      id: 'grok-image',
-      provider: AIProviderType.GROK,
-      title: 'Grok Img',
-      subtitle: 'xAI',
+      id: 'flux-pro',
+      provider: AIProviderType.FLUX_PRO,
+      title: 'Flux Pro',
+      subtitle: 'fal.ai',
     },
   ];
 
@@ -2885,8 +2888,8 @@ const App: React.FC = () => {
         : 'gemini-flash'
       : selectedProvider === AIProviderType.CHATGPT
         ? 'openai-image'
-        : selectedProvider === AIProviderType.GROK
-          ? 'grok-image'
+        : selectedProvider === AIProviderType.FLUX_PRO
+          ? 'flux-pro'
           : null;
 
   const handleImageModelPresetSelect = useCallback((presetId: string) => {
@@ -3640,6 +3643,7 @@ const App: React.FC = () => {
       [AIProviderType.CHATGPT]: newSettings[AIProviderType.CHATGPT] || defaultProviderSettings[AIProviderType.CHATGPT],
       [AIProviderType.GROK]: newSettings[AIProviderType.GROK] || defaultProviderSettings[AIProviderType.GROK],
       [AIProviderType.REPLICATE]: newSettings[AIProviderType.REPLICATE] || defaultProviderSettings[AIProviderType.REPLICATE],
+      [AIProviderType.FLUX_PRO]: newSettings[AIProviderType.FLUX_PRO] || defaultProviderSettings[AIProviderType.FLUX_PRO],
       fal: newSettings.fal || defaultProviderSettings.fal,
       a1111: newSettings.a1111,
     };
