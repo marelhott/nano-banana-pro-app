@@ -125,6 +125,7 @@ export function AiUpscalerScreen(props: {
   const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number; fileName: string } | null>(null);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [serverHasKey, setServerHasKey] = React.useState(false);
+  const [openPopups, setOpenPopups] = React.useState<Set<string>>(new Set());
   const inputFileId = React.useMemo(() => `ai-upscaler-input-${Math.random().toString(36).slice(2)}`, []);
   const popupWindows = useRef<Map<string, Window>>(new Map());
 
@@ -134,6 +135,10 @@ export function AiUpscalerScreen(props: {
     if (!replicateKey) {
       serverHasReplicateKey().then(setServerHasKey);
     }
+    return () => {
+      popupWindows.current.forEach((w) => { if (!w.closed) w.close(); });
+      popupWindows.current.clear();
+    };
   }, [replicateKey]);
 
   const phaseLabel =
@@ -571,7 +576,7 @@ export function AiUpscalerScreen(props: {
                 if (!input) return null;
                 const isDone = output.status === 'done' && !!output.dataUrl;
                 const isRunning = output.status === 'running';
-                const isOpen = popupWindows.current.has(output.id) && !popupWindows.current.get(output.id)?.closed;
+                const isOpen = openPopups.has(output.id);
                 const progressValue =
                   output.status === 'done'
                     ? 100
@@ -581,17 +586,12 @@ export function AiUpscalerScreen(props: {
                         ? Math.max(20, phaseProgress)
                         : 8;
 
-                const togglePopup = () => {
-                  const existing = popupWindows.current.get(output.id);
-                  if (existing && !existing.closed) {
-                    existing.close();
-                    popupWindows.current.delete(output.id);
-                    return;
-                  }
-                  if (!output.dataUrl) return;
-                  const popup = window.open('', '_blank', 'noopener,noreferrer');
+                const openPopup = (dataUrl: string) => {
+                  if (!dataUrl) return;
+                  const popup = window.open('', output.id, 'noopener,noreferrer');
                   if (!popup) return;
                   popupWindows.current.set(output.id, popup);
+                  setOpenPopups((prev) => { const next = new Set(prev); next.add(output.id); return next; });
                   popup.document.write(`
                     <!doctype html>
                     <html lang="cs">
@@ -606,7 +606,7 @@ export function AiUpscalerScreen(props: {
                         </style>
                       </head>
                       <body>
-                        <img src="${output.dataUrl}" alt="${input.file.name}" />
+                        <img src="${dataUrl}" alt="${input.file.name}" />
                       </body>
                     </html>
                   `);
@@ -614,9 +614,19 @@ export function AiUpscalerScreen(props: {
                   const checkClosed = setInterval(() => {
                     if (popup.closed) {
                       popupWindows.current.delete(output.id);
+                      setOpenPopups((prev) => { const next = new Set(prev); next.delete(output.id); return next; });
                       clearInterval(checkClosed);
                     }
                   }, 500);
+                };
+
+                const closePopup = () => {
+                  const existing = popupWindows.current.get(output.id);
+                  if (existing && !existing.closed) {
+                    existing.close();
+                  }
+                  popupWindows.current.delete(output.id);
+                  setOpenPopups((prev) => { const next = new Set(prev); next.delete(output.id); return next; });
                 };
 
                 return (
@@ -629,8 +639,11 @@ export function AiUpscalerScreen(props: {
                     <button
                       type="button"
                       onClick={() => {
-                        if (isDone && output.dataUrl) {
-                          togglePopup();
+                        if (!isDone || !output.dataUrl) return;
+                        if (isOpen) {
+                          closePopup();
+                        } else {
+                          openPopup(output.dataUrl);
                         }
                       }}
                       className="w-full text-left"
@@ -652,9 +665,7 @@ export function AiUpscalerScreen(props: {
                                 ? 'Chyba'
                                 : output.status === 'running'
                                   ? (phaseLabel || 'Zpracovávám')
-                                  : output.status === 'pending'
-                                    ? 'Připraveno'
-                                    : 'Čeká'}
+                                  : 'Čeká'}
                             </div>
                           </div>
                         </div>
@@ -677,44 +688,39 @@ export function AiUpscalerScreen(props: {
                         </div>
                       </div>
                       {isDone && output.dataUrl ? (
+                        <div className="flex items-center gap-1">
+                          {isOpen ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); closePopup(); }}
+                              className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
+                              title="Zavřít okno"
+                            >
+                              <X className="w-3.5 h-3.5" strokeWidth={1.6} />
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadDataUrl(output.dataUrl!, `${output.inputName.replace(/\.[^.]+$/, '')}-${scale}x.png`);
+                            }}
+                            className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
+                            title="Stáhnout"
+                          >
+                            <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
+                          </button>
+                        </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadDataUrl(output.dataUrl!, `${output.inputName.replace(/\.[^.]+$/, '')}-${scale}x.png`);
-                          }}
-                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
-                          title="Stáhnout"
-                        >
-                          <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
-                        </button>
-                      ) : null}
-                      {output.status === 'done' && isOpen ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePopup();
-                          }}
-                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
-                          title="Zavřít okno"
-                        >
-                          <X className="w-3.5 h-3.5" strokeWidth={1.6} />
-                        </button>
-                      ) : null}
-                      {!isDone ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeInput(input.id);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); removeInput(input.id); }}
                           className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
                           title="Odebrat"
                         >
                           <Trash2 className="w-3.5 h-3.5" strokeWidth={1.6} />
                         </button>
-                      ) : null}
+                      )}
                     </div>
                   </div>
                 );
