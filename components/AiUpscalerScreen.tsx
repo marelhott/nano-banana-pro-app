@@ -1,14 +1,17 @@
 import React from 'react';
 import { Download, Sparkles, X } from 'lucide-react';
-import { editImageWithGemini } from '../services/geminiService';
-import { ChatGPTProvider } from '../services/chatgptService';
+import { GeminiProvider } from '../services/geminiService';
 import { AIProviderType, ImageInput } from '../services/aiProvider';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { fileToDataUrl } from './styleTransfer/utils';
+import { ImageComparisonModal } from './ImageComparisonModal';
 import type { ToastType } from './Toast';
+
 type UpscaleMode = 'restore' | 'enhance';
 
+const FLASH_MODEL = 'gemini-3.1-flash-image-preview';
+const PRO_MODEL = 'gemini-3-pro-image-preview';
 const UPSCALE_PROMPT = "Upscale this image faithfully without any creative intent. Preserve the original photo as much as possible, only compute necessary artifacts.";
 
 type ImageSlot = {
@@ -24,6 +27,7 @@ type OutputItem = {
   inputId: string;
   mode: UpscaleMode;
   inputName: string;
+  inputDataUrl: string;
   dataUrl?: string;
   status: 'pending' | 'running' | 'done' | 'error';
   createdAt: number;
@@ -31,18 +35,18 @@ type OutputItem = {
   error?: string;
 };
 
-function readProviderKey(provider: AIProviderType): string {
+function readGeminiKey(): string {
   try {
     const raw = localStorage.getItem('providerSettings');
     if (!raw) return '';
     const parsed = JSON.parse(raw);
-    return parsed?.[provider]?.apiKey || '';
+    return parsed?.gemini?.apiKey || '';
   } catch {
     return '';
   }
 }
 
-type ServerProviders = { gemini: boolean; chatgpt: boolean; };
+type ServerProviders = { gemini: boolean };
 
 let cachedServerProviders: ServerProviders | null = null;
 
@@ -51,13 +55,10 @@ async function getServerProviders(): Promise<ServerProviders> {
   try {
     const res = await fetch('/api/public-config');
     const data = await res.json();
-    cachedServerProviders = {
-      gemini: Boolean(data?.providers?.gemini),
-      chatgpt: Boolean(data?.providers?.chatgpt),
-    };
+    cachedServerProviders = { gemini: Boolean(data?.providers?.gemini) };
     return cachedServerProviders;
   } catch {
-    return { gemini: false, chatgpt: false };
+    return { gemini: false };
   }
 }
 
@@ -87,6 +88,14 @@ function modeLabel(mode: UpscaleMode): string {
   return mode === 'restore' ? 'Restore' : 'Enhance';
 }
 
+function modeModel(mode: UpscaleMode): string {
+  return mode === 'restore' ? 'Gemini 3.1 Flash' : 'Gemini 3 Pro';
+}
+
+function modeModelId(mode: UpscaleMode): string {
+  return mode === 'restore' ? FLASH_MODEL : PRO_MODEL;
+}
+
 export function AiUpscalerScreen(props: {
   onOpenSettings: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
@@ -95,17 +104,16 @@ export function AiUpscalerScreen(props: {
 
   const [inputs, setInputs] = React.useState<ImageSlot[]>([]);
   const [scale, setScale] = React.useState<2 | 4>(2);
-  const [mode, setMode] = React.useState<UpscaleMode>('restore');
+  const [mode, setMode] = React.useState<UpscaleMode>('enhance');
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [phase, setPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number; fileName: string } | null>(null);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
-  const [serverProviders, setServerProviders] = React.useState<ServerProviders>({ gemini: false, chatgpt: false });
-  const [expandedImage, setExpandedImage] = React.useState<{ dataUrl: string; name: string } | null>(null);
+  const [serverProviders, setServerProviders] = React.useState<ServerProviders>({ gemini: false });
+  const [selectedImage, setSelectedImage] = React.useState<OutputItem | null>(null);
   const inputFileId = React.useMemo(() => `upscaler-${Math.random().toString(36).slice(2)}`, []);
 
-  const geminiKey = React.useMemo(() => readProviderKey(AIProviderType.GEMINI), []);
-  const chatgptKey = React.useMemo(() => readProviderKey(AIProviderType.CHATGPT), []);
+  const geminiKey = React.useMemo(() => readGeminiKey(), []);
 
   React.useEffect(() => {
     getServerProviders().then(setServerProviders);
@@ -155,14 +163,8 @@ export function AiUpscalerScreen(props: {
       onToast({ type: 'error', message: 'Nejdřív nahraj obrázek.' });
       return;
     }
-
-    const hasKey = mode === 'restore'
-      ? !!(chatgptKey || serverProviders.chatgpt)
-      : !!(geminiKey || serverProviders.gemini);
-
-    if (!hasKey) {
-      const providerName = mode === 'restore' ? 'ChatGPT' : 'Gemini';
-      onToast({ type: 'error', message: `Chybí ${providerName} klíč — nastav ho v Settings.` });
+    if (!geminiKey && !serverProviders.gemini) {
+      onToast({ type: 'error', message: 'Chybí Gemini klíč — nastav ho v Settings.' });
       return;
     }
 
@@ -184,6 +186,7 @@ export function AiUpscalerScreen(props: {
       inputId: input.id,
       mode,
       inputName: input.file.name,
+      inputDataUrl: input.dataUrl,
       status: 'pending' as const,
       createdAt: Date.now(),
       detailsText: modeLabel(mode),
@@ -205,49 +208,33 @@ export function AiUpscalerScreen(props: {
 
         try {
           setPhase('running');
+          const modelName = modeModelId(mode);
           const label = modeLabel(mode);
-          setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, detailsText: `${label} • odesílám na AI…` } : o));
+          setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, detailsText: `${label} • ${modelName} • odesílám…` } : o));
 
-          const imageInput: ImageInput = { data: input.dataUrl, mimeType: input.file.type };
-          let resultDataUrl: string;
-
-          const res = scale === 4 ? '2K' : '1K';
-          if (mode === 'restore') {
-            const provider = new ChatGPTProvider(chatgptKey || '');
-            const result = await provider.generateImage(
-              [imageInput],
-              UPSCALE_PROMPT,
-              res,
-              undefined,
-              false
-            );
-            resultDataUrl = result.imageBase64;
-          } else {
-            const result = await editImageWithGemini(
-              [imageInput],
-              UPSCALE_PROMPT,
-              res,
-              undefined,
-              false,
-              geminiKey || undefined
-            );
-            resultDataUrl = result.imageBase64;
-          }
+          const provider = new GeminiProvider(geminiKey || '', modelName);
+          const result = await provider.generateImage(
+            [{ data: input.dataUrl, mimeType: input.file.type }],
+            UPSCALE_PROMPT,
+            scale === 4 ? '2K' : '1K',
+            undefined,
+            false
+          );
 
           setOutputs(prev => prev.map(o =>
             o.id === buildOutputId(input.id, mode)
-              ? { ...o, dataUrl: resultDataUrl, status: 'done' as const, detailsText: `${label} • hotovo` }
+              ? { ...o, dataUrl: result.imageBase64, status: 'done' as const, detailsText: `${label} • ${modelName} • hotovo` }
               : o
           ));
 
           try {
-            const thumb = await createThumbnail(resultDataUrl, 420);
+            const thumb = await createThumbnail(result.imageBase64, 420);
             await saveToGallery({
               id: buildOutputId(input.id, mode),
-              url: resultDataUrl,
+              url: result.imageBase64,
               thumbnail: thumb,
               prompt: `${label} ${UPSCALE_PROMPT}`,
-              params: { engine: mode === 'restore' ? 'gemini_3_pro' : 'gpt_image_2', mode, operation: 'upscale' },
+              params: { engine: modelName, mode, scale, operation: 'upscale' },
             });
           } catch { /* ok */ }
 
@@ -274,7 +261,11 @@ export function AiUpscalerScreen(props: {
       setPhase('');
       setBatchProgress(null);
     }
-  }, [inputs, mode, onToast, outputs, scale, geminiKey, chatgptKey, serverProviders]);
+  }, [inputs, mode, onToast, outputs, scale, geminiKey, serverProviders]);
+
+  const findInputForOutput = (output: OutputItem): ImageSlot | undefined => {
+    return inputs.find(i => i.id === output.inputId);
+  };
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -293,7 +284,7 @@ export function AiUpscalerScreen(props: {
           >
             {isGenerating
               ? `${modeLabel(mode)} • ${phaseLabel || '…'}`
-              : `${modeLabel(mode)} ${mode === 'enhance' ? '4' : scale}× • ${Math.max(1, pendingCount || inputs.length)} zbývá`
+              : `${modeLabel(mode)} ${mode === 'restore' ? 'Flash' : 'Pro'} ${scale}× • ${Math.max(1, pendingCount || inputs.length)} zbývá`
             }
           </button>
 
@@ -304,7 +295,7 @@ export function AiUpscalerScreen(props: {
                 <button key={m} type="button" onClick={() => setMode(m)}
                   className={`rounded-lg border px-3 py-3 text-left transition-colors ${mode === m ? 'border-[#7ed957]/60 bg-[#7ed957]/10 text-white' : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'}`}>
                   <div className="text-[10px] font-bold uppercase tracking-widest">{modeLabel(m)}</div>
-                  <div className="mt-1 text-[9px] text-white/45">{m === 'restore' ? 'GPT Image 2 — věrné dopočítání' : 'Gemini 3 Pro — max. kvalita'}</div>
+                  <div className="mt-1 text-[9px] text-white/45">{modeModel(m)}</div>
                 </button>
               ))}
             </div>
@@ -316,34 +307,20 @@ export function AiUpscalerScreen(props: {
               {[2, 4].map(v => (
                 <button key={v} type="button" onClick={() => setScale(v as 2 | 4)}
                   className={`w-12 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${
-                    mode === 'enhance' && v !== 4 ? 'text-white/20 cursor-not-allowed'
-                      : scale === v ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    scale === v ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}>{v}×</button>
               ))}
             </div>
-            <div className="text-[9px] text-white/35">
-              {mode === 'restore' ? 'GPT Image 2 — promptem řízené dopočítání.' : 'Gemini 3 Pro — promptem řízené vylepšení.'}
-            </div>
           </div>
 
-          {mode === 'restore' && !chatgptKey && !serverProviders.chatgpt ? (
-            <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
-              <div className="flex items-start gap-2">
-                <span className="text-amber-400 text-sm mt-0.5">⚠</span>
-                <div>
-                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí ChatGPT klíč</div>
-                  <div className="mt-1 text-[9px] text-amber-200/70">Pro Restore je potřeba OpenAI API klíč.</div>
-                </div>
-              </div>
-            </div>
-          ) : mode === 'enhance' && !geminiKey && !serverProviders.gemini ? (
+          {!geminiKey && !serverProviders.gemini ? (
             <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
               <div className="flex items-start gap-2">
                 <span className="text-amber-400 text-sm mt-0.5">⚠</span>
                 <div>
                   <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Gemini klíč</div>
-                  <div className="mt-1 text-[9px] text-amber-200/70">Pro Enhance je potřeba Gemini API klíč.</div>
+                  <div className="mt-1 text-[9px] text-amber-200/70">Nastav v Settings nebo doplň GEMINI_API_KEY na serveru.</div>
                 </div>
               </div>
             </div>
@@ -397,8 +374,12 @@ export function AiUpscalerScreen(props: {
               <div className="text-[10px] text-white/75">{modeLabel(mode)}</div>
             </div>
             <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
+              <div className="text-[10px] text-white/75">{modeModel(mode)}</div>
+            </div>
+            <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Zvětšení</div>
-              <div className="text-[10px] text-white/75">{mode === 'enhance' ? '4' : scale}×</div>
+              <div className="text-[10px] text-white/75">{scale}×</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Vstupů</div>
@@ -427,10 +408,9 @@ export function AiUpscalerScreen(props: {
               {visibleOutputs.map(output => {
                 const isDone = output.status === 'done' && !!output.dataUrl;
                 const isRunning = output.status === 'running';
-                const isExpanded = expandedImage?.dataUrl === output.dataUrl;
                 return (
-                  <div key={output.id} className={`rounded-2xl overflow-hidden border ${isExpanded ? 'border-[#7ed957]/60 shadow-[0_0_0_1px_rgba(126,217,87,0.25)]' : 'border-white/10'}`}>
-                    <button type="button" onClick={() => { if (!isDone || !output.dataUrl) return; setExpandedImage(isExpanded ? null : { dataUrl: output.dataUrl, name: `${output.inputName} • ${modeLabel(output.mode)}` }); }}
+                  <div key={output.id} className="rounded-2xl overflow-hidden border border-white/10">
+                    <button type="button" onClick={() => { if (!isDone || !output.dataUrl) return; setSelectedImage(output); }}
                       className="w-full text-left cursor-zoom-in">
                       {isDone && output.dataUrl ? (
                         <img src={output.dataUrl} alt={output.inputName} className="w-full aspect-square object-cover bg-black/20" />
@@ -452,7 +432,7 @@ export function AiUpscalerScreen(props: {
                     <div className="p-3 bg-[var(--bg-input)] flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="text-[9px] font-bold text-white truncate">{output.inputName}</div>
-                        <div className="text-[8px] text-white/40 uppercase tracking-wider">{modeLabel(output.mode)}</div>
+                        <div className="text-[8px] text-white/40 uppercase tracking-wider">{modeLabel(output.mode)} • {modeModel(output.mode)}</div>
                         <div className="text-[8px] text-white/30 truncate">{output.detailsText || ''}</div>
                       </div>
                       {isDone && output.dataUrl ? (
@@ -471,24 +451,22 @@ export function AiUpscalerScreen(props: {
               <Sparkles className="w-8 h-8 mb-4" strokeWidth={1.2} />
               <div className="text-[11px] uppercase tracking-widest font-bold">Zatím žádné výstupy</div>
               <div className="text-[10px] text-white/25 mt-2 max-w-[400px] text-center">
-                Nahraj obrázky vlevo a spusť Restore nebo Enhance.
+                Nahraj obrázky vlevo a spusť Restore (Flash) nebo Enhance (Pro). Oba režimy jdou na stejný vstup spustit nezávisle.
               </div>
             </div>
           )}
         </div>
       </section>
 
-      {expandedImage ? (
-        <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center p-4 md:p-8 cursor-zoom-out" onClick={() => setExpandedImage(null)}>
-          <button type="button" onClick={() => setExpandedImage(null)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-black/50 border border-white/10 text-white/70 hover:text-white transition-colors z-10">
-            <X className="w-5 h-5" strokeWidth={1.8} />
-          </button>
-          <div className="absolute top-4 left-4 text-[10px] text-white/40 z-10 uppercase tracking-widest">{expandedImage.name}</div>
-          <img src={expandedImage.dataUrl} alt={expandedImage.name}
-            className="max-w-full max-h-full object-contain rounded-lg cursor-default" onClick={e => e.stopPropagation()} />
-        </div>
-      ) : null}
+      <ImageComparisonModal
+        isOpen={!!selectedImage}
+        onClose={() => setSelectedImage(null)}
+        generatedImage={selectedImage?.dataUrl || null}
+        originalImage={selectedImage ? findInputForOutput(selectedImage)?.dataUrl || null : null}
+        prompt={selectedImage ? `${modeLabel(selectedImage.mode)} • ${modeModel(selectedImage.mode)}` : ''}
+        timestamp={selectedImage?.createdAt}
+        resolution={scale === 4 ? '2K' : '1K'}
+      />
     </div>
   );
 }
