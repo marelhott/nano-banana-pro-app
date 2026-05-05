@@ -1,10 +1,9 @@
 import React from 'react';
-import { Download, Sparkles, Trash2, Upload, WifiOff, X, Expand } from 'lucide-react';
+import { Download, Sparkles, Trash2, X, Expand } from 'lucide-react';
 import { upscaleImage } from '../utils/upscaling';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { fileToDataUrl, resolveDropToFile } from './styleTransfer/utils';
-import { ImageUpload } from './ImageUpload';
 import type { ToastType } from './Toast';
 type UpscaleMode = 'restore' | 'enhance';
 
@@ -80,8 +79,6 @@ function modeLabel(mode: UpscaleMode): string {
   return mode === 'restore' ? 'Restore' : 'Enhance';
 }
 
-const MAX_INPUTS = 20;
-
 export function AiUpscalerScreen(props: {
   onOpenSettings: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
@@ -97,6 +94,7 @@ export function AiUpscalerScreen(props: {
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [serverHasKey, setServerHasKey] = React.useState(false);
   const [expandedImage, setExpandedImage] = React.useState<{ dataUrl: string; name: string } | null>(null);
+  const inputFileId = React.useMemo(() => `upscaler-${Math.random().toString(36).slice(2)}`, []);
 
   const replicateKey = React.useMemo(() => readReplicateKey(), []);
 
@@ -124,14 +122,9 @@ export function AiUpscalerScreen(props: {
   }, [inputs, outputs, mode]);
 
   const handleImagesSelected = React.useCallback(async (files: File[]) => {
-    const available = MAX_INPUTS - inputs.length;
-    if (available <= 0) {
-      onToast({ type: 'error', message: `Maximálně ${MAX_INPUTS} vstupů.` });
-      return;
-    }
-    const batch = files.slice(0, available);
     const newSlots: ImageSlot[] = [];
-    for (const file of batch) {
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
       const dataUrl = await fileToDataUrl(file);
       const meta = await loadImageMeta(dataUrl);
       newSlots.push({
@@ -143,11 +136,11 @@ export function AiUpscalerScreen(props: {
       });
       try { await ImageDatabase.add(file, dataUrl, 'reference'); } catch { /* ok */ }
     }
-    setInputs(prev => [...prev, ...newSlots]);
-  }, [inputs.length, onToast]);
+    if (newSlots.length > 0) setInputs(prev => [...prev, ...newSlots]);
+  }, []);
 
-  const removeInput = React.useCallback((inputId: string) => {
-    setInputs(prev => prev.filter(i => i.id !== inputId));
+  const removeInput = React.useCallback((id: string) => {
+    setInputs(prev => prev.filter(i => i.id !== id));
   }, []);
 
   const handleGenerate = React.useCallback(async () => {
@@ -201,7 +194,6 @@ export function AiUpscalerScreen(props: {
         try {
           setPhase('running');
           const effectiveScale = mode === 'enhance' ? 4 : scale;
-
           setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, detailsText: `${modeLabel(mode)} ${effectiveScale}× • odesílám…` } : o));
 
           const result = await upscaleImage({ token: key || '', imageDataUrl: input.dataUrl, factor: effectiveScale as 2 | 4 });
@@ -304,57 +296,52 @@ export function AiUpscalerScreen(props: {
           {!replicateKey && !serverHasKey ? (
             <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
               <div className="flex items-start gap-2">
-                <WifiOff className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" strokeWidth={1.6} />
+                <span className="text-amber-400 text-sm mt-0.5">⚠</span>
                 <div>
                   <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Replicate klíč</div>
                   <div className="mt-1 text-[9px] text-amber-200/70">Nastav v Settings.</div>
                 </div>
               </div>
             </div>
-          ) : !replicateKey && serverHasKey ? (
-            <div className="card-surface p-3 border border-emerald-500/30 bg-emerald-500/5">
-              <div className="flex items-start gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" strokeWidth={1.6} />
-                <div>
-                  <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Serverový klíč připraven</div>
-                  <div className="mt-1 text-[9px] text-emerald-200/70">Lokálně nemusíš nic zadávat.</div>
-                </div>
-              </div>
-            </div>
           ) : null}
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VSTUPY ({inputs.length})</div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {inputs.map(input => (
-                <div key={input.id} className="relative group w-[72px] h-[72px] shrink-0">
-                  <img src={input.dataUrl} alt={input.file.name} className="w-full h-full object-cover rounded-lg border border-white/10" />
-                  <button type="button" onClick={() => removeInput(input.id)}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-400">
-                    <X className="w-3 h-3 text-white" strokeWidth={3} />
-                  </button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-[7px] text-white truncate font-bold">{input.file.name}</p>
-                  </div>
+          <div className="space-y-1">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center justify-between">
+              <span>Vstupní obrázky</span>
+              <span className="text-[9px] text-[var(--text-secondary)]">{inputs.length}</span>
+            </h3>
+            <div className="relative min-h-[80px] border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] rounded-lg transition-all bg-[var(--bg-panel)]/50">
+              {inputs.length === 0 ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer" onClick={() => document.getElementById(inputFileId)?.click()}>
+                  <span className="text-[var(--text-secondary)] text-lg transition-colors">+</span>
+                  <input id={inputFileId} type="file" multiple accept="image/*" className="hidden"
+                    onChange={(e) => { const f = e.target.files; if (f) handleImagesSelected(Array.from(f)); e.currentTarget.value = ''; }} />
                 </div>
-              ))}
-              {inputs.length < MAX_INPUTS && (
-                <ImageUpload
-                  onImagesSelected={handleImagesSelected}
-                  compact
-                  remainingSlots={MAX_INPUTS - inputs.length}
-                />
+              ) : (
+                <div className="p-1 grid grid-cols-4 gap-1">
+                  {inputs.map(img => (
+                    <div key={img.id} className="relative group aspect-square rounded overflow-hidden bg-[var(--bg-card)] border border-[var(--border-color)]">
+                      <img src={img.dataUrl} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" alt={img.file.name} />
+                      <button onClick={(e) => { e.stopPropagation(); removeInput(img.id); }}
+                        className="absolute top-0 right-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
+                    <span className="text-[var(--text-secondary)]">+</span>
+                    <input type="file" multiple accept="image/*" className="hidden"
+                      onChange={(e) => { const f = e.target.files; if (f) handleImagesSelected(Array.from(f)); e.currentTarget.value = ''; }} />
+                  </label>
+                </div>
               )}
             </div>
-
-            <button type="button" onClick={onOpenSettings}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors">
-              Settings
-            </button>
           </div>
+
+          <button type="button" onClick={onOpenSettings}
+            className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors">
+            Settings
+          </button>
         </div>
       </aside>
 
@@ -445,7 +432,7 @@ export function AiUpscalerScreen(props: {
               <Sparkles className="w-8 h-8 mb-4" strokeWidth={1.2} />
               <div className="text-[11px] uppercase tracking-widest font-bold">Zatím žádné výstupy</div>
               <div className="text-[10px] text-white/25 mt-2 max-w-[400px] text-center">
-                Nahraj obrázky vlevo a spusť Restore nebo Enhance. Oba režimy jdou na stejný vstup spustit nezávisle.
+                Nahraj obrázky vlevo a spusť Restore nebo Enhance.
               </div>
             </div>
           )}
