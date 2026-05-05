@@ -18,10 +18,12 @@ export class GeminiProvider implements AIProvider {
   private static readonly TEXT_MODEL = 'gemini-3-flash-preview';
   private apiKey: string;
   private ai: GoogleGenAI | null;
+  private preferredImageModel?: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, preferredImageModel?: string) {
     this.apiKey = apiKey;
     this.ai = this.apiKey.trim() ? new GoogleGenAI({ apiKey: this.apiKey }) : null;
+    this.preferredImageModel = preferredImageModel;
   }
 
   getName(): string {
@@ -308,6 +310,7 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         resolution,
         aspectRatio,
         useGrounding,
+        preferredModel: this.preferredImageModel,
       });
     }
 
@@ -367,14 +370,19 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         config.imageConfig = imageConfig;
       }
 
-      let preferredImageModel = GeminiProvider.IMAGE_MODEL;
-      try {
-        const storedPreferred = localStorage.getItem('nanoBananaImageModel');
-        if (storedPreferred === GeminiProvider.IMAGE_MODEL || storedPreferred === GeminiProvider.IMAGE_MODEL_ALT) {
-          preferredImageModel = storedPreferred;
+      let preferredImageModel =
+        this.preferredImageModel === GeminiProvider.IMAGE_MODEL || this.preferredImageModel === GeminiProvider.IMAGE_MODEL_ALT
+          ? this.preferredImageModel
+          : GeminiProvider.IMAGE_MODEL;
+      if (!this.preferredImageModel) {
+        try {
+          const storedPreferred = localStorage.getItem('nanoBananaImageModel');
+          if (storedPreferred === GeminiProvider.IMAGE_MODEL || storedPreferred === GeminiProvider.IMAGE_MODEL_ALT) {
+            preferredImageModel = storedPreferred;
+          }
+        } catch {
+          // Ignore localStorage access errors and use defaults
         }
-      } catch {
-        // Ignore localStorage access errors and use defaults
       }
 
       const modelCandidates = Array.from(

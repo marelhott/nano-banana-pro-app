@@ -103,7 +103,15 @@ async function generateGeminiImage(payload, apiKey) {
     generationConfig.imageConfig = { aspectRatio: payload.aspectRatio };
   }
 
-  const candidates = [geminiModels.image, geminiModels.imageAlt, geminiModels.imageFallback];
+  const requestedPreferredModel = String(payload.preferredModel || '').trim();
+  const preferredModel = [geminiModels.image, geminiModels.imageAlt].includes(requestedPreferredModel)
+    ? requestedPreferredModel
+    : geminiModels.image;
+  const candidates = Array.from(new Set([
+    preferredModel,
+    preferredModel === geminiModels.image ? geminiModels.imageAlt : geminiModels.image,
+    geminiModels.imageFallback,
+  ]));
   let lastError;
   for (const model of candidates) {
     try {

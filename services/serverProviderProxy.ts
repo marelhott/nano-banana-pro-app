@@ -11,6 +11,7 @@ type ServerProviderRequest = {
   provider: AIProviderType;
   action: ServerProviderAction;
   apiKey?: string;
+  preferredModel?: string;
   images?: ImageInput[];
   prompt?: string;
   shortPrompt?: string;
@@ -50,6 +51,7 @@ export const serverProviderProxy = {
     aspectRatio?: string;
     useGrounding?: boolean;
     apiKey?: string;
+    preferredModel?: string;
   }): Promise<GenerateImageResult> {
     return callServerProvider<GenerateImageResult>({ action: 'generateImage', ...params });
   },
