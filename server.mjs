@@ -76,7 +76,7 @@ function extractReplicateToken(req, bodyToken) {
     req.header('x-replicate-token') ||
     req.header('authorization')?.replace(/^Bearer\s+/i, '')
 
-  return headerToken || bodyToken || null
+  return headerToken || bodyToken || process.env.REPLICATE_API_KEY || process.env.REPLICATE_API_TOKEN || null
 }
 
 function listSafetensors(dir) {

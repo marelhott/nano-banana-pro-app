@@ -4,11 +4,15 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const { token, version, input } = (req.body || {}) as {
+  let { token, version, input } = (req.body || {}) as {
     token?: string;
     version?: string;
     input?: unknown;
   };
+
+  if (!token) {
+    token = process.env.REPLICATE_API_KEY || process.env.REPLICATE_API_TOKEN || '';
+  }
 
   if (!token) {
     res.status(400).json({ error: 'Missing Replicate token' });

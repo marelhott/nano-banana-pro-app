@@ -4,7 +4,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const token = req.headers?.['x-replicate-token'];
+  const token = req.headers?.['x-replicate-token'] || process.env.REPLICATE_API_KEY || process.env.REPLICATE_API_TOKEN;
   const id = req.query?.id;
   if (!token) {
     res.status(400).json({ error: 'Missing Replicate token' });

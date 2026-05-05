@@ -38,6 +38,21 @@ function readReplicateKey(): string {
   }
 }
 
+let cachedServerHasReplicateKey: boolean | null = null;
+
+async function serverHasReplicateKey(): Promise<boolean> {
+  if (cachedServerHasReplicateKey !== null) return cachedServerHasReplicateKey;
+  try {
+    const res = await fetch('/api/public-config');
+    const data = await res.json();
+    cachedServerHasReplicateKey = Boolean(data?.providers?.replicate);
+    return cachedServerHasReplicateKey;
+  } catch {
+    cachedServerHasReplicateKey = false;
+    return false;
+  }
+}
+
 function downloadDataUrl(dataUrl: string, fileName: string): void {
   const link = document.createElement('a');
   link.href = dataUrl;
@@ -135,7 +150,16 @@ export function AiUpscalerScreen(props: {
   const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number; fileName: string } | null>(null);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
+  const [serverHasKey, setServerHasKey] = React.useState(false);
   const inputFileId = React.useMemo(() => `ai-upscaler-input-${Math.random().toString(36).slice(2)}`, []);
+
+  const replicateKey = React.useMemo(() => readReplicateKey(), []);
+
+  React.useEffect(() => {
+    if (!replicateKey) {
+      serverHasReplicateKey().then(setServerHasKey);
+    }
+  }, [replicateKey]);
 
   const phaseLabel =
     phase === 'queue' ? 'Ve frontě' : phase === 'running' ? 'Zpracovávám' : phase === 'finalizing' ? 'Dokončuji' : '';
@@ -148,8 +172,6 @@ export function AiUpscalerScreen(props: {
         : phase === 'finalizing'
           ? 94
           : 0;
-
-  const replicateKey = React.useMemo(() => readReplicateKey(), []);
 
   const selectedInput = React.useMemo(
     () => inputs.find((item) => item.id === selectedInputId) || inputs[0] || null,
@@ -273,10 +295,10 @@ export function AiUpscalerScreen(props: {
 
     if (mode === 'restore') {
       const key = readReplicateKey();
-      if (!key) {
+      if (!key && !serverHasKey) {
         onToast({
           type: 'error',
-          message: 'Pro Restore režim potřebuješ Replicate API klíč — nastav ho v Settings.',
+          message: 'Pro Restore režim potřebuješ Replicate API klíč — nastav ho v Settings nebo doplň REPLICATE_API_KEY na serveru.',
         });
         return;
       }
@@ -323,7 +345,7 @@ export function AiUpscalerScreen(props: {
             )));
 
             const result = await upscaleImage({
-              token: key,
+              token: key || '',
               imageDataUrl: input.dataUrl,
               factor: scale,
             });
@@ -482,14 +504,26 @@ export function AiUpscalerScreen(props: {
             )}
           </div>
 
-          {mode === 'restore' && !replicateKey ? (
+          {mode === 'restore' && !replicateKey && !serverHasKey ? (
             <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
               <div className="flex items-start gap-2">
                 <WifiOff className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" strokeWidth={1.6} />
                 <div>
                   <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Replicate klíč</div>
                   <div className="mt-1 text-[9px] text-amber-200/70">
-                    Restore režim potřebuje Replicate API klíč. Nastav ho v Settings.
+                    Restore režim potřebuje Replicate API klíč. Nastav ho v Settings nebo doplň REPLICATE_API_KEY na serveru.
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : mode === 'restore' && !replicateKey && serverHasKey ? (
+            <div className="card-surface p-3 border border-emerald-500/30 bg-emerald-500/5">
+              <div className="flex items-start gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" strokeWidth={1.6} />
+                <div>
+                  <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Serverový klíč je připraven</div>
+                  <div className="mt-1 text-[9px] text-emerald-200/70">
+                    Replicate klíč je nastavený na serveru. Restore režim pojede bez nutnosti zadávat klíč lokálně.
                   </div>
                 </div>
               </div>
