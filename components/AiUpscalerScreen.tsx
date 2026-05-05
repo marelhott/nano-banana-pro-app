@@ -3,6 +3,7 @@ import { Download, Maximize2, Sparkles, Trash2, Upload } from 'lucide-react';
 import { runFalFaithfulUpscaleQueued, runFalUpscaleQueued } from '../services/falService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
+import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
 import { fileToDataUrl, resolveDropToFile } from './styleTransfer/utils';
 import type { ToastType } from './Toast';
 type UpscaleMode = 'faithful' | 'enhanced';
@@ -25,6 +26,17 @@ type OutputItem = {
   detailsText?: string;
   error?: string;
 };
+
+type PreparedUpscaleInput = {
+  imageUrlOrDataUrl: string;
+  width: number;
+  height: number;
+  normalized: boolean;
+  note?: string;
+};
+
+const AURA_SR_MAX_DIM = 3072;
+const CLARITY_MAX_EFFECTIVE_MP = 32 * 1024 * 1024;
 
 function downloadDataUrl(dataUrl: string, fileName: string): void {
   const link = document.createElement('a');
@@ -91,6 +103,64 @@ async function resizeDataUrl(dataUrl: string, width: number, height: number): Pr
     image.onerror = () => reject(new Error('Nepodařilo se převzorkovat výstupní obrázek.'));
     image.src = dataUrl;
   });
+}
+
+async function normalizeUpscaleInput(params: {
+  dataUrl: string;
+  width: number;
+  height: number;
+  mode: UpscaleMode;
+  scale: 2 | 4;
+}): Promise<{ dataUrl: string; width: number; height: number; note?: string }> {
+  const { dataUrl, width, height, mode, scale } = params;
+
+  const maxDimScale = mode === 'faithful' ? Math.min(1, AURA_SR_MAX_DIM / Math.max(width, height)) : 1;
+  const maxArea = mode === 'enhanced' ? Math.floor(CLARITY_MAX_EFFECTIVE_MP / Math.max(1, scale)) : Number.POSITIVE_INFINITY;
+  const areaScale = Number.isFinite(maxArea) ? Math.min(1, Math.sqrt(maxArea / Math.max(1, width * height))) : 1;
+  const appliedScale = Math.min(1, maxDimScale, areaScale);
+
+  if (appliedScale >= 0.999) {
+    return { dataUrl, width, height };
+  }
+
+  const nextWidth = Math.max(1, Math.round(width * appliedScale));
+  const nextHeight = Math.max(1, Math.round(height * appliedScale));
+  const normalized = await resizeDataUrl(dataUrl, nextWidth, nextHeight);
+  const reason =
+    mode === 'faithful'
+      ? `Vstup automaticky upraven na ${nextWidth}×${nextHeight}, aby prošel limitem AuraSR.`
+      : `Vstup automaticky upraven na ${nextWidth}×${nextHeight}, aby prošel limitem Clarity ${scale}×.`;
+  return { dataUrl: normalized, width: nextWidth, height: nextHeight, note: reason };
+}
+
+async function prepareUpscaleInput(input: ImageSlot, mode: UpscaleMode, scale: 2 | 4): Promise<PreparedUpscaleInput> {
+  const normalized = await normalizeUpscaleInput({
+    dataUrl: input.dataUrl,
+    width: input.width,
+    height: input.height,
+    mode,
+    scale,
+  });
+
+  try {
+    const blob = await dataUrlToBlob(normalized.dataUrl);
+    const path = await uploadImage(blob, 'saved');
+    return {
+      imageUrlOrDataUrl: getPublicUrl(path),
+      width: normalized.width,
+      height: normalized.height,
+      normalized: !!normalized.note,
+      note: normalized.note,
+    };
+  } catch {
+    return {
+      imageUrlOrDataUrl: normalized.dataUrl,
+      width: normalized.width,
+      height: normalized.height,
+      normalized: !!normalized.note,
+      note: normalized.note ? `${normalized.note} Cloud upload selhal, pokračuji přes lokální data.` : undefined,
+    };
+  }
 }
 
 function buildOutputId(inputId: string): string {
@@ -291,14 +361,29 @@ export function AiUpscalerScreen(props: {
         )));
 
         try {
+          setOutputs((prev) => prev.map((item) => (
+            item.inputId === input.id
+              ? { ...item, detailsText: 'Připravuji vstup pro fal…' }
+              : item
+          )));
+
+          const prepared = await prepareUpscaleInput(input, mode, scale);
+          if (prepared.note) {
+            setOutputs((prev) => prev.map((item) => (
+              item.inputId === input.id
+                ? { ...item, detailsText: prepared.note }
+                : item
+            )));
+          }
+
           const rawResult = mode === 'faithful'
             ? await runFalFaithfulUpscaleQueued({
-                imageUrlOrDataUrl: input.dataUrl,
+                imageUrlOrDataUrl: prepared.imageUrlOrDataUrl,
                 onPhase: setPhase,
                 maxWaitMs: 10 * 60_000,
               })
             : await runFalUpscaleQueued({
-                imageUrlOrDataUrl: input.dataUrl,
+                imageUrlOrDataUrl: prepared.imageUrlOrDataUrl,
                 upscaleFactor: scale,
                 creativity,
                 resemblance,
@@ -313,8 +398,8 @@ export function AiUpscalerScreen(props: {
 
           const detailsText =
             mode === 'faithful'
-              ? `fal-ai/aura-sr • ${scale}× • faithful`
-              : `fal-ai/clarity-upscaler • ${scale}× • creativity ${creativity.toFixed(2)} • resemblance ${resemblance.toFixed(2)}`;
+              ? `fal-ai/aura-sr • ${scale}× • faithful${prepared.normalized ? ` • vstup ${prepared.width}×${prepared.height}` : ''}`
+              : `fal-ai/clarity-upscaler • ${scale}× • creativity ${creativity.toFixed(2)} • resemblance ${resemblance.toFixed(2)}${prepared.normalized ? ` • vstup ${prepared.width}×${prepared.height}` : ''}`;
 
           setOutputs((prev) => prev.map((item) => (
             item.inputId === input.id
@@ -656,26 +741,41 @@ export function AiUpscalerScreen(props: {
                     className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]"
                   />
                 </button>
+              ) : selectedInput?.dataUrl ? (
+                <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/20">
+                  <img
+                    src={selectedInput.dataUrl}
+                    alt={selectedInput.file.name}
+                    className="w-full max-h-[70vh] object-contain opacity-35"
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white/70 px-6 text-center bg-[radial-gradient(circle_at_center,rgba(7,12,18,0.2),rgba(7,12,18,0.68))]">
+                    <Sparkles className="w-6 h-6 mb-3" />
+                    <div className="text-[11px] uppercase tracking-widest font-bold">{phaseLabel || 'Připraveno na upscale'}</div>
+                    <div className="text-[10px] text-white/45 mt-2 max-w-[720px]">
+                      {selectedOutput?.detailsText || 'Vstup je připravený. Po dokončení se sem vykreslí hotový upscale.'}
+                    </div>
+                    {(isGenerating || batchProgress) ? (
+                      <div className="w-full max-w-[340px] mt-5 space-y-2">
+                        <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                          <div
+                            className="h-full rounded-full bg-[var(--accent)] transition-all duration-500 ease-out shadow-[0_0_14px_rgba(126,217,87,0.35)] animate-pulse"
+                            style={{ width: `${Math.min(100, Math.max(8, phaseProgress))}%` }}
+                          />
+                        </div>
+                        <div className="text-[10px] text-[#7ed957]">
+                          {batchProgress ? `${batchProgress.current}/${batchProgress.total} • ${phaseLabel || 'Pracuji…'}` : (phaseLabel || 'Pracuji…')}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               ) : (
                 <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/45 px-6 text-center">
                   <Sparkles className="w-6 h-6 mb-3" />
-                  <div className="text-[11px] uppercase tracking-widest font-bold">{phaseLabel || 'Připraveno na upscale'}</div>
+                  <div className="text-[11px] uppercase tracking-widest font-bold">Připraveno na upscale</div>
                   <div className="text-[10px] text-white/35 mt-2">
                     Faithful mód je určený pro čisté zvýšení rozlišení. Enhanced mód ponechává generativní clarity workflow jako volitelný detail boost.
                   </div>
-                  {(isGenerating || batchProgress) ? (
-                    <div className="w-full max-w-[320px] mt-5 space-y-2">
-                      <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
-                        <div
-                          className="h-full rounded-full bg-[var(--accent)] transition-all duration-500 ease-out shadow-[0_0_14px_rgba(126,217,87,0.35)]"
-                          style={{ width: `${Math.min(100, Math.max(8, phaseProgress))}%` }}
-                        />
-                      </div>
-                      <div className="text-[10px] text-[#7ed957]">
-                        {batchProgress ? `${batchProgress.current}/${batchProgress.total} • ${phaseLabel || 'Pracuji…'}` : (phaseLabel || 'Pracuji…')}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
               )}
             </article>
