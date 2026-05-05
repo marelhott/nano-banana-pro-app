@@ -1,12 +1,12 @@
 import React from 'react';
-import { Download, Maximize2, Sparkles, Trash2, Upload } from 'lucide-react';
-import { runFalFaithfulUpscaleQueued, runFalUpscaleQueued } from '../services/falService';
+import { Download, Maximize2, Sparkles, Trash2, Upload, WifiOff, Cpu } from 'lucide-react';
+import { upscaleImage } from '../utils/upscaling';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { dataUrlToBlob, getPublicUrl, uploadImage } from '../utils/supabaseStorage';
 import { fileToDataUrl, resolveDropToFile } from './styleTransfer/utils';
 import type { ToastType } from './Toast';
-type UpscaleMode = 'faithful' | 'enhanced';
+type UpscaleMode = 'restore' | 'turbo';
 
 type ImageSlot = {
   id: string;
@@ -27,16 +27,16 @@ type OutputItem = {
   error?: string;
 };
 
-type PreparedUpscaleInput = {
-  imageUrlOrDataUrl: string;
-  width: number;
-  height: number;
-  normalized: boolean;
-  note?: string;
-};
-
-const AURA_SR_MAX_DIM = 3072;
-const CLARITY_MAX_EFFECTIVE_MP = 32 * 1024 * 1024;
+function readReplicateKey(): string {
+  try {
+    const raw = localStorage.getItem('providerSettings');
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    return parsed?.replicate?.apiKey || '';
+  } catch {
+    return '';
+  }
+}
 
 function downloadDataUrl(dataUrl: string, fileName: string): void {
   const link = document.createElement('a');
@@ -105,64 +105,6 @@ async function resizeDataUrl(dataUrl: string, width: number, height: number): Pr
   });
 }
 
-async function normalizeUpscaleInput(params: {
-  dataUrl: string;
-  width: number;
-  height: number;
-  mode: UpscaleMode;
-  scale: 2 | 4;
-}): Promise<{ dataUrl: string; width: number; height: number; note?: string }> {
-  const { dataUrl, width, height, mode, scale } = params;
-
-  const maxDimScale = mode === 'faithful' ? Math.min(1, AURA_SR_MAX_DIM / Math.max(width, height)) : 1;
-  const maxArea = mode === 'enhanced' ? Math.floor(CLARITY_MAX_EFFECTIVE_MP / Math.max(1, scale)) : Number.POSITIVE_INFINITY;
-  const areaScale = Number.isFinite(maxArea) ? Math.min(1, Math.sqrt(maxArea / Math.max(1, width * height))) : 1;
-  const appliedScale = Math.min(1, maxDimScale, areaScale);
-
-  if (appliedScale >= 0.999) {
-    return { dataUrl, width, height };
-  }
-
-  const nextWidth = Math.max(1, Math.round(width * appliedScale));
-  const nextHeight = Math.max(1, Math.round(height * appliedScale));
-  const normalized = await resizeDataUrl(dataUrl, nextWidth, nextHeight);
-  const reason =
-    mode === 'faithful'
-      ? `Vstup automaticky upraven na ${nextWidth}×${nextHeight}, aby prošel limitem AuraSR.`
-      : `Vstup automaticky upraven na ${nextWidth}×${nextHeight}, aby prošel limitem Clarity ${scale}×.`;
-  return { dataUrl: normalized, width: nextWidth, height: nextHeight, note: reason };
-}
-
-async function prepareUpscaleInput(input: ImageSlot, mode: UpscaleMode, scale: 2 | 4): Promise<PreparedUpscaleInput> {
-  const normalized = await normalizeUpscaleInput({
-    dataUrl: input.dataUrl,
-    width: input.width,
-    height: input.height,
-    mode,
-    scale,
-  });
-
-  try {
-    const blob = await dataUrlToBlob(normalized.dataUrl);
-    const path = await uploadImage(blob, 'saved');
-    return {
-      imageUrlOrDataUrl: getPublicUrl(path),
-      width: normalized.width,
-      height: normalized.height,
-      normalized: !!normalized.note,
-      note: normalized.note,
-    };
-  } catch {
-    return {
-      imageUrlOrDataUrl: normalized.dataUrl,
-      width: normalized.width,
-      height: normalized.height,
-      normalized: !!normalized.note,
-      note: normalized.note ? `${normalized.note} Cloud upload selhal, pokračuji přes lokální data.` : undefined,
-    };
-  }
-}
-
 function buildOutputId(inputId: string): string {
   return `${inputId}-upscale`;
 }
@@ -174,7 +116,7 @@ function createPendingOutput(input: ImageSlot, mode: UpscaleMode, scale: 2 | 4):
     inputName: input.file.name,
     status: 'pending',
     createdAt: Date.now(),
-    detailsText: mode === 'faithful' ? `AuraSR • ${scale}×` : `Clarity • ${scale}×`,
+    detailsText: mode === 'restore' ? `Real-ESRGAN • ${scale}×` : `Lanczos • ${scale}×`,
   };
 }
 
@@ -186,10 +128,8 @@ export function AiUpscalerScreen(props: {
 
   const [inputs, setInputs] = React.useState<ImageSlot[]>([]);
   const [selectedInputId, setSelectedInputId] = React.useState<string | null>(null);
-  const [scale, setScale] = React.useState<2 | 4>(4);
-  const [mode, setMode] = React.useState<UpscaleMode>('faithful');
-  const [detailBoostEnabled, setDetailBoostEnabled] = React.useState(true);
-  const [detailBoost, setDetailBoost] = React.useState(38);
+  const [scale, setScale] = React.useState<2 | 4>(2);
+  const [mode, setMode] = React.useState<UpscaleMode>('restore');
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [phase, setPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number; fileName: string } | null>(null);
@@ -209,8 +149,7 @@ export function AiUpscalerScreen(props: {
           ? 94
           : 0;
 
-  const creativity = detailBoostEnabled ? 0.18 + (detailBoost / 100) * 0.62 : 0.12;
-  const resemblance = detailBoostEnabled ? 0.93 - (detailBoost / 100) * 0.38 : 0.92;
+  const replicateKey = React.useMemo(() => readReplicateKey(), []);
 
   const selectedInput = React.useMemo(
     () => inputs.find((item) => item.id === selectedInputId) || inputs[0] || null,
@@ -225,6 +164,16 @@ export function AiUpscalerScreen(props: {
   const pendingCount = React.useMemo(() => {
     return inputs.filter((input) => outputs.find((item) => item.inputId === input.id)?.status !== 'done').length;
   }, [inputs, outputs]);
+
+  React.useEffect(() => {
+    setOutputs((prev) => prev.map((item) => {
+      if (item.status === 'done' || item.status === 'error') return item;
+      return {
+        ...item,
+        detailsText: mode === 'restore' ? `Real-ESRGAN • ${scale}×` : `Lanczos • ${scale}×`,
+      };
+    }));
+  }, [mode, scale]);
 
   const pickInputFiles = React.useCallback(
     async (fileList: File[]) => {
@@ -316,20 +265,21 @@ export function AiUpscalerScreen(props: {
     setPhase('');
   }, []);
 
-  React.useEffect(() => {
-    setOutputs((prev) => prev.map((item) => {
-      if (item.status === 'done' || item.status === 'error') return item;
-      return {
-        ...item,
-        detailsText: mode === 'faithful' ? `AuraSR • ${scale}×` : `Clarity • ${scale}×`,
-      };
-    }));
-  }, [mode, scale]);
-
   const handleGenerate = React.useCallback(async () => {
     if (inputs.length === 0) {
       onToast({ type: 'error', message: 'Nahraj nebo přetáhni alespoň jeden obrázek.' });
       return;
+    }
+
+    if (mode === 'restore') {
+      const key = readReplicateKey();
+      if (!key) {
+        onToast({
+          type: 'error',
+          message: 'Pro Restore režim potřebuješ Replicate API klíč — nastav ho v Settings.',
+        });
+        return;
+      }
     }
 
     const inputsToProcess = inputs.filter((input) => outputs.find((item) => item.inputId === input.id)?.status !== 'done');
@@ -348,6 +298,7 @@ export function AiUpscalerScreen(props: {
 
     let completed = 0;
     let failed = 0;
+    const key = readReplicateKey();
 
     try {
       for (let index = 0; index < inputsToProcess.length; index += 1) {
@@ -361,54 +312,47 @@ export function AiUpscalerScreen(props: {
         )));
 
         try {
-          setOutputs((prev) => prev.map((item) => (
-            item.inputId === input.id
-              ? { ...item, detailsText: 'Připravuji vstup pro fal…' }
-              : item
-          )));
+          let finalImage: string;
 
-          const prepared = await prepareUpscaleInput(input, mode, scale);
-          if (prepared.note) {
+          if (mode === 'restore') {
+            setPhase('running');
             setOutputs((prev) => prev.map((item) => (
               item.inputId === input.id
-                ? { ...item, detailsText: prepared.note }
+                ? { ...item, detailsText: `Real-ESRGAN • ${scale}× • odesílám…` }
+                : item
+            )));
+
+            const result = await upscaleImage({
+              token: key,
+              imageDataUrl: input.dataUrl,
+              factor: scale,
+            });
+            finalImage = result.imageDataUrl;
+
+            setOutputs((prev) => prev.map((item) => (
+              item.inputId === input.id
+                ? { ...item, detailsText: `Real-ESRGAN • ${scale}× • ${result.originalWidth}×${result.originalHeight} → ${result.newWidth}×${result.newHeight}` }
+                : item
+            )));
+          } else {
+            setOutputs((prev) => prev.map((item) => (
+              item.inputId === input.id
+                ? { ...item, detailsText: `Lanczos • ${scale}× • převzorkovávám…` }
+                : item
+            )));
+
+            finalImage = await resizeDataUrl(input.dataUrl, input.width * scale, input.height * scale);
+
+            setOutputs((prev) => prev.map((item) => (
+              item.inputId === input.id
+                ? { ...item, detailsText: `Lanczos • ${scale}× • ${input.width}×${input.height} → ${input.width * scale}×${input.height * scale}` }
                 : item
             )));
           }
 
-          const rawResult = mode === 'faithful'
-            ? await runFalFaithfulUpscaleQueued({
-                imageUrlOrDataUrl: prepared.imageUrlOrDataUrl,
-                onPhase: setPhase,
-                maxWaitMs: 10 * 60_000,
-              })
-            : await runFalUpscaleQueued({
-                imageUrlOrDataUrl: prepared.imageUrlOrDataUrl,
-                upscaleFactor: scale,
-                creativity,
-                resemblance,
-                onPhase: setPhase,
-                maxWaitMs: 8 * 60_000,
-              });
-
-          let finalImage = rawResult.image;
-          if (mode === 'faithful' && scale === 2) {
-            finalImage = await resizeDataUrl(finalImage, input.width * 2, input.height * 2);
-          }
-
-          const detailsText =
-            mode === 'faithful'
-              ? `fal-ai/aura-sr • ${scale}× • faithful${prepared.normalized ? ` • vstup ${prepared.width}×${prepared.height}` : ''}`
-              : `fal-ai/clarity-upscaler • ${scale}× • creativity ${creativity.toFixed(2)} • resemblance ${resemblance.toFixed(2)}${prepared.normalized ? ` • vstup ${prepared.width}×${prepared.height}` : ''}`;
-
           setOutputs((prev) => prev.map((item) => (
             item.inputId === input.id
-              ? {
-                  ...item,
-                  dataUrl: finalImage,
-                  status: 'done',
-                  detailsText,
-                }
+              ? { ...item, dataUrl: finalImage, status: 'done' }
               : item
           )));
 
@@ -418,14 +362,12 @@ export function AiUpscalerScreen(props: {
               id: buildOutputId(input.id),
               url: finalImage,
               thumbnail,
-              prompt: mode === 'faithful' ? `Faithful Upscale ${scale}×` : `Enhanced Upscale ${scale}×`,
+              prompt: mode === 'restore' ? `Real-ESRGAN Upscale ${scale}×` : `Lanczos Upscale ${scale}×`,
               resolution: `${scale}×`,
               params: {
-                engine: mode === 'faithful' ? 'fal_aura_sr' : 'fal_clarity_upscaler',
+                engine: mode === 'restore' ? 'replicate_real_esrgan' : 'canvas_lanczos',
                 mode,
                 scale,
-                creativity: mode === 'enhanced' ? creativity : undefined,
-                resemblance: mode === 'enhanced' ? resemblance : undefined,
                 operation: 'upscale',
               },
             });
@@ -438,12 +380,7 @@ export function AiUpscalerScreen(props: {
           failed += 1;
           setOutputs((prev) => prev.map((item) => (
             item.inputId === input.id
-              ? {
-                  ...item,
-                  status: 'error',
-                  error: error?.message || 'Upscale selhal.',
-                  detailsText: input.file.name,
-                }
+              ? { ...item, status: 'error', error: error?.message || 'Upscale selhal.', detailsText: input.file.name }
               : item
           )));
         }
@@ -453,9 +390,7 @@ export function AiUpscalerScreen(props: {
         onToast({
           type: 'success',
           message: inputsToProcess.length === 1
-            ? mode === 'faithful'
-              ? `Faithful upscale ${scale}× hotový.`
-              : `Enhanced upscale ${scale}× hotový.`
+            ? `Upscale ${scale}× hotový.`
             : `Upscale dokončen pro ${completed} souborů.`,
         });
       } else if (completed > 0) {
@@ -468,7 +403,7 @@ export function AiUpscalerScreen(props: {
       setPhase('');
       setBatchProgress(null);
     }
-  }, [creativity, inputs, mode, onToast, outputs, resemblance, scale]);
+  }, [inputs, mode, onToast, outputs, scale]);
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -487,7 +422,7 @@ export function AiUpscalerScreen(props: {
           >
             {isGenerating
               ? (phaseLabel ? `Upscaling • ${phaseLabel}` : 'Upscaling…')
-              : `${mode === 'faithful' ? 'Faithful' : 'Enhanced'} ${scale}× • ${Math.max(1, pendingCount || inputs.length)} soub.`
+              : `${mode === 'restore' ? 'Restore' : 'Turbo'} ${scale}× • ${Math.max(1, pendingCount || inputs.length)} soub.`
             }
           </button>
 
@@ -495,8 +430,8 @@ export function AiUpscalerScreen(props: {
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">REŽIM</div>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { value: 'faithful', label: 'Faithful', hint: 'bez kreativity' },
-                { value: 'enhanced', label: 'Enhanced', hint: 'detail boost' },
+                { value: 'restore', label: 'Restore', hint: 'AI dopočítání detailů', icon: Sparkles },
+                { value: 'turbo', label: 'Turbo', hint: 'okamžité zvětšení', icon: Cpu },
               ] as const).map((option) => (
                 <button
                   key={option.value}
@@ -508,7 +443,10 @@ export function AiUpscalerScreen(props: {
                       : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
                   }`}
                 >
-                  <div className="text-[10px] font-bold uppercase tracking-widest">{option.label}</div>
+                  <div className="flex items-center gap-2">
+                    <option.icon className="w-3.5 h-3.5" strokeWidth={1.6} />
+                    <div className="text-[10px] font-bold uppercase tracking-widest">{option.label}</div>
+                  </div>
                   <div className="mt-1 text-[9px] text-white/45">{option.hint}</div>
                 </button>
               ))}
@@ -516,7 +454,7 @@ export function AiUpscalerScreen(props: {
           </div>
 
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET PIXELŮ</div>
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">ZVĚTŠENÍ</div>
             <div className="flex items-center justify-between bg-transparent pt-1">
               {[2, 4].map((value) => (
                 <button
@@ -533,12 +471,30 @@ export function AiUpscalerScreen(props: {
                 </button>
               ))}
             </div>
-            {mode === 'faithful' ? (
+            {mode === 'turbo' ? (
               <div className="text-[9px] text-white/35">
-                Faithful mód běží přes `fal-ai/aura-sr` ve 4× kvalitě a při volbě 2× výstup jemně zmenší zpět bez kreativního přemalování.
+                Turbo mód běží zcela lokálně přes Canvas Lanczos — žádná API, žádné čekání. Výsledek není AI dopočítaný, jen plynule zvětšený.
               </div>
-            ) : null}
+            ) : (
+              <div className="text-[9px] text-white/35">
+                Restore mód používá Real-ESRGAN přes Replicate — věrné dopočítání detailů bez kreativního přemalování. Cca $0.004/obr.
+              </div>
+            )}
           </div>
+
+          {mode === 'restore' && !replicateKey ? (
+            <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
+              <div className="flex items-start gap-2">
+                <WifiOff className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" strokeWidth={1.6} />
+                <div>
+                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Replicate klíč</div>
+                  <div className="mt-1 text-[9px] text-amber-200/70">
+                    Restore režim potřebuje Replicate API klíč. Nastav ho v Settings.
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="card-surface p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -590,66 +546,9 @@ export function AiUpscalerScreen(props: {
               </button>
             </div>
             <div className="text-[9px] text-white/35">
-              Přetáhni více obrázků najednou nebo přidej obrázky z pravé knihovny po jednom. Batch běží sekvenčně, aby nezatížil storage ani API, a při dalším spuštění přeskočí už hotové výstupy.
+              Přetáhni více obrázků najednou nebo přidej obrázky z pravé knihovny po jednom. Batch běží sekvenčně.
             </div>
           </div>
-
-          {mode === 'enhanced' ? (
-            <div className="card-surface p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">DOPOČET DETAILU</div>
-                  <div className="text-[9px] text-white/35 mt-1">Generativní enhance přes clarity-upscaler.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDetailBoostEnabled((prev) => !prev)}
-                  className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${detailBoostEnabled ? 'bg-[#7ed957]/70' : 'bg-white/10'}`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${detailBoostEnabled ? 'translate-x-4' : ''}`}
-                  />
-                </button>
-              </div>
-
-              <div className={`${detailBoostEnabled ? 'opacity-100' : 'opacity-45'} transition-opacity`}>
-                <div className="flex items-center justify-between text-[10px] text-white/45 mb-2">
-                  <span>Síla detailu</span>
-                  <span>{detailBoost}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={detailBoost}
-                  disabled={!detailBoostEnabled}
-                  onChange={(e) => setDetailBoost(Number(e.target.value))}
-                  className="w-full h-[2px] accent-[#7ed957] opacity-80"
-                />
-                <div className="grid grid-cols-2 gap-2 mt-3">
-                  <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-white/35">Creativity</div>
-                    <div className="mt-1 text-[10px] text-white/80">{creativity.toFixed(2)}</div>
-                  </div>
-                  <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-white/35">Resemblance</div>
-                    <div className="mt-1 text-[10px] text-white/80">{resemblance.toFixed(2)}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="card-surface p-3 space-y-2">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">ENDPOINT</div>
-              <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[10px] text-white/75">
-                fal-ai/aura-sr • checkpoint v2 • overlapping tiles
-              </div>
-              <div className="text-[9px] text-white/35">
-                Faithful mód je zaměřený na čisté zvýšení rozlišení bez promptu, bez creativity a bez přemalování scény.
-              </div>
-            </div>
-          )}
         </div>
       </aside>
 
@@ -658,7 +557,7 @@ export function AiUpscalerScreen(props: {
           <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Mode</div>
-              <div className="text-[10px] text-white/75">{mode === 'faithful' ? 'Faithful' : 'Enhanced'}</div>
+              <div className="text-[10px] text-white/75">{mode === 'restore' ? 'Restore' : 'Turbo'}</div>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Scale</div>
@@ -774,7 +673,7 @@ export function AiUpscalerScreen(props: {
                   <Sparkles className="w-6 h-6 mb-3" />
                   <div className="text-[11px] uppercase tracking-widest font-bold">Připraveno na upscale</div>
                   <div className="text-[10px] text-white/35 mt-2">
-                    Faithful mód je určený pro čisté zvýšení rozlišení. Enhanced mód ponechává generativní clarity workflow jako volitelný detail boost.
+                    Restore — AI dopočítání detailů přes Real-ESRGAN. Turbo — okamžité Lanczos zvětšení v prohlížeči.
                   </div>
                 </div>
               )}
@@ -851,9 +750,7 @@ export function AiUpscalerScreen(props: {
                               ? (output.error || 'Chyba')
                               : output.status === 'running'
                                 ? phaseLabel || 'Běží'
-                                : output.status === 'pending'
-                                  ? 'Čeká'
-                                  : 'Připraveno'}
+                                : 'Čeká'}
                         </div>
                         <div className="mt-1 text-[9px] text-white/30 truncate">
                           {output.detailsText || `${mode} • ${scale}×`}
