@@ -1,49 +1,75 @@
 import type { HeadSwapHairSource } from '../services/aiProvider';
-import type { HeadSwapMode } from '../services/headSwapService';
+import type { HeadSwapMode, HeadSwapPromptProviderId } from '../services/headSwapService';
+
+export type HeadSwapPromptModel = 'gemini' | 'openai';
 
 type HeadSwapPromptParams = {
+  model: HeadSwapPromptModel;
   mode: HeadSwapMode;
   hairSource: HeadSwapHairSource;
+  batchIndex: number;
 };
 
-function getHairPriorityText(hairSource: HeadSwapHairSource): string {
+function getHairRule(hairSource: HeadSwapHairSource): string {
   if (hairSource === 'user') {
-    return 'Preserve the source person hairline, hairstyle, hair color, hair density, hair volume, flyaway hairs, sideburns, baby hairs, and ears as faithfully as possible.';
+    return 'Hair priority: preserve the source person hairline, hairstyle, color, density, baby hairs, sideburns, and ears whenever they are visible.';
   }
 
-  return 'Preserve the target scene hair silhouette and edge integration when needed for realism, but keep the source identity, facial structure, and visible head traits dominant.';
+  return 'Hair priority: preserve the target scene silhouette and edge integration only where needed, but keep the source identity dominant.';
 }
 
-export function buildHeadSwapIdentityLockPrompt(params: HeadSwapPromptParams): string {
-  const subjectText = params.mode === 'head' ? 'entire visible head' : 'entire visible face and as much of the head as needed';
+function getSwapScope(mode: HeadSwapMode): string {
+  return mode === 'head'
+    ? 'Replace the entire visible head of the person in the target image.'
+    : 'Replace the visible face and only the minimum surrounding head area needed for a believable swap.';
+}
+
+function getVariationRule(batchIndex: number): string {
+  if (batchIndex === 0) return 'Variation target: make the cleanest, safest, most identity-faithful version.';
+  if (batchIndex === 1) return 'Variation target: keep the same identity but try a slightly cleaner blend around hairline, ears, and neck seam.';
+  return 'Variation target: keep the same identity but try a slightly stronger realism pass in texture, pores, and lighting coherence.';
+}
+
+export function getHeadSwapModelLabel(model: HeadSwapPromptModel): string {
+  return model === 'gemini' ? 'Gemini Nano Banana' : 'GPT Image 2';
+}
+
+export function getHeadSwapProviderId(model: HeadSwapPromptModel): HeadSwapPromptProviderId {
+  return model === 'gemini' ? 'gemini-identity-edit' : 'openai-identity-edit';
+}
+
+export function buildHeadSwapPrompt(params: HeadSwapPromptParams): string {
+  const modelSpecificRule =
+    params.model === 'gemini'
+      ? 'Optimize for a believable preview-quality edit with stable identity and minimal unintended repainting.'
+      : 'Optimize for a polished final-quality edit with photorealistic blending and strong skin and eye detail, without changing identity.';
 
   return [
-    `Task: Replace the ${subjectText} of the person in the target image with the identity from the source reference image.`,
+    'You are performing a precise identity-preserving face/head swap from a two-panel composite image.',
     '',
-    'Inputs:',
-    'Image 1 is the target image. Keep its body, pose, camera framing, clothing, hands, background, and scene composition unchanged.',
-    'Image 2 is the source identity reference. Use it as the only identity source for the replacement.',
+    'Composite input layout:',
+    'Left panel = target image. Keep its body, pose, clothing, framing, background, composition, and scene intact.',
+    'Right panel = source identity. Use this panel as the only identity source for the swap.',
     '',
-    'Primary identity rule:',
-    'Use the source reference as the ONLY facial and head identity source.',
-    'Preserve exact facial geometry, skull shape, forehead, hairline, hairstyle, eyebrows, eyelids, eyes, nose, nostrils, cheeks, lips, teeth if visible, jawline, chin, ears, skin tone, skin texture, pores, wrinkles, freckles, facial hair, makeup level, and age cues.',
-    getHairPriorityText(params.hairSource),
+    getSwapScope(params.mode),
+    '',
+    'Identity lock:',
+    'Preserve the source identity exactly: facial geometry, skull shape, forehead, hairline, hairstyle, eyebrows, eyes, nose, cheeks, lips, jawline, chin, ears, skin tone, texture, age cues, facial hair, and likeness.',
+    getHairRule(params.hairSource),
     '',
     'Blend rule:',
-    'Integrate the replacement naturally into the target photo so it matches the target body pose, neck connection, camera angle, lens perspective, lighting direction, color temperature, depth of field, motion blur, compression, and grain.',
+    'Match the target body pose, neck connection, camera angle, lens perspective, lighting direction, color temperature, depth of field, grain, compression, and motion blur.',
     '',
     'Hard constraints:',
     'Do not invent a new face.',
-    'Do not beautify or stylize.',
-    'Do not smooth skin.',
-    'Do not change age, ethnicity, sex traits, head shape, hair style, hair color, facial proportions, or likeness.',
-    'Do not retain any facial features from the original target person.',
-    'Do not alter the target body, clothing, hands, accessories, background, or composition except what is strictly necessary around the neck and hair boundary for seamless compositing.',
+    'Do not stylize, beautify, de-age, re-light the whole photo, smooth skin, or change ethnicity.',
+    'Do not keep any facial features from the original target person.',
+    'Do not alter body, hands, accessories, clothing, or background outside the minimum swap boundary.',
     '',
-    'Quality target:',
-    'Create a photorealistic, seamless, identity-preserving result that looks like a real photograph, not an AI edit.',
+    modelSpecificRule,
+    getVariationRule(params.batchIndex),
     '',
-    'Negative constraints:',
-    'No mixed identity, no generic face, no target-face remnants, no wrong hairline, no wrong ears, no wrong jaw, no plastic skin, no glamour retouch, no duplicate face, no warped neck, no distorted glasses, and no broken teeth.',
+    'Output requirement:',
+    'Return a single realistic swapped image that looks like a real photograph, not an AI montage.',
   ].join('\n');
 }

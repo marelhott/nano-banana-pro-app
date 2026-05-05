@@ -9,6 +9,7 @@ export default tseslint.config(
       'dist/**',
       'node_modules/**',
       'workflow/**',
+      '.claude/**',
       '.netlify/**',
       '.venv-hf/**',
     ],

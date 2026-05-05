@@ -225,7 +225,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
 
-    const providers = Object.values(AIProviderType);
+    const providers = Object.values(AIProviderType).filter((provider) => provider !== AIProviderType.GROK);
     const headSwapSettings = {
         preferredPrimary: 'fal-easel' as const,
         hairSource: 'target' as HeadSwapHairSource,
@@ -298,6 +298,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         {metadata.icon === 'replicate' && (
                                             <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 12h10M7 17h10" />
+                                            </svg>
+                                        )}
+                                        {metadata.icon === 'flux' && (
+                                            <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h10" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6h10" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 18h10" />
                                             </svg>
                                         )}
                                     </div>

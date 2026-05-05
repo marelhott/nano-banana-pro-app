@@ -12,7 +12,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
     onChange,
     settings: _settings
 }) => {
-    const providers = Object.values(AIProviderType);
+    const providers = Object.values(AIProviderType).filter((provider) => provider !== AIProviderType.GROK);
 
     return (
         <div className="relative">

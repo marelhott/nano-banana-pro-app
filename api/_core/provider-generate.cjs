@@ -289,6 +289,44 @@ async function generateGrokImage(payload, apiKey) {
   throw new Error('No image data returned from Grok API');
 }
 
+async function generateReplicateImage(payload, apiKey) {
+  const response = await fetch('https://api.replicate.com/v1/predictions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      Prefer: 'wait=60',
+    },
+    body: JSON.stringify({
+      version: 'black-forest-labs/flux-2-pro',
+      input: {
+        prompt: payload.prompt || '',
+        input_images: Array.isArray(payload.images)
+          ? payload.images.map((image) => String(image?.data || '')).filter(Boolean)
+          : [],
+        aspect_ratio:
+          payload.aspectRatio && payload.aspectRatio !== 'Original'
+            ? payload.aspectRatio
+            : (Array.isArray(payload.images) && payload.images.length > 0 ? 'match_input_image' : '1:1'),
+        output_format: 'png',
+        output_quality: 90,
+        safety_tolerance: 2,
+        prompt_upsampling: false,
+      },
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.detail || data?.error || response.statusText || 'Replicate API error');
+  }
+  const output = data?.output;
+  const imageUrl = Array.isArray(output) ? output[0] : output;
+  if (typeof imageUrl !== 'string' || !imageUrl) {
+    throw new Error(data?.error || 'No image URL returned from Replicate API');
+  }
+  return { imageBase64: await fetchImageAsDataUrl(imageUrl), modelId: 'black-forest-labs/flux-2-pro' };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return json(405, { success: false, error: 'Method not allowed' });
 
@@ -321,6 +359,9 @@ exports.handler = async (event) => {
       if (action === 'enhancePrompt') result = await enhanceGrok(body.shortPrompt || body.prompt || '', apiKey);
       else if (action === 'generateImage') result = await generateGrokImage(body, apiKey);
       else throw new Error(`Unsupported Grok action: ${action}`);
+    } else if (provider === 'replicate') {
+      if (action === 'generateImage') result = await generateReplicateImage(body, apiKey);
+      else throw new Error(`Unsupported Replicate action: ${action}`);
     } else {
       throw new Error(`Unsupported provider: ${provider}`);
     }

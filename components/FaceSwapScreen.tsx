@@ -1,7 +1,7 @@
 import React from 'react';
-import { ArrowRightLeft, Download, Sparkles, Upload, User } from 'lucide-react';
+import { Download, Sparkles, Upload } from 'lucide-react';
 import type { ProviderSettings } from '../services/aiProvider';
-import type { HeadSwapMode } from '../services/headSwapService';
+import type { HeadSwapMode, HeadSwapModelChoice } from '../services/headSwapService';
 import { runHeadSwap } from '../services/headSwapService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
@@ -14,18 +14,12 @@ type ImageSlot = {
   dataUrl: string;
 };
 
-type FaceSwapOutput = {
+type FaceSwapOutputCard = {
   id: string;
-  dataUrl?: string;
-  status: 'pending' | 'done';
+  provider: string;
+  label: string;
+  dataUrl: string;
   createdAt: number;
-  detailsText?: string;
-  variants?: Array<{
-    id: string;
-    provider: string;
-    label: string;
-    dataUrl: string;
-  }>;
 };
 
 export function FaceSwapScreen(props: {
@@ -41,42 +35,21 @@ export function FaceSwapScreen(props: {
   const [preserveHair, setPreserveHair] = React.useState<'target' | 'user'>(
     providerSettings.headSwap?.hairSource || 'target'
   );
+  const [selectedModels, setSelectedModels] = React.useState<HeadSwapModelChoice>('both');
+  const [outputCount, setOutputCount] = React.useState<1 | 2 | 3>(2);
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [output, setOutput] = React.useState<FaceSwapOutput | null>(null);
+  const [outputs, setOutputs] = React.useState<FaceSwapOutputCard[]>([]);
+  const [runMeta, setRunMeta] = React.useState<string>('Zatím žádný výstup');
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
 
   const sourceInputId = React.useMemo(() => `face-swap-source-${Math.random().toString(36).slice(2)}`, []);
   const targetInputId = React.useMemo(() => `face-swap-target-${Math.random().toString(36).slice(2)}`, []);
 
-  const headSwapSettings = React.useMemo(() => ({
-    preferredPrimary: 'fal-easel' as const,
-    hairSource: 'target' as const,
-    sourceGender: 'default' as const,
-    secondarySourceGender: 'default' as const,
-    useUpscale: true,
-    useDetailer: false,
-    facefusionEndpoint: '',
-    refaceEndpoint: '',
-    ...(providerSettings.headSwap || {}),
-  }), [providerSettings.headSwap]);
-
-  const configuredProviders = React.useMemo(() => {
-    const providers: string[] = [];
-    if (String(providerSettings.fal?.apiKey || '').trim()) {
-      providers.push('fal Easel');
-    }
-    if (String(providerSettings.replicate?.apiKey || '').trim()) {
-      providers.push('Replicate Easel');
-    }
-    if (String(headSwapSettings.facefusionEndpoint || '').trim()) {
-      providers.push('FaceFusion fallback');
-    }
-    if (String(headSwapSettings.refaceEndpoint || '').trim()) {
-      providers.push('REFace fallback');
-    }
-    providers.push('Gemini + OpenAI fallback');
-    return providers;
-  }, [headSwapSettings.facefusionEndpoint, headSwapSettings.refaceEndpoint, providerSettings.fal?.apiKey, providerSettings.replicate?.apiKey]);
+  const modelSummary = React.useMemo(() => {
+    if (selectedModels === 'both') return 'Gemini + GPT Image 2';
+    if (selectedModels === 'openai') return 'GPT Image 2';
+    return 'Gemini Nano Banana';
+  }, [selectedModels]);
 
   const pickSlotFile = React.useCallback(
     async (kind: 'source' | 'target', file: File) => {
@@ -121,18 +94,13 @@ export function FaceSwapScreen(props: {
 
   const handleGenerate = React.useCallback(async () => {
     if (!source?.dataUrl || !target?.dataUrl) {
-      onToast({ type: 'error', message: 'Nahraj zdrojový obličej i cílový obrázek.' });
+      onToast({ type: 'error', message: 'Nahraj zdrojovou identitu i cílový obrázek.' });
       return;
     }
 
     setIsGenerating(true);
-    const pendingId = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-    setOutput({
-      id: pendingId,
-      status: 'pending',
-      createdAt: Date.now(),
-      detailsText: `Head swap • ${configuredProviders.join(' → ') || 'není nakonfigurováno'}`,
-    });
+    setOutputs([]);
+    setRunMeta(`${mode} swap • ${modelSummary} • ${outputCount}× na model`);
 
     try {
       const result = await runHeadSwap({
@@ -141,48 +109,40 @@ export function FaceSwapScreen(props: {
           targetImage: target.dataUrl,
           mode,
           hairSource: preserveHair,
+          selectedModels,
+          outputCount,
         },
         settings: providerSettings,
       });
 
-      const completed: FaceSwapOutput = {
-        id: pendingId,
-        dataUrl: result.imageBase64,
-        status: 'done',
-        createdAt: Date.now(),
-        detailsText: `${result.provider} • ${result.attemptedProviders.join(' → ')}`,
-        variants: (result.variants || [
-          {
-            provider: result.provider,
-            imageBase64: result.imageBase64,
-            label: result.provider,
-          },
-        ]).map((variant, index) => ({
-          id: `${pendingId}-${variant.provider}-${index}`,
-          provider: variant.provider,
-          label: variant.label,
-          dataUrl: variant.imageBase64,
-        })),
-      };
-      setOutput(completed);
+      const completedOutputs = result.outputs.map((item, index) => ({
+        id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+        provider: item.provider,
+        label: item.label,
+        dataUrl: item.imageBase64,
+        createdAt: Date.now() + index,
+      }));
+
+      setOutputs(completedOutputs);
+      setRunMeta(`${mode} swap • ${result.attemptedProviders.join(' + ')} • ${completedOutputs.length} výsledků`);
 
       try {
-        for (const [index, variant] of (result.variants || [{ provider: result.provider, imageBase64: result.imageBase64, label: result.provider }]).entries()) {
-          const galleryId = index === 0 ? pendingId : `${pendingId}-${variant.provider}-${index}`;
-          const thumbnail = await createThumbnail(variant.imageBase64, 420);
+        for (const item of completedOutputs) {
+          const thumbnail = await createThumbnail(item.dataUrl, 420);
           await saveToGallery({
-            id: galleryId,
-            url: variant.imageBase64,
+            id: item.id,
+            url: item.dataUrl,
             thumbnail,
-            prompt: `${mode === 'head' ? 'Head Swap' : 'Face Swap'} • ${variant.label}`,
+            prompt: `${mode === 'head' ? 'Head Swap' : 'Face Swap'} • ${item.label}`,
             resolution: 'match',
             aspectRatio: 'Original',
             params: {
               operation: 'head-swap',
               mode,
               hairSource: preserveHair,
-              provider: variant.provider,
-              attemptedProviders: result.attemptedProviders,
+              provider: item.provider,
+              selectedModels,
+              outputCount,
             },
           });
         }
@@ -192,21 +152,16 @@ export function FaceSwapScreen(props: {
 
       onToast({
         type: 'success',
-        message: result.variants && result.variants.length > 1
-          ? 'Swap hotový. Připravil jsem Gemini i OpenAI variantu.'
-          : result.provider === 'fal-easel'
-            ? 'Swap hotový přes fal Easel.'
-            : result.provider === 'replicate-easel'
-              ? 'Swap hotový přes Replicate Easel.'
-              : `Swap hotový přes fallback ${result.provider}.`,
+        message: `Swap hotový. Vygenerováno ${completedOutputs.length} výsledků přes ${modelSummary}.`,
       });
     } catch (error: any) {
-      setOutput(null);
+      setOutputs([]);
+      setRunMeta('Swap selhal');
       onToast({ type: 'error', message: error?.message || 'Face swap selhal.' });
     } finally {
       setIsGenerating(false);
     }
-  }, [configuredProviders, mode, onToast, preserveHair, providerSettings, source, target]);
+  }, [mode, modelSummary, onToast, outputCount, preserveHair, providerSettings, selectedModels, source, target]);
 
   const renderDropSlot = (
     kind: 'source' | 'target',
@@ -268,23 +223,65 @@ export function FaceSwapScreen(props: {
           </button>
 
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">REŽIM</div>
-            <div className="flex items-center justify-between bg-transparent pt-1">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VARIANTA</div>
+            <div className="flex items-center gap-2">
+              {(['head', 'face'] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setMode(item)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                    mode === item
+                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
+                      : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">MODEL</div>
+            <div className="grid grid-cols-3 gap-2">
               {([
-                { id: 'head', label: 'Head' },
-                { id: 'face', label: 'Face' },
+                { id: 'gemini', label: 'Gemini' },
+                { id: 'openai', label: 'GPT Img 2' },
+                { id: 'both', label: 'Oba' },
               ] as const).map((item) => (
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setMode(item.id)}
-                  className={`w-16 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${
-                    mode === item.id
-                      ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  onClick={() => setSelectedModels(item.id)}
+                  className={`rounded-lg border px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                    selectedModels === item.id
+                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
+                      : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
                   }`}
                 >
                   {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="text-[9px] text-white/35">Volba `Oba` spustí Gemini i GPT Image 2 současně.</div>
+          </div>
+
+          <div className="card-surface p-3 space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET VÝSTUPŮ</div>
+            <div className="grid grid-cols-3 gap-2">
+              {([1, 2, 3] as const).map((count) => (
+                <button
+                  key={count}
+                  type="button"
+                  onClick={() => setOutputCount(count)}
+                  className={`rounded-lg border px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                    outputCount === count
+                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
+                      : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
+                  }`}
+                >
+                  {count}x
                 </button>
               ))}
             </div>
@@ -318,12 +315,12 @@ export function FaceSwapScreen(props: {
           {renderDropSlot('source', 'ZDROJOVÁ TVÁŘ / HLAVA', 'Sem dej člověka, od kterého chceš převzít identitu hlavy nebo obličeje.', source, sourceInputId)}
 
           <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">ENGINE STRATEGIE</div>
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">WORKFLOW</div>
             <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[10px] text-white/75">
-              {configuredProviders.length > 0 ? configuredProviders.join(' → ') : 'Není nakonfigurováno'}
+              Hidden prompt + vybraný model + až 3 běhy na model
             </div>
             <div className="text-[9px] text-white/35">
-              Primárně běží fal Easel. Když selže, pokračuje Replicate, self-hosted fallback a nakonec Gemini + OpenAI identity edit.
+              Appka skrytě složí target + source do jednoho kompozitu a stejný swap brief pošle do Gemini, GPT Image 2 nebo do obou najednou.
             </div>
             <button
               type="button"
@@ -344,77 +341,65 @@ export function FaceSwapScreen(props: {
               <div className="text-[10px] text-white/75">{mode}</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Hair</div>
-              <div className="text-[10px] text-white/75">{preserveHair}</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
+              <div className="text-[10px] text-white/75">{modelSummary}</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Pipeline</div>
-              <div className="text-[10px] text-white/75">{configuredProviders.join(' → ') || 'none'}</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Count</div>
+              <div className="text-[10px] text-white/75">{outputCount}×</div>
             </div>
           </div>
         </div>
 
         <div className="p-6">
-          <div className="grid grid-cols-1 gap-6 auto-rows-min">
-            <article className="card-surface p-4">
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Výstup</div>
-                  <div className="mt-1 text-[11px] text-white/45">{output?.detailsText || 'Zatím žádný výstup'}</div>
-                </div>
-                {output?.status === 'done' && output.dataUrl ? (
-                  <button
-                    type="button"
-                    onClick={() => downloadDataUrl(output.dataUrl!, `mulen-face-swap-${mode}.png`)}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                    Stáhnout
-                  </button>
-                ) : null}
+          <article className="card-surface p-4">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Výstup</div>
+                <div className="mt-1 text-[11px] text-white/45">{runMeta}</div>
               </div>
+            </div>
 
-              {output?.variants?.length ? (
-                <div className={`grid gap-4 ${output.variants.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
-                  {output.variants.map((variant) => (
-                    <article key={variant.id} className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">{variant.label}</div>
-                        <button
-                          type="button"
-                          onClick={() => downloadDataUrl(variant.dataUrl, `mulen-face-swap-${variant.provider}-${mode}.png`)}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
-                        >
-                          <Download className="w-4 h-4" />
-                          Stáhnout
-                        </button>
-                      </div>
+            {outputs.length > 0 ? (
+              <div className={`grid gap-4 ${outputs.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+                {outputs.map((item) => (
+                  <article key={item.id} className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">{item.label}</div>
                       <button
                         type="button"
-                        onClick={() => setLightboxUrl(variant.dataUrl)}
-                        className="block w-full cursor-zoom-in"
-                        title="Otevřít na celou obrazovku"
+                        onClick={() => downloadDataUrl(item.dataUrl, `mulen-face-swap-${item.provider}-${mode}.png`)}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
                       >
-                        <img
-                          src={variant.dataUrl}
-                          alt={variant.label}
-                          className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]"
-                        />
+                        <Download className="w-4 h-4" />
+                        Stáhnout
                       </button>
-                    </article>
-                  ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLightboxUrl(item.dataUrl)}
+                      className="block w-full cursor-zoom-in"
+                      title="Otevřít na celou obrazovku"
+                    >
+                      <img
+                        src={item.dataUrl}
+                        alt={item.label}
+                        className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]"
+                      />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/45 px-6 text-center">
+                <Sparkles className="w-6 h-6 mb-3" />
+                <div className="text-[11px] uppercase tracking-widest font-bold">{isGenerating ? 'Provádím swap…' : 'Připraveno na swap'}</div>
+                <div className="text-[10px] text-white/35 mt-2">
+                  Vyber variantu, model a počet výsledků. Při volbě `Oba` běží Gemini i GPT Image 2 současně.
                 </div>
-              ) : (
-                <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/45 px-6 text-center">
-                  <Sparkles className="w-6 h-6 mb-3" />
-                  <div className="text-[11px] uppercase tracking-widest font-bold">{isGenerating ? 'Provádím swap…' : 'Připraveno na swap'}</div>
-                  <div className="text-[10px] text-white/35 mt-2">
-                    Nahraj zdroj a cíl vlevo. Výsledný swap se uloží i do galerie a může běžet přes primární engine i fallback pipeline.
-                  </div>
-                </div>
-              )}
-            </article>
-          </div>
+              </div>
+            )}
+          </article>
         </div>
       </section>
 

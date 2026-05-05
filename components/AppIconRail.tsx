@@ -12,10 +12,10 @@ export function AppIconRail(props: {
   const items: Array<{ id: RailRoute; label: string; shortLabel: string; icon: React.ReactNode }> = [
     // Icons reduced ~30% (18px -> 13px) and kept monochrome/neutral.
     { id: 'mulen', label: 'Mulen Nano', shortLabel: 'Nano', icon: <Grid3X3 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'ai-upscaler', label: 'AI Upscaler', shortLabel: 'Scale', icon: <Maximize2 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'face-swap', label: 'Face Swap', shortLabel: 'Face', icon: <User className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'flux-lora', label: 'Lora Influence', shortLabel: 'Lora', icon: <Flame className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'model-influence', label: 'Model Influence', shortLabel: 'Model', icon: <Layers className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
-    { id: 'ai-upscaler', label: 'AI Upscaler', shortLabel: 'Scale', icon: <Maximize2 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'style-transfer', label: 'Style Transfer', shortLabel: 'Style', icon: <Brush className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
   ];
 

@@ -1,5 +1,6 @@
 import type { AIProvider, GenerateImageResult, ImageInput } from './aiProvider';
 import { AIProviderType } from './aiProvider';
+import { serverProviderProxy } from './serverProviderProxy';
 import { fetchAsDataUrl } from '../utils/fetchUtils';
 
 type ReplicatePrediction = {
@@ -325,6 +326,14 @@ export class ReplicateProvider implements AIProvider {
     // If the user provided no prompt and no images, it's undefined behavior.
     if (!prompt?.trim() && !images?.length) {
       throw new Error('Chybí prompt nebo vstupní obrázek.');
+    }
+
+    if (!this.apiKey?.trim()) {
+      return serverProviderProxy.generateImage({
+        provider: AIProviderType.REPLICATE,
+        images,
+        prompt: prompt || '',
+      });
     }
 
     return {

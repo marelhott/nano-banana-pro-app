@@ -3,10 +3,40 @@ import { createProxyMiddleware } from 'http-proxy-middleware'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
-import { createRequire } from 'node:module'
 
-const require = createRequire(import.meta.url)
-const providerGenerateFunction = require('./netlify/functions/provider-generate-core.cjs')
+function stripEnvQuotes(value) {
+  const trimmed = String(value || '').trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+function loadLocalEnvFile(fileName) {
+  const filePath = path.resolve(process.cwd(), fileName)
+  if (!fs.existsSync(filePath)) return
+
+  const raw = fs.readFileSync(filePath, 'utf8')
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+
+    const separatorIndex = trimmed.indexOf('=')
+    if (separatorIndex <= 0) continue
+
+    const key = trimmed.slice(0, separatorIndex).trim()
+    if (!key || process.env[key] != null) continue
+
+    const value = trimmed.slice(separatorIndex + 1)
+    process.env[key] = stripEnvQuotes(value)
+  }
+}
+
+loadLocalEnvFile('.env.local')
+loadLocalEnvFile('.env.development.local')
 
 const HOST_PORT = Number(process.env.PORT || 3000)
 const WORKFLOW_PORT = Number(process.env.WORKFLOW_PORT || 3001)
@@ -49,42 +79,6 @@ function extractReplicateToken(req, bodyToken) {
   return headerToken || bodyToken || null
 }
 
-async function requestWithTimeout(url, init = {}, timeoutMs = 12000) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetch(url, { ...init, signal: controller.signal })
-  } finally {
-    clearTimeout(timeoutId)
-  }
-}
-
-async function testProviderKey(provider, apiKey) {
-  switch (provider) {
-    case 'gemini': {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
-      return requestWithTimeout(endpoint, { method: 'GET' })
-    }
-    case 'chatgpt':
-      return requestWithTimeout('https://api.openai.com/v1/models', {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${apiKey}` },
-      })
-    case 'grok':
-      return requestWithTimeout('https://api.x.ai/v1/models', {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${apiKey}` },
-      })
-    case 'replicate':
-      return requestWithTimeout('https://api.replicate.com/v1/models', {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${apiKey}` },
-      })
-    default:
-      return null
-  }
-}
-
 function listSafetensors(dir) {
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -119,6 +113,13 @@ async function start() {
   const workflowChild = startWorkflowApp(workflowDir)
 
   const app = express()
+
+  const { default: publicConfigHandler } = await import('./api/public-config.js')
+  const { default: libraryListHandler } = await import('./api/library-list.js')
+  const { default: r2PresignHandler } = await import('./api/r2-presign.js')
+  const { default: falLoraImg2ImgHandler } = await import('./api/fal/lora-img2img.js')
+  const { default: providerGenerateHandler } = await import('./api/provider-generate.js')
+  const { default: providerKeyTestHandler } = await import('./api/provider-key-test.js')
 
   // Large payloads (e.g. image data-URLs) can exceed default limit.
   app.use(express.json({ limit: '10mb' }))
@@ -163,52 +164,13 @@ async function start() {
     }
   })
 
-  app.post('/api/provider-key-test', async (req, res) => {
-    try {
-      const provider = String(req.body?.provider || '').trim().toLowerCase()
-      const apiKey = String(req.body?.apiKey || '').trim()
+  app.post('/api/provider-key-test', providerKeyTestHandler)
+  app.post('/api/provider-generate', providerGenerateHandler)
 
-      if (!provider || !apiKey) {
-        return res.status(400).json({ success: false, error: 'Missing provider or API key' })
-      }
-
-      const upstream = await testProviderKey(provider, apiKey)
-      if (!upstream) {
-        return res.status(400).json({ success: false, error: 'Unsupported provider' })
-      }
-
-      if (!upstream.ok) {
-        let detail = upstream.statusText || `HTTP ${upstream.status}`
-        try {
-          const data = await upstream.json()
-          detail = data?.error?.message || data?.detail || detail
-        } catch {
-          // Keep status text fallback.
-        }
-        return res.status(upstream.status).json({ success: false, error: detail })
-      }
-
-      return res.status(200).json({ success: true })
-    } catch {
-      return res.status(500).json({ success: false, error: 'Provider key probe failed' })
-    }
-  })
-
-  app.post('/api/provider-generate', async (req, res) => {
-    try {
-      const response = await providerGenerateFunction.handler({
-        httpMethod: 'POST',
-        body: JSON.stringify(req.body || {}),
-      })
-      res.status(response.statusCode || 500)
-      for (const [key, value] of Object.entries(response.headers || {})) {
-        res.setHeader(key, value)
-      }
-      return res.send(response.body)
-    } catch (error) {
-      return res.status(500).json({ success: false, error: error?.message || 'Provider generation failed' })
-    }
-  })
+  app.get('/api/public-config', publicConfigHandler)
+  app.get('/api/library-list', libraryListHandler)
+  app.post('/api/r2-presign', r2PresignHandler)
+  app.post('/api/fal/lora-img2img', falLoraImg2ImgHandler)
 
   app.get('/api/replicate/predictions/:id', async (req, res) => {
     try {

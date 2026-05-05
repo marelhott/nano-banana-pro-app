@@ -41,7 +41,7 @@ export class FluxProProvider implements AIProvider {
             raw: false,
         };
 
-        // Pass first image as reference if available (img2img)
+        // Pass first image as reference if available (img2img).
         if (images.length > 0 && images[0].data.startsWith('data:')) {
             input.image_url = images[0].data;
             input.image_prompt_strength = 0.1;

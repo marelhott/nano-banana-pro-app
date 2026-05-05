@@ -771,3 +771,28 @@ export async function runFalUpscaleQueued(params: {
 
   throw new Error('fal.ai upscaling trvá příliš dlouho (timeout).');
 }
+
+export async function runFalFaithfulUpscaleQueued(params: {
+  imageUrlOrDataUrl: string;
+  onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
+  maxWaitMs?: number;
+}): Promise<{ image: string }> {
+  const result = await runFalModelQueued({
+    endpointId: 'fal-ai/aura-sr',
+    input: {
+      image_url: params.imageUrlOrDataUrl,
+      upscale_factor: 4,
+      overlapping_tiles: true,
+      checkpoint: 'v2',
+    },
+    onPhase: params.onPhase,
+    maxWaitMs: params.maxWaitMs ?? 10 * 60_000,
+  });
+
+  const first = result.images[0];
+  if (!first) {
+    throw new Error('AuraSR dokončil upscale, ale nevrátil obrázek.');
+  }
+
+  return { image: first };
+}

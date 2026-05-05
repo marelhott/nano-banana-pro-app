@@ -12,6 +12,7 @@ function getDefaultProviderSettings(): ProviderSettings {
     [AIProviderType.CHATGPT]: { apiKey: '', enabled: false },
     [AIProviderType.GROK]: { apiKey: '', enabled: false },
     [AIProviderType.REPLICATE]: { apiKey: '', enabled: false },
+    [AIProviderType.FLUX_PRO]: { apiKey: '', enabled: false },
     fal: { apiKey: '', enabled: false },
     headSwap: {
       preferredPrimary: 'fal-easel',
@@ -42,6 +43,7 @@ export function useProviderSettings() {
           [AIProviderType.CHATGPT]: (parsed?.[AIProviderType.CHATGPT] as ProviderSettings[AIProviderType.CHATGPT]) || defaultProviderSettings[AIProviderType.CHATGPT],
           [AIProviderType.GROK]: (parsed?.[AIProviderType.GROK] as ProviderSettings[AIProviderType.GROK]) || defaultProviderSettings[AIProviderType.GROK],
           [AIProviderType.REPLICATE]: (parsed?.[AIProviderType.REPLICATE] as ProviderSettings[AIProviderType.REPLICATE]) || defaultProviderSettings[AIProviderType.REPLICATE],
+          [AIProviderType.FLUX_PRO]: (parsed?.[AIProviderType.FLUX_PRO] as ProviderSettings[AIProviderType.FLUX_PRO]) || defaultProviderSettings[AIProviderType.FLUX_PRO],
           fal: (parsed?.fal as ProviderSettings['fal']) || defaultProviderSettings.fal,
           a1111: parsed?.a1111 as ProviderSettings['a1111'] | undefined,
           headSwap: {
@@ -55,8 +57,12 @@ export function useProviderSettings() {
     }
 
     const savedProvider = localStorage.getItem(SELECTED_PROVIDER_STORAGE_KEY);
-    if (savedProvider && Object.values(AIProviderType).includes(savedProvider as AIProviderType)) {
-      setSelectedProvider(savedProvider as AIProviderType);
+    if (savedProvider) {
+      const normalizedProvider =
+        savedProvider === AIProviderType.GROK ? AIProviderType.FLUX_PRO : savedProvider;
+      if (Object.values(AIProviderType).includes(normalizedProvider as AIProviderType)) {
+        setSelectedProvider(normalizedProvider as AIProviderType);
+      }
     }
 
     const savedNanoBananaModel = localStorage.getItem(NANO_BANANA_IMAGE_MODEL_STORAGE_KEY);

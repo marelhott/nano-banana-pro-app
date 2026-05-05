@@ -96,7 +96,7 @@ const App: React.FC = () => {
       const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
       if (storedTheme === 'dark' || storedTheme === 'light') return storedTheme;
     }
-    return 'dark';
+    return 'light';
   });
 
 
@@ -2051,7 +2051,7 @@ const App: React.FC = () => {
     const snapshot = createQueuedGenerationSnapshot();
 
     if (generationLockRef.current) {
-      // Complex operation (3variants/3AI) is holding the lock — queue behind it
+      // Complex operation (3variants/3AI) is holding the lock - queue behind it.
       if (snapshot.state.sourceImages.length > 1 && snapshot.state.multiRefMode === 'batch') {
         setToast({
           message: 'Batch multi-ref zatím nejde řadit do fronty. Počkejte na dokončení aktuálního běhu.',
@@ -2063,7 +2063,7 @@ const App: React.FC = () => {
       return;
     }
 
-    // Fire immediately in parallel with any other running generations
+    // Fire immediately in parallel with any other running generations.
     void processGenerationSnapshot(snapshot);
   };
 
