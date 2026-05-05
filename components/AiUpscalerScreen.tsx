@@ -33,6 +33,8 @@ type OutputItem = {
   createdAt: number;
   detailsText?: string;
   error?: string;
+  resultWidth?: number;
+  resultHeight?: number;
 };
 
 function readGeminiKey(): string {
@@ -221,9 +223,11 @@ export function AiUpscalerScreen(props: {
             false
           );
 
+          const dims = await loadImageMeta(result.imageBase64);
+
           setOutputs(prev => prev.map(o =>
             o.id === buildOutputId(input.id, mode)
-              ? { ...o, dataUrl: result.imageBase64, status: 'done' as const, detailsText: `${label} • ${modelName} • hotovo` }
+              ? { ...o, dataUrl: result.imageBase64, status: 'done' as const, detailsText: `${label} • ${modelName} • ${dims.width}×${dims.height}`, resultWidth: dims.width, resultHeight: dims.height }
               : o
           ));
 
@@ -411,23 +415,30 @@ export function AiUpscalerScreen(props: {
                 return (
                   <div key={output.id} className="rounded-2xl overflow-hidden border border-white/10">
                     <button type="button" onClick={() => { if (!isDone || !output.dataUrl) return; setSelectedImage(output); }}
-                      className="w-full text-left cursor-zoom-in">
+                      className="w-full text-left cursor-zoom-in relative">
                       {isDone && output.dataUrl ? (
                         <img src={output.dataUrl} alt={output.inputName} className="w-full aspect-square object-cover bg-black/20" />
+                      ) : output.status === 'error' ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/80 backdrop-blur-sm">
+                          <div className="w-10 h-10 bg-red-500/20 text-red-500 border border-red-500/30 rounded-md flex items-center justify-center mb-4">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </div>
+                          <p className="text-[10px] font-bold text-red-400 leading-relaxed max-w-[150px]">{output.error || 'Selhalo'}</p>
+                        </div>
                       ) : (
-                        <div className="w-full aspect-square bg-black/20 flex flex-col items-center justify-center px-4 text-center">
-                          <Sparkles className={`w-5 h-5 mb-3 ${isRunning ? 'text-[#7ed957]' : output.status === 'error' ? 'text-red-400' : 'text-white/35'}`} />
-                          <div className="w-full max-w-[180px] space-y-2">
-                            <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
-                              <div className={`h-full rounded-full transition-all duration-500 ease-out ${output.status === 'error' ? 'bg-red-400/80' : 'bg-[var(--accent)] shadow-[0_0_14px_rgba(126,217,87,0.35)]'}`}
-                                style={{ width: `${output.status === 'done' ? 100 : output.status === 'error' ? 100 : isRunning ? Math.max(20, phaseProgress) : 8 }%` }} />
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md px-6 transition-all duration-300">
+                          <div className="w-full max-w-[200px] space-y-3">
+                            <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
+                              <div className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"
+                                style={{ width: '0%', animation: 'growWidth 10s cubic-bezier(0.4, 0, 0.2, 1) forwards' }} />
                             </div>
-                            <div className="text-[9px] uppercase tracking-widest text-white/45">
-                              {output.status === 'error' ? 'Chyba' : output.status === 'running' ? phaseLabel || 'Zpracovávám' : 'Čeká'}
+                            <div className="text-center">
+                              <span className="text-[10px] text-[#7ed957] font-bold tracking-widest uppercase animate-pulse">Generuji...</span>
                             </div>
                           </div>
                         </div>
                       )}
+                      <style>{`@keyframes growWidth { 0% { width: 0%; } 10% { width: 15%; } 40% { width: 50%; } 70% { width: 80%; } 100% { width: 95%; } }`}</style>
                     </button>
                     <div className="p-3 bg-[var(--bg-input)] flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -463,9 +474,11 @@ export function AiUpscalerScreen(props: {
         onClose={() => setSelectedImage(null)}
         generatedImage={selectedImage?.dataUrl || null}
         originalImage={selectedImage ? findInputForOutput(selectedImage)?.dataUrl || null : null}
-        prompt={selectedImage ? `${modeLabel(selectedImage.mode)} • ${modeModel(selectedImage.mode)}` : ''}
+        prompt={UPSCALE_PROMPT}
         timestamp={selectedImage?.createdAt}
-        resolution={scale === 4 ? '2K' : '1K'}
+        resolution={selectedImage?.resultWidth && selectedImage?.resultHeight
+          ? `${selectedImage.resultWidth}×${selectedImage.resultHeight}`
+          : scale === 4 ? '2K' : '1K'}
       />
     </div>
   );
