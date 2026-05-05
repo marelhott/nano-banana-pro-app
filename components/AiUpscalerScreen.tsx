@@ -4,6 +4,7 @@ import { upscaleImage } from '../utils/upscaling';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { fileToDataUrl, resolveDropToFile } from './styleTransfer/utils';
+import { ImageUpload } from './ImageUpload';
 import type { ToastType } from './Toast';
 type UpscaleMode = 'restore' | 'enhance';
 
@@ -79,16 +80,7 @@ function modeLabel(mode: UpscaleMode): string {
   return mode === 'restore' ? 'Restore' : 'Enhance';
 }
 
-function modeDetails(mode: UpscaleMode, scale: 2 | 4): string {
-  if (mode === 'restore') return `Real-ESRGAN • ${scale}×`;
-  return `Real-ESRGAN • 4× (max)`;
-}
-
-function modeHint(mode: UpscaleMode): string {
-  return mode === 'restore'
-    ? 'Věrné AI dopočítání detailů'
-    : 'Maximální kvalita — vždy 4× s face enhance';
-}
+const MAX_INPUTS = 20;
 
 export function AiUpscalerScreen(props: {
   onOpenSettings: () => void;
@@ -105,7 +97,6 @@ export function AiUpscalerScreen(props: {
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [serverHasKey, setServerHasKey] = React.useState(false);
   const [expandedImage, setExpandedImage] = React.useState<{ dataUrl: string; name: string } | null>(null);
-  const inputFileId = React.useMemo(() => `ai-upscaler-input-${Math.random().toString(36).slice(2)}`, []);
 
   const replicateKey = React.useMemo(() => readReplicateKey(), []);
 
@@ -119,16 +110,10 @@ export function AiUpscalerScreen(props: {
     phase === 'queue' ? 'Ve frontě' : phase === 'running' ? 'Zpracovávám' : phase === 'finalizing' ? 'Dokončuji' : '';
   const phaseProgress = batchProgress
     ? Math.round(((batchProgress.current - (phase === 'finalizing' ? 0 : 1)) / Math.max(1, batchProgress.total)) * 100)
-    : phase === 'queue'
-      ? 16
-      : phase === 'running'
-        ? 68
-        : phase === 'finalizing'
-          ? 94
-          : 0;
+    : phase === 'queue' ? 16 : phase === 'running' ? 68 : phase === 'finalizing' ? 94 : 0;
 
   const visibleOutputs = React.useMemo(() => {
-    return outputs.sort((a, b) => b.createdAt - a.createdAt);
+    return [...outputs].sort((a, b) => b.createdAt - a.createdAt);
   }, [outputs]);
 
   const pendingCount = React.useMemo(() => {
@@ -138,83 +123,45 @@ export function AiUpscalerScreen(props: {
     }).length;
   }, [inputs, outputs, mode]);
 
-  React.useEffect(() => {
-    setOutputs((prev) => prev.map((item) => {
-      if (item.status === 'done' || item.status === 'error') return item;
-      return { ...item, detailsText: modeDetails(item.mode, scale) };
-    }));
-  }, [scale]);
-
-  const pickInputFiles = React.useCallback(
-    async (fileList: File[]) => {
-      const imageFiles = fileList.filter((file) => file.type.startsWith('image/'));
-      if (imageFiles.length === 0) {
-        onToast({ type: 'error', message: 'Vyberte alespoň jeden obrázek.' });
-        return;
-      }
-
-      const nextSlots: ImageSlot[] = [];
-      for (const file of imageFiles) {
-        const dataUrl = await fileToDataUrl(file);
-        const meta = await loadImageMeta(dataUrl);
-        nextSlots.push({
-          id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-          file,
-          dataUrl,
-          width: meta.width,
-          height: meta.height,
-        });
-        try {
-          await ImageDatabase.add(file, dataUrl, 'reference');
-        } catch {
-          // Keep screen functional even if library mirror fails.
-        }
-      }
-
-      setInputs((prev) => [...prev, ...nextSlots]);
-    },
-    [onToast]
-  );
-
-  const onInputDrop = React.useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      try {
-        const droppedFiles = Array.from(e.dataTransfer.files as FileList).filter((file) => file.type.startsWith('image/'));
-        if (droppedFiles.length > 0) {
-          await pickInputFiles(droppedFiles);
-          return;
-        }
-        const file = await resolveDropToFile(e);
-        if (file) await pickInputFiles([file]);
-      } catch (error: any) {
-        onToast({ type: 'error', message: error?.message || 'Nepodařilo se načíst obrázek z dropu.' });
-      }
-    },
-    [onToast, pickInputFiles]
-  );
+  const handleImagesSelected = React.useCallback(async (files: File[]) => {
+    const available = MAX_INPUTS - inputs.length;
+    if (available <= 0) {
+      onToast({ type: 'error', message: `Maximálně ${MAX_INPUTS} vstupů.` });
+      return;
+    }
+    const batch = files.slice(0, available);
+    const newSlots: ImageSlot[] = [];
+    for (const file of batch) {
+      const dataUrl = await fileToDataUrl(file);
+      const meta = await loadImageMeta(dataUrl);
+      newSlots.push({
+        id: globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        file,
+        dataUrl,
+        width: meta.width,
+        height: meta.height,
+      });
+      try { await ImageDatabase.add(file, dataUrl, 'reference'); } catch { /* ok */ }
+    }
+    setInputs(prev => [...prev, ...newSlots]);
+  }, [inputs.length, onToast]);
 
   const removeInput = React.useCallback((inputId: string) => {
-    setInputs((prev) => prev.filter((item) => item.id !== inputId));
-    // Výstupy zůstávají — nemažou se
+    setInputs(prev => prev.filter(i => i.id !== inputId));
   }, []);
 
   const handleGenerate = React.useCallback(async () => {
     if (inputs.length === 0) {
-      onToast({ type: 'error', message: 'Nahraj nebo přetáhni alespoň jeden obrázek.' });
+      onToast({ type: 'error', message: 'Nejdřív nahraj obrázek.' });
       return;
     }
-
     const key = readReplicateKey();
     if (!key && !serverHasKey) {
-      onToast({
-        type: 'error',
-        message: 'Pro generování potřebuješ Replicate API klíč — nastav ho v Settings nebo doplň REPLICATE_API_KEY na serveru.',
-      });
+      onToast({ type: 'error', message: 'Chybí Replicate klíč — nastav ho v Settings.' });
       return;
     }
 
-    const inputsToProcess = inputs.filter((input) => {
+    const inputsToProcess = inputs.filter(input => {
       const expectedId = buildOutputId(input.id, mode);
       return !outputs.some(o => o.id === expectedId && o.status === 'done');
     });
@@ -227,101 +174,74 @@ export function AiUpscalerScreen(props: {
     setIsGenerating(true);
     setPhase('queue');
 
-    const newOutputs: OutputItem[] = inputsToProcess.map((input) => ({
+    const newOutputs: OutputItem[] = inputsToProcess.map(input => ({
       id: buildOutputId(input.id, mode),
       inputId: input.id,
       mode,
       inputName: input.file.name,
       status: 'pending' as const,
       createdAt: Date.now(),
-      detailsText: modeDetails(mode, scale),
+      detailsText: modeLabel(mode),
     }));
 
-    setOutputs((prev) => {
-      const preserved = prev.filter(
-        (item) => !inputsToProcess.some((input) => item.id === buildOutputId(input.id, mode))
-      );
-      return [...preserved, ...newOutputs];
+    setOutputs(prev => {
+      const keep = prev.filter(p => !inputsToProcess.some(inp => p.id === buildOutputId(inp.id, mode)));
+      return [...keep, ...newOutputs];
     });
 
     let completed = 0;
     let failed = 0;
 
     try {
-      for (let index = 0; index < inputsToProcess.length; index += 1) {
+      for (let index = 0; index < inputsToProcess.length; index++) {
         const input = inputsToProcess[index];
         setBatchProgress({ current: index + 1, total: inputsToProcess.length, fileName: input.file.name });
-        setOutputs((prev) => prev.map((item) => (
-          item.id === buildOutputId(input.id, mode)
-            ? { ...item, status: 'running' as const, error: undefined }
-            : item
-        )));
+        setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, status: 'running' as const, error: undefined } : o));
 
         try {
           setPhase('running');
           const effectiveScale = mode === 'enhance' ? 4 : scale;
-          setOutputs((prev) => prev.map((item) => (
-            item.id === buildOutputId(input.id, mode)
-              ? { ...item, detailsText: `Real-ESRGAN • ${effectiveScale}× • odesílám…` }
-              : item
-          )));
 
-          const result = await upscaleImage({
-            token: key || '',
-            imageDataUrl: input.dataUrl,
-            factor: effectiveScale as 2 | 4,
-          });
+          setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, detailsText: `${modeLabel(mode)} ${effectiveScale}× • odesílám…` } : o));
 
-          const finalImage = result.imageDataUrl;
-          const engineLabel = modeLabel(mode);
+          const result = await upscaleImage({ token: key || '', imageDataUrl: input.dataUrl, factor: effectiveScale as 2 | 4 });
 
-          setOutputs((prev) => prev.map((item) => (
-            item.id === buildOutputId(input.id, mode)
-              ? {
-                  ...item,
-                  dataUrl: finalImage,
-                  status: 'done' as const,
-                  detailsText: `${engineLabel} • ${effectiveScale}× • ${result.originalWidth}×${result.originalHeight} → ${result.newWidth}×${result.newHeight}`,
-                }
-              : item
-          )));
+          const label = modeLabel(mode);
+          setOutputs(prev => prev.map(o =>
+            o.id === buildOutputId(input.id, mode)
+              ? { ...o, dataUrl: result.imageDataUrl, status: 'done' as const, detailsText: `${label} ${effectiveScale}× • ${result.originalWidth}×${result.originalHeight} → ${result.newWidth}×${result.newHeight}` }
+              : o
+          ));
 
           try {
-            const thumbnail = await createThumbnail(finalImage, 420);
+            const thumb = await createThumbnail(result.imageDataUrl, 420);
             await saveToGallery({
               id: buildOutputId(input.id, mode),
-              url: finalImage,
-              thumbnail,
-              prompt: `${engineLabel} Upscale ${effectiveScale}×`,
+              url: result.imageDataUrl,
+              thumbnail: thumb,
+              prompt: `${label} Upscale ${effectiveScale}×`,
               resolution: `${effectiveScale}×`,
               params: { engine: `replicate_real_esrgan_${mode}`, mode, scale: effectiveScale, operation: 'upscale' },
             });
-          } catch (error) {
-            console.error('[AI Upscaler] Chyba při ukládání do galerie:', error);
-          }
+          } catch { /* ok */ }
 
-          completed += 1;
+          completed++;
         } catch (error: any) {
-          failed += 1;
-          setOutputs((prev) => prev.map((item) => (
-            item.id === buildOutputId(input.id, mode)
-              ? { ...item, status: 'error' as const, error: error?.message || 'Upscale selhal.', detailsText: input.file.name }
-              : item
-          )));
+          failed++;
+          setOutputs(prev => prev.map(o =>
+            o.id === buildOutputId(input.id, mode)
+              ? { ...o, status: 'error' as const, error: error?.message || 'Selhalo.', detailsText: input.file.name }
+              : o
+          ));
         }
       }
 
       if (completed > 0 && failed === 0) {
-        onToast({
-          type: 'success',
-          message: inputsToProcess.length === 1
-            ? `${modeLabel(mode)} ${mode === 'enhance' ? '4' : scale}× hotový.`
-            : `${modeLabel(mode)} dokončen pro ${completed} souborů.`,
-        });
+        onToast({ type: 'success', message: inputsToProcess.length === 1 ? `${modeLabel(mode)} ${mode === 'enhance' ? '4' : scale}× hotový.` : `${modeLabel(mode)} dokončen pro ${completed} soub.` });
       } else if (completed > 0) {
         onToast({ type: 'warning', message: `Hotovo ${completed}/${inputsToProcess.length}. ${failed} selhalo.` });
       } else {
-        onToast({ type: 'error', message: 'Generování selhalo pro všechny soubory.' });
+        onToast({ type: 'error', message: 'Všechny selhaly.' });
       }
     } finally {
       setIsGenerating(false);
@@ -346,65 +266,38 @@ export function AiUpscalerScreen(props: {
             className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
           >
             {isGenerating
-              ? (phaseLabel ? `${modeLabel(mode)} • ${phaseLabel}` : `${modeLabel(mode)}…`)
-              : `${modeLabel(mode)} ${mode === 'enhance' ? '4' : scale}× • ${Math.max(1, pendingCount || inputs.length)} soub.`
+              ? `${modeLabel(mode)} • ${phaseLabel || '…'}`
+              : `${modeLabel(mode)} ${mode === 'enhance' ? '4' : scale}× • ${Math.max(1, pendingCount || inputs.length)} zbývá`
             }
           </button>
 
           <div className="card-surface p-3 space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">REŽIM</div>
             <div className="grid grid-cols-2 gap-2">
-              {([
-                { value: 'restore', label: 'Restore', icon: Sparkles },
-                { value: 'enhance', label: 'Enhance', icon: Sparkles },
-              ] as const).map((option) => {
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setMode(option.value)}
-                    className={`rounded-lg border px-3 py-3 text-left transition-colors ${
-                      mode === option.value
-                        ? 'border-[#7ed957]/60 bg-[#7ed957]/10 text-white'
-                        : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon className="w-3.5 h-3.5" strokeWidth={1.6} />
-                      <div className="text-[10px] font-bold uppercase tracking-widest">{option.label}</div>
-                    </div>
-                    <div className="mt-1 text-[9px] text-white/45">{modeHint(option.value)}</div>
-                  </button>
-                );
-              })}
+              {(['restore', 'enhance'] as const).map(m => (
+                <button key={m} type="button" onClick={() => setMode(m)}
+                  className={`rounded-lg border px-3 py-3 text-left transition-colors ${mode === m ? 'border-[#7ed957]/60 bg-[#7ed957]/10 text-white' : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'}`}>
+                  <div className="text-[10px] font-bold uppercase tracking-widest">{modeLabel(m)}</div>
+                  <div className="mt-1 text-[9px] text-white/45">{m === 'restore' ? 'Věrné dopočítání detailů' : 'Max. kvalita, vždy 4×'}</div>
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="card-surface p-3 space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">ZVĚTŠENÍ</div>
             <div className="flex items-center justify-between bg-transparent pt-1">
-              {[2, 4].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setScale(value as 2 | 4)}
+              {[2, 4].map(v => (
+                <button key={v} type="button" onClick={() => setScale(v as 2 | 4)}
                   className={`w-12 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${
-                    scale === value && mode === 'restore'
-                      ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-                      : mode === 'enhance' && value !== 4
-                        ? 'text-white/20 cursor-not-allowed'
+                    mode === 'enhance' && v !== 4 ? 'text-white/20 cursor-not-allowed'
+                      : scale === v ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
                         : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  {value}×
-                </button>
+                  }`}>{v}×</button>
               ))}
             </div>
             <div className="text-[9px] text-white/35">
-              {mode === 'restore'
-                ? 'Restore používá Real-ESRGAN — věrné dopočítání detailů. Cca $0.004/obr.'
-                : 'Enhance vždy běží ve 4× s maximální kvalitou a face enhance. Cca $0.008/obr.'}
+              {mode === 'restore' ? 'Real-ESRGAN. Cca $0.004/obr.' : '4× s face enhance. Cca $0.008/obr.'}
             </div>
           </div>
 
@@ -414,9 +307,7 @@ export function AiUpscalerScreen(props: {
                 <WifiOff className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" strokeWidth={1.6} />
                 <div>
                   <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Replicate klíč</div>
-                  <div className="mt-1 text-[9px] text-amber-200/70">
-                    Nastav ho v Settings nebo doplň REPLICATE_API_KEY na serveru.
-                  </div>
+                  <div className="mt-1 text-[9px] text-amber-200/70">Nastav v Settings.</div>
                 </div>
               </div>
             </div>
@@ -426,81 +317,43 @@ export function AiUpscalerScreen(props: {
                 <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" strokeWidth={1.6} />
                 <div>
                   <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">Serverový klíč připraven</div>
-                  <div className="mt-1 text-[9px] text-emerald-200/70">
-                    Generování pojede bez nutnosti zadávat klíč lokálně.
-                  </div>
+                  <div className="mt-1 text-[9px] text-emerald-200/70">Lokálně nemusíš nic zadávat.</div>
                 </div>
               </div>
             </div>
           ) : null}
 
-          <div className="card-surface p-3 space-y-2">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VSTUPNÍ SOUBORY</div>
-              <div className="text-[12px] leading-none font-semibold text-[#9aa5ba]">{inputs.length}</div>
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VSTUPY ({inputs.length})</div>
             </div>
 
-            <label
-              htmlFor={inputFileId}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={onInputDrop}
-              className="block w-full min-h-[120px] rounded-[16px] bg-[#060d17] border border-dashed border-[#16263a] hover:border-[#223a57] transition-colors cursor-pointer overflow-hidden"
-            >
-              <div className="w-full h-[120px] flex flex-col items-center justify-center gap-1 text-[#8f9aae]">
-                <Upload className="w-5 h-5" strokeWidth={1.8} />
-                <span className="text-[10px] uppercase tracking-widest">Klikni nebo přetáhni</span>
-              </div>
-            </label>
-            <input
-              id={inputFileId}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                const files = Array.from(e.target.files || []).filter((file) => file.type.startsWith('image/'));
-                if (files.length > 0) void pickInputFiles(files);
-                e.currentTarget.value = '';
-              }}
-            />
-
-            {inputs.length > 0 ? (
-              <div className="space-y-1.5 max-h-[280px] overflow-y-auto custom-scrollbar">
-                {inputs.map((input) => (
-                  <div key={input.id} className="flex items-center gap-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] p-1.5 group">
-                    <img
-                      src={input.dataUrl}
-                      alt={input.file.name}
-                      className="w-8 h-8 rounded-md object-cover shrink-0 bg-black/20"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[9px] font-bold text-white truncate">{input.file.name}</div>
-                      <div className="text-[8px] text-white/40">{input.width}×{input.height}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeInput(input.id)}
-                      className="shrink-0 p-1 rounded hover:bg-white/10 transition-colors text-white/30 hover:text-red-400 opacity-0 group-hover:opacity-100"
-                      title="Odebrat vstup"
-                    >
-                      <X className="w-3 h-3" strokeWidth={2} />
-                    </button>
+            <div className="flex flex-wrap gap-2">
+              {inputs.map(input => (
+                <div key={input.id} className="relative group w-[72px] h-[72px] shrink-0">
+                  <img src={input.dataUrl} alt={input.file.name} className="w-full h-full object-cover rounded-lg border border-white/10" />
+                  <button type="button" onClick={() => removeInput(input.id)}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-400">
+                    <X className="w-3 h-3 text-white" strokeWidth={3} />
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-[7px] text-white truncate font-bold">{input.file.name}</p>
                   </div>
-                ))}
-              </div>
-            ) : null}
+                </div>
+              ))}
+              {inputs.length < MAX_INPUTS && (
+                <ImageUpload
+                  onImagesSelected={handleImagesSelected}
+                  compact
+                  remainingSlots={MAX_INPUTS - inputs.length}
+                />
+              )}
+            </div>
 
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors"
-            >
+            <button type="button" onClick={onOpenSettings}
+              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors">
               Settings
             </button>
-
-            <div className="text-[9px] text-white/35">
-              Křížkem u vstupu ho odebereš, ale hotové výstupy zůstanou na ploše. Restore a Enhance můžeš na stejný vstup spustit nezávisle.
-            </div>
           </div>
         </div>
       </aside>
@@ -540,25 +393,14 @@ export function AiUpscalerScreen(props: {
         <div className="p-6">
           {visibleOutputs.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-              {visibleOutputs.map((output) => {
+              {visibleOutputs.map(output => {
                 const isDone = output.status === 'done' && !!output.dataUrl;
                 const isRunning = output.status === 'running';
                 const isExpanded = expandedImage?.dataUrl === output.dataUrl;
-                const progressValue =
-                  output.status === 'done' ? 100
-                    : output.status === 'error' ? 100
-                      : isRunning ? Math.max(20, phaseProgress) : 8;
-
                 return (
-                  <div key={output.id} className="rounded-2xl overflow-hidden border border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!isDone || !output.dataUrl) return;
-                        setExpandedImage(isExpanded ? null : { dataUrl: output.dataUrl, name: `${output.inputName} • ${modeLabel(output.mode)}` });
-                      }}
-                      className="w-full text-left relative group"
-                    >
+                  <div key={output.id} className={`rounded-2xl overflow-hidden border ${isExpanded ? 'border-[#7ed957]/60 shadow-[0_0_0_1px_rgba(126,217,87,0.25)]' : 'border-white/10'}`}>
+                    <button type="button" onClick={() => { if (!isDone || !output.dataUrl) return; setExpandedImage(isExpanded ? null : { dataUrl: output.dataUrl, name: `${output.inputName} • ${modeLabel(output.mode)}` }); }}
+                      className="w-full text-left relative group">
                       {isDone && output.dataUrl ? (
                         <>
                           <img src={output.dataUrl} alt={output.inputName} className="w-full aspect-square object-cover bg-black/20" />
@@ -571,15 +413,11 @@ export function AiUpscalerScreen(props: {
                           <Sparkles className={`w-5 h-5 mb-3 ${isRunning ? 'text-[#7ed957]' : output.status === 'error' ? 'text-red-400' : 'text-white/35'}`} />
                           <div className="w-full max-w-[180px] space-y-2">
                             <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ease-out ${output.status === 'error' ? 'bg-red-400/80' : 'bg-[var(--accent)] shadow-[0_0_14px_rgba(126,217,87,0.35)]'}`}
-                                style={{ width: `${progressValue}%` }}
-                              />
+                              <div className={`h-full rounded-full transition-all duration-500 ease-out ${output.status === 'error' ? 'bg-red-400/80' : 'bg-[var(--accent)] shadow-[0_0_14px_rgba(126,217,87,0.35)]'}`}
+                                style={{ width: `${output.status === 'done' ? 100 : output.status === 'error' ? 100 : isRunning ? Math.max(20, phaseProgress) : 8 }%` }} />
                             </div>
                             <div className="text-[9px] uppercase tracking-widest text-white/45">
-                              {output.status === 'error' ? 'Chyba'
-                                : output.status === 'running' ? (phaseLabel || 'Zpracovávám')
-                                  : 'Čeká'}
+                              {output.status === 'error' ? 'Chyba' : output.status === 'running' ? phaseLabel || 'Zpracovávám' : 'Čeká'}
                             </div>
                           </div>
                         </div>
@@ -587,33 +425,13 @@ export function AiUpscalerScreen(props: {
                     </button>
                     <div className="p-3 bg-[var(--bg-input)] flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="text-[9px] font-bold text-white truncate">
-                          {output.inputName}
-                        </div>
+                        <div className="text-[9px] font-bold text-white truncate">{output.inputName}</div>
                         <div className="text-[8px] text-white/40 uppercase tracking-wider">{modeLabel(output.mode)}</div>
-                        <div className="mt-0.5 text-[9px] text-white/45">
-                          {output.status === 'done'
-                            ? (isExpanded ? 'Klikni pro zavření' : 'Klikni pro zvětšení')
-                            : output.status === 'error'
-                              ? (output.error || 'Chyba')
-                              : output.status === 'running'
-                                ? phaseLabel || 'Běží'
-                                : 'Čeká'}
-                        </div>
-                        <div className="mt-0.5 text-[8px] text-white/30 truncate">
-                          {output.detailsText || `${modeLabel(output.mode)}`}
-                        </div>
+                        <div className="text-[8px] text-white/30 truncate">{output.detailsText || ''}</div>
                       </div>
                       {isDone && output.dataUrl ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadDataUrl(output.dataUrl!, `${output.inputName.replace(/\.[^.]+$/, '')}-${modeLabel(output.mode).toLowerCase()}-${scale}x.png`);
-                          }}
-                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
-                          title="Stáhnout"
-                        >
+                        <button type="button" onClick={e => { e.stopPropagation(); downloadDataUrl(output.dataUrl!, `${output.inputName.replace(/\.[^.]+$/, '')}-${modeLabel(output.mode).toLowerCase()}.png`); }}
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white" title="Stáhnout">
                           <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
                         </button>
                       ) : null}
@@ -623,11 +441,11 @@ export function AiUpscalerScreen(props: {
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-white/35">
+            <div className="flex flex-col items-center justify-center min-h-[300px] text-white/35">
               <Sparkles className="w-8 h-8 mb-4" strokeWidth={1.2} />
               <div className="text-[11px] uppercase tracking-widest font-bold">Zatím žádné výstupy</div>
               <div className="text-[10px] text-white/25 mt-2 max-w-[400px] text-center">
-                Nahraj obrázky vlevo a spusť Restore nebo Enhance. Každý režim můžeš na stejný vstup spustit nezávisle.
+                Nahraj obrázky vlevo a spusť Restore nebo Enhance. Oba režimy jdou na stejný vstup spustit nezávisle.
               </div>
             </div>
           )}
@@ -635,26 +453,14 @@ export function AiUpscalerScreen(props: {
       </section>
 
       {expandedImage ? (
-        <div
-          className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center p-4 md:p-8 cursor-zoom-out"
-          onClick={() => setExpandedImage(null)}
-        >
-          <button
-            type="button"
-            onClick={() => setExpandedImage(null)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-black/50 border border-white/10 text-white/70 hover:text-white transition-colors z-10"
-          >
+        <div className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center p-4 md:p-8 cursor-zoom-out" onClick={() => setExpandedImage(null)}>
+          <button type="button" onClick={() => setExpandedImage(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-black/50 border border-white/10 text-white/70 hover:text-white transition-colors z-10">
             <X className="w-5 h-5" strokeWidth={1.8} />
           </button>
-          <div className="absolute top-4 left-4 text-[10px] text-white/40 z-10 uppercase tracking-widest">
-            {expandedImage.name}
-          </div>
-          <img
-            src={expandedImage.dataUrl}
-            alt={expandedImage.name}
-            className="max-w-full max-h-full object-contain rounded-lg cursor-default"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="absolute top-4 left-4 text-[10px] text-white/40 z-10 uppercase tracking-widest">{expandedImage.name}</div>
+          <img src={expandedImage.dataUrl} alt={expandedImage.name}
+            className="max-w-full max-h-full object-contain rounded-lg cursor-default" onClick={e => e.stopPropagation()} />
         </div>
       ) : null}
     </div>
