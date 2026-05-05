@@ -127,13 +127,14 @@ exports.handler = async (event) => {
       return json(405, { error: 'Method not allowed' });
     }
 
-    // Prefer key provided by the app (user entered in Settings). Fallback to server env.
+    // Prefer server env to avoid stale local browser keys overriding a valid deployment key.
+    // Only fall back to the browser-provided key when the server env is absent.
     const headerKey = String(event?.headers?.['x-fal-key'] || event?.headers?.['X-Fal-Key'] || '').trim();
-    const falKey = headerKey || String(process.env.FAL_KEY || '').trim();
+    const falKey = String(process.env.FAL_KEY || '').trim() || headerKey;
     if (!falKey) {
       return json(500, {
         error: 'Chybí fal.ai API key.',
-        hint: 'Otevři Nastavení a vlož fal.ai API key, nebo nastav Netlify env FAL_KEY.',
+        hint: 'Otevři Nastavení a vlož fal.ai API key, nebo nastav Vercel/server env FAL_KEY.',
       });
     }
 

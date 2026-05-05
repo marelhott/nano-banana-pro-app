@@ -35,6 +35,30 @@ function downloadDataUrl(dataUrl: string, fileName: string): void {
   document.body.removeChild(link);
 }
 
+function openDataUrlInWindow(dataUrl: string, title: string): void {
+  const popup = window.open('', '_blank', 'noopener,noreferrer');
+  if (!popup) return;
+  popup.document.write(`
+    <!doctype html>
+    <html lang="cs">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${title.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
+        <style>
+          html, body { margin: 0; background: #0b1118; height: 100%; }
+          body { display: flex; align-items: center; justify-content: center; }
+          img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
+        </style>
+      </head>
+      <body>
+        <img src="${dataUrl}" alt="${title.replace(/"/g, '&quot;')}" />
+      </body>
+    </html>
+  `);
+  popup.document.close();
+}
+
 async function loadImageMeta(dataUrl: string): Promise<{ width: number; height: number }> {
   return await new Promise((resolve, reject) => {
     const image = new Image();
@@ -168,8 +192,17 @@ export function AiUpscalerScreen(props: {
         }
         return merged;
       });
+      setOutputs((prev) => {
+        const next = [...prev];
+        for (const slot of nextSlots) {
+          if (!next.some((item) => item.inputId === slot.id)) {
+            next.push(createPendingOutput(slot, mode, scale));
+          }
+        }
+        return next.sort((a, b) => b.createdAt - a.createdAt);
+      });
     },
-    [onToast, selectedInputId]
+    [mode, onToast, scale, selectedInputId]
   );
 
   const onInputDrop = React.useCallback(
@@ -212,6 +245,16 @@ export function AiUpscalerScreen(props: {
     setBatchProgress(null);
     setPhase('');
   }, []);
+
+  React.useEffect(() => {
+    setOutputs((prev) => prev.map((item) => {
+      if (item.status === 'done' || item.status === 'error') return item;
+      return {
+        ...item,
+        detailsText: mode === 'faithful' ? `AuraSR • ${scale}×` : `Clarity • ${scale}×`,
+      };
+    }));
+  }, [mode, scale]);
 
   const handleGenerate = React.useCallback(async () => {
     if (inputs.length === 0) {
@@ -638,40 +681,82 @@ export function AiUpscalerScreen(props: {
             </article>
           </div>
 
-          {inputs.length > 0 ? (
+          {outputs.length > 0 ? (
             <article className="card-surface p-4 space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Batch Queue</div>
-                  <div className="mt-1 text-[11px] text-white/40">Vyberte náhled, sledujte stav a stahujte hotové výstupy po jednom.</div>
+                  <div className="mt-1 text-[11px] text-white/40">Po uploadu se připraví placeholder karty. Hotový upscale se objeví přímo v kartě a otevře se jedním klikem ve fullsize okně.</div>
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                {inputs.map((input) => {
-                  const output = outputs.find((item) => item.inputId === input.id);
+                {outputs.map((output) => {
+                  const input = inputs.find((item) => item.id === output.inputId);
+                  if (!input) return null;
                   const isSelected = selectedInputId === input.id;
+                  const isDone = output.status === 'done' && !!output.dataUrl;
+                  const isRunning = output.status === 'running';
+                  const progressValue =
+                    output.status === 'done'
+                      ? 100
+                      : output.status === 'error'
+                        ? 100
+                        : isRunning
+                          ? Math.max(20, phaseProgress)
+                          : 8;
                   return (
                     <button
-                      key={input.id}
+                      key={output.id}
                       type="button"
-                      onClick={() => setSelectedInputId(input.id)}
+                      onClick={() => {
+                        setSelectedInputId(input.id);
+                        if (isDone && output.dataUrl) {
+                          openDataUrlInWindow(output.dataUrl, `${input.file.name} • ${scale}×`);
+                        }
+                      }}
                       className={`text-left rounded-2xl overflow-hidden border transition-all ${
                         isSelected ? 'border-[#7ed957]/60 shadow-[0_0_0_1px_rgba(126,217,87,0.25)]' : 'border-white/10 hover:border-white/20'
                       }`}
                     >
-                      <img src={input.dataUrl} alt={input.file.name} className="w-full aspect-square object-cover bg-black/20" />
+                      {isDone && output.dataUrl ? (
+                        <img src={output.dataUrl} alt={input.file.name} className="w-full aspect-square object-cover bg-black/20" />
+                      ) : (
+                        <div className="w-full aspect-square bg-black/20 flex flex-col items-center justify-center px-4 text-center">
+                          <Sparkles className={`w-5 h-5 mb-3 ${isRunning ? 'text-[#7ed957]' : output.status === 'error' ? 'text-red-400' : 'text-white/35'}`} />
+                          <div className="w-full max-w-[180px] space-y-2">
+                            <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ease-out ${output.status === 'error' ? 'bg-red-400/80' : 'bg-[var(--accent)] shadow-[0_0_14px_rgba(126,217,87,0.35)]'}`}
+                                style={{ width: `${progressValue}%` }}
+                              />
+                            </div>
+                            <div className="text-[9px] uppercase tracking-widest text-white/45">
+                              {output.status === 'error'
+                                ? 'Chyba'
+                                : output.status === 'running'
+                                  ? (phaseLabel || 'Upscaling')
+                                  : output.status === 'pending'
+                                    ? 'Připraveno'
+                                    : 'Čeká'}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <div className="p-3 bg-[var(--bg-input)]">
                         <div className="text-[10px] font-bold text-white truncate">{input.file.name}</div>
                         <div className="mt-1 text-[9px] text-white/45">
-                          {output?.status === 'done'
-                            ? 'Hotovo'
-                            : output?.status === 'error'
-                              ? 'Chyba'
-                              : output?.status === 'running'
+                          {output.status === 'done'
+                            ? 'Hotovo • klik pro fullsize'
+                            : output.status === 'error'
+                              ? (output.error || 'Chyba')
+                              : output.status === 'running'
                                 ? phaseLabel || 'Běží'
-                                : output?.status === 'pending'
+                                : output.status === 'pending'
                                   ? 'Čeká'
                                   : 'Připraveno'}
+                        </div>
+                        <div className="mt-1 text-[9px] text-white/30 truncate">
+                          {output.detailsText || `${mode} • ${scale}×`}
                         </div>
                       </div>
                     </button>
