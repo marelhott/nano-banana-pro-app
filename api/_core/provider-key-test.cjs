@@ -20,6 +20,25 @@ async function requestWithTimeout(url, init = {}, timeoutMs = 12000) {
   }
 }
 
+function getServerApiKey(provider) {
+  switch (provider) {
+    case "gemini":
+      return String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
+    case "chatgpt":
+    case "openai":
+      return String(process.env.OPENAI_API_KEY || process.env.CHATGPT_API_KEY || "").trim();
+    case "grok":
+      return String(process.env.GROK_API_KEY || process.env.XAI_API_KEY || "").trim();
+    case "replicate":
+      return String(process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY || "").trim();
+    case "fal":
+    case "flux_pro":
+      return String(process.env.FAL_KEY || "").trim();
+    default:
+      return "";
+  }
+}
+
 async function testProviderKey(provider, apiKey) {
   switch (provider) {
     case "gemini": {
@@ -42,6 +61,7 @@ async function testProviderKey(provider, apiKey) {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
     case "fal":
+    case "flux_pro":
       // fal doesn't have a simple unauthenticated "models list" endpoint.
       // We call the generation endpoint with an intentionally invalid payload:
       // - If the key is invalid, we expect 401/403
@@ -69,10 +89,10 @@ exports.handler = async (event) => {
   }
 
   const provider = String(body.provider || "").toLowerCase();
-  const apiKey = String(body.apiKey || "").trim();
+  const apiKey = String(body.apiKey || "").trim() || getServerApiKey(provider);
 
   if (!provider || !apiKey) {
-    return json(400, { success: false, error: "Missing provider or API key" });
+    return json(400, { success: false, error: "Missing provider API key on client and server" });
   }
 
   const response = await testProviderKey(provider, apiKey);
@@ -81,7 +101,7 @@ exports.handler = async (event) => {
   }
 
   // Special-case fal: 400/422 is "ok" (it means auth passed but payload is invalid).
-  if (provider === "fal") {
+  if (provider === "fal" || provider === "flux_pro") {
     if (response.status === 401 || response.status === 403) {
       return json(response.status, { success: false, error: "Unauthorized" });
     }

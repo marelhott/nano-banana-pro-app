@@ -44,6 +44,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         usageBytes?: number;
         quotaBytes?: number;
     } | null>(null);
+    const [serverProviders, setServerProviders] = useState<{
+        gemini: boolean;
+        chatgpt: boolean;
+        grok: boolean;
+        replicate: boolean;
+        fal: boolean;
+        fluxPro: boolean;
+    }>({
+        gemini: false,
+        chatgpt: false,
+        grok: false,
+        replicate: false,
+        fal: false,
+        fluxPro: false,
+    });
 
     useEffect(() => {
         if (!isOpen) return;
@@ -56,6 +71,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }).catch((error) => {
             console.warn('Failed to load storage stats:', error);
         });
+        void fetch('/api/public-config')
+            .then((response) => response.json())
+            .then((payload) => {
+                if (mounted && payload?.providers) {
+                    setServerProviders({
+                        gemini: Boolean(payload.providers.gemini),
+                        chatgpt: Boolean(payload.providers.chatgpt),
+                        grok: Boolean(payload.providers.grok),
+                        replicate: Boolean(payload.providers.replicate),
+                        fal: Boolean(payload.providers.fal),
+                        fluxPro: Boolean(payload.providers.fluxPro),
+                    });
+                }
+            })
+            .catch((error) => {
+                console.warn('Failed to load provider availability:', error);
+            });
 
         return () => {
             mounted = false;
@@ -106,7 +138,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const testConnection = async (provider: AIProviderType) => {
         const config = localSettings[provider];
-        if (!config?.apiKey) {
+        const hasServerKey =
+            provider === AIProviderType.GEMINI ? serverProviders.gemini :
+            provider === AIProviderType.CHATGPT ? serverProviders.chatgpt :
+            provider === AIProviderType.REPLICATE ? serverProviders.replicate :
+            provider === AIProviderType.FLUX_PRO ? serverProviders.fluxPro :
+            provider === AIProviderType.GROK ? serverProviders.grok :
+            false;
+        const effectiveApiKey = String(config?.apiKey || '').trim();
+        if (!effectiveApiKey && !hasServerKey) {
             setTestResults({ ...testResults, [provider]: 'error' });
             return;
         }
@@ -115,21 +155,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setTestResults({ ...testResults, [provider]: null });
 
         try {
-            // Validate API key format first
-            const isValid = ProviderFactory.validateApiKey(provider, config.apiKey);
-            if (!isValid) {
-                setTestResults({ ...testResults, [provider]: 'error' });
-                setTesting(null);
-                return;
+            if (effectiveApiKey) {
+                const isValid = ProviderFactory.validateApiKey(provider, effectiveApiKey);
+                if (!isValid) {
+                    setTestResults({ ...testResults, [provider]: 'error' });
+                    setTesting(null);
+                    return;
+                }
             }
 
-            await runServerApiProbe(provider, config.apiKey.trim());
+            await runServerApiProbe(provider, effectiveApiKey);
             setTestResults({ ...testResults, [provider]: 'success' });
         } catch (error) {
             console.error(`Test failed for ${provider}:`, error);
             setTestResults({ ...testResults, [provider]: 'error' });
         } finally {
             setTesting(null);
+        }
+    };
+
+    const getServerAvailabilityForProvider = (provider: AIProviderType): boolean => {
+        switch (provider) {
+            case AIProviderType.GEMINI:
+                return serverProviders.gemini;
+            case AIProviderType.CHATGPT:
+                return serverProviders.chatgpt;
+            case AIProviderType.REPLICATE:
+                return serverProviders.replicate;
+            case AIProviderType.FLUX_PRO:
+                return serverProviders.fluxPro;
+            case AIProviderType.GROK:
+                return serverProviders.grok;
+            default:
+                return false;
+        }
+    };
+
+    const getProviderHint = (provider: AIProviderType, hasServerKey: boolean): string => {
+        if (provider === AIProviderType.FLUX_PRO) {
+            return hasServerKey
+                ? 'Napojení běží přes serverový fal.ai klíč z Vercelu. Lokálně není potřeba nic vyplňovat.'
+                : 'FLUX Pro běží přes fal.ai endpoint. Pokud na serveru chybí FAL_KEY, můžeš použít lokální fal klíč níže.';
+        }
+
+        if (provider === AIProviderType.REPLICATE) {
+            return hasServerKey
+                ? 'Replicate je připravený přes serverový klíč z Vercelu. Pole níže slouží jen jako volitelný lokální override.'
+                : 'Replicate zatím nemá serverový klíč. Vyplň lokální API klíč nebo doplň REPLICATE_API_KEY do Vercelu.';
+        }
+
+        return hasServerKey
+            ? 'Tento provider používá serverový klíč z Vercelu. V aplikaci už není potřeba nic vkládat.'
+            : 'Na serveru pro tento provider zatím nevidím klíč. Doplň ho do Vercelu nebo použij lokální override.';
+    };
+
+    const testFalConnection = async () => {
+        const apiKey = String(localSettings?.fal?.apiKey || '').trim();
+        if (!apiKey && !serverProviders.fal) {
+            setFalTestResult('error');
+            return;
+        }
+
+        setTestingFal(true);
+        setFalTestResult(null);
+        try {
+            if (apiKey && apiKey.length < 8) {
+                setFalTestResult('error');
+                return;
+            }
+            await runServerApiProbe('fal', apiKey);
+            setFalTestResult('success');
+        } catch (error) {
+            console.error('Test failed for fal:', error);
+            setFalTestResult('error');
+        } finally {
+            setTestingFal(false);
         }
     };
 
@@ -165,30 +265,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setA1111TestResult(null);
     };
 
-    const testFalConnection = async () => {
-        const apiKey = String(localSettings?.fal?.apiKey || '').trim();
-        if (!apiKey) {
-            setFalTestResult('error');
-            return;
-        }
-
-        setTestingFal(true);
-        setFalTestResult(null);
-        try {
-            // Keep validation permissive.
-            if (apiKey.length < 8) {
-                setFalTestResult('error');
-                return;
-            }
-            await runServerApiProbe('fal', apiKey);
-            setFalTestResult('success');
-        } catch (error) {
-            console.error('Test failed for fal:', error);
-            setFalTestResult('error');
-        } finally {
-            setTestingFal(false);
-        }
-    };
 
     const testA1111Connection = async () => {
         const baseUrl = String(localSettings?.a1111?.baseUrl || '').trim().replace(/\/+$/, '');
@@ -273,6 +349,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         const metadata = PROVIDER_METADATA[provider];
                         const config = localSettings[provider];
                         const testResult = testResults[provider];
+                        const hasServerKey = getServerAvailabilityForProvider(provider);
+                        const usesServerManagedCard =
+                            (provider === AIProviderType.GEMINI || provider === AIProviderType.CHATGPT || provider === AIProviderType.FLUX_PRO) && hasServerKey;
+                        const showOptionalOverride = provider === AIProviderType.REPLICATE;
+                        const needsDirectApiKeyEntry =
+                            (provider === AIProviderType.GEMINI || provider === AIProviderType.CHATGPT) && !hasServerKey;
 
                         return (
                             <div key={provider} className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
@@ -324,20 +406,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             ✗ Neplatný
                                         </div>
                                     )}
+                                    {!testResult && hasServerKey && (
+                                        <div className="px-2 py-1 bg-[#7ed957]/10 border border-[#7ed957]/20 text-[#7ed957] text-xs font-bold rounded">
+                                            Server ready
+                                        </div>
+                                    )}
                                 </div>
 
-                                {metadata.requiresApiKey ? (
+                                {usesServerManagedCard ? (
                                     <div className="space-y-3">
+                                        <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                                            {getProviderHint(provider, hasServerKey)}
+                                        </div>
+
+                                        <button
+                                            onClick={() => testConnection(provider)}
+                                            disabled={!hasServerKey || testing === provider}
+                                            className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
+                                        >
+                                            {testing === provider ? 'Testuji...' : 'Otestovat serverové napojení'}
+                                        </button>
+                                    </div>
+                                ) : metadata.requiresApiKey || showOptionalOverride || needsDirectApiKeyEntry ? (
+                                    <div className="space-y-3">
+                                        <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                                            {getProviderHint(provider, hasServerKey)}
+                                        </div>
+
                                         <div>
                                             <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">
-                                                API Klíč
+                                                {showOptionalOverride || needsDirectApiKeyEntry ? 'Lokální API klíč / override' : 'API Klíč'}
                                             </label>
                                             <div className="relative">
                                                 <input
                                                     type={showKeys[provider] ? 'text' : 'password'}
                                                     value={config?.apiKey || ''}
                                                     onChange={(e) => handleApiKeyChange(provider, e.target.value)}
-                                                    placeholder={`Volitelný API klíč pro ${metadata.name}...`}
+                                                    placeholder={showOptionalOverride || needsDirectApiKeyEntry
+                                                        ? `Volitelný API klíč pro ${metadata.name}...`
+                                                        : `API klíč pro ${metadata.name}...`}
                                                     className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 pr-24 transition-colors"
                                                 />
                                                 <button
@@ -351,15 +458,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                                         <button
                                             onClick={() => testConnection(provider)}
-                                            disabled={!config?.apiKey || testing === provider}
+                                            disabled={(!String(config?.apiKey || '').trim() && !hasServerKey) || testing === provider}
                                             className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
                                         >
-                                            {testing === provider ? 'Testuji...' : 'Otestovat připojení'}
+                                            {testing === provider ? 'Testuji...' : hasServerKey ? 'Otestovat server / override' : 'Otestovat připojení'}
                                         </button>
                                     </div>
                                 ) : (
                                     <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
-                                        Tento provider používá serverový klíč z Netlify. V aplikaci už není potřeba nic vkládat.
+                                        {getProviderHint(provider, hasServerKey)}
                                     </div>
                                 )}
                             </div>
@@ -597,7 +704,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-bold text-sm text-[var(--text-primary)] uppercase tracking-wider">fal.ai (SDXL + LoRA)</h3>
-                                <p className="text-xs text-[var(--text-secondary)] mt-1">Klíč se ukládá jen lokálně v tomto prohlížeči. Do Supabase se neukládá.</p>
+                                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                                    {serverProviders.fal
+                                        ? 'fal.ai je připravený přes serverový klíč z Vercelu. Lokální klíč je jen volitelný override pro tento prohlížeč.'
+                                        : 'Pokud na serveru chybí FAL_KEY, můžeš vložit lokální fal.ai klíč jen pro tento prohlížeč.'}
+                                </p>
                             </div>
                             {falTestResult === 'success' && (
                                 <div className="px-2 py-1 bg-green-500/10 border border-green-500/20 text-green-500 text-xs font-bold rounded">
@@ -609,11 +720,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     ✗ Neplatný
                                 </div>
                             )}
+                            {!falTestResult && serverProviders.fal && (
+                                <div className="px-2 py-1 bg-[#7ed957]/10 border border-[#7ed957]/20 text-[#7ed957] text-xs font-bold rounded">
+                                    Server ready
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-3">
+                            <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                                {serverProviders.fal
+                                    ? 'fal.ai endpointy pro SDXL, LoRA, Flux edit, upscaler i faithful upscaler mají na serveru aktivní klíč.'
+                                    : 'Tato karta ovládá fal.ai endpointy pro SDXL, LoRA, Flux edit i upscale. Bez klíče zde nebo na serveru tyto flow nepojedou.'}
+                            </div>
+
                             <div>
-                                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">API Klíč</label>
+                                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">Volitelný lokální override klíče</label>
                                 <div className="relative">
                                     <input
                                         type={showFalKey ? 'text' : 'password'}
@@ -633,10 +755,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                             <button
                                 onClick={testFalConnection}
-                                disabled={!String(localSettings?.fal?.apiKey || '').trim() || testingFal}
+                                disabled={(!String(localSettings?.fal?.apiKey || '').trim() && !serverProviders.fal) || testingFal}
                                 className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
                             >
-                                {testingFal ? 'Testuji...' : 'Otestovat připojení'}
+                                {testingFal ? 'Testuji...' : serverProviders.fal ? 'Otestovat server / override' : 'Otestovat připojení'}
                             </button>
                         </div>
                     </div>

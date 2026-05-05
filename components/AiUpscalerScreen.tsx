@@ -554,34 +554,7 @@ export function AiUpscalerScreen(props: {
         </div>
 
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6 auto-rows-min">
-            <article className="card-surface p-4">
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <Maximize2 className="w-4 h-4 text-[#7ed957]" />
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Zdroj</div>
-                </div>
-                {selectedInput ? (
-                  <button
-                    type="button"
-                    onClick={() => removeInput(selectedInput.id)}
-                    className="inline-flex items-center gap-2 px-2 py-1 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[9px] font-bold uppercase tracking-widest text-white/65 hover:text-white"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Odebrat
-                  </button>
-                ) : null}
-              </div>
-              {selectedInput?.dataUrl ? (
-                <img src={selectedInput.dataUrl} alt={selectedInput.file.name} className="w-full aspect-square object-cover rounded-2xl border border-white/10 bg-black/20" />
-              ) : (
-                <div className="aspect-square rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/40">
-                  <Upload className="w-6 h-6 mb-3" />
-                  <div className="text-[11px] uppercase tracking-widest">Nahraj vstup</div>
-                </div>
-              )}
-            </article>
-
+          <div className="grid grid-cols-1 gap-6 auto-rows-min">
             <article className="card-surface p-4">
               <div className="flex items-center justify-between gap-4 mb-4">
                 <div>
@@ -595,13 +568,34 @@ export function AiUpscalerScreen(props: {
                   </div>
                 </div>
                 {selectedOutput?.status === 'done' && selectedOutput.dataUrl ? (
+                  <div className="flex items-center gap-2">
+                    {selectedInput ? (
+                      <button
+                        type="button"
+                        onClick={() => removeInput(selectedInput.id)}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/65 hover:text-white transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Odebrat vstup
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => downloadDataUrl(selectedOutput.dataUrl!, `${selectedOutput.inputName.replace(/\.[^.]+$/, '')}-${scale}x.png`)}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      Stáhnout
+                    </button>
+                  </div>
+                ) : selectedInput ? (
                   <button
                     type="button"
-                    onClick={() => downloadDataUrl(selectedOutput.dataUrl!, `${selectedOutput.inputName.replace(/\.[^.]+$/, '')}-${scale}x.png`)}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
+                    onClick={() => removeInput(selectedInput.id)}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/65 hover:text-white transition-colors"
                   >
-                    <Download className="w-4 h-4" />
-                    Stáhnout
+                    <Trash2 className="w-4 h-4" />
+                    Odebrat vstup
                   </button>
                 ) : null}
               </div>
