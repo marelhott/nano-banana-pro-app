@@ -777,22 +777,45 @@ export async function runFalFaithfulUpscaleQueued(params: {
   onPhase?: (phase: 'queue' | 'running' | 'finalizing') => void;
   maxWaitMs?: number;
 }): Promise<{ image: string }> {
-  const result = await runFalModelQueued({
-    endpointId: 'fal-ai/aura-sr',
-    input: {
-      image_url: params.imageUrlOrDataUrl,
-      upscale_factor: 4,
-      overlapping_tiles: true,
-      checkpoint: 'v2',
-    },
-    onPhase: params.onPhase,
-    maxWaitMs: params.maxWaitMs ?? 10 * 60_000,
-  });
+  try {
+    const result = await runFalModelQueued({
+      endpointId: 'fal-ai/aura-sr',
+      input: {
+        image_url: params.imageUrlOrDataUrl,
+        upscale_factor: 4,
+        overlapping_tiles: true,
+        checkpoint: 'v2',
+      },
+      onPhase: params.onPhase,
+      maxWaitMs: params.maxWaitMs ?? 10 * 60_000,
+    });
 
-  const first = result.images[0];
-  if (!first) {
-    throw new Error('AuraSR dokončil upscale, ale nevrátil obrázek.');
+    const first = result.images[0];
+    if (!first) {
+      throw new Error('AuraSR dokončil upscale, ale nevrátil obrázek.');
+    }
+
+    return { image: first };
+  } catch (error: any) {
+    const message = String(error?.message || '');
+    const looksLikeAuthIssue =
+      message.includes('HTTP 401') ||
+      message.toLowerCase().includes('authentication is required') ||
+      message.toLowerCase().includes('cannot access application "fal-ai/aura-sr"');
+
+    if (!looksLikeAuthIssue) {
+      throw error;
+    }
+
+    // Conservative fallback when AuraSR is not accessible.
+    // This keeps the image very close to the input while still improving perceived detail.
+    return await runFalUpscaleQueued({
+      imageUrlOrDataUrl: params.imageUrlOrDataUrl,
+      upscaleFactor: 4,
+      creativity: 0.08,
+      resemblance: 0.94,
+      onPhase: params.onPhase,
+      maxWaitMs: params.maxWaitMs ?? 10 * 60_000,
+    });
   }
-
-  return { image: first };
 }
