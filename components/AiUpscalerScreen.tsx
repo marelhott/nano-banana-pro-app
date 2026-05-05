@@ -1,11 +1,15 @@
 import React from 'react';
-import { Download, Sparkles, Trash2, X, Expand } from 'lucide-react';
-import { upscaleImage } from '../utils/upscaling';
+import { Download, Sparkles, X } from 'lucide-react';
+import { editImageWithGemini } from '../services/geminiService';
+import { ChatGPTProvider } from '../services/chatgptService';
+import { AIProviderType, ImageInput } from '../services/aiProvider';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
-import { fileToDataUrl, resolveDropToFile } from './styleTransfer/utils';
+import { fileToDataUrl } from './styleTransfer/utils';
 import type { ToastType } from './Toast';
 type UpscaleMode = 'restore' | 'enhance';
+
+const UPSCALE_PROMPT = "Upscale this image faithfully without any creative intent. Preserve the original photo as much as possible, only compute necessary artifacts.";
 
 type ImageSlot = {
   id: string;
@@ -27,29 +31,33 @@ type OutputItem = {
   error?: string;
 };
 
-function readReplicateKey(): string {
+function readProviderKey(provider: AIProviderType): string {
   try {
     const raw = localStorage.getItem('providerSettings');
     if (!raw) return '';
     const parsed = JSON.parse(raw);
-    return parsed?.replicate?.apiKey || '';
+    return parsed?.[provider]?.apiKey || '';
   } catch {
     return '';
   }
 }
 
-let cachedServerHasReplicateKey: boolean | null = null;
+type ServerProviders = { gemini: boolean; chatgpt: boolean; };
 
-async function serverHasReplicateKey(): Promise<boolean> {
-  if (cachedServerHasReplicateKey !== null) return cachedServerHasReplicateKey;
+let cachedServerProviders: ServerProviders | null = null;
+
+async function getServerProviders(): Promise<ServerProviders> {
+  if (cachedServerProviders) return cachedServerProviders;
   try {
     const res = await fetch('/api/public-config');
     const data = await res.json();
-    cachedServerHasReplicateKey = Boolean(data?.providers?.replicate);
-    return cachedServerHasReplicateKey;
+    cachedServerProviders = {
+      gemini: Boolean(data?.providers?.gemini),
+      chatgpt: Boolean(data?.providers?.chatgpt),
+    };
+    return cachedServerProviders;
   } catch {
-    cachedServerHasReplicateKey = false;
-    return false;
+    return { gemini: false, chatgpt: false };
   }
 }
 
@@ -92,17 +100,16 @@ export function AiUpscalerScreen(props: {
   const [phase, setPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number; fileName: string } | null>(null);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
-  const [serverHasKey, setServerHasKey] = React.useState(false);
+  const [serverProviders, setServerProviders] = React.useState<ServerProviders>({ gemini: false, chatgpt: false });
   const [expandedImage, setExpandedImage] = React.useState<{ dataUrl: string; name: string } | null>(null);
   const inputFileId = React.useMemo(() => `upscaler-${Math.random().toString(36).slice(2)}`, []);
 
-  const replicateKey = React.useMemo(() => readReplicateKey(), []);
+  const geminiKey = React.useMemo(() => readProviderKey(AIProviderType.GEMINI), []);
+  const chatgptKey = React.useMemo(() => readProviderKey(AIProviderType.CHATGPT), []);
 
   React.useEffect(() => {
-    if (!replicateKey) {
-      serverHasReplicateKey().then(setServerHasKey);
-    }
-  }, [replicateKey]);
+    getServerProviders().then(setServerProviders);
+  }, []);
 
   const phaseLabel =
     phase === 'queue' ? 'Ve frontě' : phase === 'running' ? 'Zpracovávám' : phase === 'finalizing' ? 'Dokončuji' : '';
@@ -148,9 +155,14 @@ export function AiUpscalerScreen(props: {
       onToast({ type: 'error', message: 'Nejdřív nahraj obrázek.' });
       return;
     }
-    const key = readReplicateKey();
-    if (!key && !serverHasKey) {
-      onToast({ type: 'error', message: 'Chybí Replicate klíč — nastav ho v Settings.' });
+
+    const hasKey = mode === 'restore'
+      ? !!(geminiKey || serverProviders.gemini)
+      : !!(chatgptKey || serverProviders.chatgpt);
+
+    if (!hasKey) {
+      const providerName = mode === 'restore' ? 'Gemini' : 'ChatGPT';
+      onToast({ type: 'error', message: `Chybí ${providerName} klíč — nastav ho v Settings.` });
       return;
     }
 
@@ -193,27 +205,48 @@ export function AiUpscalerScreen(props: {
 
         try {
           setPhase('running');
-          const effectiveScale = mode === 'enhance' ? 4 : scale;
-          setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, detailsText: `${modeLabel(mode)} ${effectiveScale}× • odesílám…` } : o));
-
-          const result = await upscaleImage({ token: key || '', imageDataUrl: input.dataUrl, factor: effectiveScale as 2 | 4 });
-
           const label = modeLabel(mode);
+          setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, detailsText: `${label} • odesílám na AI…` } : o));
+
+          const imageInput: ImageInput = { data: input.dataUrl, mimeType: input.file.type };
+          let resultDataUrl: string;
+
+          if (mode === 'restore') {
+            const result = await editImageWithGemini(
+              [imageInput],
+              UPSCALE_PROMPT,
+              scale === 4 ? '2K' : '1K',
+              undefined,
+              false,
+              geminiKey || undefined
+            );
+            resultDataUrl = result.imageBase64;
+          } else {
+            const provider = new ChatGPTProvider(chatgptKey || '');
+            const result = await provider.generateImage(
+              [imageInput],
+              UPSCALE_PROMPT,
+              '1K',
+              undefined,
+              false
+            );
+            resultDataUrl = result.imageBase64;
+          }
+
           setOutputs(prev => prev.map(o =>
             o.id === buildOutputId(input.id, mode)
-              ? { ...o, dataUrl: result.imageDataUrl, status: 'done' as const, detailsText: `${label} ${effectiveScale}× • ${result.originalWidth}×${result.originalHeight} → ${result.newWidth}×${result.newHeight}` }
+              ? { ...o, dataUrl: resultDataUrl, status: 'done' as const, detailsText: `${label} • hotovo` }
               : o
           ));
 
           try {
-            const thumb = await createThumbnail(result.imageDataUrl, 420);
+            const thumb = await createThumbnail(resultDataUrl, 420);
             await saveToGallery({
               id: buildOutputId(input.id, mode),
-              url: result.imageDataUrl,
+              url: resultDataUrl,
               thumbnail: thumb,
-              prompt: `${label} Upscale ${effectiveScale}×`,
-              resolution: `${effectiveScale}×`,
-              params: { engine: `replicate_real_esrgan_${mode}`, mode, scale: effectiveScale, operation: 'upscale' },
+              prompt: `${label} ${UPSCALE_PROMPT}`,
+              params: { engine: mode === 'restore' ? 'gemini_3_pro' : 'gpt_image_2', mode, operation: 'upscale' },
             });
           } catch { /* ok */ }
 
@@ -229,7 +262,7 @@ export function AiUpscalerScreen(props: {
       }
 
       if (completed > 0 && failed === 0) {
-        onToast({ type: 'success', message: inputsToProcess.length === 1 ? `${modeLabel(mode)} ${mode === 'enhance' ? '4' : scale}× hotový.` : `${modeLabel(mode)} dokončen pro ${completed} soub.` });
+        onToast({ type: 'success', message: inputsToProcess.length === 1 ? `${modeLabel(mode)} hotový.` : `${modeLabel(mode)} dokončen pro ${completed} soub.` });
       } else if (completed > 0) {
         onToast({ type: 'warning', message: `Hotovo ${completed}/${inputsToProcess.length}. ${failed} selhalo.` });
       } else {
@@ -240,7 +273,7 @@ export function AiUpscalerScreen(props: {
       setPhase('');
       setBatchProgress(null);
     }
-  }, [inputs, mode, onToast, outputs, scale]);
+  }, [inputs, mode, onToast, outputs, scale, geminiKey, chatgptKey, serverProviders]);
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -289,17 +322,27 @@ export function AiUpscalerScreen(props: {
               ))}
             </div>
             <div className="text-[9px] text-white/35">
-              {mode === 'restore' ? 'Real-ESRGAN. Cca $0.004/obr.' : '4× s face enhance. Cca $0.008/obr.'}
+              {mode === 'restore' ? 'Gemini 3 Pro Preview. Promptem řízené dopočítání.' : 'GPT Image 2. Promptem řízené vylepšení.'}
             </div>
           </div>
 
-          {!replicateKey && !serverHasKey ? (
+          {mode === 'restore' && !geminiKey && !serverProviders.gemini ? (
             <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
               <div className="flex items-start gap-2">
                 <span className="text-amber-400 text-sm mt-0.5">⚠</span>
                 <div>
-                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Replicate klíč</div>
-                  <div className="mt-1 text-[9px] text-amber-200/70">Nastav v Settings.</div>
+                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Gemini klíč</div>
+                  <div className="mt-1 text-[9px] text-amber-200/70">Pro Restore je potřeba Gemini API klíč.</div>
+                </div>
+              </div>
+            </div>
+          ) : mode === 'enhance' && !chatgptKey && !serverProviders.chatgpt ? (
+            <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
+              <div className="flex items-start gap-2">
+                <span className="text-amber-400 text-sm mt-0.5">⚠</span>
+                <div>
+                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí ChatGPT klíč</div>
+                  <div className="mt-1 text-[9px] text-amber-200/70">Pro Enhance je potřeba OpenAI API klíč.</div>
                 </div>
               </div>
             </div>
@@ -387,14 +430,9 @@ export function AiUpscalerScreen(props: {
                 return (
                   <div key={output.id} className={`rounded-2xl overflow-hidden border ${isExpanded ? 'border-[#7ed957]/60 shadow-[0_0_0_1px_rgba(126,217,87,0.25)]' : 'border-white/10'}`}>
                     <button type="button" onClick={() => { if (!isDone || !output.dataUrl) return; setExpandedImage(isExpanded ? null : { dataUrl: output.dataUrl, name: `${output.inputName} • ${modeLabel(output.mode)}` }); }}
-                      className="w-full text-left relative group">
+                      className="w-full text-left cursor-zoom-in">
                       {isDone && output.dataUrl ? (
-                        <>
-                          <img src={output.dataUrl} alt={output.inputName} className="w-full aspect-square object-cover bg-black/20" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                            <Expand className="w-6 h-6 text-white/0 group-hover:text-white/80 transition-all" strokeWidth={1.5} />
-                          </div>
-                        </>
+                        <img src={output.dataUrl} alt={output.inputName} className="w-full aspect-square object-cover bg-black/20" />
                       ) : (
                         <div className="w-full aspect-square bg-black/20 flex flex-col items-center justify-center px-4 text-center">
                           <Sparkles className={`w-5 h-5 mb-3 ${isRunning ? 'text-[#7ed957]' : output.status === 'error' ? 'text-red-400' : 'text-white/35'}`} />
