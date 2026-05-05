@@ -157,11 +157,11 @@ export function AiUpscalerScreen(props: {
     }
 
     const hasKey = mode === 'restore'
-      ? !!(geminiKey || serverProviders.gemini)
-      : !!(chatgptKey || serverProviders.chatgpt);
+      ? !!(chatgptKey || serverProviders.chatgpt)
+      : !!(geminiKey || serverProviders.gemini);
 
     if (!hasKey) {
-      const providerName = mode === 'restore' ? 'Gemini' : 'ChatGPT';
+      const providerName = mode === 'restore' ? 'ChatGPT' : 'Gemini';
       onToast({ type: 'error', message: `Chybí ${providerName} klíč — nastav ho v Settings.` });
       return;
     }
@@ -211,24 +211,25 @@ export function AiUpscalerScreen(props: {
           const imageInput: ImageInput = { data: input.dataUrl, mimeType: input.file.type };
           let resultDataUrl: string;
 
+          const res = scale === 4 ? '2K' : '1K';
           if (mode === 'restore') {
-            const result = await editImageWithGemini(
-              [imageInput],
-              UPSCALE_PROMPT,
-              scale === 4 ? '2K' : '1K',
-              undefined,
-              false,
-              geminiKey || undefined
-            );
-            resultDataUrl = result.imageBase64;
-          } else {
             const provider = new ChatGPTProvider(chatgptKey || '');
             const result = await provider.generateImage(
               [imageInput],
               UPSCALE_PROMPT,
-              '1K',
+              res,
               undefined,
               false
+            );
+            resultDataUrl = result.imageBase64;
+          } else {
+            const result = await editImageWithGemini(
+              [imageInput],
+              UPSCALE_PROMPT,
+              res,
+              undefined,
+              false,
+              geminiKey || undefined
             );
             resultDataUrl = result.imageBase64;
           }
@@ -303,7 +304,7 @@ export function AiUpscalerScreen(props: {
                 <button key={m} type="button" onClick={() => setMode(m)}
                   className={`rounded-lg border px-3 py-3 text-left transition-colors ${mode === m ? 'border-[#7ed957]/60 bg-[#7ed957]/10 text-white' : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'}`}>
                   <div className="text-[10px] font-bold uppercase tracking-widest">{modeLabel(m)}</div>
-                  <div className="mt-1 text-[9px] text-white/45">{m === 'restore' ? 'Věrné dopočítání detailů' : 'Max. kvalita, vždy 4×'}</div>
+                  <div className="mt-1 text-[9px] text-white/45">{m === 'restore' ? 'GPT Image 2 — věrné dopočítání' : 'Gemini 3 Pro — max. kvalita'}</div>
                 </button>
               ))}
             </div>
@@ -322,27 +323,27 @@ export function AiUpscalerScreen(props: {
               ))}
             </div>
             <div className="text-[9px] text-white/35">
-              {mode === 'restore' ? 'Gemini 3 Pro Preview. Promptem řízené dopočítání.' : 'GPT Image 2. Promptem řízené vylepšení.'}
+              {mode === 'restore' ? 'GPT Image 2 — promptem řízené dopočítání.' : 'Gemini 3 Pro — promptem řízené vylepšení.'}
             </div>
           </div>
 
-          {mode === 'restore' && !geminiKey && !serverProviders.gemini ? (
-            <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
-              <div className="flex items-start gap-2">
-                <span className="text-amber-400 text-sm mt-0.5">⚠</span>
-                <div>
-                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Gemini klíč</div>
-                  <div className="mt-1 text-[9px] text-amber-200/70">Pro Restore je potřeba Gemini API klíč.</div>
-                </div>
-              </div>
-            </div>
-          ) : mode === 'enhance' && !chatgptKey && !serverProviders.chatgpt ? (
+          {mode === 'restore' && !chatgptKey && !serverProviders.chatgpt ? (
             <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
               <div className="flex items-start gap-2">
                 <span className="text-amber-400 text-sm mt-0.5">⚠</span>
                 <div>
                   <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí ChatGPT klíč</div>
-                  <div className="mt-1 text-[9px] text-amber-200/70">Pro Enhance je potřeba OpenAI API klíč.</div>
+                  <div className="mt-1 text-[9px] text-amber-200/70">Pro Restore je potřeba OpenAI API klíč.</div>
+                </div>
+              </div>
+            </div>
+          ) : mode === 'enhance' && !geminiKey && !serverProviders.gemini ? (
+            <div className="card-surface p-3 border border-amber-500/30 bg-amber-500/5">
+              <div className="flex items-start gap-2">
+                <span className="text-amber-400 text-sm mt-0.5">⚠</span>
+                <div>
+                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Chybí Gemini klíč</div>
+                  <div className="mt-1 text-[9px] text-amber-200/70">Pro Enhance je potřeba Gemini API klíč.</div>
                 </div>
               </div>
             </div>
