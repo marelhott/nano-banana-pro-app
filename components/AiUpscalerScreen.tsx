@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Download, Sparkles, Trash2, Upload, WifiOff, Cpu, X } from 'lucide-react';
+import React from 'react';
+import { Download, Sparkles, Trash2, Upload, WifiOff, Cpu, X, Expand } from 'lucide-react';
 import { upscaleImage } from '../utils/upscaling';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
@@ -125,9 +125,8 @@ export function AiUpscalerScreen(props: {
   const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number; fileName: string } | null>(null);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
   const [serverHasKey, setServerHasKey] = React.useState(false);
-  const [openPopups, setOpenPopups] = React.useState<Set<string>>(new Set());
+  const [expandedImage, setExpandedImage] = React.useState<{ dataUrl: string; name: string } | null>(null);
   const inputFileId = React.useMemo(() => `ai-upscaler-input-${Math.random().toString(36).slice(2)}`, []);
-  const popupWindows = useRef<Map<string, Window>>(new Map());
 
   const replicateKey = React.useMemo(() => readReplicateKey(), []);
 
@@ -135,10 +134,6 @@ export function AiUpscalerScreen(props: {
     if (!replicateKey) {
       serverHasReplicateKey().then(setServerHasKey);
     }
-    return () => {
-      popupWindows.current.forEach((w) => { if (!w.closed) w.close(); });
-      popupWindows.current.clear();
-    };
   }, [replicateKey]);
 
   const phaseLabel =
@@ -576,7 +571,7 @@ export function AiUpscalerScreen(props: {
                 if (!input) return null;
                 const isDone = output.status === 'done' && !!output.dataUrl;
                 const isRunning = output.status === 'running';
-                const isOpen = openPopups.has(output.id);
+                const isExpanded = expandedImage?.dataUrl === output.dataUrl;
                 const progressValue =
                   output.status === 'done'
                     ? 100
@@ -586,70 +581,23 @@ export function AiUpscalerScreen(props: {
                         ? Math.max(20, phaseProgress)
                         : 8;
 
-                const openPopup = (dataUrl: string) => {
-                  if (!dataUrl) return;
-                  const popup = window.open('', output.id, 'noopener,noreferrer');
-                  if (!popup) return;
-                  popupWindows.current.set(output.id, popup);
-                  setOpenPopups((prev) => { const next = new Set(prev); next.add(output.id); return next; });
-                  popup.document.write(`
-                    <!doctype html>
-                    <html lang="cs">
-                      <head>
-                        <meta charset="utf-8" />
-                        <meta name="viewport" content="width=device-width, initial-scale=1" />
-                        <title>${input.file.name} • ${scale}×</title>
-                        <style>
-                          html, body { margin: 0; background: #0b1118; height: 100%; }
-                          body { display: flex; align-items: center; justify-content: center; }
-                          img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
-                        </style>
-                      </head>
-                      <body>
-                        <img src="${dataUrl}" alt="${input.file.name}" />
-                      </body>
-                    </html>
-                  `);
-                  popup.document.close();
-                  const checkClosed = setInterval(() => {
-                    if (popup.closed) {
-                      popupWindows.current.delete(output.id);
-                      setOpenPopups((prev) => { const next = new Set(prev); next.delete(output.id); return next; });
-                      clearInterval(checkClosed);
-                    }
-                  }, 500);
-                };
-
-                const closePopup = () => {
-                  const existing = popupWindows.current.get(output.id);
-                  if (existing && !existing.closed) {
-                    existing.close();
-                  }
-                  popupWindows.current.delete(output.id);
-                  setOpenPopups((prev) => { const next = new Set(prev); next.delete(output.id); return next; });
-                };
-
                 return (
-                  <div
-                    key={output.id}
-                    className={`rounded-2xl overflow-hidden border transition-all ${
-                      isOpen ? 'border-[#7ed957]/60 shadow-[0_0_0_1px_rgba(126,217,87,0.25)]' : 'border-white/10'
-                    }`}
-                  >
+                  <div key={output.id} className="rounded-2xl overflow-hidden border border-white/10">
                     <button
                       type="button"
                       onClick={() => {
                         if (!isDone || !output.dataUrl) return;
-                        if (isOpen) {
-                          closePopup();
-                        } else {
-                          openPopup(output.dataUrl);
-                        }
+                        setExpandedImage(isExpanded ? null : { dataUrl: output.dataUrl, name: input.file.name });
                       }}
-                      className="w-full text-left"
+                      className="w-full text-left relative group"
                     >
                       {isDone && output.dataUrl ? (
-                        <img src={output.dataUrl} alt={input.file.name} className="w-full aspect-square object-cover bg-black/20" />
+                        <>
+                          <img src={output.dataUrl} alt={input.file.name} className="w-full aspect-square object-cover bg-black/20" />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                            <Expand className="w-6 h-6 text-white/0 group-hover:text-white/80 transition-all" strokeWidth={1.5} />
+                          </div>
+                        </>
                       ) : (
                         <div className="w-full aspect-square bg-black/20 flex flex-col items-center justify-center px-4 text-center">
                           <Sparkles className={`w-5 h-5 mb-3 ${isRunning ? 'text-[#7ed957]' : output.status === 'error' ? 'text-red-400' : 'text-white/35'}`} />
@@ -676,7 +624,7 @@ export function AiUpscalerScreen(props: {
                         <div className="text-[10px] font-bold text-white truncate">{input.file.name}</div>
                         <div className="mt-1 text-[9px] text-white/45">
                           {output.status === 'done'
-                            ? (isOpen ? 'Okno otevřeno • klikni pro zavření' : 'Klikni pro zobrazení')
+                            ? (isExpanded ? 'Klikni pro zavření' : 'Klikni pro zvětšení')
                             : output.status === 'error'
                               ? (output.error || 'Chyba')
                               : output.status === 'running'
@@ -688,29 +636,17 @@ export function AiUpscalerScreen(props: {
                         </div>
                       </div>
                       {isDone && output.dataUrl ? (
-                        <div className="flex items-center gap-1">
-                          {isOpen ? (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); closePopup(); }}
-                              className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
-                              title="Zavřít okno"
-                            >
-                              <X className="w-3.5 h-3.5" strokeWidth={1.6} />
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              downloadDataUrl(output.dataUrl!, `${output.inputName.replace(/\.[^.]+$/, '')}-${scale}x.png`);
-                            }}
-                            className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
-                            title="Stáhnout"
-                          >
-                            <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadDataUrl(output.dataUrl!, `${output.inputName.replace(/\.[^.]+$/, '')}-${scale}x.png`);
+                          }}
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
+                          title="Stáhnout"
+                        >
+                          <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
+                        </button>
                       ) : (
                         <button
                           type="button"
@@ -731,12 +667,36 @@ export function AiUpscalerScreen(props: {
               <Sparkles className="w-8 h-8 mb-4" strokeWidth={1.2} />
               <div className="text-[11px] uppercase tracking-widest font-bold">Zatím žádné výstupy</div>
               <div className="text-[10px] text-white/25 mt-2 max-w-[400px] text-center">
-                Nahraj obrázky v levém panelu a spusť upscale. Každý výstup se zobrazí jako čtvercová karta — kliknutím otevřeš plnou velikost v samostatném okně.
+                Nahraj obrázky v levém panelu a spusť upscale. Každý výstup se zobrazí jako čtvercová karta — kliknutím otevřeš plnou velikost.
               </div>
             </div>
           )}
         </div>
       </section>
+
+      {expandedImage ? (
+        <div
+          className="fixed inset-0 z-[120] bg-black/95 flex items-center justify-center p-4 md:p-8 cursor-zoom-out"
+          onClick={() => setExpandedImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setExpandedImage(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-black/50 border border-white/10 text-white/70 hover:text-white transition-colors z-10"
+          >
+            <X className="w-5 h-5" strokeWidth={1.8} />
+          </button>
+          <div className="absolute top-4 left-4 text-[10px] text-white/40 z-10 uppercase tracking-widest">
+            {expandedImage.name}
+          </div>
+          <img
+            src={expandedImage.dataUrl}
+            alt={expandedImage.name}
+            className="max-w-full max-h-full object-contain rounded-lg cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
