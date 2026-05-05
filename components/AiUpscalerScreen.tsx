@@ -1,5 +1,5 @@
-import React from 'react';
-import { Download, Maximize2, Sparkles, Trash2, Upload, WifiOff, Cpu } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Download, Sparkles, Trash2, Upload, WifiOff, Cpu, X } from 'lucide-react';
 import { upscaleImage } from '../utils/upscaling';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
@@ -62,30 +62,6 @@ function downloadDataUrl(dataUrl: string, fileName: string): void {
   document.body.removeChild(link);
 }
 
-function openDataUrlInWindow(dataUrl: string, title: string): void {
-  const popup = window.open('', '_blank', 'noopener,noreferrer');
-  if (!popup) return;
-  popup.document.write(`
-    <!doctype html>
-    <html lang="cs">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>${title.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
-        <style>
-          html, body { margin: 0; background: #0b1118; height: 100%; }
-          body { display: flex; align-items: center; justify-content: center; }
-          img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
-        </style>
-      </head>
-      <body>
-        <img src="${dataUrl}" alt="${title.replace(/"/g, '&quot;')}" />
-      </body>
-    </html>
-  `);
-  popup.document.close();
-}
-
 async function loadImageMeta(dataUrl: string): Promise<{ width: number; height: number }> {
   return await new Promise((resolve, reject) => {
     const image = new Image();
@@ -142,16 +118,15 @@ export function AiUpscalerScreen(props: {
   const { onOpenSettings, onToast } = props;
 
   const [inputs, setInputs] = React.useState<ImageSlot[]>([]);
-  const [selectedInputId, setSelectedInputId] = React.useState<string | null>(null);
   const [scale, setScale] = React.useState<2 | 4>(2);
   const [mode, setMode] = React.useState<UpscaleMode>('restore');
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [phase, setPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number; fileName: string } | null>(null);
   const [outputs, setOutputs] = React.useState<OutputItem[]>([]);
-  const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
   const [serverHasKey, setServerHasKey] = React.useState(false);
   const inputFileId = React.useMemo(() => `ai-upscaler-input-${Math.random().toString(36).slice(2)}`, []);
+  const popupWindows = useRef<Map<string, Window>>(new Map());
 
   const replicateKey = React.useMemo(() => readReplicateKey(), []);
 
@@ -172,16 +147,6 @@ export function AiUpscalerScreen(props: {
         : phase === 'finalizing'
           ? 94
           : 0;
-
-  const selectedInput = React.useMemo(
-    () => inputs.find((item) => item.id === selectedInputId) || inputs[0] || null,
-    [inputs, selectedInputId]
-  );
-
-  const selectedOutput = React.useMemo(() => {
-    if (!selectedInput) return outputs.find((item) => item.status === 'done') || null;
-    return outputs.find((item) => item.inputId === selectedInput.id) || null;
-  }, [outputs, selectedInput]);
 
   const pendingCount = React.useMemo(() => {
     return inputs.filter((input) => outputs.find((item) => item.inputId === input.id)?.status !== 'done').length;
@@ -224,15 +189,7 @@ export function AiUpscalerScreen(props: {
         }
       }
 
-      setInputs((prev) => {
-        const merged = [...prev, ...nextSlots];
-        if (!selectedInputId && merged[0]) {
-          setSelectedInputId(merged[0].id);
-        } else if (nextSlots[0]) {
-          setSelectedInputId(nextSlots[0].id);
-        }
-        return merged;
-      });
+      setInputs((prev) => [...prev, ...nextSlots]);
       setOutputs((prev) => {
         const next = [...prev];
         for (const slot of nextSlots) {
@@ -243,7 +200,7 @@ export function AiUpscalerScreen(props: {
         return next.sort((a, b) => b.createdAt - a.createdAt);
       });
     },
-    [mode, onToast, scale, selectedInputId]
+    [mode, onToast, scale]
   );
 
   const onInputDrop = React.useCallback(
@@ -269,20 +226,13 @@ export function AiUpscalerScreen(props: {
   );
 
   const removeInput = React.useCallback((inputId: string) => {
-    setInputs((prev) => {
-      const next = prev.filter((item) => item.id !== inputId);
-      if (selectedInputId === inputId) {
-        setSelectedInputId(next[0]?.id || null);
-      }
-      return next;
-    });
+    setInputs((prev) => prev.filter((item) => item.id !== inputId));
     setOutputs((prev) => prev.filter((item) => item.inputId !== inputId));
-  }, [selectedInputId]);
+  }, []);
 
   const clearAll = React.useCallback(() => {
     setInputs([]);
     setOutputs([]);
-    setSelectedInputId(null);
     setBatchProgress(null);
     setPhase('');
   }, []);
@@ -326,7 +276,6 @@ export function AiUpscalerScreen(props: {
       for (let index = 0; index < inputsToProcess.length; index += 1) {
         const input = inputsToProcess[index];
         setBatchProgress({ current: index + 1, total: inputsToProcess.length, fileName: input.file.name });
-        setSelectedInputId(input.id);
         setOutputs((prev) => prev.map((item) => (
           item.inputId === input.id
             ? { ...item, status: 'running', error: undefined }
@@ -541,8 +490,8 @@ export function AiUpscalerScreen(props: {
               onDrop={onInputDrop}
               className="block w-full min-h-[180px] rounded-[16px] bg-[#060d17] border border-dashed border-[#16263a] hover:border-[#223a57] transition-colors cursor-pointer overflow-hidden"
             >
-              {selectedInput?.dataUrl ? (
-                <img src={selectedInput.dataUrl} alt={selectedInput.file.name} className="w-full h-[180px] object-cover opacity-92 hover:opacity-100 transition-opacity" />
+              {inputs[0]?.dataUrl ? (
+                <img src={inputs[0].dataUrl} alt={inputs[0].file.name} className="w-full h-[180px] object-cover opacity-92 hover:opacity-100 transition-opacity" />
               ) : (
                 <div className="w-full h-[180px] flex flex-col items-center justify-center gap-2 text-[#8f9aae]">
                   <Upload className="w-5 h-5" strokeWidth={1.8} />
@@ -590,166 +539,101 @@ export function AiUpscalerScreen(props: {
         <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
           <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
             <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Mode</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Režim</div>
               <div className="text-[10px] text-white/75">{mode === 'restore' ? 'Restore' : 'Turbo'}</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Scale</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Zvětšení</div>
               <div className="text-[10px] text-white/75">{scale}×</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Inputs</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Vstupů</div>
               <div className="text-[10px] text-white/75">{inputs.length}</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Pending</div>
+              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Čeká</div>
               <div className="text-[10px] text-white/75">{pendingCount}</div>
             </div>
             {batchProgress ? (
               <div className="flex items-center gap-3">
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Batch</div>
+                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Dávka</div>
                 <div className="text-[10px] text-white/75">{batchProgress.current}/{batchProgress.total} • {batchProgress.fileName}</div>
               </div>
             ) : null}
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 gap-6 auto-rows-min">
-            <article className="card-surface p-4">
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Výstup</div>
-                  <div className="mt-1 text-[11px] text-white/45">
-                    {selectedOutput?.status === 'done'
-                      ? selectedOutput.detailsText
-                      : selectedOutput?.status === 'error'
-                        ? selectedOutput.error || 'Upscale selhal'
-                        : selectedOutput?.detailsText || 'Zatím žádný výstup'}
-                  </div>
-                </div>
-                {selectedOutput?.status === 'done' && selectedOutput.dataUrl ? (
-                  <div className="flex items-center gap-2">
-                    {selectedInput ? (
-                      <button
-                        type="button"
-                        onClick={() => removeInput(selectedInput.id)}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/65 hover:text-white transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Odebrat vstup
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => downloadDataUrl(selectedOutput.dataUrl!, `${selectedOutput.inputName.replace(/\.[^.]+$/, '')}-${scale}x.png`)}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
-                    >
-                      <Download className="w-4 h-4" />
-                      Stáhnout
-                    </button>
-                  </div>
-                ) : selectedInput ? (
-                  <button
-                    type="button"
-                    onClick={() => removeInput(selectedInput.id)}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/65 hover:text-white transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Odebrat vstup
-                  </button>
-                ) : null}
-              </div>
-
-              {selectedOutput?.dataUrl ? (
-                <button
-                  type="button"
-                  onClick={() => setLightboxUrl(selectedOutput.dataUrl || null)}
-                  className="block w-full cursor-zoom-in"
-                  title="Otevřít na celou obrazovku"
-                >
-                  <img
-                    src={selectedOutput.dataUrl}
-                    alt="Upscaled output"
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]"
-                  />
-                </button>
-              ) : selectedInput?.dataUrl ? (
-                <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/20">
-                  <img
-                    src={selectedInput.dataUrl}
-                    alt={selectedInput.file.name}
-                    className="w-full max-h-[70vh] object-contain opacity-35"
-                  />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white/70 px-6 text-center bg-[radial-gradient(circle_at_center,rgba(7,12,18,0.2),rgba(7,12,18,0.68))]">
-                    <Sparkles className="w-6 h-6 mb-3" />
-                    <div className="text-[11px] uppercase tracking-widest font-bold">{phaseLabel || 'Připraveno na upscale'}</div>
-                    <div className="text-[10px] text-white/45 mt-2 max-w-[720px]">
-                      {selectedOutput?.detailsText || 'Vstup je připravený. Po dokončení se sem vykreslí hotový upscale.'}
-                    </div>
-                    {(isGenerating || batchProgress) ? (
-                      <div className="w-full max-w-[340px] mt-5 space-y-2">
-                        <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
-                          <div
-                            className="h-full rounded-full bg-[var(--accent)] transition-all duration-500 ease-out shadow-[0_0_14px_rgba(126,217,87,0.35)] animate-pulse"
-                            style={{ width: `${Math.min(100, Math.max(8, phaseProgress))}%` }}
-                          />
-                        </div>
-                        <div className="text-[10px] text-[#7ed957]">
-                          {batchProgress ? `${batchProgress.current}/${batchProgress.total} • ${phaseLabel || 'Pracuji…'}` : (phaseLabel || 'Pracuji…')}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : (
-                <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/45 px-6 text-center">
-                  <Sparkles className="w-6 h-6 mb-3" />
-                  <div className="text-[11px] uppercase tracking-widest font-bold">Připraveno na upscale</div>
-                  <div className="text-[10px] text-white/35 mt-2">
-                    Restore — AI dopočítání detailů přes Real-ESRGAN. Turbo — okamžité Lanczos zvětšení v prohlížeči.
-                  </div>
-                </div>
-              )}
-            </article>
-          </div>
-
+        <div className="p-6">
           {outputs.length > 0 ? (
-            <article className="card-surface p-4 space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Batch Queue</div>
-                  <div className="mt-1 text-[11px] text-white/40">Po uploadu se připraví placeholder karty. Hotový upscale se objeví přímo v kartě a otevře se jedním klikem ve fullsize okně.</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                {outputs.map((output) => {
-                  const input = inputs.find((item) => item.id === output.inputId);
-                  if (!input) return null;
-                  const isSelected = selectedInputId === input.id;
-                  const isDone = output.status === 'done' && !!output.dataUrl;
-                  const isRunning = output.status === 'running';
-                  const progressValue =
-                    output.status === 'done'
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+              {outputs.map((output) => {
+                const input = inputs.find((item) => item.id === output.inputId);
+                if (!input) return null;
+                const isDone = output.status === 'done' && !!output.dataUrl;
+                const isRunning = output.status === 'running';
+                const isOpen = popupWindows.current.has(output.id) && !popupWindows.current.get(output.id)?.closed;
+                const progressValue =
+                  output.status === 'done'
+                    ? 100
+                    : output.status === 'error'
                       ? 100
-                      : output.status === 'error'
-                        ? 100
-                        : isRunning
-                          ? Math.max(20, phaseProgress)
-                          : 8;
-                  return (
+                      : isRunning
+                        ? Math.max(20, phaseProgress)
+                        : 8;
+
+                const togglePopup = () => {
+                  const existing = popupWindows.current.get(output.id);
+                  if (existing && !existing.closed) {
+                    existing.close();
+                    popupWindows.current.delete(output.id);
+                    return;
+                  }
+                  if (!output.dataUrl) return;
+                  const popup = window.open('', '_blank', 'noopener,noreferrer');
+                  if (!popup) return;
+                  popupWindows.current.set(output.id, popup);
+                  popup.document.write(`
+                    <!doctype html>
+                    <html lang="cs">
+                      <head>
+                        <meta charset="utf-8" />
+                        <meta name="viewport" content="width=device-width, initial-scale=1" />
+                        <title>${input.file.name} • ${scale}×</title>
+                        <style>
+                          html, body { margin: 0; background: #0b1118; height: 100%; }
+                          body { display: flex; align-items: center; justify-content: center; }
+                          img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
+                        </style>
+                      </head>
+                      <body>
+                        <img src="${output.dataUrl}" alt="${input.file.name}" />
+                      </body>
+                    </html>
+                  `);
+                  popup.document.close();
+                  const checkClosed = setInterval(() => {
+                    if (popup.closed) {
+                      popupWindows.current.delete(output.id);
+                      clearInterval(checkClosed);
+                    }
+                  }, 500);
+                };
+
+                return (
+                  <div
+                    key={output.id}
+                    className={`rounded-2xl overflow-hidden border transition-all ${
+                      isOpen ? 'border-[#7ed957]/60 shadow-[0_0_0_1px_rgba(126,217,87,0.25)]' : 'border-white/10'
+                    }`}
+                  >
                     <button
-                      key={output.id}
                       type="button"
                       onClick={() => {
-                        setSelectedInputId(input.id);
                         if (isDone && output.dataUrl) {
-                          openDataUrlInWindow(output.dataUrl, `${input.file.name} • ${scale}×`);
+                          togglePopup();
                         }
                       }}
-                      className={`text-left rounded-2xl overflow-hidden border transition-all ${
-                        isSelected ? 'border-[#7ed957]/60 shadow-[0_0_0_1px_rgba(126,217,87,0.25)]' : 'border-white/10 hover:border-white/20'
-                      }`}
+                      className="w-full text-left"
                     >
                       {isDone && output.dataUrl ? (
                         <img src={output.dataUrl} alt={input.file.name} className="w-full aspect-square object-cover bg-black/20" />
@@ -767,7 +651,7 @@ export function AiUpscalerScreen(props: {
                               {output.status === 'error'
                                 ? 'Chyba'
                                 : output.status === 'running'
-                                  ? (phaseLabel || 'Upscaling')
+                                  ? (phaseLabel || 'Zpracovávám')
                                   : output.status === 'pending'
                                     ? 'Připraveno'
                                     : 'Čeká'}
@@ -775,11 +659,13 @@ export function AiUpscalerScreen(props: {
                           </div>
                         </div>
                       )}
-                      <div className="p-3 bg-[var(--bg-input)]">
+                    </button>
+                    <div className="p-3 bg-[var(--bg-input)] flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-bold text-white truncate">{input.file.name}</div>
                         <div className="mt-1 text-[9px] text-white/45">
                           {output.status === 'done'
-                            ? 'Hotovo • klik pro fullsize'
+                            ? (isOpen ? 'Okno otevřeno • klikni pro zavření' : 'Klikni pro zobrazení')
                             : output.status === 'error'
                               ? (output.error || 'Chyba')
                               : output.status === 'running'
@@ -790,35 +676,61 @@ export function AiUpscalerScreen(props: {
                           {output.detailsText || `${mode} • ${scale}×`}
                         </div>
                       </div>
-                    </button>
-                  );
-                })}
+                      {isDone && output.dataUrl ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadDataUrl(output.dataUrl!, `${output.inputName.replace(/\.[^.]+$/, '')}-${scale}x.png`);
+                          }}
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
+                          title="Stáhnout"
+                        >
+                          <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
+                        </button>
+                      ) : null}
+                      {output.status === 'done' && isOpen ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePopup();
+                          }}
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
+                          title="Zavřít okno"
+                        >
+                          <X className="w-3.5 h-3.5" strokeWidth={1.6} />
+                        </button>
+                      ) : null}
+                      {!isDone ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeInput(input.id);
+                          }}
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
+                          title="Odebrat"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.6} />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-white/35">
+              <Sparkles className="w-8 h-8 mb-4" strokeWidth={1.2} />
+              <div className="text-[11px] uppercase tracking-widest font-bold">Zatím žádné výstupy</div>
+              <div className="text-[10px] text-white/25 mt-2 max-w-[400px] text-center">
+                Nahraj obrázky v levém panelu a spusť upscale. Každý výstup se zobrazí jako čtvercová karta — kliknutím otevřeš plnou velikost v samostatném okně.
               </div>
-            </article>
-          ) : null}
+            </div>
+          )}
         </div>
       </section>
-
-      {lightboxUrl ? (
-        <div
-          className="fixed inset-0 z-[120] bg-black/92 backdrop-blur-sm flex items-center justify-center p-6"
-          onClick={() => setLightboxUrl(null)}
-        >
-          <button
-            type="button"
-            onClick={() => setLightboxUrl(null)}
-            className="absolute top-5 right-5 px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white"
-          >
-            Zavřít
-          </button>
-          <img
-            src={lightboxUrl}
-            alt="Upscaled preview fullscreen"
-            className="max-w-[96vw] max-h-[94vh] object-contain rounded-2xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }
