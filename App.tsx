@@ -44,6 +44,7 @@ import { mapAspectRatio, type ProviderType } from './utils/aspectRatioMapping';
 import { upscaleImage } from './utils/upscaling';
 import { AiUpscalerScreen } from './components/AiUpscalerScreen';
 import { FaceSwapScreen } from './components/FaceSwapScreen';
+import { ReframeScreen } from './components/ReframeScreen';
 import { getInterRequestDelayMs, getRetryBackoffMs, type NanoBananaImageModel } from './constants/timings';
 import { useProviderSettings } from './hooks/useProviderSettings';
 import { CLOUD_SYNC_EVENT_NAME, type CloudSyncEventDetail } from './utils/cloudSyncEvents';
@@ -480,10 +481,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (window.location.pathname !== '/') {
-      window.history.replaceState({}, '', '/');
-    }
-    setRoutePath('/');
+    setRoutePath(window.location.pathname);
   }, []);
 
   useEffect(() => {
@@ -498,6 +496,7 @@ const App: React.FC = () => {
   const isLoraInfluenceRoute = isFluxLoraRoute;
   const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
   const isAiUpscalerRoute = routePath === '/ai-upscaler' || routePath.startsWith('/ai-upscaler/');
+  const isReframeRoute = routePath === '/reframe' || routePath.startsWith('/reframe/');
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -3750,6 +3749,8 @@ const App: React.FC = () => {
         active={
           isFaceSwapRoute
               ? 'face-swap'
+            : isReframeRoute
+              ? 'reframe'
             : isStyleTransferRoute
               ? 'style-transfer'
               : isModelInfluenceRoute
@@ -3771,6 +3772,10 @@ const App: React.FC = () => {
           }
           if (route === 'face-swap') {
             navigate('/face-swap');
+            return;
+          }
+          if (route === 'reframe') {
+            navigate('/reframe');
             return;
           }
           if (route === 'style-transfer') {
@@ -3799,6 +3804,12 @@ const App: React.FC = () => {
         <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
           {isFaceSwapRoute ? (
             <FaceSwapScreen
+              providerSettings={providerSettings}
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onToast={(t) => setToast(t)}
+            />
+          ) : isReframeRoute ? (
+            <ReframeScreen
               providerSettings={providerSettings}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onToast={(t) => setToast(t)}

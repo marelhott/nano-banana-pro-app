@@ -1,7 +1,7 @@
 import React from 'react';
-import { Brush, Grid3X3, Flame, Layers, Maximize2, User } from 'lucide-react';
+import { Brush, Camera, Grid3X3, Flame, Layers, Maximize2, User } from 'lucide-react';
 
-type RailRoute = 'mulen' | 'face-swap' | 'model-influence' | 'style-transfer' | 'flux-lora' | 'ai-upscaler';
+type RailRoute = 'mulen' | 'face-swap' | 'model-influence' | 'style-transfer' | 'flux-lora' | 'ai-upscaler' | 'reframe';
 
 export function AppIconRail(props: {
   active: RailRoute;
@@ -14,6 +14,7 @@ export function AppIconRail(props: {
     { id: 'mulen', label: 'Mulen Nano', shortLabel: 'Nano', icon: <Grid3X3 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'ai-upscaler', label: 'AI Upscaler', shortLabel: 'Scale', icon: <Maximize2 className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'face-swap', label: 'Face Swap', shortLabel: 'Face', icon: <User className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
+    { id: 'reframe', label: 'Reframe', shortLabel: 'Frame', icon: <Camera className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'flux-lora', label: 'Lora Influence', shortLabel: 'Lora', icon: <Flame className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'model-influence', label: 'Model Influence', shortLabel: 'Model', icon: <Layers className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
     { id: 'style-transfer', label: 'Style Transfer', shortLabel: 'Style', icon: <Brush className="w-[13px] h-[13px]" strokeWidth={1.6} /> },
