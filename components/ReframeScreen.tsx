@@ -614,7 +614,11 @@ export function ReframeScreen(props: {
                           <div className="w-full h-full flex flex-col items-center justify-center px-6">
                             <Sparkles className="w-5 h-5 text-[#7ed957] mb-4" strokeWidth={1.5} />
                             <div className="w-full max-w-[220px] h-[2px] rounded-full bg-white/10 overflow-hidden">
-                              <div className={`h-full rounded-full bg-[#7ed957] ${output.status === 'running' ? 'animate-pulse' : ''}`} style={{ width: output.status === 'running' ? '55%' : '14%' }} />
+                              {output.status === 'running' ? (
+                                <div className="h-full w-1/3 rounded-full bg-[#7ed957] shadow-[0_0_10px_rgba(126,217,87,0.5)] animate-[reframeSlide_1.2s_ease-in-out_infinite]" />
+                              ) : (
+                                <div className="h-full w-[10%] rounded-full bg-white/20" />
+                              )}
                             </div>
                             <div className="mt-3 text-[9px] uppercase tracking-[0.24em] text-white/45 font-bold">
                               {output.status === 'running' ? 'Generuji' : 'Ve frontě'}
@@ -673,6 +677,12 @@ export function ReframeScreen(props: {
               <div className="text-[11px] uppercase tracking-widest font-bold">Připraveno na reframe</div>
             </div>
           )}
+          <style>{`
+            @keyframes reframeSlide {
+              0% { transform: translateX(-120%); }
+              100% { transform: translateX(320%); }
+            }
+          `}</style>
         </div>
       </section>
 
