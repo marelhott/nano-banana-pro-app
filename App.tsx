@@ -27,7 +27,7 @@ import { ImageGalleryPanel } from './components/ImageGalleryPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { ProviderSelector } from './components/ProviderSelector';
 import { GeminiProvider } from './services/geminiService';
-import { AIProviderType, ProviderSettings } from './services/aiProvider';
+import { AIProviderType, ProviderSettings, type ImageInput } from './services/aiProvider';
 import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
@@ -75,11 +75,86 @@ const RESOLUTIONS = [
 const MAX_GENERATED_IMAGES = 14;
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const THEME_STORAGE_KEY = 'mulen-theme';
+const SERVER_INPUT_MAX_DIMENSION = 1440;
+const SERVER_INPUT_TARGET_BYTES = 1_200_000;
+const SERVER_INPUT_MIN_QUALITY = 0.58;
 type GenerationQueueAction = 'generate' | 'variants' | '3ai';
 type GenerationQueueItem = {
   action: GenerationQueueAction;
   snapshot: GenerationQueueSnapshot;
 };
+
+async function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
+  return await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Nepodařilo se načíst obrázek pro optimalizaci.'));
+    img.src = dataUrl;
+  });
+}
+
+async function optimizeServerImageInput(
+  input: ImageInput,
+  options?: {
+    maxDimension?: number;
+    targetBytes?: number;
+  }
+): Promise<ImageInput> {
+  const sourceBytes = Math.ceil((input.data.length * 3) / 4);
+  const targetBytes = options?.targetBytes ?? SERVER_INPUT_TARGET_BYTES;
+  const maxDimension = options?.maxDimension ?? SERVER_INPUT_MAX_DIMENSION;
+
+  if (sourceBytes <= targetBytes && !String(input.mimeType || '').includes('png')) {
+    return input;
+  }
+
+  const image = await loadImageElement(input.data);
+  const longestSide = Math.max(image.width, image.height);
+  const initialScale = longestSide > maxDimension ? maxDimension / longestSide : 1;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * initialScale));
+  canvas.height = Math.max(1, Math.round(image.height * initialScale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return input;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  let quality = 0.84;
+  let output = canvas.toDataURL('image/jpeg', quality);
+
+  while (quality > SERVER_INPUT_MIN_QUALITY && Math.ceil((output.length * 3) / 4) > targetBytes) {
+    quality -= 0.08;
+    output = canvas.toDataURL('image/jpeg', quality);
+  }
+
+  if (Math.ceil((output.length * 3) / 4) > targetBytes && Math.max(canvas.width, canvas.height) > 1024) {
+    const secondaryScale = 1024 / Math.max(canvas.width, canvas.height);
+    canvas.width = Math.max(1, Math.round(canvas.width * secondaryScale));
+    canvas.height = Math.max(1, Math.round(canvas.height * secondaryScale));
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    output = canvas.toDataURL('image/jpeg', Math.max(SERVER_INPUT_MIN_QUALITY, quality));
+  }
+
+  return {
+    data: output,
+    mimeType: 'image/jpeg',
+  };
+}
+
+async function prepareServerProviderImages(
+  images: ImageInput[],
+  options?: {
+    maxDimension?: number;
+    targetBytes?: number;
+  }
+): Promise<ImageInput[]> {
+  return await Promise.all(images.map((image) => optimizeServerImageInput(image, options)));
+}
 
 const App: React.FC = () => {
   // Supabase connectivity state (separate from app identity)
@@ -1365,7 +1440,7 @@ const App: React.FC = () => {
           mimeType: img.file.type
         }))
       );
-      const providerImages = [...sourceImagesData, ...assetImagesData];
+      const providerImages = await prepareServerProviderImages([...sourceImagesData, ...assetImagesData]);
 
       // 2. Generate image for each variant sequentially
       for (let i = 0; i < variants.length; i++) {
@@ -1587,7 +1662,10 @@ const App: React.FC = () => {
           mimeType: img.file.type
         }))
       );
-      const providerImages = [...sourceImagesData, ...assetImagesData];
+      const providerImages = await prepareServerProviderImages([...sourceImagesData, ...assetImagesData], {
+        maxDimension: 1280,
+        targetBytes: 900_000,
+      });
 
       // Create loading entries for all model presets.
       const ids = runTargets.map((p, i) => `${Date.now()}-all-models-${i}`);
@@ -1829,7 +1907,7 @@ const App: React.FC = () => {
           mimeType: img.file.type
         }))
       );
-      const allImages = [...sourceImagesData, ...styleImagesData, ...assetImagesData];
+      const allImages = await prepareServerProviderImages([...sourceImagesData, ...styleImagesData, ...assetImagesData]);
 
       const generationResults = await Promise.all(
         imagesToGenerate.map(async (imageData, i) => {

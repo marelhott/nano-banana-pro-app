@@ -31,9 +31,21 @@ async function callServerProvider<T>(payload: ServerProviderRequest): Promise<T>
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json().catch(() => ({}));
+  const raw = await response.text();
+  const data = (() => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  })();
   if (!response.ok || !data?.success) {
-    throw new Error(data?.error || response.statusText || 'Server provider request failed.');
+    throw new Error(
+      data?.error ||
+      raw?.slice(0, 400) ||
+      response.statusText ||
+      'Server provider request failed.'
+    );
   }
   return data.result as T;
 }

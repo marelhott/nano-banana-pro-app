@@ -35,6 +35,14 @@ export interface HeadSwapResult {
   attemptedProviders: HeadSwapPromptProviderId[];
 }
 
+export interface HeadSwapProgress {
+  stage: 'composing' | 'running' | 'completed';
+  totalJobs: number;
+  completedJobs: number;
+  failedJobs: number;
+  activeLabel?: string;
+}
+
 function dataUrlToImageInput(dataUrl: string) {
   const mimeType = dataUrl.match(/^data:([^;]+);base64,/)?.[1] || 'image/png';
   return {
@@ -90,23 +98,45 @@ async function runSinglePromptSwap(params: {
 export async function runHeadSwap(params: {
   request: HeadSwapRequest;
   settings: ProviderSettings;
+  onOutput?: (output: HeadSwapOutput) => void;
+  onProgress?: (progress: HeadSwapProgress) => void;
 }): Promise<HeadSwapResult> {
   const mode = params.request.mode || 'head';
   const hairSource = params.request.hairSource || params.settings.headSwap?.hairSource || 'target';
   const outputCount = normalizeOutputCount(params.request.outputCount);
   const models = resolveModels(params.request.selectedModels);
+  const totalJobs = models.length * outputCount;
+  let completedJobs = 0;
+  let failedJobs = 0;
+
+  params.onProgress?.({
+    stage: 'composing',
+    totalJobs,
+    completedJobs,
+    failedJobs,
+  });
 
   const compositeInput = await createReferenceStyleComposite({
     referenceImages: [dataUrlToImageInput(params.request.targetImage)],
     styleImages: [dataUrlToImageInput(params.request.sourceImage)],
-    size: 960,
+    size: 768,
     outputMimeType: 'image/jpeg',
-    outputQuality: 0.86,
+    outputQuality: 0.82,
   });
 
   const jobs = models.flatMap((model) =>
     Array.from({ length: outputCount }, (_, batchIndex) => {
       const providerType = model === 'gemini' ? AIProviderType.GEMINI : AIProviderType.CHATGPT;
+      const activeLabel = `${getHeadSwapModelLabel(model)} • ${batchIndex + 1}/${outputCount}`;
+
+      params.onProgress?.({
+        stage: 'running',
+        totalJobs,
+        completedJobs,
+        failedJobs,
+        activeLabel,
+      });
+
       return runSinglePromptSwap({
         providerType,
         promptModel: model,
@@ -114,6 +144,27 @@ export async function runHeadSwap(params: {
         mode,
         hairSource,
         batchIndex,
+      }).then((output) => {
+        completedJobs += 1;
+        params.onOutput?.(output);
+        params.onProgress?.({
+          stage: completedJobs + failedJobs >= totalJobs ? 'completed' : 'running',
+          totalJobs,
+          completedJobs,
+          failedJobs,
+          activeLabel,
+        });
+        return output;
+      }).catch((error) => {
+        failedJobs += 1;
+        params.onProgress?.({
+          stage: completedJobs + failedJobs >= totalJobs ? 'completed' : 'running',
+          totalJobs,
+          completedJobs,
+          failedJobs,
+          activeLabel,
+        });
+        throw error;
       });
     })
   );

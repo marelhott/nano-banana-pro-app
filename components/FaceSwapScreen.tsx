@@ -1,7 +1,7 @@
 import React from 'react';
 import { Download, Sparkles, Upload } from 'lucide-react';
 import type { ProviderSettings } from '../services/aiProvider';
-import type { HeadSwapMode, HeadSwapModelChoice } from '../services/headSwapService';
+import type { HeadSwapMode, HeadSwapModelChoice, HeadSwapProgress } from '../services/headSwapService';
 import { runHeadSwap } from '../services/headSwapService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
@@ -50,6 +50,7 @@ export function FaceSwapScreen(props: {
   const [outputs, setOutputs] = React.useState<FaceSwapOutputCard[]>([]);
   const [runMeta, setRunMeta] = React.useState<string>('Zatím žádný výstup');
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
+  const [progress, setProgress] = React.useState<HeadSwapProgress | null>(null);
 
   const sourceInputId = React.useMemo(() => `face-swap-source-${Math.random().toString(36).slice(2)}`, []);
   const targetInputId = React.useMemo(() => `face-swap-target-${Math.random().toString(36).slice(2)}`, []);
@@ -120,6 +121,13 @@ export function FaceSwapScreen(props: {
     );
     setOutputs(placeholders);
     setRunMeta(`${mode} swap • ${modelSummary} • ${outputCount}× na model`);
+    setProgress({
+      stage: 'composing',
+      totalJobs: placeholders.length,
+      completedJobs: 0,
+      failedJobs: 0,
+      activeLabel: 'Připravuji vstup',
+    });
 
     try {
       const result = await runHeadSwap({
@@ -132,6 +140,23 @@ export function FaceSwapScreen(props: {
           outputCount,
         },
         settings: providerSettings,
+        onOutput: (output) => {
+          setOutputs((prev) => {
+            const idx = prev.findIndex((item) => item.provider === (output.provider === 'gemini-identity-edit' ? 'gemini' : 'openai') && item.status === 'pending');
+            if (idx === -1) return prev;
+            const next = [...prev];
+            next[idx] = {
+              ...next[idx],
+              label: output.label,
+              dataUrl: output.imageBase64,
+              status: 'done',
+            };
+            return next;
+          });
+        },
+        onProgress: (nextProgress) => {
+          setProgress(nextProgress);
+        },
       });
 
       const completedOutputs = result.outputs.map((item, index) => ({
@@ -184,6 +209,7 @@ export function FaceSwapScreen(props: {
       onToast({ type: 'error', message: error?.message || 'Face swap selhal.' });
     } finally {
       setIsGenerating(false);
+      setProgress(null);
     }
   }, [mode, modelSummary, onToast, outputCount, preserveHair, providerSettings, selectedModels, source, target]);
 
@@ -365,8 +391,11 @@ export function FaceSwapScreen(props: {
             <div className="flex flex-wrap gap-4 items-start">
               {outputs.map((item) => {
                 const isDone = item.status === 'done' && !!item.dataUrl;
+                const progressPercent = progress
+                  ? Math.max(6, Math.min(100, Math.round((progress.completedJobs / Math.max(1, progress.totalJobs)) * 100)))
+                  : 0;
                 return (
-                  <article key={item.id} className="space-y-2 w-full max-w-[280px]">
+                  <article key={item.id} className="space-y-2 w-full max-w-[340px]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold truncate">{item.label}</div>
                       {isDone && item.dataUrl ? (
@@ -397,15 +426,15 @@ export function FaceSwapScreen(props: {
                     ) : (
                       <div className="aspect-square bg-[var(--bg-panel)] flex flex-col items-center justify-center px-5 text-center">
                         <Sparkles className={`w-4 h-4 mb-3 ${item.status === 'error' ? 'text-red-400' : 'text-[#7ed957]'}`} />
-                        <div className="w-full max-w-[160px] space-y-2">
+                        <div className="w-full max-w-[200px] space-y-2">
                           <div className="relative h-[2px] bg-white/8 rounded-full overflow-hidden">
                             <div
-                              className={`${item.status === 'error' ? 'bg-red-400/80' : 'bg-[var(--accent)] animate-pulse'} h-full rounded-full transition-all duration-500`}
-                              style={{ width: item.status === 'error' ? '100%' : '38%' }}
+                              className={`${item.status === 'error' ? 'bg-red-400/80' : 'bg-[var(--accent)]'} h-full rounded-full transition-all duration-500`}
+                              style={{ width: item.status === 'error' ? '100%' : `${progressPercent}%` }}
                             />
                           </div>
                           <div className="text-[8px] uppercase tracking-[0.24em] text-white/45">
-                            {item.status === 'error' ? 'Chyba' : 'Provádím swap'}
+                            {item.status === 'error' ? 'Chyba' : (progress?.activeLabel || 'Provádím swap')}
                           </div>
                         </div>
                       </div>

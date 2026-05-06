@@ -347,7 +347,7 @@ exports.handler = async (event) => {
     if (!apiKey) {
       return json(500, {
         success: false,
-        error: `Server API key missing for ${provider}. Nastav Netlify env klíč pro tohoto providera.`,
+        error: `Server API key missing for ${provider}. Nastav Vercel env klíč pro tohoto providera.`,
       });
     }
 
