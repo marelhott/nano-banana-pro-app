@@ -43,6 +43,8 @@
     --bg-elevated-soft: rgba(15, 21, 18, 0.72);
     --bg-contrast: rgba(0, 0, 0, 0.3);
     --bg-contrast-strong: rgba(0, 0, 0, 0.88);
+    --modal-stage-bg: #000000;
+    --modal-panel-bg: #000000;
     --text-primary: #f3f4f6;
     --text-secondary: #9ca3af;
     --text-muted: rgba(255, 255, 255, 0.55);
@@ -95,6 +97,8 @@
     --bg-elevated-soft: rgba(248, 252, 246, 0.94);
     --bg-contrast: rgba(19, 30, 24, 0.05);
     --bg-contrast-strong: rgba(245, 247, 242, 0.92);
+    --modal-stage-bg: #ffffff;
+    --modal-panel-bg: #ffffff;
     --text-primary: #132219;
     --text-secondary: #536257;
     --text-muted: rgba(19, 34, 25, 0.62);

@@ -127,11 +127,15 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
   if (!isOpen || !generatedImage) return null;
 
   return (
-    <div className="!fixed inset-0 !z-[150] flex flex-col md:flex-row animate-fadeIn bg-black">
+    <div
+      className="!fixed inset-0 !z-[150] flex flex-col md:flex-row animate-fadeIn"
+      style={{ backgroundColor: 'var(--modal-stage-bg)', color: 'var(--text-primary)' }}
+    >
 
       {/* Left Panel: Image Viewer */}
       <div
-        className="relative w-full h-full md:flex-1 flex items-center justify-center bg-black/40 overflow-hidden pb-[60px] md:pb-0"
+        className="relative w-full h-full md:flex-1 flex items-center justify-center overflow-hidden pb-[60px] md:pb-0"
+        style={{ backgroundColor: 'var(--modal-stage-bg)' }}
         onClick={onClose}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -164,8 +168,8 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
             {isCompareMode && originalImage ? (
               <div
                 ref={containerRef}
-                className="relative h-full max-w-full aspect-[var(--aspect-ratio)] select-none cursor-col-resize shadow-2xl mx-auto border border-gray-800 rounded-lg overflow-hidden"
-                style={{ aspectRatio: 'auto' }}
+                className="relative h-full max-w-full aspect-[var(--aspect-ratio)] select-none cursor-col-resize shadow-2xl mx-auto rounded-lg overflow-hidden"
+                style={{ aspectRatio: 'auto', borderColor: 'var(--border-color)', borderWidth: 1 }}
                 onMouseDown={() => setIsDragging(true)}
               >
                 <img src={generatedImage} className="max-w-full max-h-full object-contain pointer-events-none select-none block mx-auto" draggable={false} />
@@ -179,7 +183,11 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
                 </div>
               </div>
             ) : (
-              <img src={generatedImage} className="max-w-full max-h-full object-contain shadow-2xl rounded-lg border border-gray-800" />
+              <img
+                src={generatedImage}
+                className="max-w-full max-h-full object-contain shadow-2xl rounded-lg border"
+                style={{ borderColor: 'var(--border-color)' }}
+              />
             )}
           </div>
         </div>
@@ -187,7 +195,8 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
 
       {/* Right Panel: Sidebar / Drawer */}
       <div
-        className={`fixed bottom-0 left-0 right-0 z-[160] bg-[#0f1512] border-t border-gray-800 shadow-2xl transition-all duration-300 ease-in-out md:static md:w-[400px] md:h-full md:border-t-0 md:border-l flex flex-col ${isDrawerOpen ? 'h-[80vh]' : 'h-[60px]'} md:h-full`}
+        className={`fixed bottom-0 left-0 right-0 z-[160] shadow-2xl transition-all duration-300 ease-in-out md:static md:w-[400px] md:h-full md:border-t-0 md:border-l flex flex-col ${isDrawerOpen ? 'h-[80vh]' : 'h-[60px]'} md:h-full`}
+        style={{ backgroundColor: 'var(--modal-panel-bg)', borderColor: 'var(--border-color)', borderTopWidth: 1 }}
         onClick={(e) => {
           e.stopPropagation();
           // Expand on click if on mobile and closed
@@ -222,7 +231,10 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
         </div>
 
         {/* Sidebar Content */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0 space-y-6 bg-[#0f1512]/50">
+        <div
+          className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0 space-y-6"
+          style={{ backgroundColor: 'var(--modal-panel-bg)' }}
+        >
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">{promptLabel}</h4>
@@ -239,7 +251,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
             </p>
           </div>
 
-          <div className="space-y-4 pt-4 border-t border-gray-800">
+          <div className="space-y-4 pt-4 border-t" style={{ borderColor: 'var(--border-color)' }}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Resolution</h4>
@@ -284,7 +296,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
 
             {/* #14: Full recipe details */}
             {recipe && (
-              <div className="space-y-2 pt-2 border-t border-gray-800">
+              <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
                 <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Recipe</h4>
                 <div className="grid grid-cols-2 gap-2 text-[9px]">
                   <div><span className="text-gray-500">Provider:</span> <span className="text-gray-300">{recipe.provider}</span></div>
@@ -302,14 +314,14 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
 
             {/* #13: Lineage (rodokmen) */}
             {lineage && (lineage.sourceImageUrls.length > 0 || lineage.styleImageUrls.length > 0) && (
-              <div className="space-y-2 pt-2 border-t border-gray-800">
+              <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
                 <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Rodokmen</h4>
                 {lineage.sourceImageUrls.length > 0 && (
                   <div>
                     <div className="text-[8px] text-gray-500 uppercase mb-1">Reference ({lineage.sourceImageUrls.length})</div>
                     <div className="flex gap-1 flex-wrap">
                       {lineage.sourceImageUrls.map((url, i) => (
-                        <img key={i} src={url} className="w-8 h-8 rounded object-cover border border-gray-700" alt={`Ref ${i + 1}`} />
+                        <img key={i} src={url} className="w-8 h-8 rounded object-cover border" style={{ borderColor: 'var(--border-color)' }} alt={`Ref ${i + 1}`} />
                       ))}
                     </div>
                   </div>
@@ -319,7 +331,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
                     <div className="text-[8px] text-gray-500 uppercase mb-1">Styl ({lineage.styleImageUrls.length})</div>
                     <div className="flex gap-1 flex-wrap">
                       {lineage.styleImageUrls.map((url, i) => (
-                        <img key={i} src={url} className="w-8 h-8 rounded object-cover border border-gray-700" alt={`Style ${i + 1}`} />
+                        <img key={i} src={url} className="w-8 h-8 rounded object-cover border" style={{ borderColor: 'var(--border-color)' }} alt={`Style ${i + 1}`} />
                       ))}
                     </div>
                   </div>
@@ -329,11 +341,11 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
 
             {/* #11: Version history */}
             {versions && versions.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-gray-800">
+              <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
                 <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Verze ({versions.length})</h4>
                 <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
                   {versions.map((v, i) => (
-                    <div key={i} className="flex items-center gap-2 p-1 rounded bg-gray-800/50 text-[8px]">
+                    <div key={i} className="flex items-center gap-2 p-1 rounded text-[8px]" style={{ backgroundColor: 'var(--surface-highlight)' }}>
                       <img src={v.url} className="w-6 h-6 rounded object-cover" alt={`V${i + 1}`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-gray-400 truncate">{v.prompt}</div>
@@ -348,7 +360,10 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
         </div>
 
         {/* Sidebar Footer (Actions) */}
-        <div className="p-6 border-t border-gray-800 flex flex-col gap-3 shrink-0 bg-[#0f1512]">
+        <div
+          className="p-6 border-t flex flex-col gap-3 shrink-0"
+          style={{ backgroundColor: 'var(--modal-panel-bg)', borderColor: 'var(--border-color)' }}
+        >
           {originalImage && (
             <button
               onClick={() => setIsCompareMode(!isCompareMode)}
