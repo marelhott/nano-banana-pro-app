@@ -53,6 +53,7 @@ type ReframeOutput = {
   error?: string;
   createdAt: number;
   modelId?: string;
+  editPrompt?: string;
 };
 
 const PERSPECTIVES: Perspective[] = [
@@ -154,7 +155,7 @@ const PERSPECTIVES: Perspective[] = [
   },
 ];
 
-const DEFAULT_SELECTED = new Set(PERSPECTIVES.filter((item) => item.defaultSelected).map((item) => item.id));
+const DEFAULT_SELECTED = new Set(PERSPECTIVES.map((item) => item.id));
 
 function readGeminiKey(): string {
   try {
@@ -233,8 +234,23 @@ function buildReframePrompt(perspective: Perspective, aspectRatio: string): stri
     'Do not restyle, beautify, replace the subject, change ethnicity, change product design, change room design, add text, add UI, add watermarks, or turn the image into a collage.',
     'If parts of the scene become visible because of the new angle, complete them plausibly from the original image context.',
     '',
-    `Output aspect ratio: ${aspectRatio}.`,
+    `Output aspect ratio: preserve the original input ratio (${aspectRatio}).`,
     'Return exactly one realistic full-frame image, with no labels, no grid, and no before/after layout.',
+  ].join('\n');
+}
+
+function buildEditPrompt(userPrompt: string, perspectiveLabel: string, aspectRatio: string): string {
+  return [
+    'Edit this generated reframe image according to the user instruction.',
+    '',
+    `Current reframe perspective: ${perspectiveLabel}.`,
+    `Preserve the original aspect ratio (${aspectRatio}).`,
+    '',
+    'User instruction:',
+    userPrompt.trim(),
+    '',
+    'Keep the same scene, subject identity, lighting, camera realism, materials, and composition unless the instruction explicitly changes them.',
+    'Return exactly one realistic full-frame image, with no labels, no grid, no before/after layout, and no visible UI.',
   ].join('\n');
 }
 
@@ -246,7 +262,6 @@ export function ReframeScreen(props: {
   const { providerSettings, onOpenSettings, onToast } = props;
   const [input, setInput] = React.useState<InputImage | null>(null);
   const [selected, setSelected] = React.useState<Set<PerspectiveId>>(() => new Set(DEFAULT_SELECTED));
-  const [aspectRatio, setAspectRatio] = React.useState('4:5');
   const [gridMode, setGridMode] = React.useState<'3x3' | 'free'>('3x3');
   const [resolution, setResolution] = React.useState<'1K' | '2K'>('2K');
   const [outputs, setOutputs] = React.useState<ReframeOutput[]>([]);
@@ -265,6 +280,7 @@ export function ReframeScreen(props: {
     () => PERSPECTIVES.filter((item) => selected.has(item.id)),
     [selected]
   );
+  const originalAspectRatio = input ? `${input.width}:${input.height}` : 'Original';
 
   const handleFile = React.useCallback(async (file?: File) => {
     if (!file || !file.type.startsWith('image/')) return;
@@ -325,17 +341,16 @@ export function ReframeScreen(props: {
       const providerInput = await optimizeImageInput(input.dataUrl, input.file.type);
       const provider = new GeminiProvider(geminiKey || '', GEMINI_PRO_IMAGE_MODEL);
 
-      for (let index = 0; index < selectedPerspectives.length; index++) {
-        const perspective = selectedPerspectives[index];
+      const jobs = selectedPerspectives.map(async (perspective, index) => {
         const outputId = placeholders[index].id;
         setOutputs((prev) => prev.map((item) => item.id === outputId ? { ...item, status: 'running' } : item));
 
         try {
           const result = await provider.generateImage(
             [providerInput],
-            buildReframePrompt(perspective, aspectRatio),
+            buildReframePrompt(perspective, originalAspectRatio),
             resolution,
-            aspectRatio,
+            'Original',
             false
           );
 
@@ -350,9 +365,9 @@ export function ReframeScreen(props: {
               id: outputId,
               url: result.imageBase64,
               thumbnail,
-              prompt: `Reframe ${perspective.label}: ${buildReframePrompt(perspective, aspectRatio)}`,
+              prompt: `Reframe ${perspective.label}: ${buildReframePrompt(perspective, originalAspectRatio)}`,
               resolution,
-              aspectRatio,
+              aspectRatio: originalAspectRatio,
               params: {
                 operation: 'reframe',
                 perspective: perspective.id,
@@ -371,7 +386,9 @@ export function ReframeScreen(props: {
         } finally {
           setProgress({ completed: completed + failed, total: placeholders.length });
         }
-      }
+      });
+
+      await Promise.allSettled(jobs);
 
       if (completed > 0 && failed === 0) {
         onToast({ type: 'success', message: `Reframe hotový: ${completed}/${placeholders.length}.` });
@@ -384,7 +401,59 @@ export function ReframeScreen(props: {
       setIsGenerating(false);
       setProgress(null);
     }
-  }, [aspectRatio, geminiKey, input, onToast, resolution, selectedPerspectives, serverGeminiReady]);
+  }, [geminiKey, input, onToast, originalAspectRatio, resolution, selectedPerspectives, serverGeminiReady]);
+
+  const handleEditOutput = React.useCallback(async (output: ReframeOutput) => {
+    const prompt = output.editPrompt?.trim();
+    if (!prompt || !output.dataUrl) return;
+    if (!geminiKey && !serverGeminiReady) {
+      onToast({ type: 'error', message: 'Chybí Gemini klíč v Settings nebo na Vercelu.' });
+      return;
+    }
+
+    setOutputs((prev) => prev.map((item) => item.id === output.id ? { ...item, status: 'running', error: undefined } : item));
+    try {
+      const providerInput = await optimizeImageInput(output.dataUrl, 'image/png');
+      const provider = new GeminiProvider(geminiKey || '', GEMINI_PRO_IMAGE_MODEL);
+      const result = await provider.generateImage(
+        [providerInput],
+        buildEditPrompt(prompt, output.perspectiveLabel, originalAspectRatio),
+        resolution,
+        'Original',
+        false
+      );
+
+      setOutputs((prev) => prev.map((item) => item.id === output.id
+        ? { ...item, status: 'done', dataUrl: result.imageBase64, modelId: result.modelId, editPrompt: '' }
+        : item
+      ));
+
+      try {
+        const thumbnail = await createThumbnail(result.imageBase64, 420);
+        await saveToGallery({
+          id: `${output.id}-edit-${Date.now()}`,
+          url: result.imageBase64,
+          thumbnail,
+          prompt: `Reframe edit ${output.perspectiveLabel}: ${prompt}`,
+          resolution,
+          aspectRatio: originalAspectRatio,
+          params: {
+            operation: 'reframe-edit',
+            perspective: output.perspectiveId,
+            modelId: result.modelId || GEMINI_PRO_IMAGE_MODEL,
+          },
+        });
+      } catch { /* gallery is non-blocking */ }
+
+      onToast({ type: 'success', message: `Upraveno: ${output.perspectiveLabel}.` });
+    } catch (error: any) {
+      setOutputs((prev) => prev.map((item) => item.id === output.id
+        ? { ...item, status: 'error', error: error?.message || 'Úprava selhala.' }
+        : item
+      ));
+      onToast({ type: 'error', message: error?.message || 'Úprava selhala.' });
+    }
+  }, [geminiKey, onToast, originalAspectRatio, resolution, serverGeminiReady]);
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
@@ -447,16 +516,6 @@ export function ReframeScreen(props: {
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            {['4:5', '1:1', '16:9'].map((ratio) => (
-              <button
-                key={ratio}
-                type="button"
-                onClick={() => setAspectRatio(ratio)}
-                className={`h-10 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-colors ${aspectRatio === ratio ? 'border-[#7ed957]/60 bg-[#7ed957]/10 text-white' : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/55 hover:text-white'}`}
-              >
-                {ratio}
-              </button>
-            ))}
             <button
               type="button"
               onClick={() => setGridMode((prev) => prev === '3x3' ? 'free' : '3x3')}
@@ -521,7 +580,7 @@ export function ReframeScreen(props: {
             <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Perspektivy</div>
             <div className="text-[10px] text-white/75">{selectedPerspectives.length}</div>
             <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Aspect</div>
-            <div className="text-[10px] text-white/75">{aspectRatio}</div>
+            <div className="text-[10px] text-white/75">{originalAspectRatio}</div>
             {progress ? (
               <>
                 <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Progress</div>
@@ -533,7 +592,7 @@ export function ReframeScreen(props: {
 
         <div className="p-6">
           {outputs.length > 0 ? (
-            <div className={gridMode === '3x3' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3' : 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3'}>
+            <div className={gridMode === '3x3' ? 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3' : 'grid grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3'}>
               {outputs.map((output) => {
                 const isDone = output.status === 'done' && !!output.dataUrl;
                 return (
@@ -580,6 +639,30 @@ export function ReframeScreen(props: {
                         </button>
                       ) : null}
                     </div>
+                    {isDone ? (
+                      <div className="p-2 bg-[var(--bg-input)] border-t border-white/5 flex gap-2">
+                        <input
+                          value={output.editPrompt || ''}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setOutputs((prev) => prev.map((item) => item.id === output.id ? { ...item, editPrompt: value } : item));
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') void handleEditOutput(output);
+                          }}
+                          placeholder="Prompt úprava..."
+                          className="min-w-0 flex-1 h-8 rounded-md border border-white/10 bg-[var(--bg-panel)] px-2 text-[10px] text-white outline-none focus:border-[#7ed957]/60"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleEditOutput(output)}
+                          disabled={!output.editPrompt?.trim()}
+                          className="h-8 px-3 rounded-md bg-[#7ed957] text-[#0a0f0d] text-[9px] font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    ) : null}
                   </article>
                 );
               })}
@@ -601,7 +684,7 @@ export function ReframeScreen(props: {
         prompt={selectedOutput ? `Reframe ${selectedOutput.perspectiveLabel}` : ''}
         timestamp={selectedOutput?.createdAt}
         resolution={resolution}
-        aspectRatio={aspectRatio}
+        aspectRatio={originalAspectRatio}
       />
     </div>
   );
