@@ -362,11 +362,11 @@ export function FaceSwapScreen(props: {
           </div>
 
           {outputs.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="flex flex-wrap gap-4 items-start">
               {outputs.map((item) => {
                 const isDone = item.status === 'done' && !!item.dataUrl;
                 return (
-                  <article key={item.id} className="space-y-2">
+                  <article key={item.id} className="space-y-2 w-full max-w-[280px]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold truncate">{item.label}</div>
                       {isDone && item.dataUrl ? (
@@ -396,15 +396,15 @@ export function FaceSwapScreen(props: {
                       </button>
                     ) : (
                       <div className="aspect-square bg-[var(--bg-panel)] flex flex-col items-center justify-center px-5 text-center">
-                        <Sparkles className={`w-5 h-5 mb-3 ${item.status === 'error' ? 'text-red-400' : 'text-[#7ed957]'}`} />
-                        <div className="w-full max-w-[180px] space-y-2">
-                          <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                        <Sparkles className={`w-4 h-4 mb-3 ${item.status === 'error' ? 'text-red-400' : 'text-[#7ed957]'}`} />
+                        <div className="w-full max-w-[160px] space-y-2">
+                          <div className="relative h-[2px] bg-white/8 rounded-full overflow-hidden">
                             <div
                               className={`${item.status === 'error' ? 'bg-red-400/80' : 'bg-[var(--accent)] animate-pulse'} h-full rounded-full transition-all duration-500`}
                               style={{ width: item.status === 'error' ? '100%' : '38%' }}
                             />
                           </div>
-                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/45">
+                          <div className="text-[8px] uppercase tracking-[0.24em] text-white/45">
                             {item.status === 'error' ? 'Chyba' : 'Provádím swap'}
                           </div>
                         </div>
