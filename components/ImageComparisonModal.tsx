@@ -127,7 +127,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
   if (!isOpen || !generatedImage) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] flex flex-col md:flex-row animate-fadeIn bg-black">
+    <div className="!fixed inset-0 !z-[150] flex flex-col md:flex-row animate-fadeIn bg-black">
 
       {/* Left Panel: Image Viewer */}
       <div
