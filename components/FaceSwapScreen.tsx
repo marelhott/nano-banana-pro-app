@@ -18,9 +18,20 @@ type FaceSwapOutputCard = {
   id: string;
   provider: string;
   label: string;
-  dataUrl: string;
+  dataUrl?: string;
+  status: 'pending' | 'done' | 'error';
   createdAt: number;
+  error?: string;
 };
+
+function plannedProviders(choice: HeadSwapModelChoice): Array<{ provider: string; label: string }> {
+  if (choice === 'gemini') return [{ provider: 'gemini', label: 'Gemini' }];
+  if (choice === 'openai') return [{ provider: 'openai', label: 'GPT Img 2' }];
+  return [
+    { provider: 'gemini', label: 'Gemini' },
+    { provider: 'openai', label: 'GPT Img 2' },
+  ];
+}
 
 export function FaceSwapScreen(props: {
   providerSettings: ProviderSettings;
@@ -99,7 +110,17 @@ export function FaceSwapScreen(props: {
     }
 
     setIsGenerating(true);
-    setOutputs([]);
+    const providers = plannedProviders(selectedModels);
+    const placeholders: FaceSwapOutputCard[] = providers.flatMap((provider) =>
+      Array.from({ length: outputCount }, (_, index) => ({
+        id: `${provider.provider}-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        provider: provider.provider,
+        label: `${provider.label} • ${index + 1}/${outputCount}`,
+        status: 'pending' as const,
+        createdAt: Date.now() + index,
+      }))
+    );
+    setOutputs(placeholders);
     setRunMeta(`${mode} swap • ${modelSummary} • ${outputCount}× na model`);
 
     try {
@@ -120,6 +141,7 @@ export function FaceSwapScreen(props: {
         provider: item.provider,
         label: item.label,
         dataUrl: item.imageBase64,
+        status: 'done' as const,
         createdAt: Date.now() + index,
       }));
 
@@ -155,7 +177,11 @@ export function FaceSwapScreen(props: {
         message: `Swap hotový. Vygenerováno ${completedOutputs.length} výsledků přes ${modelSummary}.`,
       });
     } catch (error: any) {
-      setOutputs([]);
+      setOutputs((prev) => prev.map((item) => ({
+        ...item,
+        status: 'error',
+        error: error?.message || 'Face swap selhal.',
+      })));
       setRunMeta('Swap selhal');
       onToast({ type: 'error', message: error?.message || 'Face swap selhal.' });
     } finally {
@@ -170,7 +196,7 @@ export function FaceSwapScreen(props: {
     slot: ImageSlot | null,
     inputId: string,
   ) => (
-    <div className="card-surface p-3 space-y-2">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">{label}</div>
         <div className="text-[12px] leading-none font-semibold text-[#9aa5ba]">{slot ? 1 : 0}</div>
@@ -179,14 +205,14 @@ export function FaceSwapScreen(props: {
         htmlFor={inputId}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => void onDropToSlot(kind, e)}
-        className="block w-full h-[170px] rounded-[16px] bg-[#060d17] border border-dashed border-[#16263a] hover:border-[#223a57] transition-colors cursor-pointer overflow-hidden"
+        className="block w-full aspect-square rounded-lg bg-[var(--bg-panel)] border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] transition-colors cursor-pointer overflow-hidden"
       >
         {slot?.dataUrl ? (
           <img src={slot.dataUrl} alt={slot.file.name} className="w-full h-full object-cover opacity-92 hover:opacity-100 transition-opacity" />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-[#8f9aae]">
-            <Upload className="w-5 h-5" strokeWidth={1.8} />
-            <span className="text-[10px] uppercase tracking-widest">Upload</span>
+            <Upload className="w-4 h-4" strokeWidth={1.8} />
+            <span className="text-[9px] uppercase tracking-[0.2em]">Upload</span>
           </div>
         )}
       </label>
@@ -200,14 +226,14 @@ export function FaceSwapScreen(props: {
           if (file) void pickSlotFile(kind, file);
         }}
       />
-      <div className="text-[9px] text-white/35">{hint}</div>
+      <div className="text-[8px] leading-4 text-white/35">{hint}</div>
     </div>
   );
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
-      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
-        <div className="p-6 flex flex-col gap-6 min-h-full">
+      <aside className="w-[320px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
+        <div className="p-5 flex flex-col gap-4 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
             <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Face Swap</h2>
@@ -217,12 +243,12 @@ export function FaceSwapScreen(props: {
             type="button"
             onClick={handleGenerate}
             disabled={!source || !target || isGenerating}
-            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+            className="w-full h-11 px-4 font-bold text-[11px] uppercase tracking-[0.28em] rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
           >
             {isGenerating ? 'Swapping…' : mode === 'head' ? 'Spustit Head Swap' : 'Spustit Face Swap'}
           </button>
 
-          <div className="card-surface p-3 space-y-2">
+          <div className="space-y-1.5">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VARIANTA</div>
             <div className="flex items-center gap-2">
               {(['head', 'face'] as const).map((item) => (
@@ -230,7 +256,7 @@ export function FaceSwapScreen(props: {
                   key={item}
                   type="button"
                   onClick={() => setMode(item)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  className={`flex-1 h-10 rounded-lg border px-3 text-[10px] font-bold uppercase tracking-[0.22em] transition-colors ${
                     mode === item
                       ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
                       : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
@@ -242,7 +268,7 @@ export function FaceSwapScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-3 space-y-2">
+          <div className="space-y-1.5">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">MODEL</div>
             <div className="grid grid-cols-3 gap-2">
               {([
@@ -254,7 +280,7 @@ export function FaceSwapScreen(props: {
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedModels(item.id)}
-                  className={`rounded-lg border px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  className={`h-10 rounded-lg border px-2 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
                     selectedModels === item.id
                       ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
                       : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
@@ -264,10 +290,9 @@ export function FaceSwapScreen(props: {
                 </button>
               ))}
             </div>
-            <div className="text-[9px] text-white/35">Volba `Oba` spustí Gemini i GPT Image 2 současně.</div>
           </div>
 
-          <div className="card-surface p-3 space-y-2">
+          <div className="space-y-1.5">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET VÝSTUPŮ</div>
             <div className="grid grid-cols-3 gap-2">
               {([1, 2, 3] as const).map((count) => (
@@ -275,7 +300,7 @@ export function FaceSwapScreen(props: {
                   key={count}
                   type="button"
                   onClick={() => setOutputCount(count)}
-                  className={`rounded-lg border px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  className={`h-10 rounded-lg border px-2 text-[10px] font-bold uppercase tracking-[0.18em] transition-colors ${
                     outputCount === count
                       ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
                       : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
@@ -287,11 +312,11 @@ export function FaceSwapScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-3 space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VLASY</div>
-                <div className="text-[9px] text-white/35 mt-1">Co má mít prioritu při blendu.</div>
+                <div className="text-[8px] text-white/35 mt-1">Priorita při blendu.</div>
               </div>
               <button
                 type="button"
@@ -311,10 +336,15 @@ export function FaceSwapScreen(props: {
             </div>
           </div>
 
-          {renderDropSlot('target', 'CÍLOVÝ OBRÁZEK', 'Sem dej scénu nebo tělo, ve kterém chceš vyměnit hlavu nebo obličej.', target, targetInputId)}
-          {renderDropSlot('source', 'ZDROJOVÁ TVÁŘ / HLAVA', 'Sem dej člověka, od kterého chceš převzít identitu hlavy nebo obličeje.', source, sourceInputId)}
+          <div className="space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VSTUPNÍ OBRÁZKY</div>
+            <div className="grid grid-cols-2 gap-2">
+              {renderDropSlot('target', 'CÍL', 'Scéna nebo tělo.', target, targetInputId)}
+              {renderDropSlot('source', 'ZDROJ', 'Tvář nebo hlava.', source, sourceInputId)}
+            </div>
+          </div>
 
-          <div className="card-surface p-3 space-y-2">
+          <div className="space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">WORKFLOW</div>
             <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[10px] text-white/75">
               Hidden prompt + vybraný model + až 3 běhy na model
@@ -351,55 +381,82 @@ export function FaceSwapScreen(props: {
           </div>
         </div>
 
-        <div className="p-6">
-          <article className="card-surface p-4">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Výstup</div>
-                <div className="mt-1 text-[11px] text-white/45">{runMeta}</div>
-              </div>
-            </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Výstup</div>
+            <div className="mt-1 text-[11px] text-white/45">{runMeta}</div>
+          </div>
 
-            {outputs.length > 0 ? (
-              <div className={`grid gap-4 ${outputs.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
-                {outputs.map((item) => (
-                  <article key={item.id} className="space-y-3">
+          {outputs.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {outputs.map((item) => {
+                const isDone = item.status === 'done' && !!item.dataUrl;
+                return (
+                  <article key={item.id} className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">{item.label}</div>
+                      <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold truncate">{item.label}</div>
+                      {isDone && item.dataUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => downloadDataUrl(item.dataUrl!, `mulen-face-swap-${item.provider}-${mode}.png`)}
+                          className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[9px] font-bold uppercase tracking-[0.18em] text-white/75 hover:text-white transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Stáhnout
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {isDone ? (
                       <button
                         type="button"
-                        onClick={() => downloadDataUrl(item.dataUrl, `mulen-face-swap-${item.provider}-${mode}.png`)}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white transition-colors"
+                        onClick={() => setLightboxUrl(item.dataUrl!)}
+                        className="block w-full cursor-zoom-in"
+                        title="Otevřít na celou obrazovku"
                       >
-                        <Download className="w-4 h-4" />
-                        Stáhnout
+                        <img
+                          src={item.dataUrl}
+                          alt={item.label}
+                          className="w-full aspect-square object-cover bg-[var(--bg-panel)]"
+                        />
                       </button>
+                    ) : (
+                      <div className="aspect-square bg-[var(--bg-panel)] flex flex-col items-center justify-center px-5 text-center">
+                        <Sparkles className={`w-5 h-5 mb-3 ${item.status === 'error' ? 'text-red-400' : 'text-[#7ed957]'}`} />
+                        <div className="w-full max-w-[180px] space-y-2">
+                          <div className="h-2 rounded-full bg-white/5 overflow-hidden border border-white/5">
+                            <div
+                              className={`${item.status === 'error' ? 'bg-red-400/80' : 'bg-[var(--accent)] animate-pulse'} h-full rounded-full transition-all duration-500`}
+                              style={{ width: item.status === 'error' ? '100%' : '38%' }}
+                            />
+                          </div>
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/45">
+                            {item.status === 'error' ? 'Chyba' : 'Provádím swap'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="text-[9px] text-white/35">
+                      {item.status === 'error'
+                        ? (item.error || 'Swap selhal.')
+                        : isDone
+                          ? 'Klik pro zvětšení'
+                          : 'Placeholder běhu se po dokončení nahradí výstupem'}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setLightboxUrl(item.dataUrl)}
-                      className="block w-full cursor-zoom-in"
-                      title="Otevřít na celou obrazovku"
-                    >
-                      <img
-                        src={item.dataUrl}
-                        alt={item.label}
-                        className="w-full rounded-2xl border border-white/10 bg-black/20 object-contain max-h-[70vh]"
-                      />
-                    </button>
                   </article>
-                ))}
+                );
+              })}
+            </div>
+          ) : (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center text-white/45 px-6 text-center">
+              <Sparkles className="w-6 h-6 mb-3" />
+              <div className="text-[11px] uppercase tracking-widest font-bold">Připraveno na swap</div>
+              <div className="text-[10px] text-white/35 mt-2">
+                Vyber variantu, model a počet výsledků. Při volbě `Oba` běží Gemini i GPT Image 2 současně.
               </div>
-            ) : (
-              <div className="aspect-[4/3] rounded-2xl border border-dashed border-white/10 bg-black/20 flex flex-col items-center justify-center text-white/45 px-6 text-center">
-                <Sparkles className="w-6 h-6 mb-3" />
-                <div className="text-[11px] uppercase tracking-widest font-bold">{isGenerating ? 'Provádím swap…' : 'Připraveno na swap'}</div>
-                <div className="text-[10px] text-white/35 mt-2">
-                  Vyber variantu, model a počet výsledků. Při volbě `Oba` běží Gemini i GPT Image 2 současně.
-                </div>
-              </div>
-            )}
-          </article>
+            </div>
+          )}
         </div>
       </section>
 
