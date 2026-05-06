@@ -32,8 +32,16 @@ export async function createReferenceStyleComposite(params: {
   referenceImages: ImageInput[];
   styleImages: ImageInput[];
   size?: number;
+  outputMimeType?: 'image/png' | 'image/jpeg';
+  outputQuality?: number;
 }): Promise<ImageInput> {
-  const { referenceImages, styleImages, size = 1024 } = params;
+  const {
+    referenceImages,
+    styleImages,
+    size = 1024,
+    outputMimeType = 'image/png',
+    outputQuality = 0.9,
+  } = params;
   const left = referenceImages.slice(0, 6);
   const right = styleImages.slice(0, 6);
 
@@ -75,8 +83,9 @@ export async function createReferenceStyleComposite(params: {
   ctx.fillRect(panelW - 1, 0, 2, panelH);
 
   return {
-    data: canvas.toDataURL('image/png'),
-    mimeType: 'image/png',
+    data: outputMimeType === 'image/jpeg'
+      ? canvas.toDataURL('image/jpeg', Math.max(0.3, Math.min(1, outputQuality)))
+      : canvas.toDataURL('image/png'),
+    mimeType: outputMimeType,
   };
 }
-

@@ -99,7 +99,9 @@ export async function runHeadSwap(params: {
   const compositeInput = await createReferenceStyleComposite({
     referenceImages: [dataUrlToImageInput(params.request.targetImage)],
     styleImages: [dataUrlToImageInput(params.request.sourceImage)],
-    size: 1280,
+    size: 960,
+    outputMimeType: 'image/jpeg',
+    outputQuality: 0.86,
   });
 
   const jobs = models.flatMap((model) =>
