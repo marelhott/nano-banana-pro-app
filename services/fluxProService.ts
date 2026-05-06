@@ -2,17 +2,18 @@ import { AIProvider, AIProviderType, ImageInput, GenerateImageResult } from './a
 import { runFalModelQueued } from './falService';
 
 function mapAspectRatioToFal(aspectRatio?: string): string {
-    if (!aspectRatio) return 'square_hd';
-    if (aspectRatio === '1:1') return 'square_hd';
-    if (aspectRatio === '16:9') return 'landscape_16_9';
-    if (aspectRatio === '9:16') return 'portrait_16_9';
-    if (aspectRatio === '4:3') return 'landscape_4_3';
-    if (aspectRatio === '3:4') return 'portrait_4_3';
-    if (aspectRatio === '3:2') return 'landscape_4_3';
-    if (aspectRatio === '2:3') return 'portrait_4_3';
-    if (aspectRatio === '5:4') return 'landscape_4_3';
-    if (aspectRatio === '4:5') return 'portrait_4_3';
-    return 'square_hd';
+    if (!aspectRatio || aspectRatio === 'Original') return '1:1';
+    if (aspectRatio === '1:1') return '1:1';
+    if (aspectRatio === '16:9') return '16:9';
+    if (aspectRatio === '9:16') return '9:16';
+    if (aspectRatio === '4:3') return '4:3';
+    if (aspectRatio === '3:4') return '3:4';
+    if (aspectRatio === '3:2') return '3:2';
+    if (aspectRatio === '2:3') return '2:3';
+    if (aspectRatio === '5:4') return '5:4';
+    if (aspectRatio === '4:5') return '4:5';
+    if (aspectRatio === '21:9') return '21:9';
+    return '1:1';
 }
 
 export class FluxProProvider implements AIProvider {
