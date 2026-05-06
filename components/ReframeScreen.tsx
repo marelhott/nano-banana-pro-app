@@ -114,48 +114,48 @@ const PERSPECTIVES: Perspective[] = [
   {
     id: 'ots',
     label: 'OTS',
-    defaultSelected: false,
+    defaultSelected: true,
     prompt: 'Reframe as an over-the-shoulder shot where the viewer sees past the nearest subject or foreground element toward the main subject, preserving the original scene and identity.',
   },
   {
     id: 'wide',
     label: 'Wide',
-    defaultSelected: false,
+    defaultSelected: true,
     prompt: 'Reframe as a wide cinematic shot with more horizontal environment visible. Preserve the main subject, location, lighting, lens feel, and photographic realism.',
   },
   {
     id: 'aerial',
     label: 'Aerial',
-    defaultSelected: false,
+    defaultSelected: true,
     prompt: 'Reframe as an aerial or top-down camera view where plausible. Preserve scene layout, object identity, architecture, lighting, colors, and materials.',
   },
   {
     id: 'profile',
     label: 'Profile',
-    defaultSelected: false,
-    prompt: 'Reframe as a profile or side view of the same subject. Preserve identity, proportions, clothing or product details, lighting, background logic, and realistic perspective.',
+    defaultSelected: true,
+    prompt: 'Reframe as a strict side profile view of the same subject, with the camera rotated about 90 degrees from the original front/three-quarter view. The face, body, or main object must be seen from the side silhouette. Do not return a front-facing or near-front crop.',
   },
   {
     id: 'pov',
     label: 'POV',
-    defaultSelected: false,
-    prompt: 'Reframe as a point-of-view shot from a natural viewer position inside the same scene. Preserve the subject, environment, lighting, color, and physical plausibility.',
+    defaultSelected: true,
+    prompt: 'Reframe as a first-person point-of-view shot from inside the same scene. The camera must feel like the viewer is physically present, with plausible foreground hints such as hands, knees, table edge, cup, phone, doorway, or body-level framing when appropriate. Do not return a normal portrait crop.',
   },
   {
     id: 'eye-level',
     label: 'Eye level',
-    defaultSelected: false,
-    prompt: 'Reframe from a neutral eye-level camera angle. Preserve the subject, scene composition, lighting, materials, and realistic photographic appearance.',
+    defaultSelected: true,
+    prompt: 'Reframe from a neutral eye-level camera angle at the subject eye height, with the horizon and verticals corrected to feel level and direct. The result must look like a deliberately re-shot eye-level composition, not a repeated crop of the original image.',
   },
   {
     id: 'three-quarter',
     label: '3/4 view',
-    defaultSelected: false,
-    prompt: 'Reframe as a three-quarter view of the main subject. Preserve identity, structure, materials, lighting, and the original scene style while changing only the camera viewpoint.',
+    defaultSelected: true,
+    prompt: 'Reframe as a clear three-quarter view from a noticeably different side of the subject, about 30 to 45 degrees off-axis. Show both front and side planes of the face, body, or object. Do not return the same camera angle as the input.',
   },
 ];
 
-const DEFAULT_SELECTED = new Set(PERSPECTIVES.map((item) => item.id));
+const DEFAULT_SELECTED = new Set(PERSPECTIVES.filter((item) => item.defaultSelected).map((item) => item.id));
 
 function readGeminiKey(): string {
   try {
@@ -231,6 +231,7 @@ function buildReframePrompt(perspective: Perspective, aspectRatio: string): stri
     'Preservation rules:',
     'Keep the same primary subject, identity, objects, wardrobe/product design, architecture, environment, lighting direction, color temperature, lens realism, texture, and visual style.',
     'Change only the camera viewpoint, distance, crop, and visible composition required by the requested perspective.',
+    'The selected perspective must be visibly different from the input camera angle. If the requested perspective is profile, POV, eye-level, or 3/4 view, make the camera change unmistakable.',
     'Do not restyle, beautify, replace the subject, change ethnicity, change product design, change room design, add text, add UI, add watermarks, or turn the image into a collage.',
     'If parts of the scene become visible because of the new angle, complete them plausibly from the original image context.',
     '',
