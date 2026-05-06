@@ -43,9 +43,7 @@ export function FaceSwapScreen(props: {
   const [source, setSource] = React.useState<ImageSlot | null>(null);
   const [target, setTarget] = React.useState<ImageSlot | null>(null);
   const [mode, setMode] = React.useState<HeadSwapMode>('head');
-  const [preserveHair, setPreserveHair] = React.useState<'target' | 'user'>(
-    providerSettings.headSwap?.hairSource || 'target'
-  );
+  const preserveHair = providerSettings.headSwap?.hairSource || 'target';
   const [selectedModels, setSelectedModels] = React.useState<HeadSwapModelChoice>('both');
   const [outputCount, setOutputCount] = React.useState<1 | 2 | 3>(2);
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -233,7 +231,7 @@ export function FaceSwapScreen(props: {
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
       <aside className="w-[320px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
-        <div className="p-5 flex flex-col gap-4 min-h-full">
+        <div className="p-5 flex flex-col gap-3.5 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
             <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Face Swap</h2>
@@ -243,7 +241,7 @@ export function FaceSwapScreen(props: {
             type="button"
             onClick={handleGenerate}
             disabled={!source || !target || isGenerating}
-            className="w-full h-11 px-4 font-bold text-[11px] uppercase tracking-[0.28em] rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+            className="w-full h-9 px-4 font-bold text-[10px] uppercase tracking-[0.24em] rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
           >
             {isGenerating ? 'Swapping…' : mode === 'head' ? 'Spustit Head Swap' : 'Spustit Face Swap'}
           </button>
@@ -256,7 +254,7 @@ export function FaceSwapScreen(props: {
                   key={item}
                   type="button"
                   onClick={() => setMode(item)}
-                  className={`flex-1 h-10 rounded-lg border px-3 text-[10px] font-bold uppercase tracking-[0.22em] transition-colors ${
+                  className={`flex-1 h-8 rounded-lg border px-2 text-[8px] font-bold uppercase tracking-[0.18em] whitespace-nowrap transition-colors ${
                     mode === item
                       ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
                       : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
@@ -280,13 +278,13 @@ export function FaceSwapScreen(props: {
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedModels(item.id)}
-                  className={`h-10 rounded-lg border px-2 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
+                  className={`h-8 rounded-lg border px-1.5 text-[7px] font-bold uppercase tracking-[0.1em] whitespace-nowrap transition-colors ${
                     selectedModels === item.id
                       ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
                       : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
                   }`}
                 >
-                  {item.label}
+                  <span className="block truncate">{item.label}</span>
                 </button>
               ))}
             </div>
@@ -300,7 +298,7 @@ export function FaceSwapScreen(props: {
                   key={count}
                   type="button"
                   onClick={() => setOutputCount(count)}
-                  className={`h-10 rounded-lg border px-2 text-[10px] font-bold uppercase tracking-[0.18em] transition-colors ${
+                  className={`h-8 rounded-lg border px-2 text-[8px] font-bold uppercase tracking-[0.16em] whitespace-nowrap transition-colors ${
                     outputCount === count
                       ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
                       : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
@@ -313,49 +311,25 @@ export function FaceSwapScreen(props: {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VLASY</div>
-                <div className="text-[8px] text-white/35 mt-1">Priorita při blendu.</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreserveHair((prev) => (prev === 'target' ? 'user' : 'target'))}
-                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${preserveHair === 'user' ? 'bg-[#7ed957]/70' : 'bg-white/10'}`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${preserveHair === 'user' ? 'translate-x-4' : ''}`}
-                />
-              </button>
-            </div>
-            <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/35">Hair source</div>
-              <div className="mt-1 text-[10px] text-white/80">
-                {preserveHair === 'user' ? 'Zdrojový člověk' : 'Cílová scéna'}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VSTUPNÍ OBRÁZKY</div>
             <div className="grid grid-cols-2 gap-2">
-              {renderDropSlot('target', 'CÍL', 'Scéna nebo tělo.', target, targetInputId)}
-              {renderDropSlot('source', 'ZDROJ', 'Tvář nebo hlava.', source, sourceInputId)}
+              {renderDropSlot('target', 'CÍL', 'Obrázek, do kterého se vloží nová hlava nebo obličej.', target, targetInputId)}
+              {renderDropSlot('source', 'ZDROJ', 'Člověk, od kterého se převezme hlava nebo obličej.', source, sourceInputId)}
             </div>
           </div>
 
           <div className="space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">WORKFLOW</div>
-            <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[10px] text-white/75">
-              Hidden prompt + vybraný model + až 3 běhy na model
+            <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[9px] text-white/75 leading-4">
+              Skrytý prompt + zvolený model + až 3 výstupy na model.
             </div>
-            <div className="text-[9px] text-white/35">
-              Appka skrytě složí target + source do jednoho kompozitu a stejný swap brief pošle do Gemini, GPT Image 2 nebo do obou najednou.
+            <div className="text-[8px] leading-4 text-white/35">
+              `Cíl` je fotka, kterou chceš upravit. `Zdroj` je člověk, jehož hlava nebo obličej se přenese do cíle.
             </div>
             <button
               type="button"
               onClick={onOpenSettings}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors"
+              className="w-full h-8 px-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[8px] font-bold uppercase tracking-[0.18em] text-white/70 hover:text-white transition-colors"
             >
               Settings
             </button>
