@@ -21,13 +21,6 @@ function drawContain(ctx: CanvasRenderingContext2D, img: CanvasImageSource, x: n
   ctx.drawImage(img, dx, dy, dw, dh);
 }
 
-function getGrid(n: number): { cols: number; rows: number } {
-  if (n <= 1) return { cols: 1, rows: 1 };
-  if (n === 2) return { cols: 2, rows: 1 };
-  if (n <= 4) return { cols: 2, rows: 2 };
-  return { cols: 3, rows: 2 };
-}
-
 export async function createReferenceStyleComposite(params: {
   referenceImages: ImageInput[];
   styleImages: ImageInput[];
@@ -42,12 +35,12 @@ export async function createReferenceStyleComposite(params: {
     outputMimeType = 'image/png',
     outputQuality = 0.9,
   } = params;
-  const left = referenceImages.slice(0, 6);
-  const right = styleImages.slice(0, 6);
+  const left = referenceImages.slice(0, 1);
+  const right = styleImages.slice(0, 1);
 
   const canvas = document.createElement('canvas');
   canvas.width = size;
-  canvas.height = Math.round(size / 2);
+  canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas není dostupný.');
 
@@ -56,31 +49,28 @@ export async function createReferenceStyleComposite(params: {
   ctx.fillStyle = '#060807';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const panelW = Math.floor(size / 2);
-  const panelH = canvas.height;
-  const padding = 12;
-  const gutter = 8;
+  const padding = Math.round(size * 0.025);
+  const targetImg = left[0] ? await loadImage(left[0].data) : null;
+  const sourceImg = right[0] ? await loadImage(right[0].data) : null;
 
-  const drawPanel = async (images: ImageInput[], x0: number) => {
-    const imgs = await Promise.all(images.map((i) => loadImage(i.data)));
-    const { cols, rows } = getGrid(imgs.length);
-    const cellW = Math.floor((panelW - padding * 2 - gutter * (cols - 1)) / cols);
-    const cellH = Math.floor((panelH - padding * 2 - gutter * (rows - 1)) / rows);
-    imgs.forEach((img, idx) => {
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      if (row >= rows) return;
-      const x = x0 + padding + col * (cellW + gutter);
-      const y = padding + row * (cellH + gutter);
-      drawContain(ctx, img, x, y, cellW, cellH);
-    });
-  };
+  if (targetImg) {
+    drawContain(ctx, targetImg, padding, padding, canvas.width - padding * 2, canvas.height - padding * 2);
+  }
 
-  await drawPanel(left, 0);
-  await drawPanel(right, panelW);
+  if (sourceImg) {
+    const insetW = Math.round(canvas.width * 0.24);
+    const insetH = Math.round(canvas.height * 0.24);
+    const insetX = canvas.width - insetW - padding;
+    const insetY = padding;
 
-  ctx.fillStyle = 'rgba(255,255,255,0.06)';
-  ctx.fillRect(panelW - 1, 0, 2, panelH);
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(insetX - 6, insetY - 6, insetW + 12, insetH + 30);
+    drawContain(ctx, sourceImg, insetX, insetY, insetW, insetH);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = `${Math.max(11, Math.round(size * 0.018))}px sans-serif`;
+    ctx.fillText('SOURCE IDENTITY', insetX, insetY + insetH + 18);
+  }
 
   return {
     data: outputMimeType === 'image/jpeg'

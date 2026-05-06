@@ -45,11 +45,11 @@ export function buildHeadSwapPrompt(params: HeadSwapPromptParams): string {
       : 'Optimize for a polished final-quality edit with photorealistic blending and strong skin and eye detail, without changing identity.';
 
   return [
-    'You are performing a precise identity-preserving face/head swap from a two-panel composite image.',
+    'You are performing a precise identity-preserving face/head swap from a target-first reference composite.',
     '',
     'Composite input layout:',
-    'Left panel = target image. Keep its body, pose, clothing, framing, background, composition, and scene intact.',
-    'Right panel = source identity. Use this panel as the only identity source for the swap.',
+    'Main large image = target image. Keep its body, pose, clothing, framing, background, composition, and scene intact.',
+    'Small top-right inset = source identity. Use this inset as the only identity source for the swap.',
     '',
     getSwapScope(params.mode),
     '',
@@ -65,11 +65,13 @@ export function buildHeadSwapPrompt(params: HeadSwapPromptParams): string {
     'Do not stylize, beautify, de-age, re-light the whole photo, smooth skin, or change ethnicity.',
     'Do not keep any facial features from the original target person.',
     'Do not alter body, hands, accessories, clothing, or background outside the minimum swap boundary.',
+    'Do not output a split-screen, collage, before/after, contact sheet, diptych, inset, or any second image.',
+    'Do not reproduce the reference inset in the final output.',
     '',
     modelSpecificRule,
     getVariationRule(params.batchIndex),
     '',
     'Output requirement:',
-    'Return a single realistic swapped image that looks like a real photograph, not an AI montage.',
+    'Return one single full-frame realistic swapped photo of the target scene only, with no layout elements or reference panels visible.',
   ].join('\n');
 }
