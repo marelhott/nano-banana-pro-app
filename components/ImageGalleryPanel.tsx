@@ -386,18 +386,18 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden font-sans card-surface">
+    <div className="flex flex-col h-full overflow-hidden font-sans bg-transparent">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-transparent">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-white/55">Image Library</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-white/55">Knihovna</h3>
         </div>
 
         <div className="flex p-1 rounded-lg control-surface">
           <button
             onClick={() => setActiveTab('saved')}
-            className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${activeTab === 'saved'
+            className={`px-3 py-1.5 rounded-md text-[9px] uppercase tracking-wider font-bold transition-all ${activeTab === 'saved'
               ? 'bg-white/10 text-white shadow-sm'
               : 'text-white/40 hover:text-white/70'
               }`}
@@ -406,7 +406,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           </button>
           <button
             onClick={() => setActiveTab('generated')}
-            className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${activeTab === 'generated'
+            className={`px-3 py-1.5 rounded-md text-[9px] uppercase tracking-wider font-bold transition-all ${activeTab === 'generated'
               ? 'bg-white/10 text-white shadow-sm'
               : 'text-white/40 hover:text-white/70'
               }`}

@@ -457,7 +457,7 @@ const App: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [gridCols, setGridCols] = useState<number>(3);
   const [sidebarWidth, setSidebarWidth] = useState(320);
-  const [rightPanelWidth, setRightPanelWidth] = useState(280);
+  const [rightPanelWidth, setRightPanelWidth] = useState(360);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
@@ -610,11 +610,11 @@ const App: React.FC = () => {
       if (!mobile) {
         const leftPanelWidth = sidebarWidth || 320;
         const resizeHandles = 2; // 2x 1px pro resize handles
-        const minMainWidth = 400;
+        const minMainWidth = 360;
         const maxAllowedWidth = width - leftPanelWidth - resizeHandles - minMainWidth;
 
         setRightPanelWidth(prev => {
-          const newWidth = Math.max(280, Math.min(prev, maxAllowedWidth));
+          const newWidth = Math.max(320, Math.min(prev, maxAllowedWidth));
           return newWidth;
         });
       }
@@ -653,11 +653,11 @@ const App: React.FC = () => {
         const viewportWidth = window.innerWidth;
         const leftPanelWidth = sidebarWidth || 320;
         const resizeHandles = 2;
-        const minMainWidth = 400;
+        const minMainWidth = 360;
         const maxAllowed = viewportWidth - leftPanelWidth - resizeHandles - minMainWidth;
 
         if (rightPanelWidth > maxAllowed) {
-          setRightPanelWidth(Math.max(280, maxAllowed));
+          setRightPanelWidth(Math.max(320, maxAllowed));
         }
       }
     };
@@ -685,7 +685,7 @@ const App: React.FC = () => {
 
   const resize = useCallback((e: MouseEvent) => {
     if (isResizingRef.current) {
-      const newWidth = Math.max(280, Math.min(500, e.clientX));
+      const newWidth = Math.max(280, Math.min(620, e.clientX));
       setSidebarWidth(newWidth);
     }
     if (isResizingRightRef.current) {
@@ -693,10 +693,10 @@ const App: React.FC = () => {
       const rightWidth = windowWidth - e.clientX;
       const leftPanelWidth = sidebarWidth || 320;
       const resizeHandles = 2;
-      const minMainWidth = 400;
+      const minMainWidth = 360;
       const maxAllowedWidth = windowWidth - leftPanelWidth - resizeHandles - minMainWidth;
 
-      setRightPanelWidth(Math.max(280, Math.min(maxAllowedWidth, rightWidth)));
+      setRightPanelWidth(Math.max(320, Math.min(maxAllowedWidth, rightWidth)));
     }
   }, [sidebarWidth]);
 
@@ -3101,45 +3101,17 @@ const App: React.FC = () => {
     <div className="space-y-3">
       {/* 1. Generate Button Section */}
       <div className="space-y-2">
-        <div className="grid grid-cols-2 gap-1">
-          {imageModelPresets.map((preset) => {
-            const isActive = selectedImagePresetId === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handleImageModelPresetSelect(preset.id)}
-                className={`min-h-[40px] rounded-lg border px-1.5 py-1 text-center transition-all ${
-                  isActive
-                    ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)] shadow-lg shadow-[#7ed957]/20'
-                    : 'border-[var(--border-color)] bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:border-[var(--accent)]/40 hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)]'
-                }`}
-                title={`${preset.title} — ${preset.subtitle}`}
-              >
-                <div className="text-[7px] font-black uppercase tracking-[0.16em] leading-tight">{preset.title}</div>
-                <div className={`mt-0.5 text-[6px] font-semibold leading-tight ${isActive ? 'text-[var(--accent-contrast)]/80' : 'text-[var(--text-3)]'}`}>
-                  {preset.subtitle}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex justify-between items-baseline">
-          <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-            Action
-          </h3>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="space-y-1.5">
           <button
             onClick={handleGenerate}
             disabled={!canGenerate}
-            className={`min-h-[54px] rounded-lg px-2 py-2 text-center transition-all shadow-lg ambient-glow glow-green glow-weak ${isGenerateClicked
+            className={`min-h-[54px] w-full rounded-lg px-2 py-2 text-center transition-all shadow-lg ambient-glow glow-green glow-weak ${isGenerateClicked
               ? 'bg-blue-600 text-white shadow-blue-500/20'
               : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40'
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none`}
           >
             <div className="text-[9px] font-black uppercase tracking-[0.18em]">
-              {isGenerating ? 'Běží…' : 'Aktuální zadání'}
+              {isGenerating ? 'Běží…' : 'Generovat'}
             </div>
             <div className="mt-1 text-[8px] font-semibold opacity-75">
               {state.sourceImages.length > 1 && state.multiRefMode === 'batch'
@@ -3147,32 +3119,33 @@ const App: React.FC = () => {
                 : `${Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)))} výstupů`}
             </div>
           </button>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              onClick={handleGenerate3Variants}
+              disabled={!canGenerate}
+              className="min-h-[54px] rounded-lg border border-white/8 bg-white/5 px-2 py-2 text-center transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+            >
+              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
+                {isGenerating ? 'Varianty…' : '3 varianty'}
+              </div>
+              <div className="mt-1 text-[8px] font-semibold text-white/55">
+                promptu
+              </div>
+            </button>
 
-          <button
-            onClick={handleGenerate3Variants}
-            disabled={!canGenerate}
-            className="min-h-[54px] rounded-lg border border-white/8 bg-white/5 px-2 py-2 text-center transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
-          >
-            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
-              {isGenerating ? 'Varianty…' : '3 varianty'}
-            </div>
-            <div className="mt-1 text-[8px] font-semibold text-white/55">
-              promptu
-            </div>
-          </button>
-
-          <button
-            onClick={handleGenerate3AI}
-            disabled={!canGenerate}
-            className="min-h-[54px] rounded-lg border border-white/8 bg-gradient-to-r from-[#7ed957]/10 via-purple-500/10 to-blue-500/10 px-2 py-2 text-center transition-all hover:from-[#7ed957]/20 hover:via-purple-500/20 hover:to-blue-500/20 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
-          >
-            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
-              {isGenerating ? 'Všechny…' : 'Všechny'}
-            </div>
-            <div className="mt-1 text-[8px] font-semibold text-white/55">
-              modely
-            </div>
-          </button>
+            <button
+              onClick={handleGenerate3AI}
+              disabled={!canGenerate}
+              className="min-h-[54px] rounded-lg border border-white/8 bg-gradient-to-r from-[#7ed957]/10 via-purple-500/10 to-blue-500/10 px-2 py-2 text-center transition-all hover:from-[#7ed957]/20 hover:via-purple-500/20 hover:to-blue-500/20 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+            >
+              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
+                {isGenerating ? 'Všechny…' : 'Všechny'}
+              </div>
+              <div className="mt-1 text-[8px] font-semibold text-white/55">
+                modely
+              </div>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -3282,7 +3255,7 @@ const App: React.FC = () => {
             onChange={(e) => { setState(p => ({ ...p, prompt: e.target.value })); promptHistory.add(e.target.value); }}
             onKeyDown={handleKeyDown}
             placeholder={promptMode === 'advanced' ? "Popište obrázek přirozeně. Vyberte variantu níže pro určení stylu interpretace..." : "Volitelné: doplňující prompt (Styl/Merge/Object funguje i bez textu)…"}
-            className="w-full min-h-[92px] max-h-[220px] resize-none rounded-none border-0 border-b border-[var(--border-color)] bg-transparent p-1.5 text-[11px] font-medium text-[var(--text-primary)] placeholder-gray-500 outline-none transition-all focus:border-[var(--accent)] focus:ring-0 custom-scrollbar"
+            className="w-full min-h-[110px] max-h-[220px] resize-none rounded-none border-0 border-b border-[var(--border-color)] bg-transparent p-1.5 text-[11px] font-medium text-[var(--text-primary)] placeholder-gray-500 outline-none transition-all focus:border-[var(--accent)] focus:ring-0 custom-scrollbar"
           />
         </div>
 
@@ -3623,8 +3596,6 @@ const App: React.FC = () => {
         <div className="text-[8px] text-[var(--text-secondary)]/80">
           Logo / klobouk / boty / produkt. Neovlivňuje styl, pouze obsahové doplnění výstupu.
         </div>
-
-        {renderSimpleModeTray()}
       </div>
 
       {/* #12: Tlačítko pro volné porovnání */}
@@ -3641,11 +3612,63 @@ const App: React.FC = () => {
     </div >
   );
 
+  const renderModelPresetGrid = () => (
+    <div className="grid grid-cols-2 gap-1">
+      {imageModelPresets.map((preset) => {
+        const isActive = selectedImagePresetId === preset.id;
+        return (
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => handleImageModelPresetSelect(preset.id)}
+            className={`min-h-[40px] rounded-lg border px-1.5 py-1 text-center transition-all ${
+              isActive
+                ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)] shadow-lg shadow-[#7ed957]/20'
+                : 'border-[var(--border-color)] bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:border-[var(--accent)]/40 hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)]'
+            }`}
+            title={`${preset.title} — ${preset.subtitle}`}
+          >
+            <div className="text-[8px] font-black uppercase tracking-[0.18em] leading-tight">{preset.title}</div>
+            <div className={`mt-0.5 text-[6px] font-semibold leading-tight ${isActive ? 'text-[var(--accent-contrast)]/80' : 'text-[var(--text-3)]'}`}>
+              {preset.subtitle}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderRightNanoPanel = () => (
+    <div className="h-full overflow-y-auto custom-scrollbar p-6">
+      <div className="space-y-5">
+        <section className="space-y-2">
+          {renderModelPresetGrid()}
+        </section>
+
+        <section className="space-y-2">
+          <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+            Režimy promptu
+          </h3>
+          {renderSimpleModeTray()}
+        </section>
+
+        <section className="space-y-4">
+          {renderGroundingControl()}
+          <ProviderSelector
+            selectedProvider={selectedProvider}
+            onChange={handleProviderChange}
+            settings={providerSettings}
+          />
+        </section>
+      </div>
+    </div>
+  );
+
   const renderGroundingControl = () => (
-    <label className="flex items-center justify-between gap-3 p-2 rounded-md border border-[var(--border-color)] hover:border-[var(--text-secondary)] transition-all">
+    <label className="flex items-center justify-between gap-3 rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 transition-all hover:border-[var(--border-strong)]">
       <div className="flex flex-col">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-primary)]">Grounding</span>
-        <span className="text-[9px] text-[var(--text-secondary)]">Použít Google Search pro zdroje a odkazy</span>
+        <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-primary)]">Grounding</span>
+        <span className="text-[8px] leading-relaxed text-[var(--text-secondary)]">Použít Google Search pro zdroje a odkazy</span>
       </div>
       <div className="relative">
         <input
@@ -3654,11 +3677,17 @@ const App: React.FC = () => {
           onChange={(e) => setUseGrounding(e.target.checked)}
           className="sr-only peer"
         />
-        <div className="w-10 h-6 bg-gray-700 rounded-full peer peer-checked:bg-[var(--accent)] transition-colors"></div>
-        <div className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+        <div className="h-5 w-9 rounded-full border border-[var(--border-color)] bg-white/6 transition-colors peer-checked:border-[var(--accent)]/35 peer-checked:bg-[var(--accent)]/22"></div>
+        <div className="absolute left-[3px] top-[3px] h-3.5 w-3.5 rounded-full bg-[var(--text-secondary)] transition-transform peer-checked:translate-x-4 peer-checked:bg-[var(--accent)]"></div>
       </div>
     </label>
   );
+
+  const expandedGalleryViewportStyle = isMobile
+    ? undefined
+    : {
+        left: `${73 + sidebarWidth}px`,
+      };
 
   // Show auth bootstrap screen
   if (isAuthBootstrapping) {
@@ -3839,28 +3868,45 @@ const App: React.FC = () => {
             />
           ) : (
             <>
-              {/* Left Sidebar - Fixed Width (Hidden on Mobile) */}
-              <div className="hidden lg:flex w-[340px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20">
+              {/* Left Sidebar - resizable Nano workflow controls (Hidden on Mobile) */}
+              <div
+                ref={sidebarRef}
+                className="hidden lg:flex shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20"
+                style={{ width: sidebarWidth }}
+              >
                 <div className="p-6 flex flex-col gap-6 min-h-full">
                   <div className="pt-2">
                     {renderSidebarControls(false)}
                   </div>
 
                   <div className="mt-auto space-y-4">
-                    {renderGroundingControl()}
-                    <ProviderSelector
-                      selectedProvider={selectedProvider}
-                      onChange={handleProviderChange}
-                      settings={providerSettings}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsGalleryExpanded(true)}
+                      className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-3 text-left transition-all hover:border-[var(--accent)]/40 hover:bg-[var(--bg-input)]"
+                    >
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
+                        Knihovna
+                      </div>
+                      <div className="mt-1 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
+                        Vstupní i generované obrázky. Otevře samostatné okno pro přetažení do sekcí.
+                      </div>
+                    </button>
                   </div>
                 </div>
+              </div>
+
+              <div className="hidden lg:block relative w-0 shrink-0">
+                <div
+                  className="absolute inset-y-0 -left-1 w-2 cursor-col-resize bg-transparent"
+                  onMouseDown={startResizing}
+                  title="Změnit šířku levého panelu"
+                />
               </div>
 
               {/* Main Content - Flexible Center */}
               <div
                 className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
-                style={{ marginRight: isHoveringGallery && window.innerWidth >= 1024 ? '340px' : '0' }}
               >
                 <div className="p-6 lg:p-10 pb-32 w-full">
                   <div className="space-y-6 md:space-y-8 w-full">
@@ -4322,71 +4368,44 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div >
-            </>
-          )}
 
-          {/* Right Sidebar - Sliding Library */}
-          {!isGalleryExpanded && (
-            < div
-              className={`absolute right-0 top-0 bottom-0 z-50 w-[85vw] sm:w-[340px] transition-transform duration-300 ease-in-out border-l border-white/5 bg-[var(--bg-card)] flex flex-col h-full shadow-2xl group ${isHoveringGallery ? 'translate-x-0' : 'translate-x-[calc(100%-20px)]'}`}
-              onMouseEnter={() => setIsHoveringGallery(true)}
-              onMouseLeave={() => setIsHoveringGallery(false)}
-            >
-              <div className={`p-4 border-b border-gray-800/50 bg-[#0f1512] flex items-center justify-between transition-opacity duration-300 delay-100 ${isHoveringGallery ? 'opacity-100' : 'opacity-0'}`}>
-                <div className="flex items-center gap-2">
-                  <div className="w-1 h-4 bg-[#7ed957] rounded-full"></div>
-                  <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-300">Knihovna Obrázků</h2>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsGalleryExpanded(true);
-                  }}
-                  className="p-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all"
-                  title="Rozbalit"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V6a2 2 0 012-2h2M20 8V6a2 2 0 00-2-2h-2M4 16v2a2 2 0 002 2h2M20 16v2a2 2 0 01-2 2h-2" />
-                  </svg>
-                </button>
-              </div>
-              <div className={`flex-1 overflow-y-auto p-4 custom-scrollbar transition-opacity duration-300 delay-100 ${isHoveringGallery ? 'opacity-100' : 'opacity-0'}`}>
-                <ImageGalleryPanel
-                  ref={galleryPanelRef}
-                  onDragStart={(imageData, type) => {
-                    console.log('[Drag] Started from gallery', { type });
-                  }}
-                  onBatchProcess={handleBatchProcess}
-                  view="sidebar"
+              <div className="hidden lg:block relative w-0 shrink-0">
+                <div
+                  className="absolute inset-y-0 -right-1 w-2 cursor-col-resize bg-transparent"
+                  onMouseDown={startResizingRight}
+                  title="Změnit šířku pravého panelu"
                 />
               </div>
-              {/* Handle indicator - Increased width for better hit target */}
-              <div className="absolute left-0 top-0 bottom-0 w-[20px] bg-transparent cursor-pointer flex items-center justify-center transition-opacity" style={{ opacity: isHoveringGallery ? 0 : 1 }}>
-                <div className="w-1 h-8 bg-gray-700/50 rounded-full"></div>
-              </div>
-            </div >
+
+              <aside
+                ref={rightPanelRef}
+                className="hidden lg:flex shrink-0 border-l border-white/5 bg-[var(--bg-card)] flex-col h-full z-20"
+                style={{ width: rightPanelWidth }}
+              >
+                {renderRightNanoPanel()}
+              </aside>
+            </>
           )}
 
           {isGalleryExpanded && (
             <div
-              className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm"
+              className="absolute inset-y-0 right-0 z-[80] bg-transparent"
+              style={expandedGalleryViewportStyle}
               onClick={() => setIsGalleryExpanded(false)}
             >
               <div
-                className="absolute inset-4 sm:inset-6 bg-[var(--bg-card)] border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+                className="absolute inset-4 sm:inset-6 bg-[var(--bg-card)] rounded-xl overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-4 border-b border-white/10 bg-[#0f1512] flex items-center justify-between">
+                <div className="px-6 py-4 border-b border-white/5 bg-transparent flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-1 h-4 bg-[#7ed957] rounded-full"></div>
-                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-300">Knihovna Obrázků</h2>
+                    <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-white/55">Knihovna obrázků</h2>
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsGalleryExpanded(false)}
-                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all text-[10px] font-bold uppercase tracking-widest"
+                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all text-[10px] font-bold uppercase tracking-wider"
                   >
                     Zpět
                   </button>

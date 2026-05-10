@@ -16,13 +16,13 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({
 
     return (
         <div className="relative">
-            <label className="block text-[10px] font-bold text-[var(--text-3)] mb-1.5 uppercase tracking-wider">
+            <label className="mb-1.5 block text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                 AI Poskytovatel
             </label>
 
-            <div className="control-surface px-3 py-2 flex items-center gap-2">
+            <div className="control-surface flex items-center gap-2 px-3 py-2">
                 <select
-                    className="w-full bg-transparent text-xs font-bold text-white/85 outline-none"
+                    className="w-full bg-transparent text-[10px] font-semibold text-[var(--text-primary)]/78 outline-none"
                     value={selectedProvider}
                     onChange={(e) => onChange(e.target.value as AIProviderType)}
                 >
