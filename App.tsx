@@ -3639,9 +3639,12 @@ const App: React.FC = () => {
   );
 
   const renderRightNanoPanel = () => (
-    <div className="h-full overflow-y-auto custom-scrollbar p-6">
+    <div className="flex h-full flex-col overflow-y-auto custom-scrollbar p-6">
       <div className="space-y-5">
         <section className="space-y-2">
+          <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+            Výběr modelů
+          </h3>
           {renderModelPresetGrid()}
         </section>
 
@@ -3660,6 +3663,21 @@ const App: React.FC = () => {
             settings={providerSettings}
           />
         </section>
+      </div>
+
+      <div className="mt-auto pt-6">
+        <button
+          type="button"
+          onClick={() => setIsGalleryExpanded(true)}
+          className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-3 text-left transition-all hover:border-[var(--accent)]/40 hover:bg-[var(--bg-input)]"
+        >
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
+            Knihovna
+          </div>
+          <div className="mt-1 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
+            Vstupní i generované obrázky. Otevře samostatné okno pro přetažení do sekcí.
+          </div>
+        </button>
       </div>
     </div>
   );
@@ -3877,21 +3895,6 @@ const App: React.FC = () => {
                 <div className="p-6 flex flex-col gap-6 min-h-full">
                   <div className="pt-2">
                     {renderSidebarControls(false)}
-                  </div>
-
-                  <div className="mt-auto space-y-4">
-                    <button
-                      type="button"
-                      onClick={() => setIsGalleryExpanded(true)}
-                      className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-3 text-left transition-all hover:border-[var(--accent)]/40 hover:bg-[var(--bg-input)]"
-                    >
-                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
-                        Knihovna
-                      </div>
-                      <div className="mt-1 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
-                        Vstupní i generované obrázky. Otevře samostatné okno pro přetažení do sekcí.
-                      </div>
-                    </button>
                   </div>
                 </div>
               </div>
