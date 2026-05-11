@@ -471,7 +471,7 @@ export function ReframeScreen(props: {
             type="button"
             onClick={handleGenerate}
             disabled={!input || selectedPerspectives.length === 0 || isGenerating}
-            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+            className="mn-action-primary ambient-glow glow-green glow-weak"
           >
             {isGenerating ? `Reframe ${progress ? `${progress.completed}/${progress.total}` : '...'}` : `Generate ${selectedPerspectives.length}`}
           </button>
@@ -522,7 +522,7 @@ export function ReframeScreen(props: {
             <button
               type="button"
               onClick={() => setGridMode((prev) => prev === '3x3' ? 'free' : '3x3')}
-              className="h-10 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-black uppercase tracking-widest text-white/65 hover:text-white"
+              className="mn-option-button"
             >
               {gridMode}
             </button>
@@ -531,7 +531,7 @@ export function ReframeScreen(props: {
                 key={value}
                 type="button"
                 onClick={() => setResolution(value)}
-                className={`h-10 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-colors ${resolution === value ? 'border-[#7ed957]/60 bg-[#7ed957]/10 text-white' : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/55 hover:text-white'}`}
+                className={`mn-option-button ${resolution === value ? 'mn-option-button-active' : ''}`}
               >
                 {value}
               </button>
@@ -551,7 +551,7 @@ export function ReframeScreen(props: {
                     key={perspective.id}
                     type="button"
                     onClick={() => togglePerspective(perspective.id)}
-                    className={`h-8 px-2 rounded-md border flex items-center gap-2 text-left transition-colors ${isSelected ? 'border-[#7ed957]/50 bg-[#7ed957]/10 text-white' : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/45 hover:text-white/70'}`}
+                    className={`mn-option-button flex items-center gap-2 text-left ${isSelected ? 'mn-option-button-active' : ''}`}
                   >
                     <span className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[9px] ${isSelected ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d]' : 'border-white/20'}`}>
                       {isSelected ? '✓' : ''}

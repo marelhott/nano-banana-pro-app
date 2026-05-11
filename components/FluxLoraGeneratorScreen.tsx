@@ -1461,7 +1461,7 @@ export function FluxLoraGeneratorScreen(props: {
             type="button"
             onClick={handleGenerate}
             disabled={!input || isTestingGrid}
-            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+            className="mn-action-primary ambient-glow glow-green glow-weak"
           >
             {isTestingGrid ? 'Testuji…' : isGenerating ? `Generuji… ${queuedGenerations > 0 ? `(+${queuedGenerations})` : ''}` : 'Generovat'}
           </button>
@@ -1474,11 +1474,7 @@ export function FluxLoraGeneratorScreen(props: {
                   key={n}
                   type="button"
                   onClick={() => setVariants(n as 1 | 2 | 3 | 4 | 5)}
-                  className={`w-10 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${
-                    variants === n
-                      ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  }`}
+                  className={`mn-option-button flex-1 ${variants === n ? 'mn-option-button-active' : ''}`}
                   aria-label={`Počet obrázků: ${n}`}
                 >
                   {n}

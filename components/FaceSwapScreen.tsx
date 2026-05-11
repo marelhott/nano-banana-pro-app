@@ -269,7 +269,7 @@ export function FaceSwapScreen(props: {
             type="button"
             onClick={handleGenerate}
             disabled={!source || !target || isGenerating}
-            className="w-full h-9 px-4 font-bold text-[10px] uppercase tracking-[0.24em] rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+            className="mn-action-primary ambient-glow glow-green glow-weak"
           >
             {isGenerating ? 'Swapping…' : mode === 'head' ? 'Spustit Head Swap' : 'Spustit Face Swap'}
           </button>
@@ -282,11 +282,7 @@ export function FaceSwapScreen(props: {
                   key={item}
                   type="button"
                   onClick={() => setMode(item)}
-                  className={`flex-1 h-8 rounded-lg border px-2 text-[8px] font-bold uppercase tracking-[0.18em] whitespace-nowrap transition-colors ${
-                    mode === item
-                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
-                      : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
-                  }`}
+                  className={`mn-option-button flex-1 whitespace-nowrap ${mode === item ? 'mn-option-button-active' : ''}`}
                 >
                   {item}
                 </button>
@@ -306,11 +302,7 @@ export function FaceSwapScreen(props: {
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedModels(item.id)}
-                  className={`h-8 rounded-lg border px-1.5 text-[7px] font-bold uppercase tracking-[0.1em] whitespace-nowrap transition-colors ${
-                    selectedModels === item.id
-                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
-                      : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
-                  }`}
+                  className={`mn-option-button whitespace-nowrap ${selectedModels === item.id ? 'mn-option-button-active' : ''}`}
                 >
                   <span className="block truncate">{item.label}</span>
                 </button>
@@ -326,11 +318,7 @@ export function FaceSwapScreen(props: {
                   key={count}
                   type="button"
                   onClick={() => setOutputCount(count)}
-                  className={`h-8 rounded-lg border px-2 text-[8px] font-bold uppercase tracking-[0.16em] whitespace-nowrap transition-colors ${
-                    outputCount === count
-                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]'
-                      : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'
-                  }`}
+                  className={`mn-option-button whitespace-nowrap ${outputCount === count ? 'mn-option-button-active' : ''}`}
                 >
                   {count}x
                 </button>
@@ -357,7 +345,7 @@ export function FaceSwapScreen(props: {
             <button
               type="button"
               onClick={onOpenSettings}
-              className="w-full h-8 px-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[8px] font-bold uppercase tracking-[0.18em] text-white/70 hover:text-white transition-colors"
+              className="mn-subaction w-full"
             >
               Settings
             </button>

@@ -286,7 +286,7 @@ export function AiUpscalerScreen(props: {
             type="button"
             onClick={handleGenerate}
             disabled={inputs.length === 0 || isGenerating}
-            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+            className="mn-action-primary ambient-glow glow-green glow-weak"
           >
             {isGenerating
               ? `${modeLabel(mode)} • ${phaseLabel || '…'}`
@@ -299,8 +299,8 @@ export function AiUpscalerScreen(props: {
             <div className="grid grid-cols-2 gap-2">
               {(['restore', 'enhance'] as const).map(m => (
                 <button key={m} type="button" onClick={() => setMode(m)}
-                  className={`rounded-lg border px-3 py-3 text-left transition-colors ${mode === m ? 'border-[#7ed957]/60 bg-[#7ed957]/10 text-white' : 'border-[var(--border-color)] bg-[var(--bg-input)] text-white/70 hover:text-white'}`}>
-                  <div className="text-[10px] font-bold uppercase tracking-widest">{modeLabel(m)}</div>
+                  className={`mn-option-button ${mode === m ? 'mn-option-button-active' : ''}`}>
+                  <div>{modeLabel(m)}</div>
                   <div className="mt-1 text-[9px] text-white/45">{modeModel(m)}</div>
                 </button>
               ))}
@@ -312,10 +312,7 @@ export function AiUpscalerScreen(props: {
             <div className="flex items-center justify-between bg-transparent pt-1">
               {[2, 4].map(v => (
                 <button key={v} type="button" onClick={() => setScale(v as 2 | 4)}
-                  className={`w-12 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${
-                    scale === v ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  }`}>{v}×</button>
+                  className={`mn-option-button flex-1 ${scale === v ? 'mn-option-button-active' : ''}`}>{v}×</button>
               ))}
             </div>
           </div>

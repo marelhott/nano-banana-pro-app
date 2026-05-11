@@ -557,7 +557,7 @@ export function ModelInfluenceScreen(props: {
             type="button"
             onClick={handleGenerate}
             disabled={!input || isGenerating}
-            className="w-full py-3 px-4 font-bold text-xs uppercase tracking-widest rounded-lg transition-all shadow-lg ambient-glow glow-green glow-weak bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none"
+            className="mn-action-primary ambient-glow glow-green glow-weak"
           >
             {isGenerating ? 'Generuji…' : 'Generovat'}
           </button>
@@ -568,11 +568,7 @@ export function ModelInfluenceScreen(props: {
               <button
                 type="button"
                 onClick={() => setBackend('fal')}
-                className={`flex-1 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                  backend === 'fal'
-                    ? 'bg-[#0f1512] border-[#7ed957]/40 text-[#7ed957]'
-                    : 'bg-[var(--bg-input)] border-[var(--border-color)] text-white/55 hover:text-white/80'
-                }`}
+                className={`mn-option-button flex-1 ${backend === 'fal' ? 'mn-option-button-active' : ''}`}
                 title="fal.ai (výchozí)"
               >
                 FAL
@@ -580,11 +576,7 @@ export function ModelInfluenceScreen(props: {
               <button
                 type="button"
                 onClick={() => setBackend('a1111')}
-                className={`flex-1 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                  backend === 'a1111'
-                    ? 'bg-[#0f1512] border-[#7ed957]/40 text-[#7ed957]'
-                    : 'bg-[var(--bg-input)] border-[var(--border-color)] text-white/55 hover:text-white/80'
-                }`}
+                className={`mn-option-button flex-1 ${backend === 'a1111' ? 'mn-option-button-active' : ''}`}
                 title="A1111 (lokální backend)"
               >
                 A1111
@@ -600,11 +592,7 @@ export function ModelInfluenceScreen(props: {
                   key={n}
                   type="button"
                   onClick={() => setVariants(n as 1 | 2 | 3 | 4 | 5)}
-                  className={`w-10 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${
-                    variants === n
-                      ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                  }`}
+                  className={`mn-option-button flex-1 ${variants === n ? 'mn-option-button-active' : ''}`}
                   aria-label={`Počet obrázků: ${n}`}
                 >
                   {n}

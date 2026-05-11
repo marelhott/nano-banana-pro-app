@@ -327,6 +327,88 @@
     border-bottom-color: var(--accent);
   }
 
+  .mn-action-primary {
+    min-height: 54px;
+    width: 100%;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--accent-contrast);
+    background: var(--accent);
+    box-shadow: 0 10px 25px rgba(126, 217, 87, 0.2);
+    transition: background-color 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  }
+
+  .mn-action-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    box-shadow: 0 12px 30px rgba(126, 217, 87, 0.34);
+  }
+
+  .mn-action-primary:disabled {
+    cursor: not-allowed;
+    filter: grayscale(1);
+    opacity: 0.5;
+    box-shadow: none;
+  }
+
+  .mn-subaction {
+    min-height: 54px;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-strong);
+    padding: 0.5rem 0.625rem;
+    text-align: center;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+    background: var(--surface-highlight);
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+
+  .mn-subaction:hover:not(:disabled) {
+    color: var(--text-primary);
+    background: var(--surface-highlight-strong);
+  }
+
+  .mn-subaction:disabled {
+    cursor: not-allowed;
+    filter: grayscale(1);
+    opacity: 0.5;
+  }
+
+  .mn-option-button {
+    min-height: 40px;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    padding: 0.375rem 0.5rem;
+    text-align: center;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+    background: var(--bg-panel);
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .mn-option-button:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    background: var(--bg-input);
+  }
+
+  .mn-option-button-active {
+    color: var(--accent-contrast);
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: 0 10px 24px rgba(126, 217, 87, 0.2);
+  }
+
   .ambient-glow {
     position: relative;
   }
