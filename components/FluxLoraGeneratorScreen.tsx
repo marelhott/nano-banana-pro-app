@@ -1466,15 +1466,15 @@ export function FluxLoraGeneratorScreen(props: {
             {isTestingGrid ? 'Testuji…' : isGenerating ? `Generuji… ${queuedGenerations > 0 ? `(+${queuedGenerations})` : ''}` : 'Generovat'}
           </button>
 
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET OBRÁZKŮ</div>
-            <div className="flex items-center justify-between bg-transparent pt-1">
+          <div className="space-y-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Počet obrázků</div>
+            <div className="mn-count-selector">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button
                   key={n}
                   type="button"
                   onClick={() => setVariants(n as 1 | 2 | 3 | 4 | 5)}
-                  className={`mn-option-button flex-1 ${variants === n ? 'mn-option-button-active' : ''}`}
+                  className={`mn-count-option ${variants === n ? 'mn-count-option-active' : ''}`}
                   aria-label={`Počet obrázků: ${n}`}
                 >
                   {n}
@@ -1483,19 +1483,19 @@ export function FluxLoraGeneratorScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-3 space-y-2">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">REFERENČNÍ OBRÁZKY</div>
-              <div className="text-[12px] leading-none font-semibold text-[#9aa5ba]">{input ? 1 : 0}</div>
+              <div className="mn-section-label">Referenční obrázky</div>
+              <div className="text-[9px] text-[var(--text-secondary)]">{input ? 1 : 0}</div>
             </div>
             <label
               htmlFor={inputFileId}
-              className="block w-full h-[170px] rounded-[16px] bg-[#060d17] border border-dashed border-[#16263a] hover:border-[#223a57] transition-colors cursor-pointer overflow-hidden"
+              className="mn-upload-zone mn-upload-zone-tall block"
             >
               {input?.dataUrl ? (
                 <img src={input.dataUrl} className="w-full h-full object-cover opacity-92 hover:opacity-100 transition-opacity" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-[#8f9aae]">
+                <div className="mn-upload-placeholder">
                   <Plus className="w-5 h-5" strokeWidth={1.8} />
                 </div>
               )}

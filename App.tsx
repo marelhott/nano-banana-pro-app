@@ -3154,14 +3154,12 @@ const App: React.FC = () => {
         <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
           Počet obrázků
         </h3>
-        <div className="flex items-center justify-between bg-transparent pt-1">
+        <div className="mn-count-selector">
           {[1, 2, 3, 4, 5].map(n => (
             <button
               key={n}
               onClick={() => setState(p => ({ ...p, numberOfImages: n }))}
-              className={`w-10 h-6 text-xs font-medium transition-all flex items-center justify-center rounded-sm ${state.numberOfImages === n
-                ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+              className={`mn-count-option ${state.numberOfImages === n ? 'mn-count-option-active' : ''}`}
             >
               {n}
             </button>
@@ -3339,7 +3337,7 @@ const App: React.FC = () => {
         </h3>
 
         {state.sourceImages.length > 1 && (
-          <div className="flex p-1 rounded-lg control-surface">
+          <div className="grid grid-cols-2 gap-2">
             {([
               { id: 'together', label: 'Sloučit' },
               { id: 'batch', label: 'Varianty' },
@@ -3348,10 +3346,7 @@ const App: React.FC = () => {
                 key={opt.id}
                 type="button"
                 onClick={() => setState((p) => ({ ...p, multiRefMode: opt.id }))}
-                className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${state.multiRefMode === opt.id
-                  ? 'bg-white/10 text-white shadow-sm'
-                  : 'text-white/40 hover:text-white/70'
-                  }`}
+                className={`mn-option-button ${state.multiRefMode === opt.id ? 'mn-option-button-active' : ''}`}
               >
                 {opt.label}
               </button>
@@ -3360,7 +3355,7 @@ const App: React.FC = () => {
         )}
 
         <div
-          className={`relative min-h-[80px] border border-dashed rounded-lg transition-all ${dragOverTarget === 'reference' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50'}`}
+          className={`mn-upload-zone ${dragOverTarget === 'reference' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : ''}`}
           onDragOver={handleDragOverReference}
           onDragLeave={handleDragLeave}
           onDrop={handleDropReference}
@@ -3432,7 +3427,7 @@ const App: React.FC = () => {
           <span className="text-[9px] text-[var(--text-secondary)]">{state.styleImages.length}</span>
         </h3>
         <div
-          className={`relative min-h-[60px] border border-dashed rounded-lg transition-all ${dragOverTarget === 'style' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50'}`}
+          className={`mn-upload-zone mn-upload-zone-compact ${dragOverTarget === 'style' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : ''}`}
           onDragOver={handleDragOverStyle}
           onDragLeave={handleDragLeave}
           onDrop={handleDropStyle}
@@ -3456,7 +3451,7 @@ const App: React.FC = () => {
           ) : (
             <div className="p-1 grid grid-cols-4 gap-1">
               {state.styleImages.map((img, idx) => (
-                <div key={img.id} className="relative group aspect-square rounded overflow-hidden bg-[var(--bg-card)] border border-[var(--border-color)]">
+                <div key={img.id} className="mn-upload-thumb group">
                   <img src={img.url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" alt={`Style ${idx}`} />
                   <button
                     onClick={(e) => { e.stopPropagation(); setState(prev => ({ ...prev, styleImages: prev.styleImages.filter(i => i.id !== img.id) })); }}
@@ -3466,7 +3461,7 @@ const App: React.FC = () => {
                   </button>
                 </div>
               ))}
-              <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
+              <label className="mn-upload-tile">
                 <span className="text-[var(--text-secondary)]">+</span>
                 <input
                   type="file"
@@ -3542,7 +3537,7 @@ const App: React.FC = () => {
           <span className="text-[9px] text-[var(--text-secondary)]">{state.assetImages.length}</span>
         </h3>
         <div
-          className={`relative min-h-[60px] border border-dashed rounded-lg transition-all ${dragOverTarget === 'asset' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50'}`}
+          className={`mn-upload-zone mn-upload-zone-compact ${dragOverTarget === 'asset' ? 'border-[var(--accent)] bg-[var(--accent)]/5' : ''}`}
           onDragOver={handleDragOverAsset}
           onDragLeave={handleDragLeave}
           onDrop={handleDropAsset}
@@ -3566,7 +3561,7 @@ const App: React.FC = () => {
           ) : (
             <div className="p-1 grid grid-cols-4 gap-1">
               {state.assetImages.map((img, idx) => (
-                <div key={img.id} className="relative group aspect-square rounded overflow-hidden bg-[var(--bg-card)] border border-[var(--border-color)]">
+                <div key={img.id} className="mn-upload-thumb group">
                   <img src={img.url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" alt={`Asset ${idx}`} />
                   <button
                     onClick={(e) => { e.stopPropagation(); setState(prev => ({ ...prev, assetImages: prev.assetImages.filter(i => i.id !== img.id) })); }}
@@ -3576,7 +3571,7 @@ const App: React.FC = () => {
                   </button>
                 </div>
               ))}
-              <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
+              <label className="mn-upload-tile">
                 <span className="text-[var(--text-secondary)]">+</span>
                 <input
                   type="file"
@@ -3621,11 +3616,7 @@ const App: React.FC = () => {
             key={preset.id}
             type="button"
             onClick={() => handleImageModelPresetSelect(preset.id)}
-            className={`min-h-[40px] rounded-lg border px-1.5 py-1 text-center transition-all ${
-              isActive
-                ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)] shadow-lg shadow-[#7ed957]/20'
-                : 'border-[var(--border-color)] bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:border-[var(--accent)]/40 hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`mn-option-button ${isActive ? 'mn-option-button-active' : ''}`}
             title={`${preset.title} — ${preset.subtitle}`}
           >
             <div className="text-[8px] font-black uppercase tracking-[0.18em] leading-tight">{preset.title}</div>

@@ -409,6 +409,108 @@
     box-shadow: 0 10px 24px rgba(126, 217, 87, 0.2);
   }
 
+  .mn-count-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.25rem;
+    background: transparent;
+  }
+
+  .mn-count-option {
+    width: 2.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.125rem;
+    border-bottom: 2px solid transparent;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: color 160ms ease, border-color 160ms ease;
+  }
+
+  .mn-count-option:hover {
+    color: var(--text-primary);
+  }
+
+  .mn-count-option-active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .mn-upload-zone {
+    position: relative;
+    min-height: 80px;
+    width: 100%;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px dashed var(--border-color);
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--bg-panel) 50%, transparent);
+    transition: border-color 160ms ease, background-color 160ms ease;
+  }
+
+  .mn-upload-zone:hover {
+    border-color: var(--text-secondary);
+    background: color-mix(in srgb, var(--bg-panel) 70%, transparent);
+  }
+
+  .mn-upload-zone-compact {
+    min-height: 60px;
+  }
+
+  .mn-upload-zone-tall {
+    min-height: 96px;
+  }
+
+  .mn-upload-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+
+  .mn-upload-thumb {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    background: var(--bg-card);
+  }
+
+  .mn-upload-tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1 / 1;
+    cursor: pointer;
+    border: 1px dashed var(--border-color);
+    border-radius: 0.25rem;
+    color: var(--text-secondary);
+    background: transparent;
+    transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+  }
+
+  .mn-upload-tile:hover {
+    border-color: var(--text-secondary);
+    background: color-mix(in srgb, var(--bg-panel) 50%, transparent);
+    color: var(--text-primary);
+  }
+
+  .mn-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text-secondary);
+  }
+
   .ambient-glow {
     position: relative;
   }

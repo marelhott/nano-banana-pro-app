@@ -90,40 +90,34 @@ export function StyleTransferSidebar(props: {
         </div>
 
         <div className="space-y-3">
-          <div className="card-surface p-4 space-y-3">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Engine</div>
-            <div className="flex p-1 rounded-lg control-surface">
+          <div className="space-y-3">
+            <div className="mn-section-label">Engine</div>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setEngine('fofr')}
-                className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${
-                  engine === 'fofr' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-                }`}
+                className={`mn-option-button ${engine === 'fofr' ? 'mn-option-button-active' : ''}`}
               >
                 FOFR (cloud)
               </button>
               <button
                 type="button"
                 onClick={() => setEngine('quick')}
-                className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${
-                  engine === 'quick' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-                }`}
+                className={`mn-option-button ${engine === 'quick' ? 'mn-option-button-active' : ''}`}
               >
                 Neural (local)
               </button>
             </div>
             {engine === 'quick' && (
               <div className="space-y-1">
-                <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Neural metoda</div>
-                <div className="flex p-1 rounded-lg control-surface">
+                <div className="mn-section-label">Neural metoda</div>
+                <div className="grid grid-cols-3 gap-2">
                   {(['gatys', 'adain', 'wct'] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
                       onClick={() => setLocalMethod(m)}
-                      className={`px-2 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${
-                        localMethod === m ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-                      }`}
+                      className={`mn-option-button ${localMethod === m ? 'mn-option-button-active' : ''}`}
                     >
                       {m}
                     </button>
@@ -133,9 +127,9 @@ export function StyleTransferSidebar(props: {
             )}
           </div>
 
-          <div className="card-surface p-4 space-y-3">
-            <div className="space-y-2">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Počet výstupů</div>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Počet výstupů</div>
               {engine === 'fofr' ? (
                 <div className="space-y-2">
                   <input
@@ -149,15 +143,13 @@ export function StyleTransferSidebar(props: {
                   <div className="text-[9px] text-white/45">{Math.max(1, Math.min(10, Math.round(fofrNumImages)))}x</div>
                 </div>
               ) : (
-                <div className="flex p-1 rounded-lg control-surface">
+                <div className="mn-count-selector">
                   {([1, 2, 3] as const).map((n) => (
                     <button
                       key={n}
                       type="button"
                       onClick={() => setVariants(n)}
-                      className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all flex-1 ${
-                        variants === n ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-                      }`}
+                      className={`mn-count-option ${variants === n ? 'mn-count-option-active' : ''}`}
                     >
                       {n}
                     </button>
@@ -177,11 +169,11 @@ export function StyleTransferSidebar(props: {
           </div>
         </div>
 
-        <div className="card-surface p-3 space-y-3">
+        <div className="space-y-3">
           <div className="space-y-1">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Reference</div>
+            <div className="mn-section-label">Reference</div>
             <div
-              className="relative aspect-[5/4] rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden"
+              className="mn-upload-zone mn-upload-zone-tall"
               onDragOver={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -200,8 +192,8 @@ export function StyleTransferSidebar(props: {
               {reference ? (
                 <img src={reference.dataUrl} alt="Reference" className="w-full h-full object-cover opacity-90" draggable={false} />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Plus className="w-4 h-4 text-gray-600" />
+                <div className="mn-upload-placeholder">
+                  <Plus className="w-4 h-4" />
                 </div>
               )}
 
@@ -236,8 +228,8 @@ export function StyleTransferSidebar(props: {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Stylové reference</div>
-              <div className="text-[9px] text-white/45">{styleCount}/{STYLE_REFERENCE_LIMIT}</div>
+              <div className="mn-section-label">Stylové reference</div>
+              <div className="text-[9px] text-[var(--text-secondary)]">{styleCount}/{STYLE_REFERENCE_LIMIT}</div>
             </div>
             <div className="grid grid-cols-3 gap-2">
               {Array.from({ length: STYLE_REFERENCE_LIMIT }).map((_, idx) => {
@@ -245,7 +237,7 @@ export function StyleTransferSidebar(props: {
                 return (
                   <div
                     key={idx}
-                    className="relative aspect-square rounded-lg border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] bg-[var(--bg-panel)]/50 transition-all overflow-hidden"
+                    className={style ? 'mn-upload-thumb' : 'mn-upload-tile'}
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -264,9 +256,7 @@ export function StyleTransferSidebar(props: {
                     {style ? (
                       <img src={style.dataUrl} alt={`Styl ${idx + 1}`} className="w-full h-full object-cover opacity-90" draggable={false} />
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Plus className="w-4 h-4 text-gray-600" />
-                      </div>
+                      <Plus className="w-4 h-4" />
                     )}
 
                     {style && (

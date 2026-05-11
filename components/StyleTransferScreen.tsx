@@ -538,22 +538,18 @@ export function StyleTransferScreen(props: {
 
       <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
         <AtelierSection title="Doladění stylu">
-          <div className="flex p-1 rounded-lg control-surface">
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setEngine('fofr')}
-              className={`flex-1 rounded-md px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
-                engine === 'fofr' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-              }`}
+              className={`mn-option-button ${engine === 'fofr' ? 'mn-option-button-active' : ''}`}
             >
               FOFR
             </button>
             <button
               type="button"
               onClick={() => setEngine('quick')}
-              className={`flex-1 rounded-md px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
-                engine === 'quick' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-              }`}
+              className={`mn-option-button ${engine === 'quick' ? 'mn-option-button-active' : ''}`}
             >
               Neural
             </button>
@@ -561,15 +557,13 @@ export function StyleTransferScreen(props: {
 
           {engine === 'quick' ? (
             <div className="space-y-3">
-              <div className="flex p-1 rounded-lg control-surface">
+              <div className="grid grid-cols-3 gap-2">
                 {(['gatys', 'adain', 'wct'] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => setLocalMethod(m)}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
-                      localMethod === m ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-                    }`}
+                    className={`mn-option-button ${localMethod === m ? 'mn-option-button-active' : ''}`}
                   >
                     {m}
                   </button>

@@ -479,7 +479,7 @@ export function ReframeScreen(props: {
           <div className="space-y-2">
             <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center justify-between">
               <span>Vstup</span>
-              <span>{input ? '1' : '0'}</span>
+              <span className="text-[9px]">{input ? '1' : '0'}</span>
             </h3>
             <label className="block cursor-pointer">
               <input
@@ -492,7 +492,7 @@ export function ReframeScreen(props: {
                   event.currentTarget.value = '';
                 }}
               />
-              <div className="relative aspect-[4/3] rounded-lg border border-dashed border-[var(--border-color)] bg-[var(--bg-panel)] overflow-hidden">
+              <div className="mn-upload-zone mn-upload-zone-tall">
                 {input ? (
                   <>
                     <img src={input.dataUrl} alt={input.file.name} className="w-full h-full object-cover" />
@@ -509,9 +509,9 @@ export function ReframeScreen(props: {
                     </button>
                   </>
                 ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[var(--text-secondary)]">
+                  <div className="mn-upload-placeholder flex-col gap-2">
                     <ImagePlus className="w-5 h-5" strokeWidth={1.5} />
-                    <span className="text-[10px] uppercase tracking-widest font-bold">Select image</span>
+                    <span className="text-[10px] uppercase tracking-widest font-bold">Upload</span>
                   </div>
                 )}
               </div>

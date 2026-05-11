@@ -334,7 +334,7 @@ export function AiUpscalerScreen(props: {
               <span>Vstupní obrázky</span>
               <span className="text-[9px] text-[var(--text-secondary)]">{inputs.length}</span>
             </h3>
-            <div className="relative min-h-[80px] border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] rounded-lg transition-all bg-[var(--bg-panel)]/50">
+            <div className="mn-upload-zone">
               {inputs.length === 0 ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer" onClick={() => document.getElementById(inputFileId)?.click()}>
                   <span className="text-[var(--text-secondary)] text-lg transition-colors">+</span>
@@ -344,7 +344,7 @@ export function AiUpscalerScreen(props: {
               ) : (
                 <div className="p-1 grid grid-cols-4 gap-1">
                   {inputs.map(img => (
-                    <div key={img.id} className="relative group aspect-square rounded overflow-hidden bg-[var(--bg-card)] border border-[var(--border-color)]">
+                    <div key={img.id} className="mn-upload-thumb group">
                       <img src={img.dataUrl} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" alt={img.file.name} />
                       <button onClick={(e) => { e.stopPropagation(); removeInput(img.id); }}
                         className="absolute top-0 right-0 p-0.5 bg-black/60 text-white opacity-0 group-hover:opacity-100">
@@ -352,7 +352,7 @@ export function AiUpscalerScreen(props: {
                       </button>
                     </div>
                   ))}
-                  <label className="flex items-center justify-center aspect-square rounded border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-panel)]/50 cursor-pointer">
+                  <label className="mn-upload-tile">
                     <span className="text-[var(--text-secondary)]">+</span>
                     <input type="file" multiple accept="image/*" className="hidden"
                       onChange={(e) => { const f = e.target.files; if (f) handleImagesSelected(Array.from(f)); e.currentTarget.value = ''; }} />

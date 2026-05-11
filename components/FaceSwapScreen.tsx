@@ -224,19 +224,19 @@ export function FaceSwapScreen(props: {
   ) => (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">{label}</div>
-        <div className="text-[12px] leading-none font-semibold text-[#9aa5ba]">{slot ? 1 : 0}</div>
+        <div className="mn-section-label">{label}</div>
+        <div className="text-[9px] text-[var(--text-secondary)]">{slot ? 1 : 0}</div>
       </div>
       <label
         htmlFor={inputId}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => void onDropToSlot(kind, e)}
-        className="block w-full aspect-square rounded-lg bg-[var(--bg-panel)] border border-dashed border-[var(--border-color)] hover:border-[var(--text-secondary)] transition-colors cursor-pointer overflow-hidden"
+        className="mn-upload-zone block"
       >
         {slot?.dataUrl ? (
           <img src={slot.dataUrl} alt={slot.file.name} className="w-full h-full object-cover opacity-92 hover:opacity-100 transition-opacity" />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-[#8f9aae]">
+          <div className="mn-upload-placeholder flex-col gap-1.5">
             <Upload className="w-4 h-4" strokeWidth={1.8} />
             <span className="text-[9px] uppercase tracking-[0.2em]">Upload</span>
           </div>
@@ -310,24 +310,24 @@ export function FaceSwapScreen(props: {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">POČET VÝSTUPŮ</div>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Počet výstupů</div>
+            <div className="mn-count-selector">
               {([1, 2, 3] as const).map((count) => (
                 <button
                   key={count}
                   type="button"
                   onClick={() => setOutputCount(count)}
-                  className={`mn-option-button whitespace-nowrap ${outputCount === count ? 'mn-option-button-active' : ''}`}
+                  className={`mn-count-option ${outputCount === count ? 'mn-count-option-active' : ''}`}
                 >
-                  {count}x
+                  {count}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">VSTUPNÍ OBRÁZKY</div>
+            <div className="mn-section-label">Vstupní obrázky</div>
             <div className="grid grid-cols-2 gap-2">
               {renderDropSlot('target', 'CÍL', 'Obrázek, do kterého se vloží nová hlava nebo obličej.', target, targetInputId)}
               {renderDropSlot('source', 'ZDROJ', 'Člověk, od kterého se převezme hlava nebo obličej.', source, sourceInputId)}
