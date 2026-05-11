@@ -104,7 +104,7 @@ export function StyleTransferMobileControls(props: {
   const styleCount = styles.filter(Boolean).length;
 
   return (
-    <div className="card-surface p-3 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <button
           type="button"
@@ -117,8 +117,8 @@ export function StyleTransferMobileControls(props: {
         <div className="w-1 h-4 bg-[#7ed957] rounded-full" />
       </div>
 
-      <div className="card-surface p-3 space-y-2">
-        <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Engine</div>
+      <div className="space-y-2">
+        <div className="mn-section-label">Engine</div>
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -319,7 +319,7 @@ export function StyleTransferMobileControls(props: {
         </div>
       </div>
 
-      <div className="card-surface p-4 space-y-3">
+      <div className="space-y-3">
         {engine === 'quick' ? (
           <>
             <div className="space-y-2">

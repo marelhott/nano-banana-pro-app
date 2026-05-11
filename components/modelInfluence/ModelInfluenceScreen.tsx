@@ -562,8 +562,8 @@ export function ModelInfluenceScreen(props: {
             {isGenerating ? 'Generuji…' : 'Generovat'}
           </button>
 
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">BACKEND</div>
+          <div className="space-y-2">
+            <div className="mn-section-label">Backend</div>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -631,8 +631,8 @@ export function ModelInfluenceScreen(props: {
             />
           </div>
 
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">
+          <div className="space-y-2">
+            <div className="mn-section-label">
               {backend === 'a1111' ? 'SDXL checkpoint (A1111 name)' : 'SDXL checkpoint (model_name)'}
             </div>
             <input
@@ -646,8 +646,8 @@ export function ModelInfluenceScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Advanced JSON (scheduler/controlnets/ip_adapter…)</div>
+          <div className="space-y-2">
+            <div className="mn-section-label">Advanced JSON (scheduler/controlnets/ip_adapter…)</div>
             <textarea
               value={advancedRaw}
               onChange={(e) => setAdvancedRaw(e.target.value)}

@@ -294,8 +294,8 @@ export function AiUpscalerScreen(props: {
             }
           </button>
 
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">REŽIM</div>
+          <div className="space-y-2">
+            <div className="mn-section-label">Režim</div>
             <div className="grid grid-cols-2 gap-2">
               {(['restore', 'enhance'] as const).map(m => (
                 <button key={m} type="button" onClick={() => setMode(m)}
@@ -307,8 +307,8 @@ export function AiUpscalerScreen(props: {
             </div>
           </div>
 
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">ZVĚTŠENÍ</div>
+          <div className="space-y-2">
+            <div className="mn-section-label">Zvětšení</div>
             <div className="flex items-center justify-between bg-transparent pt-1">
               {[2, 4].map(v => (
                 <button key={v} type="button" onClick={() => setScale(v as 2 | 4)}

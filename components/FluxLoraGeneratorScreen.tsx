@@ -1404,8 +1404,8 @@ export function FluxLoraGeneratorScreen(props: {
           </div>
 
           {/* ── Presets ── */}
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Presety</div>
+          <div className="space-y-2">
+            <div className="mn-section-label">Presety</div>
             <div className="flex gap-2">
               <select
                 value={selectedPresetId}
@@ -1514,8 +1514,8 @@ export function FluxLoraGeneratorScreen(props: {
           </div>
 
           {/* ── Model / Endpoint / LoRA ── */}
-          <div className="card-surface p-3 space-y-2 overflow-hidden">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Model + endpoint + lora</div>
+          <div className="space-y-2 overflow-hidden">
+            <div className="mn-section-label">Model + endpoint + lora</div>
 
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-[70px] text-[9px] font-bold uppercase tracking-wider text-white/45 shrink-0">Model</div>
@@ -1651,8 +1651,8 @@ export function FluxLoraGeneratorScreen(props: {
           </div>
 
           {/* ── Image Size ── */}
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Velikost výstupu</div>
+          <div className="space-y-2">
+            <div className="mn-section-label">Velikost výstupu</div>
             <select
               value={imageSize}
               onChange={(e) => setImageSize(e.target.value)}
@@ -1673,8 +1673,8 @@ export function FluxLoraGeneratorScreen(props: {
           </div>
 
           {/* ── Output Format ── */}
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Formát výstupu</div>
+          <div className="space-y-2">
+            <div className="mn-section-label">Formát výstupu</div>
             <div className="flex">
               {(['jpeg', 'png'] as const).map((fmt) => {
                 const active = outputFormat === fmt;
@@ -1698,8 +1698,8 @@ export function FluxLoraGeneratorScreen(props: {
           </div>
 
           {modelFamily === 'sdxl' && (
-            <div className="card-surface p-3 space-y-2">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">SDXL endpoint advanced (JSON)</div>
+            <div className="space-y-2">
+              <div className="mn-section-label">SDXL endpoint advanced (JSON)</div>
               <textarea
                 value={sdxlAdvancedRaw}
                 onChange={(e) => setSdxlAdvancedRaw(e.target.value)}
@@ -1714,8 +1714,8 @@ export function FluxLoraGeneratorScreen(props: {
           )}
 
           {/* ── Custom Prompt ── */}
-          <div className="card-surface p-3 space-y-2">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">Prompt</div>
+          <div className="space-y-2">
+            <div className="mn-section-label">Prompt</div>
             <textarea
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}

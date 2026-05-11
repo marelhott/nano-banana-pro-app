@@ -538,31 +538,6 @@ export function ReframeScreen(props: {
             ))}
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Perspektivy</h3>
-              <span className="text-[10px] font-bold text-[var(--text-secondary)]">{selectedPerspectives.length}/{PERSPECTIVES.length}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              {PERSPECTIVES.map((perspective) => {
-                const isSelected = selected.has(perspective.id);
-                return (
-                  <button
-                    key={perspective.id}
-                    type="button"
-                    onClick={() => togglePerspective(perspective.id)}
-                    className={`mn-option-button flex items-center gap-2 text-left ${isSelected ? 'mn-option-button-active' : ''}`}
-                  >
-                    <span className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[9px] ${isSelected ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d]' : 'border-white/20'}`}>
-                      {isSelected ? '✓' : ''}
-                    </span>
-                    <span className="text-[10px] font-bold truncate">{perspective.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {!geminiKey && !serverGeminiReady ? (
             <button
               type="button"
@@ -673,6 +648,31 @@ export function ReframeScreen(props: {
       </section>
 
       <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
+        <AtelierSection title="Perspektivy">
+          <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+            <span>Vybráno</span>
+            <span>{selectedPerspectives.length}/{PERSPECTIVES.length}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {PERSPECTIVES.map((perspective) => {
+              const isSelected = selected.has(perspective.id);
+              return (
+                <button
+                  key={perspective.id}
+                  type="button"
+                  onClick={() => togglePerspective(perspective.id)}
+                  className="mn-checkbox-row"
+                >
+                  <span className={`mn-checkbox-box ${isSelected ? 'mn-checkbox-box-active' : ''}`}>
+                    {isSelected ? '✓' : ''}
+                  </span>
+                  <span className="truncate">{perspective.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </AtelierSection>
+
         <AtelierSection title="Stav úlohy">
           <AtelierInfoRows
             rows={[
