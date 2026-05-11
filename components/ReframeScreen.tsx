@@ -8,6 +8,7 @@ import { ImageDatabase } from '../utils/imageDatabase';
 import { fileToDataUrl } from './styleTransfer/utils';
 import { ImageComparisonModal } from './ImageComparisonModal';
 import type { ToastType } from './Toast';
+import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
 
 const GEMINI_PRO_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 
@@ -258,9 +259,10 @@ function buildEditPrompt(userPrompt: string, perspectiveLabel: string, aspectRat
 export function ReframeScreen(props: {
   providerSettings: ProviderSettings;
   onOpenSettings: () => void;
+  onOpenLibrary?: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
 }) {
-  const { providerSettings, onOpenSettings, onToast } = props;
+  const { providerSettings, onOpenSettings, onOpenLibrary, onToast } = props;
   const [input, setInput] = React.useState<InputImage | null>(null);
   const [selected, setSelected] = React.useState<Set<PerspectiveId>>(() => new Set(DEFAULT_SELECTED));
   const [gridMode, setGridMode] = React.useState<'3x3' | 'free'>('3x3');
@@ -574,23 +576,6 @@ export function ReframeScreen(props: {
       </aside>
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
-        <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
-            <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
-            <div className="text-[10px] text-white/75">Gemini 3 Pro preview</div>
-            <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Perspektivy</div>
-            <div className="text-[10px] text-white/75">{selectedPerspectives.length}</div>
-            <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Aspect</div>
-            <div className="text-[10px] text-white/75">{originalAspectRatio}</div>
-            {progress ? (
-              <>
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Progress</div>
-                <div className="text-[10px] text-white/75">{progress.completed}/{progress.total}</div>
-              </>
-            ) : null}
-          </div>
-        </div>
-
         <div className="p-6">
           {outputs.length > 0 ? (
             <div className={gridMode === '3x3' ? 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3' : 'grid grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3'}>
@@ -673,10 +658,10 @@ export function ReframeScreen(props: {
               })}
             </div>
           ) : (
-            <div className="min-h-[420px] flex flex-col items-center justify-center text-white/35">
-              <Sparkles className="w-8 h-8 mb-4" strokeWidth={1.2} />
-              <div className="text-[11px] uppercase tracking-widest font-bold">Připraveno na reframe</div>
-            </div>
+            <AtelierEmptyState
+              title="Připraveno na reframe"
+              description="Nahraj vstup vlevo, vyber perspektivy a spusť úlohu."
+            />
           )}
           <style>{`
             @keyframes reframeSlide {
@@ -686,6 +671,26 @@ export function ReframeScreen(props: {
           `}</style>
         </div>
       </section>
+
+      <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
+        <AtelierSection title="Stav úlohy">
+          <AtelierInfoRows
+            rows={[
+              { label: 'Model', value: 'Gemini 3 Pro' },
+              { label: 'Perspektivy', value: selectedPerspectives.length },
+              { label: 'Aspect', value: originalAspectRatio },
+              { label: 'Rozlišení', value: resolution },
+              { label: 'Mřížka', value: gridMode },
+              { label: 'Výstupů', value: outputs.filter(o => o.status === 'done').length },
+            ]}
+          />
+          {progress ? (
+            <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+              Progress {progress.completed}/{progress.total}
+            </div>
+          ) : null}
+        </AtelierSection>
+      </AtelierRightPanel>
 
       <ImageComparisonModal
         isOpen={!!selectedOutput}

@@ -5,6 +5,7 @@ import { runFalFluxLoraImg2ImgQueued, runFalLoraImg2ImgQueued, runFalUpscaleQueu
 import { presignR2, isR2Ref, parseR2Ref } from '../services/r2Service';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../utils/galleryDB';
 import { listFluxPresets, saveFluxPreset, deleteFluxPreset, type FluxPreset } from '../utils/fluxPresetsDB';
+import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -564,9 +565,10 @@ function Spinner(props: { label?: string }) {
 
 export function FluxLoraGeneratorScreen(props: {
   onOpenSettings: () => void;
+  onOpenLibrary?: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
 }) {
-  const { onToast } = props;
+  const { onOpenLibrary, onToast } = props;
 
   const [input, setInput] = React.useState<ImageSlot | null>(null);
   const [cfg, setCfg] = React.useState(2.5);
@@ -1738,108 +1740,14 @@ export function FluxLoraGeneratorScreen(props: {
       </aside>
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
-        <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
-            {modelFamily === 'sdxl' && (
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Sampler</div>
-                <select
-                  value={sdxlSampler}
-                  onChange={(e) => setSdxlSampler(e.target.value as SdxlSampler)}
-                  className="w-[150px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-                >
-                  {SDXL_SAMPLER_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {modelFamily === 'sdxl' && (
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Scheduler</div>
-                <select
-                  value={sdxlScheduler}
-                  onChange={(e) => setSdxlScheduler(e.target.value as SdxlScheduler)}
-                  className="w-[140px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-                >
-                  {SDXL_SCHEDULER_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Váha</div>
-              <input
-                type="range"
-                min={0}
-                max={4}
-                step={0.05}
-                value={topbarLoraScale}
-                disabled={loras.length === 0}
-                onChange={(e) => {
-                  const scale = Number(e.target.value);
-                  setLoras((prev) => {
-                    if (!prev.length) return prev;
-                    const [first, ...rest] = prev;
-                    return [{ ...first, scale }, ...rest];
-                  });
-                }}
-                className="w-[150px] h-[2px] accent-[#7ed957] opacity-80 disabled:opacity-30"
-              />
-              <div className="text-[10px] text-white/55 w-10 text-right">{topbarLoraScale.toFixed(2)}</div>
-            </div>
-            {showDenoise ? (
-              <div className="flex items-center gap-3">
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
-                <input
-                  type="range"
-                  min={0.01}
-                  max={1}
-                  step={0.01}
-                  value={denoise}
-                  onChange={(e) => setDenoise(Number(e.target.value))}
-                  className="w-[220px] h-[2px] accent-[#7ed957] opacity-80"
-                />
-                <div className="text-[10px] text-white/55 w-10 text-right">{denoise.toFixed(2)}</div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Acceleration</div>
-                <select
-                  value={flux2Acceleration}
-                  onChange={(e) => setFlux2Acceleration(e.target.value as Flux2Acceleration)}
-                  className="w-[150px] px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-                >
-                  <option value="none">none</option>
-                  <option value="regular">regular</option>
-                  <option value="high">high</option>
-                </select>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">CFG</div>
-              <input type="range" min={0} max={35} step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="w-[180px] h-[2px] accent-[#7ed957] opacity-80" />
-              <div className="text-[10px] text-white/55 w-10 text-right">{cfg.toFixed(1)}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Steps</div>
-              <input type="range" min={1} max={50} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="w-[180px] h-[2px] accent-[#7ed957] opacity-80" />
-              <div className="text-[10px] text-white/55 w-10 text-right">{steps}</div>
-            </div>
-            {!showDenoise && <div className="text-[10px] text-white/35 shrink-0">FLUX 2 používá acceleration místo denoise.</div>}
-          </div>
-        </div>
-
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-min">
             {generated.length === 0 ? (
-              <div className="md:col-span-3 card-surface p-8 text-center text-white/45 text-[11px] uppercase tracking-widest">
-                Zatím žádné výstupy
+              <div className="md:col-span-3">
+                <AtelierEmptyState
+                  title="Zatím žádné vygenerované obrázky"
+                  description="Nahraj referenční obrázek vlevo a spusť LoRA influence."
+                />
               </div>
             ) : (
               generated.map((img, idx) => {
@@ -1935,6 +1843,83 @@ export function FluxLoraGeneratorScreen(props: {
           </div>
         </div>
       </section>
+
+      <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
+        <AtelierSection title="Doladění LoRA">
+          {modelFamily === 'sdxl' ? (
+            <>
+              <select value={sdxlSampler} onChange={(e) => setSdxlSampler(e.target.value as SdxlSampler)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+                {SDXL_SAMPLER_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+              </select>
+              <select value={sdxlScheduler} onChange={(e) => setSdxlScheduler(e.target.value as SdxlScheduler)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+                {SDXL_SCHEDULER_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+              </select>
+            </>
+          ) : null}
+          <label className="block space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <span>Váha</span>
+              <span>{topbarLoraScale.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={4}
+              step={0.05}
+              value={topbarLoraScale}
+              disabled={loras.length === 0}
+              onChange={(e) => {
+                const scale = Number(e.target.value);
+                setLoras((prev) => {
+                  if (!prev.length) return prev;
+                  const [first, ...rest] = prev;
+                  return [{ ...first, scale }, ...rest];
+                });
+              }}
+              className="range-green w-full disabled:opacity-30"
+            />
+          </label>
+          {showDenoise ? (
+            <label className="block space-y-1.5">
+              <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                <span>Denoise</span>
+                <span>{denoise.toFixed(2)}</span>
+              </div>
+              <input type="range" min={0.01} max={1} step={0.01} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="range-green w-full" />
+            </label>
+          ) : (
+            <select value={flux2Acceleration} onChange={(e) => setFlux2Acceleration(e.target.value as Flux2Acceleration)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+              <option value="none">none</option>
+              <option value="regular">regular</option>
+              <option value="high">high</option>
+            </select>
+          )}
+          <label className="block space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <span>CFG</span>
+              <span>{cfg.toFixed(1)}</span>
+            </div>
+            <input type="range" min={0} max={35} step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="range-green w-full" />
+          </label>
+          <label className="block space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <span>Steps</span>
+              <span>{steps}</span>
+            </div>
+            <input type="range" min={1} max={50} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="range-green w-full" />
+          </label>
+        </AtelierSection>
+
+        <AtelierSection title="Stav úlohy">
+          <AtelierInfoRows rows={[
+            { label: 'Model', value: modelFamily },
+            { label: 'Endpoint', value: modelFamily === 'flux' ? fluxEndpoint : 'sdxl' },
+            { label: 'Varianty', value: variants },
+            { label: 'Hotovo', value: doneOutputs.length },
+            { label: 'Fáze', value: falPhaseLabel || genPhase || '-' },
+          ]} />
+        </AtelierSection>
+      </AtelierRightPanel>
 
       <ImageComparisonModal
         isOpen={!!selectedOutput?.dataUrl}

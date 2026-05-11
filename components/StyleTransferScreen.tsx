@@ -11,6 +11,7 @@ import { StyleTransferMobileControls } from './styleTransfer/StyleTransferMobile
 import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
 import { downloadDataUrl, fileToDataUrl, resolveDropToFile, STYLE_REFERENCE_LIMIT, composeStylePatchwork } from './styleTransfer/utils';
 import type { ImageSlot, OutputItem } from './styleTransfer/utils';
+import { AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
 
 type ToastType = 'success' | 'error' | 'info';
 export type LocalStyleMethod = 'gatys' | 'adain' | 'wct';
@@ -18,11 +19,12 @@ export type LocalStyleMethod = 'gatys' | 'adain' | 'wct';
 export function StyleTransferScreen(props: {
   providerSettings: ProviderSettings;
   onOpenSettings: () => void;
+  onOpenLibrary?: () => void;
   onBack: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
   isHoveringGallery: boolean;
 }) {
-  const { providerSettings, onOpenSettings, onBack, onToast, isHoveringGallery } = props;
+  const { providerSettings, onOpenSettings, onBack, onOpenLibrary, onToast, isHoveringGallery } = props;
 
   async function normalizeDataUrlPixels(
     dataUrl: string,
@@ -458,191 +460,6 @@ export function StyleTransferScreen(props: {
         className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
         style={{ marginRight }}
       >
-        <div className="hidden lg:block sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
-            <div className="flex items-center gap-2">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Engine</div>
-              <div className="flex p-1 rounded-lg control-surface">
-                <button
-                  type="button"
-                  onClick={() => setEngine('fofr')}
-                  className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${
-                    engine === 'fofr' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-                  }`}
-                >
-                  FOFR
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEngine('quick')}
-                  className={`px-3 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${
-                    engine === 'quick' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-                  }`}
-                >
-                  Neural
-                </button>
-              </div>
-            </div>
-
-            {engine === 'quick' ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Metoda</div>
-                  <div className="flex p-1 rounded-lg control-surface">
-                    {(['gatys', 'adain', 'wct'] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setLocalMethod(m)}
-                        className={`px-2.5 py-1.5 rounded-md text-[10px] uppercase tracking-wider font-bold transition-all ${
-                          localMethod === m ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Síla</div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={strength}
-                    onChange={(e) => setStrength(Number(e.target.value))}
-                    disabled={activeStyles.length === 0}
-                    className="w-[180px] h-[2px] accent-[#7ed957] disabled:opacity-40"
-                  />
-                  <div className="text-[10px] text-white/55 w-10 text-right">{Math.round(strength)}%</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Merge</div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={merge}
-                    onChange={(e) => setMerge(Number(e.target.value))}
-                    disabled={activeStyles.length === 0}
-                    className="w-[180px] h-[2px] accent-[#7ed957] disabled:opacity-40"
-                  />
-                  <div className="text-[10px] text-white/55 w-10 text-right">{Math.round(merge)}%</div>
-                </div>
-                <div className="text-[10px] text-white/35 shrink-0">Iterace: {localIterationHint}x</div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
-                  <select
-                    value={fofrModel}
-                    onChange={(e) => setFofrModel(e.target.value as any)}
-                    className="w-[160px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-                  >
-                    <option value="fast">fast</option>
-                    <option value="high-quality">high-quality</option>
-                    <option value="realistic">realistic</option>
-                    <option value="cinematic">cinematic</option>
-                    <option value="animated">animated</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Struktura</div>
-                  <button
-                    type="button"
-                    onClick={() => setFofrUseStructure(!fofrUseStructure)}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
-                      fofrUseStructure ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
-                    }`}
-                  >
-                    {fofrUseStructure ? 'On' : 'Off'}
-                  </button>
-                </div>
-                {!fofrUseStructure && (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">W</div>
-                      <input
-                        type="number"
-                        min={256}
-                        max={2048}
-                        step={64}
-                        value={fofrWidth}
-                        onChange={(e) => setFofrWidth(Number(e.target.value))}
-                        className="w-[92px] px-2 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">H</div>
-                      <input
-                        type="number"
-                        min={256}
-                        max={2048}
-                        step={64}
-                        value={fofrHeight}
-                        onChange={(e) => setFofrHeight(Number(e.target.value))}
-                        className="w-[92px] px-2 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-                      />
-                    </div>
-                  </>
-                )}
-                <div className="flex items-center gap-3">
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={fofrStructureDenoisingStrength}
-                    onChange={(e) => setFofrStructureDenoisingStrength(Number(e.target.value))}
-                    className="w-[170px] h-[2px] accent-[#7ed957]"
-                  />
-                  <div className="text-[10px] text-white/55 w-10 text-right">{fofrStructureDenoisingStrength.toFixed(2)}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Depth</div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={2}
-                    step={0.05}
-                    value={fofrStructureDepthStrength}
-                    onChange={(e) => setFofrStructureDepthStrength(Number(e.target.value))}
-                    className="w-[170px] h-[2px] accent-[#7ed957]"
-                  />
-                  <div className="text-[10px] text-white/55 w-10 text-right">{fofrStructureDepthStrength.toFixed(2)}</div>
-                </div>
-              </>
-            )}
-
-            <div className="flex items-center gap-2">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">High-res</div>
-              <button
-                type="button"
-                onClick={() => setHighRes(!highRes)}
-                className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
-                  highRes ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
-                }`}
-              >
-                {highRes ? 'On' : 'Off'}
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Barvy</div>
-              <button
-                type="button"
-                onClick={() => setPreserveColors(!preserveColors)}
-                className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
-                  preserveColors ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
-                }`}
-              >
-                {preserveColors ? 'On' : 'Off'}
-              </button>
-            </div>
-          </div>
-        </div>
-
         <div className="p-6 lg:p-10 pb-32 w-full">
           <div className="space-y-6 md:space-y-8 w-full">
             <div className="lg:hidden">
@@ -718,6 +535,167 @@ export function StyleTransferScreen(props: {
           </div>
         )}
       </div>
+
+      <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
+        <AtelierSection title="Doladění stylu">
+          <div className="flex p-1 rounded-lg control-surface">
+            <button
+              type="button"
+              onClick={() => setEngine('fofr')}
+              className={`flex-1 rounded-md px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                engine === 'fofr' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+              }`}
+            >
+              FOFR
+            </button>
+            <button
+              type="button"
+              onClick={() => setEngine('quick')}
+              className={`flex-1 rounded-md px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                engine === 'quick' ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+              }`}
+            >
+              Neural
+            </button>
+          </div>
+
+          {engine === 'quick' ? (
+            <div className="space-y-3">
+              <div className="flex p-1 rounded-lg control-surface">
+                {(['gatys', 'adain', 'wct'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setLocalMethod(m)}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                      localMethod === m ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              <label className="block space-y-1.5">
+                <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                  <span>Síla</span>
+                  <span>{Math.round(strength)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={strength}
+                  onChange={(e) => setStrength(Number(e.target.value))}
+                  disabled={activeStyles.length === 0}
+                  className="range-green w-full disabled:opacity-40"
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                  <span>Merge</span>
+                  <span>{Math.round(merge)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={merge}
+                  onChange={(e) => setMerge(Number(e.target.value))}
+                  disabled={activeStyles.length === 0}
+                  className="range-green w-full disabled:opacity-40"
+                />
+              </label>
+              <AtelierInfoRows rows={[{ label: 'Iterace', value: `${localIterationHint}x` }]} />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <select
+                value={fofrModel}
+                onChange={(e) => setFofrModel(e.target.value as any)}
+                className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] font-semibold text-[var(--text-primary)] outline-none"
+              >
+                <option value="fast">fast</option>
+                <option value="high-quality">high-quality</option>
+                <option value="realistic">realistic</option>
+                <option value="cinematic">cinematic</option>
+                <option value="animated">animated</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setFofrUseStructure(!fofrUseStructure)}
+                className={`w-full rounded-md border px-3 py-2 text-[9px] font-bold uppercase tracking-wider transition-all ${
+                  fofrUseStructure ? 'border-[#7ed957]/25 bg-[#7ed957]/15 text-[#7ed957]' : 'border-white/10 bg-white/5 text-white/50'
+                }`}
+              >
+                Struktura {fofrUseStructure ? 'On' : 'Off'}
+              </button>
+              {!fofrUseStructure ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min={256}
+                    max={2048}
+                    step={64}
+                    value={fofrWidth}
+                    onChange={(e) => setFofrWidth(Number(e.target.value))}
+                    className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-2 py-2 text-[10px] text-[var(--text-primary)]"
+                  />
+                  <input
+                    type="number"
+                    min={256}
+                    max={2048}
+                    step={64}
+                    value={fofrHeight}
+                    onChange={(e) => setFofrHeight(Number(e.target.value))}
+                    className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-2 py-2 text-[10px] text-[var(--text-primary)]"
+                  />
+                </div>
+              ) : null}
+              <label className="block space-y-1.5">
+                <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                  <span>Denoise</span>
+                  <span>{fofrStructureDenoisingStrength.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={fofrStructureDenoisingStrength}
+                  onChange={(e) => setFofrStructureDenoisingStrength(Number(e.target.value))}
+                  className="range-green w-full"
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                  <span>Depth</span>
+                  <span>{fofrStructureDepthStrength.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={fofrStructureDepthStrength}
+                  onChange={(e) => setFofrStructureDepthStrength(Number(e.target.value))}
+                  className="range-green w-full"
+                />
+              </label>
+            </div>
+          )}
+        </AtelierSection>
+
+        <AtelierSection title="Výstup">
+          <AtelierInfoRows
+            rows={[
+              { label: 'Výstupů', value: engine === 'fofr' ? Math.max(1, Math.min(10, Math.round(fofrNumImages))) : variants },
+              { label: 'Reference', value: activeStyles.length },
+              { label: 'High-res', value: highRes ? 'On' : 'Off' },
+              { label: 'Barvy', value: preserveColors ? 'On' : 'Off' },
+            ]}
+          />
+        </AtelierSection>
+      </AtelierRightPanel>
     </>
   );
 }

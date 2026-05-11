@@ -6,6 +6,7 @@ import { runHeadSwap } from '../services/headSwapService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { downloadDataUrl, fileToDataUrl, resolveDropToFile } from './styleTransfer/utils';
+import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -36,9 +37,10 @@ function plannedProviders(choice: HeadSwapModelChoice): Array<{ provider: string
 export function FaceSwapScreen(props: {
   providerSettings: ProviderSettings;
   onOpenSettings: () => void;
+  onOpenLibrary?: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
 }) {
-  const { providerSettings, onOpenSettings, onToast } = props;
+  const { providerSettings, onOpenSettings, onOpenLibrary, onToast } = props;
 
   const [source, setSource] = React.useState<ImageSlot | null>(null);
   const [target, setTarget] = React.useState<ImageSlot | null>(null);
@@ -364,29 +366,7 @@ export function FaceSwapScreen(props: {
       </aside>
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
-        <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Mode</div>
-              <div className="text-[10px] text-white/75">{mode}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
-              <div className="text-[10px] text-white/75">{modelSummary}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Count</div>
-              <div className="text-[10px] text-white/75">{outputCount}×</div>
-            </div>
-          </div>
-        </div>
-
         <div className="p-6 space-y-4">
-          <div>
-            <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Výstup</div>
-            <div className="mt-1 text-[11px] text-white/45">{runMeta}</div>
-          </div>
-
           {outputs.length > 0 ? (
             <div className="flex flex-wrap gap-4 items-start">
               {outputs.map((item) => {
@@ -452,16 +432,34 @@ export function FaceSwapScreen(props: {
               })}
             </div>
           ) : (
-            <div className="min-h-[60vh] flex flex-col items-center justify-center text-white/45 px-6 text-center">
-              <Sparkles className="w-6 h-6 mb-3" />
-              <div className="text-[11px] uppercase tracking-widest font-bold">Připraveno na swap</div>
-              <div className="text-[10px] text-white/35 mt-2">
-                Vyber variantu, model a počet výsledků. Při volbě `Oba` běží Gemini i GPT Image 2 současně.
-              </div>
-            </div>
+            <AtelierEmptyState
+              title="Připraveno na swap"
+              description="Nahraj cíl a zdroj vlevo, potom spusť výměnu."
+            />
           )}
         </div>
       </section>
+
+      <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
+        <AtelierSection title="Stav úlohy">
+          <AtelierInfoRows
+            rows={[
+              { label: 'Mode', value: mode },
+              { label: 'Model', value: modelSummary },
+              { label: 'Počet', value: `${outputCount}×` },
+              { label: 'Výstupů', value: outputs.filter(o => o.status === 'done').length },
+            ]}
+          />
+          <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
+            {runMeta}
+          </div>
+          {progress ? (
+            <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+              {progress.completedJobs}/{progress.totalJobs} • {progress.activeLabel}
+            </div>
+          ) : null}
+        </AtelierSection>
+      </AtelierRightPanel>
 
       {lightboxUrl ? (
         <div

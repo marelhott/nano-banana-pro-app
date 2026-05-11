@@ -7,6 +7,7 @@ import { ImageDatabase } from '../utils/imageDatabase';
 import { fileToDataUrl } from './styleTransfer/utils';
 import { ImageComparisonModal } from './ImageComparisonModal';
 import type { ToastType } from './Toast';
+import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
 
 type UpscaleMode = 'restore' | 'enhance';
 
@@ -100,9 +101,10 @@ function modeModelId(mode: UpscaleMode): string {
 
 export function AiUpscalerScreen(props: {
   onOpenSettings: () => void;
+  onOpenLibrary?: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
 }) {
-  const { onOpenSettings, onToast } = props;
+  const { onOpenSettings, onOpenLibrary, onToast } = props;
 
   const [inputs, setInputs] = React.useState<ImageSlot[]>([]);
   const [scale, setScale] = React.useState<2 | 4>(2);
@@ -371,41 +373,6 @@ export function AiUpscalerScreen(props: {
       </aside>
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
-        <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Režim</div>
-              <div className="text-[10px] text-white/75">{modeLabel(mode)}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Model</div>
-              <div className="text-[10px] text-white/75">{modeModel(mode)}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Zvětšení</div>
-              <div className="text-[10px] text-white/75">{scale}×</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Vstupů</div>
-              <div className="text-[10px] text-white/75">{inputs.length}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Čeká</div>
-              <div className="text-[10px] text-white/75">{pendingCount}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Výstupů</div>
-              <div className="text-[10px] text-white/75">{outputs.filter(o => o.status === 'done').length}</div>
-            </div>
-            {batchProgress ? (
-              <div className="flex items-center gap-3">
-                <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Dávka</div>
-                <div className="text-[10px] text-white/75">{batchProgress.current}/{batchProgress.total} • {batchProgress.fileName}</div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
         <div className="p-6">
           {visibleOutputs.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -460,16 +427,33 @@ export function AiUpscalerScreen(props: {
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center min-h-[300px] text-white/35">
-              <Sparkles className="w-8 h-8 mb-4" strokeWidth={1.2} />
-              <div className="text-[11px] uppercase tracking-widest font-bold">Zatím žádné výstupy</div>
-              <div className="text-[10px] text-white/25 mt-2 max-w-[400px] text-center">
-                Nahraj obrázky vlevo a spusť Restore (Flash) nebo Enhance (Pro). Oba režimy jdou na stejný vstup spustit nezávisle.
-              </div>
-            </div>
+            <AtelierEmptyState
+              title="Zatím žádné vygenerované obrázky"
+              description="Nahraj obrázky vlevo a spusť Restore nebo Enhance."
+            />
           )}
         </div>
       </section>
+
+      <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
+        <AtelierSection title="Stav úlohy">
+          <AtelierInfoRows
+            rows={[
+              { label: 'Režim', value: modeLabel(mode) },
+              { label: 'Model', value: modeModel(mode) },
+              { label: 'Zvětšení', value: `${scale}×` },
+              { label: 'Vstupů', value: inputs.length },
+              { label: 'Čeká', value: pendingCount },
+              { label: 'Hotovo', value: outputs.filter(o => o.status === 'done').length },
+            ]}
+          />
+          {batchProgress ? (
+            <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
+              {batchProgress.current}/{batchProgress.total} • {batchProgress.fileName}
+            </div>
+          ) : null}
+        </AtelierSection>
+      </AtelierRightPanel>
 
       <ImageComparisonModal
         isOpen={!!selectedImage}

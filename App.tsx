@@ -3853,18 +3853,21 @@ const App: React.FC = () => {
             <FaceSwapScreen
               providerSettings={providerSettings}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
             />
           ) : isReframeRoute ? (
             <ReframeScreen
               providerSettings={providerSettings}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
             />
           ) : isStyleTransferRoute ? (
             <StyleTransferScreen
               providerSettings={providerSettings}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onOpenLibrary={() => setIsGalleryExpanded(true)}
               onBack={() => navigate('/')}
               onToast={(t) => setToast(t)}
               isHoveringGallery={isHoveringGallery}
@@ -3872,16 +3875,19 @@ const App: React.FC = () => {
           ) : isModelInfluenceRoute ? (
             <ModelInfluenceScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
             />
           ) : isAiUpscalerRoute ? (
             <AiUpscalerScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
             />
           ) : isLoraInfluenceRoute ? (
             <FluxLoraGeneratorScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
             />
           ) : (

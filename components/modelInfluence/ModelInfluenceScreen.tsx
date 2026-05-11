@@ -6,6 +6,7 @@ import { runA1111Img2Img } from '../../services/a1111Service';
 import { createThumbnail, saveToGallery, deleteImage as deleteGeneratedImage } from '../../utils/galleryDB';
 import { isR2Ref, parseR2Ref, presignR2 } from '../../services/r2Service';
 import { fetchPublicConfig } from '../../services/publicConfig';
+import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from '../atelier/AtelierLayout';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -185,9 +186,10 @@ const MODEL_PRESETS: ModelPreset[] = [
 
 export function ModelInfluenceScreen(props: {
   onOpenSettings: () => void;
+  onOpenLibrary?: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
 }) {
-  const { onToast } = props;
+  const { onOpenLibrary, onToast } = props;
 
   const [input, setInput] = React.useState<ImageSlot | null>(null);
   const [backend, setBackend] = React.useState<'fal' | 'a1111'>('fal');
@@ -705,91 +707,6 @@ export function ModelInfluenceScreen(props: {
       </aside>
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
-        <div className="sticky top-0 z-10 border-b border-white/5 bg-[var(--bg-main)]/70 backdrop-blur">
-          <div className="px-6 py-4 flex flex-wrap items-center gap-4 overflow-x-auto custom-scrollbar">
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Váha</div>
-              <input
-                type="range"
-                min={0.5}
-                max={4}
-                step={0.05}
-                value={styleWeight}
-                onChange={(e) => setStyleWeight(Number(e.target.value))}
-                className="w-[180px] h-[2px] accent-[#7ed957] opacity-80"
-              />
-              <div className="text-[10px] text-white/55 w-10 text-right">{styleWeight.toFixed(2)}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Denoise</div>
-              <input
-                type="range"
-                min={0.01}
-                max={1}
-                step={0.01}
-                value={denoise}
-                onChange={(e) => setDenoise(Number(e.target.value))}
-                className="w-[220px] h-[2px] accent-[#7ed957] opacity-80"
-              />
-              <div className="text-[10px] text-white/55 w-10 text-right">{denoise.toFixed(2)}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">CFG</div>
-              <input
-                type="range"
-                min={0}
-                max={35}
-                step={0.1}
-                value={cfg}
-                onChange={(e) => setCfg(Number(e.target.value))}
-                className="w-[180px] h-[2px] accent-[#7ed957] opacity-80"
-              />
-              <div className="text-[10px] text-white/55 w-10 text-right">{cfg.toFixed(1)}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Steps</div>
-              <input
-                type="range"
-                min={1}
-                max={60}
-                step={1}
-                value={steps}
-                onChange={(e) => setSteps(Number(e.target.value))}
-                className="w-[180px] h-[2px] accent-[#7ed957] opacity-80"
-              />
-              <div className="text-[10px] text-white/55 w-10 text-right">{steps}</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Sampler</div>
-              <select
-                value={sampler}
-                onChange={(e) => setSampler(e.target.value as SamplerId)}
-                className="w-[160px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-              >
-                {SAMPLER_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Scheduler</div>
-              <select
-                value={scheduler}
-                onChange={(e) => setScheduler(e.target.value as SchedulerId)}
-                className="w-[145px] px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
-              >
-                {SCHEDULER_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
         <div className="p-6">
           {genError && (
             <div className="mb-4 card-surface p-4 border border-rose-400/25">
@@ -800,8 +717,11 @@ export function ModelInfluenceScreen(props: {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-min">
             {generated.length === 0 ? (
-              <div className="md:col-span-3 card-surface p-8 text-center text-white/45 text-[11px] uppercase tracking-widest">
-                Zatím žádné výstupy
+              <div className="md:col-span-3">
+                <AtelierEmptyState
+                  title="Zatím žádné vygenerované obrázky"
+                  description="Nahraj referenční obrázek vlevo a spusť model influence."
+                />
               </div>
             ) : (
               generated.map((img, idx) => {
@@ -864,6 +784,54 @@ export function ModelInfluenceScreen(props: {
           </div>
         </div>
       </section>
+
+      <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
+        <AtelierSection title="Doladění modelu">
+          <label className="block space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <span>Váha</span>
+              <span>{styleWeight.toFixed(2)}</span>
+            </div>
+            <input type="range" min={0.5} max={4} step={0.05} value={styleWeight} onChange={(e) => setStyleWeight(Number(e.target.value))} className="range-green w-full" />
+          </label>
+          <label className="block space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <span>Denoise</span>
+              <span>{denoise.toFixed(2)}</span>
+            </div>
+            <input type="range" min={0.01} max={1} step={0.01} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="range-green w-full" />
+          </label>
+          <label className="block space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <span>CFG</span>
+              <span>{cfg.toFixed(1)}</span>
+            </div>
+            <input type="range" min={0} max={35} step={0.1} value={cfg} onChange={(e) => setCfg(Number(e.target.value))} className="range-green w-full" />
+          </label>
+          <label className="block space-y-1.5">
+            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+              <span>Steps</span>
+              <span>{steps}</span>
+            </div>
+            <input type="range" min={1} max={60} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="range-green w-full" />
+          </label>
+          <select value={sampler} onChange={(e) => setSampler(e.target.value as SamplerId)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+            {SAMPLER_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+          </select>
+          <select value={scheduler} onChange={(e) => setScheduler(e.target.value as SchedulerId)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+            {SCHEDULER_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+          </select>
+        </AtelierSection>
+
+        <AtelierSection title="Stav úlohy">
+          <AtelierInfoRows rows={[
+            { label: 'Backend', value: backend },
+            { label: 'Varianty', value: variants },
+            { label: 'Hotovo', value: doneOutputs.length },
+            { label: 'Fáze', value: falPhaseLabel || genPhase || '-' },
+          ]} />
+        </AtelierSection>
+      </AtelierRightPanel>
 
       <ImageComparisonModal
         isOpen={!!selectedOutput?.dataUrl}
