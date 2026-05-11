@@ -159,14 +159,14 @@ export function StyleTransferMobileControls(props: {
           <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Počet výstupů</div>
           {engine === 'fofr' ? (
             <div className="space-y-2">
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={Math.max(1, Math.min(10, Math.round(fofrNumImages)))}
-                onChange={(e) => setFofrNumImages(Number(e.target.value))}
-                className="w-full h-1 accent-[#7ed957]"
-              />
+                  <input
+                    type="range"
+                    min={1}
+                    max={10}
+                    value={Math.max(1, Math.min(10, Math.round(fofrNumImages)))}
+                    onChange={(e) => setFofrNumImages(Number(e.target.value))}
+                    className="range-green w-full"
+                  />
               <div className="text-[9px] text-white/45">{Math.max(1, Math.min(10, Math.round(fofrNumImages)))}x</div>
             </div>
           ) : (
@@ -334,7 +334,7 @@ export function StyleTransferMobileControls(props: {
                 value={strength}
                 onChange={(e) => setStrength(Number(e.target.value))}
                 disabled={styleCount === 0}
-                className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
+                className="range-green w-full disabled:opacity-40"
               />
               {styleCount === 0 && <div className="text-[9px] text-white/35">Nahraj aspoň jeden stylový obrázek.</div>}
             </div>
@@ -351,7 +351,7 @@ export function StyleTransferMobileControls(props: {
                 value={merge}
                 onChange={(e) => setMerge(Number(e.target.value))}
                 disabled={styleCount === 0}
-                className="w-full h-1 accent-[#7ed957] disabled:opacity-40"
+                className="range-green w-full disabled:opacity-40"
               />
               <div className="text-[9px] text-white/35">
                 Iterace: {mergePasses}x {localMethod === 'gatys' ? '(Gatys)' : localMethod === 'wct' ? '(WCT)' : '(AdaIN)'}
@@ -423,7 +423,7 @@ export function StyleTransferMobileControls(props: {
                 step={0.01}
                 value={fofrStructureDenoisingStrength}
                 onChange={(e) => setFofrStructureDenoisingStrength(Number(e.target.value))}
-                className="w-full h-1 accent-[#7ed957]"
+                className="range-green w-full"
               />
             </div>
 
@@ -439,7 +439,7 @@ export function StyleTransferMobileControls(props: {
                 step={0.05}
                 value={fofrStructureDepthStrength}
                 onChange={(e) => setFofrStructureDepthStrength(Number(e.target.value))}
-                className="w-full h-1 accent-[#7ed957]"
+                className="range-green w-full"
               />
             </div>
 

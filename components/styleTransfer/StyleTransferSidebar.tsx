@@ -138,7 +138,7 @@ export function StyleTransferSidebar(props: {
                     max={10}
                     value={Math.max(1, Math.min(10, Math.round(fofrNumImages)))}
                     onChange={(e) => setFofrNumImages(Number(e.target.value))}
-                    className="w-full h-1 accent-[#7ed957]"
+                    className="range-green w-full"
                   />
                   <div className="text-[9px] text-white/45">{Math.max(1, Math.min(10, Math.round(fofrNumImages)))}x</div>
                 </div>

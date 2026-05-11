@@ -3494,7 +3494,7 @@ const App: React.FC = () => {
               max={100}
               value={styleStrength}
               onChange={(e) => setStyleStrength(Number(e.target.value))}
-              className="w-full h-1.5 bg-[var(--border-color)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]"
+              className="range-green w-full"
             />
             <div className="flex justify-between text-[8px] text-[var(--text-secondary)]">
               <span>Jemný náznak</span>
@@ -3518,7 +3518,7 @@ const App: React.FC = () => {
                   max={100}
                   value={styleWeights[img.id] ?? Math.round(100 / state.styleImages.length)}
                   onChange={(e) => setStyleWeights(prev => ({ ...prev, [img.id]: Number(e.target.value) }))}
-                  className="flex-1 h-1 bg-[var(--border-color)] rounded-full appearance-none cursor-pointer accent-[var(--accent)]"
+                  className="range-green flex-1"
                 />
                 <span className="text-[9px] font-mono text-[var(--text-secondary)] w-8 text-right">
                   {styleWeights[img.id] ?? Math.round(100 / state.styleImages.length)}%

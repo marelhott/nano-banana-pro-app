@@ -192,7 +192,7 @@ export const MaskCanvas: React.FC<MaskCanvasProps> = ({
             max={100}
             value={brushSize}
             onChange={(e) => setBrushSize(Number(e.target.value))}
-            className="w-24 accent-[#7ed957]"
+            className="range-green w-24"
           />
           <span className="text-[10px] text-gray-400 w-8 text-right">{brushSize}px</span>
         </div>

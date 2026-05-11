@@ -190,14 +190,14 @@
     appearance: none;
     height: 4px;
     border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.10);
+    background: rgba(19, 34, 25, 0.16);
     outline: none;
   }
 
   .range-green::-webkit-slider-runnable-track {
     height: 4px;
     border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.10);
+    background: rgba(19, 34, 25, 0.16);
   }
 
   .range-green::-webkit-slider-thumb {
@@ -226,7 +226,7 @@
   .range-green::-moz-range-track {
     height: 4px;
     border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.10);
+    background: rgba(19, 34, 25, 0.16);
   }
 
   @keyframes toastPop {
