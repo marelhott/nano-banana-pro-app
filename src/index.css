@@ -194,6 +194,12 @@
     outline: none;
   }
 
+  .range-green::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.10);
+  }
+
   .range-green::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
@@ -204,6 +210,7 @@
     box-shadow: 0 0 0 2px rgba(126, 217, 87, 0.10), 0 0 18px rgba(126, 217, 87, 0.20);
     border: 1px solid rgba(126, 217, 87, 0.35);
     cursor: pointer;
+    margin-top: -4px;
   }
 
   .range-green::-moz-range-thumb {

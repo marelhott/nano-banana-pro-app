@@ -1403,60 +1403,6 @@ export function FluxLoraGeneratorScreen(props: {
             <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Lora Influence</h2>
           </div>
 
-          {/* ── Presets ── */}
-          <div className="space-y-2">
-            <div className="mn-section-label">Presety</div>
-            <div className="flex gap-2">
-              <select
-                value={selectedPresetId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  if (!id) {
-                    setSelectedPresetId('');
-                    setPresetName('');
-                    return;
-                  }
-                  const p = presets.find((x) => x.id === id);
-                  if (p) applyPreset(p);
-                }}
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] truncate"
-              >
-                <option value="">{presetsLoaded ? '(žádný preset)' : 'Načítám…'}</option>
-                {presets.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              {selectedPresetId && (
-                <button
-                  type="button"
-                  onClick={() => handleDeletePreset(selectedPresetId)}
-                  className="p-2 rounded-lg border border-white/10 bg-black/10 hover:bg-red-500/15 hover:border-red-400/25 text-white/50 hover:text-red-300 transition-colors"
-                  title="Smazat preset"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={presetName}
-                onChange={(e) => setPresetName(e.target.value)}
-                placeholder="Název presetu… (prefix LoRA se přidá sám)"
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
-              />
-              <button
-                type="button"
-                onClick={handleSavePreset}
-                disabled={isSavingPreset || !presetName.trim()}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#7ed957]/25 bg-[#7ed957]/8 hover:bg-[#7ed957]/15 text-[#7ed957] text-[10px] font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Uložit aktuální nastavení jako preset"
-              >
-                <Save className="w-3.5 h-3.5" />
-                {isSavingPreset ? '…' : 'Uložit'}
-              </button>
-            </div>
-          </div>
-
           <button
             type="button"
             onClick={handleGenerate}
@@ -1841,6 +1787,60 @@ export function FluxLoraGeneratorScreen(props: {
       </section>
 
       <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
+        <AtelierSection title="Presety">
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <select
+                value={selectedPresetId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (!id) {
+                    setSelectedPresetId('');
+                    setPresetName('');
+                    return;
+                  }
+                  const p = presets.find((x) => x.id === id);
+                  if (p) applyPreset(p);
+                }}
+                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] truncate"
+              >
+                <option value="">{presetsLoaded ? '(žádný preset)' : 'Načítám…'}</option>
+                {presets.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {selectedPresetId && (
+                <button
+                  type="button"
+                  onClick={() => handleDeletePreset(selectedPresetId)}
+                  className="p-2 rounded-lg border border-white/10 bg-black/10 hover:bg-red-500/15 hover:border-red-400/25 text-white/50 hover:text-red-300 transition-colors"
+                  title="Smazat preset"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="Název presetu…"
+                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+              />
+              <button
+                type="button"
+                onClick={handleSavePreset}
+                disabled={isSavingPreset || !presetName.trim()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#7ed957]/25 bg-[#7ed957]/8 hover:bg-[#7ed957]/15 text-[#7ed957] text-[10px] font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Uložit aktuální nastavení jako preset"
+              >
+                <Save className="w-3.5 h-3.5" />
+                {isSavingPreset ? '…' : 'Uložit'}
+              </button>
+            </div>
+          </div>
+        </AtelierSection>
+
         <AtelierSection title="Doladění LoRA">
           {modelFamily === 'sdxl' ? (
             <>
