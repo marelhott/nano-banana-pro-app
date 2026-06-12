@@ -80,7 +80,7 @@ export const MaskCanvas: React.FC<MaskCanvasProps> = ({
         if (extRight > 0) maskCtx.fillRect(totalWidth - extRight, 0, extRight, totalHeight);
 
         // Vizualizovat masku na hlavním canvasu
-        ctx.fillStyle = 'rgba(126, 217, 87, 0.25)';
+        ctx.fillStyle = 'rgba(168, 191, 143, 0.25)';
         if (extTop > 0) ctx.fillRect(0, 0, totalWidth, extTop);
         if (extBottom > 0) ctx.fillRect(0, totalHeight - extBottom, totalWidth, extBottom);
         if (extLeft > 0) ctx.fillRect(0, 0, extLeft, totalHeight);
@@ -118,7 +118,7 @@ export const MaskCanvas: React.FC<MaskCanvasProps> = ({
     maskCtx.fill();
 
     // Vizualizovat na canvasu (zelená průsvitná)
-    ctx.fillStyle = 'rgba(126, 217, 87, 0.35)';
+    ctx.fillStyle = 'rgba(168, 191, 143, 0.35)';
     ctx.beginPath();
     ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
     ctx.fill();
@@ -160,10 +160,10 @@ export const MaskCanvas: React.FC<MaskCanvasProps> = ({
       ctx.drawImage(img, extLeft, extTop, width, height);
       if (mode === 'outpaint') {
         maskCtx.fillStyle = 'white';
-        if (extTop > 0) { maskCtx.fillRect(0, 0, totalWidth, extTop); ctx.fillStyle = 'rgba(126, 217, 87, 0.25)'; ctx.fillRect(0, 0, totalWidth, extTop); }
-        if (extBottom > 0) { maskCtx.fillRect(0, totalHeight - extBottom, totalWidth, extBottom); ctx.fillStyle = 'rgba(126, 217, 87, 0.25)'; ctx.fillRect(0, totalHeight - extBottom, totalWidth, extBottom); }
-        if (extLeft > 0) { maskCtx.fillRect(0, 0, extLeft, totalHeight); ctx.fillStyle = 'rgba(126, 217, 87, 0.25)'; ctx.fillRect(0, 0, extLeft, totalHeight); }
-        if (extRight > 0) { maskCtx.fillRect(totalWidth - extRight, 0, extRight, totalHeight); ctx.fillStyle = 'rgba(126, 217, 87, 0.25)'; ctx.fillRect(totalWidth - extRight, 0, extRight, totalHeight); }
+        if (extTop > 0) { maskCtx.fillRect(0, 0, totalWidth, extTop); ctx.fillStyle = 'rgba(168, 191, 143, 0.25)'; ctx.fillRect(0, 0, totalWidth, extTop); }
+        if (extBottom > 0) { maskCtx.fillRect(0, totalHeight - extBottom, totalWidth, extBottom); ctx.fillStyle = 'rgba(168, 191, 143, 0.25)'; ctx.fillRect(0, totalHeight - extBottom, totalWidth, extBottom); }
+        if (extLeft > 0) { maskCtx.fillRect(0, 0, extLeft, totalHeight); ctx.fillStyle = 'rgba(168, 191, 143, 0.25)'; ctx.fillRect(0, 0, extLeft, totalHeight); }
+        if (extRight > 0) { maskCtx.fillRect(totalWidth - extRight, 0, extRight, totalHeight); ctx.fillStyle = 'rgba(168, 191, 143, 0.25)'; ctx.fillRect(totalWidth - extRight, 0, extRight, totalHeight); }
       }
     };
     img.src = imageUrl;
@@ -179,7 +179,7 @@ export const MaskCanvas: React.FC<MaskCanvasProps> = ({
   return (
     <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center animate-fadeIn">
       {/* Toolbar */}
-      <div className="flex items-center gap-4 mb-4 bg-[#0f1512] rounded-lg p-3 border border-gray-800">
+      <div className="flex items-center gap-4 mb-4 bg-[#101210] rounded-lg p-3 border border-gray-800">
         <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
           {mode === 'inpaint' ? 'Inpainting — označte oblast k úpravě' : 'Outpainting — rozšíření plátna'}
         </span>
@@ -207,7 +207,7 @@ export const MaskCanvas: React.FC<MaskCanvasProps> = ({
         <button
           onClick={handleComplete}
           disabled={!canvasReady}
-          className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-wider bg-[#7ed957] hover:bg-[#6bc248] text-[#0a0f0d] rounded-md transition-all disabled:opacity-50"
+          className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-wider bg-[#a8bf8f] hover:bg-[#6bc248] text-[#0b0c0a] rounded-md transition-all disabled:opacity-50"
         >
           Potvrdit masku
         </button>

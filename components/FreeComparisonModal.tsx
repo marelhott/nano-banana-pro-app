@@ -70,9 +70,9 @@ export const FreeComparisonModal: React.FC<FreeComparisonModalProps> = ({
   return (
     <div className="fixed inset-0 z-[150] bg-black flex flex-col animate-fadeIn">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 h-14 bg-[#0f1512] border-b border-gray-800 shrink-0">
+      <div className="flex items-center justify-between px-6 h-14 bg-[#101210] border-b border-gray-800 shrink-0">
         <div className="flex items-center gap-4">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#7ed957]">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#a8bf8f]">
             Porovnání obrázků
           </span>
 
@@ -81,7 +81,7 @@ export const FreeComparisonModal: React.FC<FreeComparisonModalProps> = ({
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
-                className={`px-3 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md transition-all ${viewMode === m ? 'bg-[#7ed957] text-[#0a0f0d]' : 'text-gray-400 hover:text-white'}`}
+                className={`px-3 py-1 text-[9px] font-bold uppercase tracking-wider rounded-md transition-all ${viewMode === m ? 'bg-[#a8bf8f] text-[#0b0c0a]' : 'text-gray-400 hover:text-white'}`}
               >
                 {m === 'side-by-side' ? 'Vedle sebe' : m === 'slider' ? 'Slider' : 'Mřížka'}
               </button>
@@ -101,14 +101,14 @@ export const FreeComparisonModal: React.FC<FreeComparisonModalProps> = ({
 
       <div className="flex flex-1 min-h-0">
         {/* Image selector sidebar */}
-        <div className="w-48 bg-[#0f1512] border-r border-gray-800 overflow-y-auto custom-scrollbar p-2 shrink-0">
+        <div className="w-48 bg-[#101210] border-r border-gray-800 overflow-y-auto custom-scrollbar p-2 shrink-0">
           <div className="mb-2 text-[9px] font-bold uppercase tracking-wider text-gray-500 px-1">Obrázek A</div>
           <div className="grid grid-cols-2 gap-1 mb-4">
             {successImages.map(img => (
               <button
                 key={`a-${img.id}`}
                 onClick={() => setSelectedA(img.id)}
-                className={`aspect-square rounded overflow-hidden border-2 transition-all ${selectedA === img.id ? 'border-[#7ed957]' : 'border-transparent hover:border-gray-600'}`}
+                className={`aspect-square rounded overflow-hidden border-2 transition-all ${selectedA === img.id ? 'border-[#a8bf8f]' : 'border-transparent hover:border-gray-600'}`}
               >
                 <img src={img.url} className="w-full h-full object-cover" alt="" />
               </button>
@@ -145,22 +145,22 @@ export const FreeComparisonModal: React.FC<FreeComparisonModalProps> = ({
               <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `polygon(0 0, ${sliderPosition}% 0, ${sliderPosition}% 100%, 0 100%)` }}>
                 <img src={imageA.url} className="max-w-full max-h-[70vh] object-contain" draggable={false} alt="A" />
               </div>
-              <div className="absolute top-0 bottom-0 w-0.5 bg-[#7ed957] z-20" style={{ left: `${sliderPosition}%` }}>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-[#7ed957] border-2 border-black rounded-full shadow-lg flex items-center justify-center">
+              <div className="absolute top-0 bottom-0 w-0.5 bg-[#a8bf8f] z-20" style={{ left: `${sliderPosition}%` }}>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-[#a8bf8f] border-2 border-black rounded-full shadow-lg flex items-center justify-center">
                   <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 9l4-4 4 4m0 6l-4 4-4-4" transform="rotate(90 12 12)" />
                   </svg>
                 </div>
               </div>
               {/* Labels */}
-              <div className="absolute top-3 left-3 px-2 py-1 bg-[#7ed957]/90 text-black text-[9px] font-bold uppercase rounded">A</div>
+              <div className="absolute top-3 left-3 px-2 py-1 bg-[#a8bf8f]/90 text-black text-[9px] font-bold uppercase rounded">A</div>
               <div className="absolute top-3 right-3 px-2 py-1 bg-blue-500/90 text-white text-[9px] font-bold uppercase rounded">B</div>
             </div>
           ) : viewMode === 'side-by-side' ? (
             /* Side by side */
             <div className="flex gap-4 max-w-full max-h-full items-center">
               <div className="flex-1 flex flex-col items-center gap-2">
-                <div className="px-2 py-1 bg-[#7ed957]/10 text-[#7ed957] text-[9px] font-bold uppercase rounded border border-[#7ed957]/20">A</div>
+                <div className="px-2 py-1 bg-[#a8bf8f]/10 text-[#a8bf8f] text-[9px] font-bold uppercase rounded border border-[#a8bf8f]/20">A</div>
                 <img src={imageA.url} className="max-h-[65vh] max-w-full object-contain rounded-lg border border-gray-700" alt="A" />
                 <p className="text-[9px] text-gray-400 max-w-[300px] truncate">{imageA.prompt}</p>
               </div>
@@ -192,7 +192,7 @@ export const FreeComparisonModal: React.FC<FreeComparisonModalProps> = ({
 
         {/* Details panel */}
         {imageA && imageB && (
-          <div className="w-64 bg-[#0f1512] border-l border-gray-800 overflow-y-auto custom-scrollbar p-4 shrink-0 space-y-4">
+          <div className="w-64 bg-[#101210] border-l border-gray-800 overflow-y-auto custom-scrollbar p-4 shrink-0 space-y-4">
             <div className="space-y-2">
               <h4 className="text-gray-500 text-[9px] uppercase tracking-widest font-bold">Obrázek A</h4>
               <p className="text-white/70 text-[10px] leading-relaxed">{imageA.prompt}</p>

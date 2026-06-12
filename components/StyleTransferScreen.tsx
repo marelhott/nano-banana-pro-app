@@ -618,7 +618,7 @@ export function StyleTransferScreen(props: {
                 type="button"
                 onClick={() => setFofrUseStructure(!fofrUseStructure)}
                 className={`w-full rounded-md border px-3 py-2 text-[9px] font-bold uppercase tracking-wider transition-all ${
-                  fofrUseStructure ? 'border-[#7ed957]/25 bg-[#7ed957]/15 text-[#7ed957]' : 'border-white/10 bg-white/5 text-white/50'
+                  fofrUseStructure ? 'border-[#a8bf8f]/25 bg-[#a8bf8f]/15 text-[#a8bf8f]' : 'border-white/10 bg-white/5 text-white/50'
                 }`}
               >
                 Struktura {fofrUseStructure ? 'On' : 'Off'}

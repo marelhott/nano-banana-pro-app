@@ -239,7 +239,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const root = document.documentElement;
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-    const themeColor = theme === 'dark' ? '#0a0f0d' : '#f5f7f2';
+    const themeColor = theme === 'dark' ? '#0b0c0a' : '#f2f4ec';
 
     root.dataset.theme = theme;
     root.style.colorScheme = theme;
@@ -3107,7 +3107,7 @@ const App: React.FC = () => {
             disabled={!canGenerate}
             className={`min-h-[54px] w-full rounded-lg px-2 py-2 text-center transition-all shadow-lg ambient-glow glow-green glow-weak ${isGenerateClicked
               ? 'bg-blue-600 text-white shadow-blue-500/20'
-              : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0a0f0d] shadow-[#7ed957]/20 hover:shadow-[#7ed957]/40'
+              : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0b0c0a] shadow-[#a8bf8f]/20 hover:shadow-[#a8bf8f]/40'
               } disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none`}
           >
             <div className="text-[9px] font-black uppercase tracking-[0.18em]">
@@ -3136,7 +3136,7 @@ const App: React.FC = () => {
             <button
               onClick={handleGenerate3AI}
               disabled={!canGenerate}
-              className="min-h-[54px] rounded-lg border border-white/8 bg-gradient-to-r from-[#7ed957]/10 via-purple-500/10 to-blue-500/10 px-2 py-2 text-center transition-all hover:from-[#7ed957]/20 hover:via-purple-500/20 hover:to-blue-500/20 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+              className="min-h-[54px] rounded-lg border border-white/8 bg-gradient-to-r from-[#a8bf8f]/10 via-purple-500/10 to-blue-500/10 px-2 py-2 text-center transition-all hover:from-[#a8bf8f]/20 hover:via-purple-500/20 hover:to-blue-500/20 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
             >
               <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
                 {isGenerating ? 'Všechny…' : 'Všechny'}
@@ -3283,9 +3283,9 @@ const App: React.FC = () => {
                     {v.subtitle}
                   </span>
                   {/* Tooltip */}
-                  <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-[#0a0f0d]/90 backdrop-blur-sm text-white text-[9px] rounded-md shadow-xl z-50 pointer-events-none text-left leading-relaxed">
+                  <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-[#0b0c0a]/90 backdrop-blur-sm text-white text-[9px] rounded-md shadow-xl z-50 pointer-events-none text-left leading-relaxed">
                     {v.tooltip}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-[#0a0f0d]/90"></div>
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-[#0b0c0a]/90"></div>
                   </div>
                 </button>
               ))}
@@ -3701,7 +3701,7 @@ const App: React.FC = () => {
   // Show auth bootstrap screen
   if (isAuthBootstrapping) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0f0d]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0c0a]">
         <LoadingSpinner />
       </div>
     );
@@ -3715,7 +3715,7 @@ const App: React.FC = () => {
     );
 
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0a0f0d] text-white gap-4">
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0b0c0a] text-white gap-4">
         <p className="text-sm text-white/70">{authFailureMessage || 'Nepodařilo se inicializovat anonymní přihlášení.'}</p>
         {isAnonDisabled ? (
           <div className="text-xs text-white/45 text-center max-w-md space-y-2">
@@ -3731,7 +3731,7 @@ const App: React.FC = () => {
               href={supabaseAuthSettingsUrl}
               target="_blank"
               rel="noreferrer"
-              className="px-4 py-2 rounded-lg border border-[#7ed957]/30 hover:border-[#7ed957]/60 text-xs uppercase tracking-wider text-[#a7eb89]"
+              className="px-4 py-2 rounded-lg border border-[#a8bf8f]/30 hover:border-[#a8bf8f]/60 text-xs uppercase tracking-wider text-[#a7eb89]"
             >
               Otevřít Supabase Auth
             </a>
@@ -3749,7 +3749,7 @@ const App: React.FC = () => {
 
   if (isAppUserBootstrapping) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0f0d]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0c0a]">
         <LoadingSpinner />
       </div>
     );
@@ -3913,7 +3913,7 @@ const App: React.FC = () => {
                     <header className="hidden lg:flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
+                          <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
                           <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Výsledky Generování</h2>
                         </div>
                       </div>
@@ -3928,7 +3928,7 @@ const App: React.FC = () => {
                               // ... download logic ...
                             }}
                             disabled={downloadingAll}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#0f1512] text-[#7ed957] font-black text-[9px] uppercase tracking-widest rounded-md border border-gray-800 hover:border-[#7ed957]/50 shadow-sm transition-all active:scale-95"
+                            className="flex items-center gap-2 px-4 py-2 bg-[#101210] text-[#a8bf8f] font-black text-[9px] uppercase tracking-widest rounded-md border border-gray-800 hover:border-[#a8bf8f]/50 shadow-sm transition-all active:scale-95"
                           >
                             {downloadingAll ? 'Balím...' : 'Exportovat vše'}
                           </button>
@@ -3940,7 +3940,7 @@ const App: React.FC = () => {
                     {selectedGeneratedImages.size > 0 && (
                       <div className="px-4 py-3 sticky top-0 z-10 card-surface">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-[#7ed957]">
+                          <span className="text-sm font-bold text-[#a8bf8f]">
                             ✓ Vybráno: {selectedGeneratedImages.size}
                           </span>
                           <div className="flex gap-2">
@@ -3987,7 +3987,7 @@ const App: React.FC = () => {
                                 setSelectedGeneratedImages(new Set());
                                 setToast({ message: `✅ Staženo ${selectedImages.length} obrázků`, type: 'success' });
                               }}
-                              className="px-4 py-2 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-black text-xs uppercase tracking-widest rounded-md transition-all shadow-lg shadow-[#7ed957]/20"
+                              className="px-4 py-2 bg-[#a8bf8f] hover:bg-[#6bc547] text-[#0b0c0a] font-black text-xs uppercase tracking-widest rounded-md transition-all shadow-lg shadow-[#a8bf8f]/20"
                             >
                               Stáhnout ({selectedGeneratedImages.size})
                             </button>
@@ -4068,7 +4068,7 @@ const App: React.FC = () => {
                                     {/* Animated Progress Bar */}
                                     <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
                                       <div
-                                        className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"
+                                        className="absolute inset-y-0 left-0 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"
                                         style={{
                                           width: '0%',
                                           animation: 'growWidth 10s cubic-bezier(0.4, 0, 0.2, 1) forwards'
@@ -4086,7 +4086,7 @@ const App: React.FC = () => {
                                     </div>
                                     {/* "generuji" text */}
                                     <div className="text-center">
-                                      <span className="text-[10px] text-[#7ed957] font-bold tracking-widest uppercase animate-pulse">Generuji...</span>
+                                      <span className="text-[10px] text-[#a8bf8f] font-bold tracking-widest uppercase animate-pulse">Generuji...</span>
                                     </div>
                                   </div>
                                 </div>
@@ -4203,7 +4203,7 @@ const App: React.FC = () => {
                                 {/* Header Row */}
                                 <div className="flex items-center justify-between px-1">
                                   <div className="flex items-center gap-1.5">
-                                    <svg className="w-3 h-3 text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="w-3 h-3 text-[#a8bf8f]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
                                     <span className="text-[9px] font-black uppercase tracking-wider text-[var(--text-secondary)]">
@@ -4270,7 +4270,7 @@ const App: React.FC = () => {
                                         }));
                                       }}
                                       className={`flex items-center gap-1 px-2 py-1 text-[8px] font-bold uppercase tracking-wider rounded transition-all ${showReferenceUpload[image.id]
-                                        ? 'bg-[#7ed957] text-[#0a0f0d] border border-[#7ed957]'
+                                        ? 'bg-[#a8bf8f] text-[#0b0c0a] border border-[#a8bf8f]'
                                         : 'bg-[var(--bg-input)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[color:var(--border-color)] hover:border-[color:var(--border-strong)]'
                                         }`}
                                       title="Přidat referenční obrázky"
@@ -4399,7 +4399,7 @@ const App: React.FC = () => {
               >
                 <div className="px-6 py-4 border-b border-white/5 bg-transparent flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
+                    <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-white/55">Knihovna obrázků</h2>
                   </div>
                   <button

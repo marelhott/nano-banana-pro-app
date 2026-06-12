@@ -463,7 +463,7 @@ export function ReframeScreen(props: {
       <aside className="w-[360px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
         <div className="p-6 flex flex-col gap-5 min-h-full">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
+            <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
             <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Reframe</h2>
           </div>
 
@@ -573,10 +573,10 @@ export function ReframeScreen(props: {
                           </div>
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center px-6">
-                            <Sparkles className="w-5 h-5 text-[#7ed957] mb-4" strokeWidth={1.5} />
+                            <Sparkles className="w-5 h-5 text-[#a8bf8f] mb-4" strokeWidth={1.5} />
                             <div className="w-full max-w-[220px] h-[2px] rounded-full bg-white/10 overflow-hidden">
                               {output.status === 'running' ? (
-                                <div className="h-full w-1/3 rounded-full bg-[#7ed957] shadow-[0_0_10px_rgba(126,217,87,0.5)] animate-[reframeSlide_1.2s_ease-in-out_infinite]" />
+                                <div className="h-full w-1/3 rounded-full bg-[#a8bf8f] shadow-[0_0_10px_rgba(168,191,143,0.5)] animate-[reframeSlide_1.2s_ease-in-out_infinite]" />
                               ) : (
                                 <div className="h-full w-[10%] rounded-full bg-white/20" />
                               )}
@@ -616,13 +616,13 @@ export function ReframeScreen(props: {
                             if (event.key === 'Enter') void handleEditOutput(output);
                           }}
                           placeholder="Prompt úprava..."
-                          className="min-w-0 flex-1 h-8 rounded-md border border-white/10 bg-[var(--bg-panel)] px-2 text-[10px] text-white outline-none focus:border-[#7ed957]/60"
+                          className="min-w-0 flex-1 h-8 rounded-md border border-white/10 bg-[var(--bg-panel)] px-2 text-[10px] text-white outline-none focus:border-[#a8bf8f]/60"
                         />
                         <button
                           type="button"
                           onClick={() => void handleEditOutput(output)}
                           disabled={!output.editPrompt?.trim()}
-                          className="h-8 px-3 rounded-md bg-[#7ed957] text-[#0a0f0d] text-[9px] font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="h-8 px-3 rounded-md bg-[#a8bf8f] text-[#0b0c0a] text-[9px] font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           Edit
                         </button>

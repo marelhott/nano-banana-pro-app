@@ -91,14 +91,14 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fadeIn">
       <div className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col card-surface">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#0f1512]/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#101210]/50">
           <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-5 h-5 text-[#a8bf8f]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
             <h2 className="text-base font-bold uppercase tracking-wider text-gray-200">Collections</h2>
             {selectedImageIds.length > 0 && (
-              <span className="px-2 py-1 bg-[#7ed957]/10 border border-[#7ed957]/20 text-[#7ed957] text-[9px] font-bold uppercase rounded">
+              <span className="px-2 py-1 bg-[#a8bf8f]/10 border border-[#a8bf8f]/20 text-[#a8bf8f] text-[9px] font-bold uppercase rounded">
                 {selectedImageIds.length} selected
               </span>
             )}
@@ -114,13 +114,13 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#0f1512]/30">
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#101210]/30">
           {/* Create New Collection */}
           <div className="mb-6">
             {!isCreating ? (
               <button
                 onClick={() => setIsCreating(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-[#7ed957] font-bold text-[10px] uppercase tracking-widest rounded-lg border border-gray-700 hover:border-[#7ed957]/50 transition-all border-dashed"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-[#a8bf8f] font-bold text-[10px] uppercase tracking-widest rounded-lg border border-gray-700 hover:border-[#a8bf8f]/50 transition-all border-dashed"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -128,20 +128,20 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
                 Create New Collection
               </button>
             ) : (
-              <div className="bg-[#0f1512] border border-gray-800 rounded-lg p-4 space-y-3 shadow-lg">
+              <div className="bg-[#101210] border border-gray-800 rounded-lg p-4 space-y-3 shadow-lg">
                 <input
                   type="text"
                   value={newCollectionName}
                   onChange={(e) => setNewCollectionName(e.target.value)}
                   placeholder="Collection Name"
-                  className="w-full px-4 py-2 bg-[#0a0f0d] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#7ed957] focus:ring-1 focus:ring-[#7ed957]"
+                  className="w-full px-4 py-2 bg-[#0b0c0a] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#a8bf8f] focus:ring-1 focus:ring-[#a8bf8f]"
                   autoFocus
                 />
                 <textarea
                   value={newCollectionDescription}
                   onChange={(e) => setNewCollectionDescription(e.target.value)}
                   placeholder="Description (optional)"
-                  className="w-full px-4 py-2 bg-[#0a0f0d] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#7ed957] focus:ring-1 focus:ring-[#7ed957] resize-none"
+                  className="w-full px-4 py-2 bg-[#0b0c0a] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#a8bf8f] focus:ring-1 focus:ring-[#a8bf8f] resize-none"
                   rows={2}
                 />
 
@@ -163,7 +163,7 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
                   <button
                     onClick={handleCreateCollection}
                     disabled={!newCollectionName.trim()}
-                    className="flex-1 px-4 py-2 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-[9px] uppercase tracking-widest rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#7ed957]/20"
+                    className="flex-1 px-4 py-2 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-[9px] uppercase tracking-widest rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#a8bf8f]/20"
                   >
                     Create
                   </button>
@@ -195,7 +195,7 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
               {collections.map(collection => (
                 <div
                   key={collection.id}
-                  className="bg-[#0f1512] border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-all group"
+                  className="bg-[#101210] border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-all group"
                   style={{ borderLeftWidth: '4px', borderLeftColor: collection.color }}
                 >
                   {editingCollection?.id === collection.id ? (
@@ -204,18 +204,18 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
                         type="text"
                         value={editingCollection.name}
                         onChange={(e) => setEditingCollection({ ...editingCollection, name: e.target.value })}
-                        className="w-full px-4 py-2 bg-[#0a0f0d] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#7ed957] focus:ring-1 focus:ring-[#7ed957]"
+                        className="w-full px-4 py-2 bg-[#0b0c0a] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#a8bf8f] focus:ring-1 focus:ring-[#a8bf8f]"
                       />
                       <textarea
                         value={editingCollection.description || ''}
                         onChange={(e) => setEditingCollection({ ...editingCollection, description: e.target.value })}
-                        className="w-full px-4 py-2 bg-[#0a0f0d] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#7ed957] focus:ring-1 focus:ring-[#7ed957] resize-none"
+                        className="w-full px-4 py-2 bg-[#0b0c0a] border border-gray-700 rounded-lg text-sm font-medium text-gray-200 outline-none focus:border-[#a8bf8f] focus:ring-1 focus:ring-[#a8bf8f] resize-none"
                         rows={2}
                       />
                       <div className="flex gap-2">
                         <button
                           onClick={handleUpdateCollection}
-                          className="flex-1 px-3 py-2 bg-[#7ed957] text-[#0a0f0d] font-bold text-[9px] uppercase tracking-widest rounded-lg hover:bg-[#6bc547]"
+                          className="flex-1 px-3 py-2 bg-[#a8bf8f] text-[#0b0c0a] font-bold text-[9px] uppercase tracking-widest rounded-lg hover:bg-[#7d9a64]"
                         >
                           Save
                         </button>
@@ -240,7 +240,7 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
                           {selectedImageIds.length > 0 && (
                             <button
                               onClick={() => handleAddImagesToCollection(collection.id)}
-                              className="p-1.5 text-[#7ed957] hover:bg-[#7ed957]/10 rounded-md transition-all"
+                              className="p-1.5 text-[#a8bf8f] hover:bg-[#a8bf8f]/10 rounded-md transition-all"
                               title="Add Selected Images"
                             >
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

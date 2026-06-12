@@ -322,10 +322,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fadeIn">
             <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slideUp card-surface">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#0f1512]/50">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#101210]/50">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-[#7ed957]/10 rounded-lg flex items-center justify-center border border-[#7ed957]/20">
-                            <svg className="w-5 h-5 text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="w-8 h-8 bg-[#a8bf8f]/10 rounded-lg flex items-center justify-center border border-[#a8bf8f]/20">
+                            <svg className="w-5 h-5 text-[#a8bf8f]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
@@ -407,7 +407,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         </div>
                                     )}
                                     {!testResult && hasServerKey && (
-                                        <div className="px-2 py-1 bg-[#7ed957]/10 border border-[#7ed957]/20 text-[#7ed957] text-xs font-bold rounded">
+                                        <div className="px-2 py-1 bg-[#a8bf8f]/10 border border-[#a8bf8f]/20 text-[#a8bf8f] text-xs font-bold rounded">
                                             Server ready
                                         </div>
                                     )}
@@ -512,7 +512,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </div>
                                     <div className="h-2 rounded-full bg-[var(--bg-input)] overflow-hidden">
                                         <div
-                                            className={`h-full ${usageRatio >= 0.8 ? 'bg-amber-300' : 'bg-[#7ed957]'}`}
+                                            className={`h-full ${usageRatio >= 0.8 ? 'bg-amber-300' : 'bg-[#a8bf8f]'}`}
                                             style={{ width: `${Math.min(100, Math.round(usageRatio * 100))}%` }}
                                         />
                                     </div>
@@ -721,7 +721,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </div>
                             )}
                             {!falTestResult && serverProviders.fal && (
-                                <div className="px-2 py-1 bg-[#7ed957]/10 border border-[#7ed957]/20 text-[#7ed957] text-xs font-bold rounded">
+                                <div className="px-2 py-1 bg-[#a8bf8f]/10 border border-[#a8bf8f]/20 text-[#a8bf8f] text-xs font-bold rounded">
                                     Server ready
                                 </div>
                             )}
@@ -829,7 +829,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-800 bg-[#0f1512]/50">
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-800 bg-[#101210]/50">
                     <button
                         onClick={onClose}
                         className="px-5 py-2.5 font-bold text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
@@ -838,7 +838,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                     <button
                         onClick={handleSave}
-                        className="px-5 py-2.5 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-sm uppercase tracking-wider rounded-lg transition-all shadow-lg shadow-[#7ed957]/20"
+                        className="px-5 py-2.5 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-sm uppercase tracking-wider rounded-lg transition-all shadow-lg shadow-[#a8bf8f]/20"
                     >
                         Uložit Nastavení
                     </button>

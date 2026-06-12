@@ -177,7 +177,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-transparent">
           <div className="flex items-center gap-3">
-            <div className="w-1.5 h-8 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
+            <div className="w-1.5 h-8 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]"></div>
             <h2 className="text-xl font-bold uppercase tracking-wider text-white/85">Gallery</h2>
             <span className="text-sm font-bold text-white/40">
               ({images.length} images{isSelectionMode && selectedIds.size > 0 ? ` • ${selectedIds.size} selected` : ''})
@@ -188,7 +188,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
               <>
                 <button
                   onClick={() => setIsSelectionMode(true)}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs uppercase tracking-wider rounded-lg transition-all border border-gray-700 hover:border-[#7ed957]/50"
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs uppercase tracking-wider rounded-lg transition-all border border-gray-700 hover:border-[#a8bf8f]/50"
                   title="Select Multiple"
                 >
                   <div className="flex items-center gap-2">
@@ -200,7 +200,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
                 </button>
                 <button
                   onClick={handleImportClick}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs uppercase tracking-wider rounded-lg transition-all border border-gray-700 hover:border-[#7ed957]/50"
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs uppercase tracking-wider rounded-lg transition-all border border-gray-700 hover:border-[#a8bf8f]/50"
                   title="Import Backup"
                 >
                   <div className="flex items-center gap-2">
@@ -212,7 +212,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
                 </button>
                 <button
                   onClick={handleExport}
-                  className="px-4 py-2 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-xs uppercase tracking-wider rounded-lg transition-all border border-transparent shadow-lg shadow-[#7ed957]/20"
+                  className="px-4 py-2 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-xs uppercase tracking-wider rounded-lg transition-all border border-transparent shadow-lg shadow-[#a8bf8f]/20"
                   title="Export All Data"
                 >
                   <div className="flex items-center gap-2">
@@ -257,7 +257,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
                   <>
                     <button
                       onClick={handleBatchExport}
-                      className="px-4 py-2 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-xs uppercase tracking-wider rounded-lg transition-all shadow-lg shadow-[#7ed957]/20"
+                      className="px-4 py-2 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-xs uppercase tracking-wider rounded-lg transition-all shadow-lg shadow-[#a8bf8f]/20"
                     >
                       <div className="flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -292,7 +292,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-transparent">
           {loading ? (
             <div className="flex items-center justify-center h-full">
-              <div className="text-[#7ed957] font-bold animate-pulse">Loading gallery...</div>
+              <div className="text-[#a8bf8f] font-bold animate-pulse">Loading gallery...</div>
             </div>
           ) : images.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full space-y-4">
@@ -309,8 +309,8 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
               {images.map((image) => (
                 <div
                   key={image.id}
-                  className={`group relative aspect-square bg-[#0a0f0d] rounded-lg overflow-hidden border transition-all cursor-pointer shadow-lg ${isSelectionMode && selectedIds.has(image.id)
-                      ? 'border-[#7ed957] ring-1 ring-[#7ed957]'
+                  className={`group relative aspect-square bg-[#0b0c0a] rounded-lg overflow-hidden border transition-all cursor-pointer shadow-lg ${isSelectionMode && selectedIds.has(image.id)
+                      ? 'border-[#a8bf8f] ring-1 ring-[#a8bf8f]'
                       : 'border-gray-800 hover:border-gray-600'
                     }`}
                   onClick={() => isSelectionMode ? toggleSelection(image.id) : setSelectedImage(image)}
@@ -323,7 +323,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
                         toggleSelection(image.id);
                       }}
                       className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full border transition-all backdrop-blur flex items-center justify-center ${selectedIds.has(image.id)
-                        ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d] shadow-[0_0_0_3px_rgba(126,217,87,0.15)]'
+                        ? 'bg-[#a8bf8f] border-[#a8bf8f] text-[#0b0c0a] shadow-[0_0_0_3px_rgba(168,191,143,0.15)]'
                         : 'bg-black/30 border-white/20 text-white/70 hover:border-white/40'
                         }`}
                       aria-pressed={selectedIds.has(image.id)}
@@ -340,11 +340,11 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
                     className={`w-full h-full object-cover transition-opacity ${isSelectionMode && selectedIds.has(image.id) ? 'opacity-40' : 'group-hover:opacity-90'}`}
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0f1512] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#101210] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="absolute bottom-0 left-0 right-0 p-3 space-y-2">
                       <p className="text-white text-xs font-bold line-clamp-2">{image.prompt}</p>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[#7ed957] text-[10px] font-bold">
+                        <span className="text-[#a8bf8f] text-[10px] font-bold">
                           {new Date(image.timestamp).toLocaleDateString('cs-CZ')}
                         </span>
                         {onRepopulate && (
@@ -354,7 +354,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
                               onRepopulate(image);
                               onClose();
                             }}
-                            className="p-1.5 bg-[#7ed957]/20 hover:bg-[#7ed957] text-[#7ed957] hover:text-[#0a0f0d] rounded-md transition-all"
+                            className="p-1.5 bg-[#a8bf8f]/20 hover:bg-[#a8bf8f] text-[#a8bf8f] hover:text-[#0b0c0a] rounded-md transition-all"
                             title="Nahrát do editoru"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -397,7 +397,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
                 <p className="text-white font-bold text-lg mb-1">{selectedImage.prompt}</p>
                 <div className="flex items-center gap-3 text-sm text-gray-400">
                   <span>{new Date(selectedImage.timestamp).toLocaleString('cs-CZ')}</span>
-                  {selectedImage.resolution && <span className="text-[#7ed957]">• {selectedImage.resolution}</span>}
+                  {selectedImage.resolution && <span className="text-[#a8bf8f]">• {selectedImage.resolution}</span>}
                   {selectedImage.aspectRatio && <span>• {selectedImage.aspectRatio}</span>}
                 </div>
               </div>
@@ -427,7 +427,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
                 <a
                   href={selectedImage.url}
                   download={`${selectedImage.id}.jpg`}
-                  className="px-6 py-3 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-sm uppercase tracking-wider rounded-lg transition-all shadow-lg"
+                  className="px-6 py-3 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-sm uppercase tracking-wider rounded-lg transition-all shadow-lg"
                   onClick={(e) => e.stopPropagation()}
                 >
                   Download
@@ -461,7 +461,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
         <div className="fixed top-4 right-4 z-[70] px-6 py-4 animate-fadeIn card-surface">
           <p className="text-sm font-bold text-gray-200 flex items-center gap-2">
             {notification.startsWith('✅') ? (
-              <span className="text-[#7ed957]">{notification}</span>
+              <span className="text-[#a8bf8f]">{notification}</span>
             ) : (
               <span className="text-red-500">{notification}</span>
             )}

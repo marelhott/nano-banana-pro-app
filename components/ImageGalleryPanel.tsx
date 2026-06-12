@@ -204,14 +204,14 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
     if (savedImages.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
-          <div className="w-16 h-16 bg-[#0f1512]/50 rounded-lg flex items-center justify-center mb-4 border border-gray-800">
+          <div className="w-16 h-16 bg-[#101210]/50 rounded-lg flex items-center justify-center mb-4 border border-gray-800">
             <Upload className="w-8 h-8 text-gray-600" />
           </div>
           <p className="text-sm font-bold text-gray-300 mb-2">Žádné obrázky</p>
           <p className="text-xs text-gray-500 mb-4">Nahrajte obrázky z počítače</p>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-2 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-xs uppercase tracking-widest rounded transition-all shadow-md hover:shadow-[#7ed957]/20"
+            className="px-4 py-2 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-xs uppercase tracking-widest rounded transition-all shadow-md hover:shadow-[#a8bf8f]/20"
           >
             Nahrát obrázky
           </button>
@@ -233,9 +233,9 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             key={image.id}
             draggable
             onDragStart={(e) => handleDragStart(e, image, 'saved')}
-            className={`group relative aspect-square bg-[#0f1512] rounded-lg overflow-hidden border transition-all cursor-move shadow-sm hover:shadow-lg hover:shadow-[#7ed957]/10 ${selectedImages.has(image.id)
-              ? 'border-[#7ed957]/60 ring-1 ring-[#7ed957]/40'
-              : 'border-gray-800 hover:border-[#7ed957]'
+            className={`group relative aspect-square bg-[#101210] rounded-lg overflow-hidden border transition-all cursor-move shadow-sm hover:shadow-lg hover:shadow-[#a8bf8f]/10 ${selectedImages.has(image.id)
+              ? 'border-[#a8bf8f]/60 ring-1 ring-[#a8bf8f]/40'
+              : 'border-gray-800 hover:border-[#a8bf8f]'
               }`}
             title="Přetáhněte do vstupního, stylového nebo proprietárního pole"
           >
@@ -246,7 +246,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
                 toggleSelection(image.id);
               }}
               className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full border transition-all backdrop-blur flex items-center justify-center ${selectedImages.has(image.id)
-                ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d] shadow-[0_0_0_3px_rgba(126,217,87,0.15)] opacity-100'
+                ? 'bg-[#a8bf8f] border-[#a8bf8f] text-[#0b0c0a] shadow-[0_0_0_3px_rgba(168,191,143,0.15)] opacity-100'
                 : 'bg-black/25 border-white/15 text-white/70 opacity-0 group-hover:opacity-100 hover:border-white/30'
                 }`}
               aria-pressed={selectedImages.has(image.id)}
@@ -304,7 +304,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
     if (generatedImages.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center h-full py-20 px-4 text-center">
-          <div className="w-16 h-16 bg-[#0f1512]/50 rounded-lg flex items-center justify-center mb-4 border border-gray-800 grayscale opacity-30">
+          <div className="w-16 h-16 bg-[#101210]/50 rounded-lg flex items-center justify-center mb-4 border border-gray-800 grayscale opacity-30">
             <span className="text-3xl">🍌</span>
           </div>
           <p className="text-sm font-bold text-gray-300 mb-1">Žádné vygenerované obrázky</p>
@@ -328,7 +328,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             draggable
             onDragStart={(e) => handleDragStart(e, image, 'generated')}
             onClick={() => setSelectedImage(image)}
-            className="group relative aspect-square bg-[#0f1512] rounded-lg overflow-hidden border border-gray-800 hover:border-[#7ed957] transition-all cursor-pointer shadow-sm hover:shadow-lg hover:shadow-[#7ed957]/10"
+            className="group relative aspect-square bg-[#101210] rounded-lg overflow-hidden border border-gray-800 hover:border-[#a8bf8f] transition-all cursor-pointer shadow-sm hover:shadow-lg hover:shadow-[#a8bf8f]/10"
             title="Klikněte pro velké zobrazení nebo přetáhněte do pole nalevo"
           >
             <button
@@ -338,7 +338,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
                 toggleSelection(image.id);
               }}
               className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full border transition-all backdrop-blur flex items-center justify-center ${selectedImages.has(image.id)
-                ? 'bg-[#7ed957] border-[#7ed957] text-[#0a0f0d] shadow-[0_0_0_3px_rgba(126,217,87,0.15)] opacity-100'
+                ? 'bg-[#a8bf8f] border-[#a8bf8f] text-[#0b0c0a] shadow-[0_0_0_3px_rgba(168,191,143,0.15)] opacity-100'
                 : 'bg-black/25 border-white/15 text-white/70 opacity-0 group-hover:opacity-100 hover:border-white/30'
                 }`}
               aria-pressed={selectedImages.has(image.id)}
@@ -375,7 +375,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
             </div>
             {/* Drag indicator */}
             <div className="absolute top-2 right-2 bg-black/50 backdrop-blur rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity border border-gray-700">
-              <svg className="w-3 h-3 text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3 h-3 text-[#a8bf8f]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
               </svg>
             </div>
@@ -390,7 +390,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-transparent">
         <div className="flex items-center gap-3">
-          <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"></div>
+          <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]"></div>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/55">Knihovna</h3>
         </div>
 
@@ -425,7 +425,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
               {activeTab === 'saved' && onBatchProcess && (
                 <button
                   onClick={handleBatchProcess}
-                  className="ml-2 px-2 py-1 bg-[#7ed957]/10 text-[#7ed957] text-[10px] font-bold uppercase tracking-wider rounded border border-[#7ed957]/20 hover:bg-[#7ed957]/20 transition-all"
+                  className="ml-2 px-2 py-1 bg-[#a8bf8f]/10 text-[#a8bf8f] text-[10px] font-bold uppercase tracking-wider rounded border border-[#a8bf8f]/20 hover:bg-[#a8bf8f]/20 transition-all"
                 >
                   Download ZIP
                 </button>
@@ -458,7 +458,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
           {activeTab === 'saved' && (
             <button
               onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] text-[10px] font-bold uppercase tracking-wider rounded transition-all shadow-lg shadow-[#7ed957]/20 ambient-glow glow-green glow-weak"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] text-[10px] font-bold uppercase tracking-wider rounded transition-all shadow-lg shadow-[#a8bf8f]/20 ambient-glow glow-green glow-weak"
             >
               <Upload size={14} strokeWidth={3} />
               <span>Upload</span>
@@ -482,7 +482,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       <div ref={contentRef} className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-transparent">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="w-6 h-6 border-2 border-[#7ed957] border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-6 h-6 border-2 border-[#a8bf8f] border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : (
           <>
@@ -497,7 +497,7 @@ export const ImageGalleryPanel = forwardRef<ImageGalleryPanelRef, ImageGalleryPa
       {/* Footer / Status */}
       <div className="px-6 py-2 border-t border-white/5 bg-transparent text-[10px] text-white/35 font-medium flex justify-between">
         <span>{activeTab === 'saved' ? `${savedImages.length} saved images` : `${generatedImages.length} generated images`}</span>
-        {loading && <span className="text-[#7ed957]">Syncing...</span>}
+        {loading && <span className="text-[#a8bf8f]">Syncing...</span>}
       </div>
 
       {/* Lightbox */}

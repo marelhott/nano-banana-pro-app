@@ -85,7 +85,7 @@ export function StyleTransferSidebar(props: {
     <div className="hidden lg:flex w-[340px] shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20">
       <div className="p-6 flex flex-col gap-6 min-h-full">
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
+          <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
           <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Style Transfer</h2>
         </div>
 

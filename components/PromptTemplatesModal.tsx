@@ -83,8 +83,8 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-transparent">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#7ed957]/10 rounded-lg flex items-center justify-center border border-[#7ed957]/20">
-              <svg className="w-5 h-5 text-[#7ed957]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-8 h-8 bg-[#a8bf8f]/10 rounded-lg flex items-center justify-center border border-[#a8bf8f]/20">
+              <svg className="w-5 h-5 text-[#a8bf8f]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
@@ -120,12 +120,12 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
                           <button
                             onClick={() => handleSelectTemplate(template)}
                             className={`w-full text-left px-3 py-3 rounded-lg transition-all border ${selectedTemplate?.id === template.id
-                                ? 'bg-[#7ed957]/10 border-[#7ed957]/30 text-[#7ed957]'
+                                ? 'bg-[#a8bf8f]/10 border-[#a8bf8f]/30 text-[#a8bf8f]'
                                 : 'bg-transparent border-transparent hover:bg-white/5 text-white/75'
                               }`}
                           >
                             <div className="font-bold text-sm mb-1">{template.name}</div>
-                            <div className={`text-[10px] font-mono truncate ${selectedTemplate?.id === template.id ? 'text-[#7ed957]/70' : 'text-white/40'
+                            <div className={`text-[10px] font-mono truncate ${selectedTemplate?.id === template.id ? 'text-[#a8bf8f]/70' : 'text-white/40'
                               }`}>
                               {template.template}
                             </div>
@@ -182,7 +182,7 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
                     </div>
                     {selectedTemplate.variables.map(variable => (
                       <div key={variable}>
-                        <label className="text-[10px] font-bold text-[#7ed957] mb-1.5 block uppercase tracking-wider">
+                        <label className="text-[10px] font-bold text-[#a8bf8f] mb-1.5 block uppercase tracking-wider">
                           {variable.replace(/_/g, ' ')}
                         </label>
                         <input
@@ -193,7 +193,7 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
                             [variable]: e.target.value
                           }))}
                           placeholder={`Enter ${variable.toLowerCase().replace(/_/g, ' ')}...`}
-                          className="w-full px-4 py-2.5 control-surface text-sm font-medium text-white/85 outline-none focus:border-[#7ed957] focus:ring-0 transition-all placeholder-white/30"
+                          className="w-full px-4 py-2.5 control-surface text-sm font-medium text-white/85 outline-none focus:border-[#a8bf8f] focus:ring-0 transition-all placeholder-white/30"
                         />
                       </div>
                     ))}
@@ -211,7 +211,7 @@ export const PromptTemplatesModal: React.FC<PromptTemplatesModalProps> = ({
                   <button
                     onClick={handleUseTemplate}
                     disabled={!preview || selectedTemplate.variables.some(v => !variableValues[v]?.trim())}
-                    className="w-full px-4 py-3 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-xs uppercase tracking-widest rounded-lg shadow-lg shadow-[#7ed957]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                    className="w-full px-4 py-3 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-xs uppercase tracking-widest rounded-lg shadow-lg shadow-[#a8bf8f]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   >
                     Use Template
                   </button>

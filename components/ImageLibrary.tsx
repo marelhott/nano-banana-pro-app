@@ -127,7 +127,7 @@ export const ImageLibrary: React.FC<ImageLibraryProps> = ({
               />
               <div
                 className={`absolute top-1 right-1 w-5 h-5 rounded-full border flex items-center justify-center transition-all backdrop-blur ${isSelected
-                  ? 'bg-monstera-500 border-monstera-500 text-ink shadow-[0_0_0_3px_rgba(126,217,87,0.15)]'
+                  ? 'bg-monstera-500 border-monstera-500 text-ink shadow-[0_0_0_3px_rgba(168,191,143,0.15)]'
                   : 'bg-black/20 border-white/10 text-white/70 opacity-0 group-hover:opacity-100'
                   }`}
               >

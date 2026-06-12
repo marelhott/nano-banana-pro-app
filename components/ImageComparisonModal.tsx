@@ -176,9 +176,9 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
                 <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `polygon(0 0, ${sliderPosition}% 0, ${sliderPosition}% 100%, 0 100%)` }}>
                   <img src={originalImage} className="max-w-full max-h-full object-contain pointer-events-none select-none block mx-auto" draggable={false} />
                 </div>
-                <div className="absolute top-0 bottom-0 w-0.5 bg-[#7ed957] z-20 cursor-col-resize" style={{ left: `${sliderPosition}%` }}>
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-[#7ed957] border-2 border-[#0a0f0d] rounded-full shadow-lg flex items-center justify-center">
-                    <svg className="w-4 h-4 text-[#0a0f0d]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 9l4-4 4 4m0 6l-4 4-4-4" transform="rotate(90 12 12)" /></svg>
+                <div className="absolute top-0 bottom-0 w-0.5 bg-[#a8bf8f] z-20 cursor-col-resize" style={{ left: `${sliderPosition}%` }}>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-[#a8bf8f] border-2 border-[#0b0c0a] rounded-full shadow-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-[#0b0c0a]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 9l4-4 4 4m0 6l-4 4-4-4" transform="rotate(90 12 12)" /></svg>
                   </div>
                 </div>
               </div>
@@ -209,7 +209,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
           className="flex items-center justify-between px-6 h-[60px] shrink-0 cursor-pointer md:cursor-default"
           onClick={toggleDrawer}
         >
-          <div className="flex items-center gap-2 text-[#7ed957]">
+          <div className="flex items-center gap-2 text-[#a8bf8f]">
             <div className="md:hidden">
               {isDrawerOpen ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
@@ -246,7 +246,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
               </button>
             </div>
-            <p className="text-white/75 font-mono text-[11px] leading-relaxed whitespace-pre-wrap selection:bg-[#7ed957] selection:text-[#0a0f0d]">
+            <p className="text-white/75 font-mono text-[11px] leading-relaxed whitespace-pre-wrap selection:bg-[#a8bf8f] selection:text-[#0b0c0a]">
               {displayedPrompt}
             </p>
           </div>
@@ -275,20 +275,20 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
                         onChange={e => setShowFullPrompt(e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-6 h-3 bg-gray-700 rounded-full peer-checked:bg-[#7ed957] transition-colors"></div>
+                      <div className="w-6 h-3 bg-gray-700 rounded-full peer-checked:bg-[#a8bf8f] transition-colors"></div>
                       <div className="absolute left-0.5 w-2 h-2 bg-white rounded-full transition-transform peer-checked:translate-x-3"></div>
                     </div>
                     <span className="text-[8px] text-gray-500 font-bold uppercase group-hover:text-gray-300 transition-colors">Show full prompt</span>
                   </label>
                 </div>
-                <p className="text-[#7ed957] font-mono text-xs">{styleCode}</p>
+                <p className="text-[#a8bf8f] font-mono text-xs">{styleCode}</p>
               </div>
             )}
 
             {groundingMetadata && (
               <div className="space-y-1">
                 <h4 className="text-gray-500 text-[10px] uppercase tracking-widest font-bold">Grounding</h4>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#7ed957]/10 text-[#7ed957] border border-[#7ed957]/20">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#a8bf8f]/10 text-[#a8bf8f] border border-[#a8bf8f]/20">
                   Enabled
                 </span>
               </div>
@@ -367,7 +367,7 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
           {originalImage && (
             <button
               onClick={() => setIsCompareMode(!isCompareMode)}
-              className={`w-full py-3 rounded-lg text-xs font-bold uppercase tracking-widest border transition-all ${isCompareMode ? 'bg-[#7ed957] text-[#0a0f0d] border-[#7ed957]' : 'bg-transparent text-gray-300 border-gray-700 hover:border-gray-500'}`}
+              className={`w-full py-3 rounded-lg text-xs font-bold uppercase tracking-widest border transition-all ${isCompareMode ? 'bg-[#a8bf8f] text-[#0b0c0a] border-[#a8bf8f]' : 'bg-transparent text-gray-300 border-gray-700 hover:border-gray-500'}`}
             >
               {isCompareMode ? 'Exit Comparison' : 'Compare Original'}
             </button>

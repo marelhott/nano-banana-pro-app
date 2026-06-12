@@ -22,8 +22,8 @@ export const Toast: React.FC<ToastProps> = ({
 
     const theme = {
         success: {
-            bar: 'bg-[#7ed957]',
-            glow: 'shadow-[0_0_0_1px_rgba(126,217,87,0.12),0_12px_30px_rgba(126,217,87,0.10)]'
+            bar: 'bg-[#a8bf8f]',
+            glow: 'shadow-[0_0_0_1px_rgba(168,191,143,0.12),0_12px_30px_rgba(168,191,143,0.10)]'
         },
         error: {
             bar: 'bg-rose-400',

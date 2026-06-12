@@ -261,7 +261,7 @@ export function FaceSwapScreen(props: {
       <aside className="w-[320px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
         <div className="p-5 flex flex-col gap-3.5 min-h-full">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
+            <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
             <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Face Swap</h2>
           </div>
 
@@ -393,7 +393,7 @@ export function FaceSwapScreen(props: {
                       </button>
                     ) : (
                       <div className="aspect-square bg-[var(--bg-panel)] flex flex-col items-center justify-center px-5 text-center">
-                        <Sparkles className={`w-4 h-4 mb-3 ${item.status === 'error' ? 'text-red-400' : 'text-[#7ed957]'}`} />
+                        <Sparkles className={`w-4 h-4 mb-3 ${item.status === 'error' ? 'text-red-400' : 'text-[#a8bf8f]'}`} />
                         <div className="w-full max-w-[200px] space-y-2">
                           <div className="relative h-[2px] bg-white/8 rounded-full overflow-hidden">
                             <div

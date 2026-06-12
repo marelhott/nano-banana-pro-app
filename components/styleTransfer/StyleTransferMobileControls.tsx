@@ -114,7 +114,7 @@ export function StyleTransferMobileControls(props: {
           <ArrowLeft className="w-4 h-4" />
           Zpět
         </button>
-        <div className="w-1 h-4 bg-[#7ed957] rounded-full" />
+        <div className="w-1 h-4 bg-[#a8bf8f] rounded-full" />
       </div>
 
       <div className="space-y-2">
@@ -381,7 +381,7 @@ export function StyleTransferMobileControls(props: {
                 type="button"
                 onClick={() => setFofrUseStructure(!fofrUseStructure)}
                 className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
-                  fofrUseStructure ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+                  fofrUseStructure ? 'bg-[#a8bf8f]/15 text-[#a8bf8f] border border-[#a8bf8f]/25' : 'bg-white/5 text-white/50 border border-white/10'
                 }`}
               >
                 {fofrUseStructure ? 'On' : 'Off'}
@@ -452,7 +452,7 @@ export function StyleTransferMobileControls(props: {
             type="button"
             onClick={() => setHighRes(!highRes)}
             className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
-              highRes ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+              highRes ? 'bg-[#a8bf8f]/15 text-[#a8bf8f] border border-[#a8bf8f]/25' : 'bg-white/5 text-white/50 border border-white/10'
             }`}
           >
             {highRes ? 'On' : 'Off'}
@@ -465,7 +465,7 @@ export function StyleTransferMobileControls(props: {
             type="button"
             onClick={() => setColorize(!colorize)}
             className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
-              colorize ? 'bg-[#7ed957]/15 text-[#7ed957] border border-[#7ed957]/25' : 'bg-white/5 text-white/50 border border-white/10'
+              colorize ? 'bg-[#a8bf8f]/15 text-[#a8bf8f] border border-[#a8bf8f]/25' : 'bg-white/5 text-white/50 border border-white/10'
             }`}
           >
             {colorize ? 'On' : 'Off'}

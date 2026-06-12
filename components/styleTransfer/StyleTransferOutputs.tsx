@@ -53,7 +53,7 @@ export function StyleTransferOutputs(props: {
               <div className="w-full max-w-[200px] space-y-3">
                 <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
                   <div
-                    className="absolute inset-y-0 left-0 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"
+                    className="absolute inset-y-0 left-0 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]"
                     style={{
                       width: '0%',
                       animation: 'growWidth 10s cubic-bezier(0.4, 0, 0.2, 1) forwards'
@@ -70,7 +70,7 @@ export function StyleTransferOutputs(props: {
                   `}</style>
                 </div>
                 <div className="text-center">
-                  <span className="text-[10px] text-[#7ed957] font-bold tracking-widest uppercase animate-pulse">Generuji...</span>
+                  <span className="text-[10px] text-[#a8bf8f] font-bold tracking-widest uppercase animate-pulse">Generuji...</span>
                 </div>
               </div>
             </div>

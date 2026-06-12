@@ -549,7 +549,7 @@ export function ModelInfluenceScreen(props: {
       <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
         <div className="p-6 flex flex-col gap-6 min-h-full">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-4 bg-[#7ed957] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]" />
+            <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
             <h2 className="text-[11px] font-[900] uppercase tracking-[0.3em] text-gray-200">Model Influence</h2>
           </div>
 
@@ -734,7 +734,7 @@ export function ModelInfluenceScreen(props: {
 
                       {isPending && (
                         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/55 backdrop-blur-sm px-6 transition-all duration-200">
-                          <div className="w-10 h-10 rounded-full border-2 border-white/15 border-t-[#7ed957] animate-spin" />
+                          <div className="w-10 h-10 rounded-full border-2 border-white/15 border-t-[#a8bf8f] animate-spin" />
                           <div className="mt-4 text-[11px] text-white/70 font-black uppercase tracking-widest">
                             {falPhaseLabel || 'Generuji'}
                           </div>

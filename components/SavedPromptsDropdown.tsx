@@ -191,7 +191,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                 {savedPrompts.map((saved) => (
                   <div
                     key={saved.id}
-                    className="group px-4 py-3 hover:bg-[#0f1512]/30 transition-colors border-b border-gray-800/50 last:border-b-0"
+                    className="group px-4 py-3 hover:bg-[#101210]/30 transition-colors border-b border-gray-800/50 last:border-b-0"
                   >
                     {editingId === saved.id ? (
                       // Editační režim
@@ -200,20 +200,20 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="w-full text-xs font-bold bg-black/50 border border-gray-700 rounded px-2 py-1 outline-none focus:border-[#7ed957] text-gray-200"
+                          className="w-full text-xs font-bold bg-black/50 border border-gray-700 rounded px-2 py-1 outline-none focus:border-[#a8bf8f] text-gray-200"
                           placeholder="Název promptu..."
                           autoFocus
                         />
                         <textarea
                           value={editPromptText}
                           onChange={(e) => setEditPromptText(e.target.value)}
-                          className="w-full text-[10px] bg-black/50 border border-gray-700 rounded px-2 py-1.5 outline-none focus:border-[#7ed957] resize-none leading-relaxed min-h-[60px] text-gray-300"
+                          className="w-full text-[10px] bg-black/50 border border-gray-700 rounded px-2 py-1.5 outline-none focus:border-[#a8bf8f] resize-none leading-relaxed min-h-[60px] text-gray-300"
                           placeholder="Text promptu..."
                         />
                         <div className="flex gap-2">
                           <button
                             onClick={saveEdit}
-                            className="flex-1 px-2 py-1.5 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-[9px] uppercase tracking-wider rounded transition-all shadow-sm"
+                            className="flex-1 px-2 py-1.5 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-[9px] uppercase tracking-wider rounded transition-all shadow-sm"
                           >
                             Uložit
                           </button>
@@ -233,7 +233,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="text-xs font-bold text-gray-200 truncate">{saved.name}</h4>
                               {saved.category && (
-                                <span className="text-[9px] font-bold text-[#7ed957] bg-[#7ed957]/10 px-1.5 py-0.5 rounded uppercase tracking-wide border border-[#7ed957]/20">
+                                <span className="text-[9px] font-bold text-[#a8bf8f] bg-[#a8bf8f]/10 px-1.5 py-0.5 rounded uppercase tracking-wide border border-[#a8bf8f]/20">
                                   {saved.category}
                                 </span>
                               )}
@@ -272,7 +272,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
           </div>
 
           {/* Přidat nový */}
-          <div className="p-3 bg-[#0f1512] border-t border-gray-800">
+          <div className="p-3 bg-[#101210] border-t border-gray-800">
             {isAdding ? (
               <div className="space-y-2">
                 <input
@@ -280,7 +280,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Název promptu..."
-                  className="w-full text-xs font-medium bg-black/50 border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#7ed957] text-gray-200"
+                  className="w-full text-xs font-medium bg-black/50 border border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-[#a8bf8f] text-gray-200"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleAdd();
@@ -291,7 +291,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                   <button
                     onClick={handleAdd}
                     disabled={!newName.trim() || !currentPrompt?.trim()}
-                    className="flex-1 px-3 py-2 bg-[#7ed957] hover:bg-[#6bc547] text-[#0a0f0d] font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-[#7ed957]/20"
+                    className="flex-1 px-3 py-2 bg-[#a8bf8f] hover:bg-[#7d9a64] text-[#0b0c0a] font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-[#a8bf8f]/20"
                   >
                     Uložit
                   </button>
@@ -309,7 +309,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                 disabled={!currentPrompt?.trim()}
                 className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-800/50 hover:bg-gray-800 border border-transparent hover:border-gray-700 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
               >
-                <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-[#7ed957] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5 text-gray-500 group-hover:text-[#a8bf8f] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                 </svg>
                 <span className="text-[10px] font-bold text-gray-400 group-hover:text-gray-200 uppercase tracking-wider transition-colors">
