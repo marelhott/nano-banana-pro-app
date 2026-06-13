@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#f2f4ec" />
+  <meta name="theme-color" content="#0b0c0a" />
   <title>Mulen nano</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="apple-touch-icon" href="/favicon.svg" />
@@ -14,7 +14,7 @@
   <script>
     (() => {
       const storageKey = 'mulen-theme';
-      const fallback = 'light';
+      const fallback = 'dark';
       const stored = window.localStorage.getItem(storageKey);
       const theme = stored === 'light' || stored === 'dark' ? stored : fallback;
       document.documentElement.dataset.theme = theme;
@@ -172,7 +172,10 @@
 </script>
 </head>
 
-<body class="overflow-hidden">
+<body class="overflow-hidden glass-cursor-on">
+  <!-- Cairn glass cursor -->
+  <div class="glass-cursor" id="cairn-cursor"></div>
+
   <div id="root">
     <!-- Initial Splash Screen (Removed by React hydration) -->
     <div
@@ -224,6 +227,36 @@
     </div>
   </div>
   <script type="module" src="/index.tsx"></script>
+
+  <!-- Cairn glass cursor tracker -->
+  <script>
+    (function() {
+      const cursor = document.getElementById('cairn-cursor');
+      if (!cursor) return;
+      let raf, cx = -100, cy = -100, tx = -100, ty = -100;
+      const lerp = (a, b, t) => a + (b - a) * t;
+      document.addEventListener('mousemove', e => { tx = e.clientX; ty = e.clientY; });
+      document.addEventListener('mouseenter', () => cursor.classList.add('visible'));
+      document.addEventListener('mouseleave', () => cursor.classList.remove('visible'));
+      // scale up on interactive elements
+      document.addEventListener('mouseover', e => {
+        if (e.target.closest('button,a,input,select,textarea,[role="button"],[tabindex]')) {
+          cursor.style.width = '52px'; cursor.style.height = '52px';
+          cursor.style.margin = '-26px 0 0 -26px';
+        } else {
+          cursor.style.width = ''; cursor.style.height = ''; cursor.style.margin = '';
+        }
+      });
+      function tick() {
+        cx = lerp(cx, tx, 0.18);
+        cy = lerp(cy, ty, 0.18);
+        cursor.style.transform = `translate3d(${cx}px, ${cy}px, 0)`;
+        raf = requestAnimationFrame(tick);
+      }
+      tick();
+      cursor.classList.add('visible');
+    })();
+  </script>
 </body>
 
 </html>
