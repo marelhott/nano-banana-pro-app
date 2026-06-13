@@ -258,7 +258,8 @@ export function FaceSwapScreen(props: {
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
-      <aside className="w-[320px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
+      <aside className="w-[320px] shrink-0 h-full overflow-y-auto custom-scrollbar cairn-panel-left text-[11px]"
+        style={{backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)'}}>
         <div className="p-5 flex flex-col gap-3.5 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
@@ -336,7 +337,7 @@ export function FaceSwapScreen(props: {
 
           <div className="space-y-2">
             <div className="text-[9px] font-bold uppercase tracking-wider text-white/55">WORKFLOW</div>
-            <div className="rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[9px] text-white/75 leading-4">
+            <div className="rounded-lg bg-[rgba(24,34,18,0.70)] backdrop-blur-sm border border-[rgba(168,191,143,0.18)] px-3 py-2 text-[9px] text-white/75 leading-4">
               Skrytý prompt + zvolený model + až 3 výstupy na model.
             </div>
             <div className="text-[8px] leading-4 text-white/35">
@@ -370,7 +371,7 @@ export function FaceSwapScreen(props: {
                         <button
                           type="button"
                           onClick={() => downloadDataUrl(item.dataUrl!, `mulen-face-swap-${item.provider}-${mode}.png`)}
-                          className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[9px] font-bold uppercase tracking-[0.18em] text-white/75 hover:text-white transition-colors"
+                          className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)] backdrop-blur-sm text-[9px] font-bold uppercase tracking-[0.18em] text-white/75 hover:text-white transition-colors"
                         >
                           <Download className="w-3.5 h-3.5" />
                           Stáhnout
@@ -388,11 +389,11 @@ export function FaceSwapScreen(props: {
                         <img
                           src={item.dataUrl}
                           alt={item.label}
-                          className="w-full aspect-square object-cover bg-[var(--bg-panel)]"
+                          className="w-full aspect-square object-cover bg-[rgba(28,40,20,0.70)]"
                         />
                       </button>
                     ) : (
-                      <div className="aspect-square bg-[var(--bg-panel)] flex flex-col items-center justify-center px-5 text-center">
+                      <div className="aspect-square bg-[rgba(28,40,20,0.70)] flex flex-col items-center justify-center px-5 text-center">
                         <Sparkles className={`w-4 h-4 mb-3 ${item.status === 'error' ? 'text-red-400' : 'text-[#a8bf8f]'}`} />
                         <div className="w-full max-w-[200px] space-y-2">
                           <div className="relative h-[2px] bg-white/8 rounded-full overflow-hidden">
@@ -438,11 +439,11 @@ export function FaceSwapScreen(props: {
               { label: 'Výstupů', value: outputs.filter(o => o.status === 'done').length },
             ]}
           />
-          <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
+          <div className="rounded-md border border-[rgba(168,191,143,0.18)] bg-[rgba(28,40,20,0.70)] px-3 py-2 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
             {runMeta}
           </div>
           {progress ? (
-            <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+            <div className="rounded-md border border-[rgba(168,191,143,0.18)] bg-[rgba(28,40,20,0.70)] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
               {progress.completedJobs}/{progress.totalJobs} • {progress.activeLabel}
             </div>
           ) : null}
@@ -457,7 +458,7 @@ export function FaceSwapScreen(props: {
           <button
             type="button"
             onClick={() => setLightboxUrl(null)}
-            className="absolute top-5 right-5 px-3 py-2 rounded-lg border border-white/10 bg-black/30 text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white"
+            className="absolute top-5 right-5 px-3 py-2 rounded-lg border border-[rgba(168,191,143,0.18)] bg-black/30 text-[10px] font-bold uppercase tracking-widest text-white/75 hover:text-white"
           >
             Zavřít
           </button>

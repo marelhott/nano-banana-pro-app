@@ -546,7 +546,8 @@ export function ModelInfluenceScreen(props: {
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
-      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
+      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar cairn-panel-left text-[11px]"
+        style={{backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)'}}>
         <div className="p-6 flex flex-col gap-6 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
@@ -638,7 +639,8 @@ export function ModelInfluenceScreen(props: {
             <input
               value={modelName}
               onChange={(e) => setModelName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+              className="w-full px-3 py-2 rounded-lg text-[10px] text-[var(--text-primary)]"
+              style={{border:'1px solid rgba(168,191,143,0.18)', background:'rgba(24,34,18,0.70)', backdropFilter:'blur(8px)'}}
               placeholder={backend === 'a1111' ? 'Tuymans_SDXL.safetensors' : 'stabilityai/stable-diffusion-xl-base-1.0'}
             />
             <div className="text-[9px] text-white/35">
@@ -653,7 +655,8 @@ export function ModelInfluenceScreen(props: {
               onChange={(e) => setAdvancedRaw(e.target.value)}
               placeholder={'{\n  "scheduler": "karras",\n  "controlnets": [],\n  "ip_adapter": []\n}'}
               rows={7}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] leading-5 text-[var(--text-primary)] placeholder-white/20 font-mono resize-y"
+              className="w-full px-3 py-2 rounded-lg text-[10px] leading-5 text-[var(--text-primary)] placeholder-white/20 font-mono resize-y"
+              style={{border:'1px solid rgba(168,191,143,0.18)', background:'rgba(24,34,18,0.70)', backdropFilter:'blur(8px)'}}
             />
           </div>
 
@@ -803,10 +806,10 @@ export function ModelInfluenceScreen(props: {
             </div>
             <input type="range" min={1} max={60} step={1} value={steps} onChange={(e) => setSteps(Number(e.target.value))} className="range-green w-full" />
           </label>
-          <select value={sampler} onChange={(e) => setSampler(e.target.value as SamplerId)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+          <select value={sampler} onChange={(e) => setSampler(e.target.value as SamplerId)} className="w-full rounded-lg px-3 py-2 text-[10px] text-[var(--text-primary)]" style={{border:'1px solid rgba(168,191,143,0.18)', background:'rgba(24,34,18,0.70)'}}>
             {SAMPLER_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
           </select>
-          <select value={scheduler} onChange={(e) => setScheduler(e.target.value as SchedulerId)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+          <select value={scheduler} onChange={(e) => setScheduler(e.target.value as SchedulerId)} className="w-full rounded-lg px-3 py-2 text-[10px] text-[var(--text-primary)]" style={{border:'1px solid rgba(168,191,143,0.18)', background:'rgba(24,34,18,0.70)'}}>
             {SCHEDULER_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
           </select>
         </AtelierSection>

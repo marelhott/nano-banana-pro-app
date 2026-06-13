@@ -524,7 +524,7 @@ export function StyleTransferScreen(props: {
             title="Dvojklik pro zavření"
           >
             <div
-              className="w-full h-full rounded-xl border border-white/10 bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
+              className="w-full h-full rounded-xl border border-[rgba(168,191,143,0.18)] bg-black/50 overflow-auto custom-scrollbar flex items-center justify-center"
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 setLightboxUrl(null);
@@ -606,7 +606,7 @@ export function StyleTransferScreen(props: {
               <select
                 value={fofrModel}
                 onChange={(e) => setFofrModel(e.target.value as any)}
-                className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] font-semibold text-[var(--text-primary)] outline-none"
+                className="w-full rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)] backdrop-blur-sm px-3 py-2 text-[10px] font-semibold text-[var(--text-primary)] outline-none"
               >
                 <option value="fast">fast</option>
                 <option value="high-quality">high-quality</option>
@@ -618,7 +618,7 @@ export function StyleTransferScreen(props: {
                 type="button"
                 onClick={() => setFofrUseStructure(!fofrUseStructure)}
                 className={`w-full rounded-md border px-3 py-2 text-[9px] font-bold uppercase tracking-wider transition-all ${
-                  fofrUseStructure ? 'border-[#a8bf8f]/25 bg-[#a8bf8f]/15 text-[#a8bf8f]' : 'border-white/10 bg-white/5 text-white/50'
+                  fofrUseStructure ? 'border-[#a8bf8f]/25 bg-[#a8bf8f]/15 text-[#a8bf8f]' : 'border-[rgba(168,191,143,0.18)] bg-[rgba(32,44,24,0.55)] text-white/50'
                 }`}
               >
                 Struktura {fofrUseStructure ? 'On' : 'Off'}
@@ -632,7 +632,7 @@ export function StyleTransferScreen(props: {
                     step={64}
                     value={fofrWidth}
                     onChange={(e) => setFofrWidth(Number(e.target.value))}
-                    className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-2 py-2 text-[10px] text-[var(--text-primary)]"
+                    className="rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)] backdrop-blur-sm px-2 py-2 text-[10px] text-[var(--text-primary)]"
                   />
                   <input
                     type="number"
@@ -641,7 +641,7 @@ export function StyleTransferScreen(props: {
                     step={64}
                     value={fofrHeight}
                     onChange={(e) => setFofrHeight(Number(e.target.value))}
-                    className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-2 py-2 text-[10px] text-[var(--text-primary)]"
+                    className="rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)] backdrop-blur-sm px-2 py-2 text-[10px] text-[var(--text-primary)]"
                   />
                 </div>
               ) : null}

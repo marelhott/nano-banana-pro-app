@@ -88,6 +88,7 @@ export interface GeneratedImage {
   };
   selected?: boolean;
   collectionIds?: string[];
+  runId?: string;  // Groups images from the same generation batch into one row
 }
 
 export interface SourceImage {

@@ -319,10 +319,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const totalLocalMb = storageStats ? storageStats.totalBytes / (1024 * 1024) : 0;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slideUp card-surface">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fadeIn">
+            <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slideUp rounded-2xl" style={{background:'linear-gradient(160deg,rgba(28,40,20,0.97) 0%,rgba(14,20,10,0.98) 100%)',border:'1px solid rgba(168,191,143,0.24)',boxShadow:'0 0 100px rgba(0,0,0,0.80), inset 0 0 160px rgba(125,154,100,0.06), inset 0 1px 0 rgba(168,191,143,0.10)'}}>
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#101210]/50">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(168,191,143,0.12)]" style={{background:'linear-gradient(180deg,rgba(35,50,25,0.80) 0%,rgba(22,32,16,0.70) 100%)'}}>
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-[#a8bf8f]/10 rounded-lg flex items-center justify-center border border-[#a8bf8f]/20">
                             <svg className="w-5 h-5 text-[#a8bf8f]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -357,9 +357,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             (provider === AIProviderType.GEMINI || provider === AIProviderType.CHATGPT) && !hasServerKey;
 
                         return (
-                            <div key={provider} className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                            <div key={provider} className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
                                 <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-8 h-8 bg-[var(--bg-input)] rounded flex items-center justify-center">
+                                    <div className="w-8 h-8 bg-[rgba(24,34,18,0.70)] rounded flex items-center justify-center">
                                         {metadata.icon === 'gemini' && (
                                             <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -415,21 +415,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                                 {usesServerManagedCard ? (
                                     <div className="space-y-3">
-                                        <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                                        <div className="rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(24,34,18,0.70)] px-4 py-3 text-xs text-[var(--text-secondary)]">
                                             {getProviderHint(provider, hasServerKey)}
                                         </div>
 
                                         <button
                                             onClick={() => testConnection(provider)}
                                             disabled={!hasServerKey || testing === provider}
-                                            className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
+                                            className="w-full px-4 py-2 border border-[rgba(168,191,143,0.18)] bg-[rgba(32,44,24,0.55)] hover:border-[rgba(168,191,143,0.40)] hover:bg-[rgba(45,62,33,0.70)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--accent)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all"
                                         >
                                             {testing === provider ? 'Testuji...' : 'Otestovat serverové napojení'}
                                         </button>
                                     </div>
                                 ) : metadata.requiresApiKey || showOptionalOverride || needsDirectApiKeyEntry ? (
                                     <div className="space-y-3">
-                                        <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                                        <div className="rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(24,34,18,0.70)] px-4 py-3 text-xs text-[var(--text-secondary)]">
                                             {getProviderHint(provider, hasServerKey)}
                                         </div>
 
@@ -445,7 +445,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     placeholder={showOptionalOverride || needsDirectApiKeyEntry
                                                         ? `Volitelný API klíč pro ${metadata.name}...`
                                                         : `API klíč pro ${metadata.name}...`}
-                                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 pr-24 transition-colors"
+                                                    className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 pr-24 transition-colors"
                                                 />
                                                 <button
                                                     onClick={() => toggleShowKey(provider)}
@@ -459,13 +459,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         <button
                                             onClick={() => testConnection(provider)}
                                             disabled={(!String(config?.apiKey || '').trim() && !hasServerKey) || testing === provider}
-                                            className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
+                                            className="w-full px-4 py-2 border border-[rgba(168,191,143,0.18)] bg-[rgba(32,44,24,0.55)] hover:border-[rgba(168,191,143,0.40)] hover:bg-[rgba(45,62,33,0.70)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--accent)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all"
                                         >
                                             {testing === provider ? 'Testuji...' : hasServerKey ? 'Otestovat server / override' : 'Otestovat připojení'}
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                                    <div className="rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(24,34,18,0.70)] px-4 py-3 text-xs text-[var(--text-secondary)]">
                                         {getProviderHint(provider, hasServerKey)}
                                     </div>
                                 )}
@@ -473,7 +473,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         );
                     })}
 
-                    <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                    <div className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
                         <div className="flex items-start justify-between gap-4 mb-4">
                             <div>
                                 <h3 className="font-bold text-sm text-[var(--text-primary)] uppercase tracking-wider">Lokální úložiště</h3>
@@ -490,15 +490,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                         <div className="space-y-3">
                             <div className="grid grid-cols-3 gap-3 text-xs">
-                                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-3">
+                                <div className="rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(24,34,18,0.70)] px-3 py-3">
                                     <div className="text-[var(--text-secondary)] uppercase tracking-wider">Saved</div>
                                     <div className="mt-1 text-lg font-bold text-[var(--text-primary)]">{storageStats?.savedCount ?? '—'}</div>
                                 </div>
-                                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-3">
+                                <div className="rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(24,34,18,0.70)] px-3 py-3">
                                     <div className="text-[var(--text-secondary)] uppercase tracking-wider">Generated</div>
                                     <div className="mt-1 text-lg font-bold text-[var(--text-primary)]">{storageStats?.generatedCount ?? '—'}</div>
                                 </div>
-                                <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-3">
+                                <div className="rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(24,34,18,0.70)] px-3 py-3">
                                     <div className="text-[var(--text-secondary)] uppercase tracking-wider">Lokálně</div>
                                     <div className="mt-1 text-lg font-bold text-[var(--text-primary)]">{storageStats ? `${totalLocalMb.toFixed(1)} MB` : '—'}</div>
                                 </div>
@@ -510,7 +510,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         <span>Odhad zaplnění prohlížečového úložiště</span>
                                         <span>{Math.round(usageRatio * 100)}%</span>
                                     </div>
-                                    <div className="h-2 rounded-full bg-[var(--bg-input)] overflow-hidden">
+                                    <div className="h-2 rounded-full bg-[rgba(24,34,18,0.70)] overflow-hidden">
                                         <div
                                             className={`h-full ${usageRatio >= 0.8 ? 'bg-amber-300' : 'bg-[#a8bf8f]'}`}
                                             style={{ width: `${Math.min(100, Math.round(usageRatio * 100))}%` }}
@@ -526,9 +526,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                    <div className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-8 h-8 bg-[var(--bg-input)] rounded flex items-center justify-center">
+                            <div className="w-8 h-8 bg-[rgba(24,34,18,0.70)] rounded flex items-center justify-center">
                                 <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-4.553a1.5 1.5 0 10-2.121-2.121L12.88 7.88m2.12 2.12L9 16l-4 1 1-4 5.879-5.879m3.242 0a3 3 0 114.243 4.243" />
                                 </svg>
@@ -554,7 +554,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 preferredPrimary: 'replicate-easel',
                                             }
                                         })}
-                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
+                                        className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
                                     >
                                         <option value="fal-easel">fal.ai Easel Advanced Face Swap</option>
                                         <option value="replicate-easel">Replicate Easel Advanced Face Swap</option>
@@ -572,7 +572,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 hairSource: e.target.value as HeadSwapHairSource,
                                             }
                                         })}
-                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
+                                        className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
                                     >
                                         <option value="target">Cíl (stabilnější blend)</option>
                                         <option value="user">Zdroj (víc identity / vlasů)</option>
@@ -592,7 +592,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 sourceGender: e.target.value as HeadSwapGender,
                                             }
                                         })}
-                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
+                                        className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
                                     >
                                         <option value="default">Auto</option>
                                         <option value="a man">Muž</option>
@@ -612,7 +612,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 secondarySourceGender: e.target.value as HeadSwapGender,
                                             }
                                         })}
-                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
+                                        className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none text-sm text-[var(--text-primary)]"
                                     >
                                         <option value="default">Auto</option>
                                         <option value="a man">Muž</option>
@@ -633,7 +633,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             useUpscale: e.target.checked,
                                         }
                                     })}
-                                    className="rounded border-[var(--border-color)] bg-[var(--bg-input)]"
+                                    className="rounded border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)]"
                                 />
                                 Zapnout interní upscale v Easel
                             </label>
@@ -649,7 +649,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             useDetailer: e.target.checked,
                                         }
                                     })}
-                                    className="rounded border-[var(--border-color)] bg-[var(--bg-input)]"
+                                    className="rounded border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)]"
                                 />
                                 Zapnout detailer v Easel
                             </label>
@@ -668,7 +668,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         }
                                     })}
                                     placeholder="https://your-facefusion-wrapper.example.com/swap"
-                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
+                                    className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
                                 />
                             </div>
 
@@ -686,7 +686,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         }
                                     })}
                                     placeholder="https://your-reface-wrapper.example.com/swap"
-                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
+                                    className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
                                 />
                                 <p className="text-xs text-[var(--text-secondary)] mt-2">
                                     Očekávaný JSON kontrakt fallbacku: přijme `sourceImage`, `targetImage`, `mode`, `hairSource` a vrátí `imageBase64` nebo URL obrázku.
@@ -695,9 +695,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                    <div className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-8 h-8 bg-[var(--bg-input)] rounded flex items-center justify-center">
+                            <div className="w-8 h-8 bg-[rgba(24,34,18,0.70)] rounded flex items-center justify-center">
                                 <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z" />
                                 </svg>
@@ -728,7 +728,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
 
                         <div className="space-y-3">
-                            <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+                            <div className="rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(24,34,18,0.70)] px-4 py-3 text-xs text-[var(--text-secondary)]">
                                 {serverProviders.fal
                                     ? 'fal.ai endpointy pro SDXL, LoRA, Flux edit, upscaler i faithful upscaler mají na serveru aktivní klíč.'
                                     : 'Tato karta ovládá fal.ai endpointy pro SDXL, LoRA, Flux edit i upscale. Bez klíče zde nebo na serveru tyto flow nepojedou.'}
@@ -742,7 +742,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         value={localSettings?.fal?.apiKey || ''}
                                         onChange={(e) => handleFalApiKeyChange(e.target.value)}
                                         placeholder="Zadejte fal.ai API key..."
-                                        className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 pr-24 transition-colors"
+                                        className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 pr-24 transition-colors"
                                     />
                                     <button
                                         onClick={() => setShowFalKey(v => !v)}
@@ -756,16 +756,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <button
                                 onClick={testFalConnection}
                                 disabled={(!String(localSettings?.fal?.apiKey || '').trim() && !serverProviders.fal) || testingFal}
-                                className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
+                                className="w-full px-4 py-2 border border-[rgba(168,191,143,0.18)] bg-[rgba(32,44,24,0.55)] hover:border-[rgba(168,191,143,0.40)] hover:bg-[rgba(45,62,33,0.70)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--accent)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all"
                             >
                                 {testingFal ? 'Testuji...' : serverProviders.fal ? 'Otestovat server / override' : 'Otestovat připojení'}
                             </button>
                         </div>
                     </div>
 
-                    <div className="border border-[var(--border-color)] rounded-xl p-5 bg-[var(--bg-panel)] hover:border-[var(--text-secondary)] transition-colors">
+                    <div className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-8 h-8 bg-[var(--bg-input)] rounded flex items-center justify-center">
+                            <div className="w-8 h-8 bg-[rgba(24,34,18,0.70)] rounded flex items-center justify-center">
                                 <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
                                 </svg>
@@ -797,7 +797,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     value={localSettings?.a1111?.baseUrl || ''}
                                     onChange={(e) => handleA1111BaseUrlChange(e.target.value)}
                                     placeholder="https://xxxx.proxy.runpod.net"
-                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
+                                    className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
                                 />
                             </div>
 
@@ -809,7 +809,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     value={localSettings?.a1111?.sdxlVae || ''}
                                     onChange={(e) => handleA1111VaeChange(e.target.value)}
                                     placeholder="např. sdxl_vae.safetensors (nebo nech prázdné = auto)"
-                                    className="w-full px-4 py-2.5 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
+                                    className="w-full px-4 py-2.5 bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] rounded-lg focus:border-[var(--accent)] focus:outline-none font-mono text-sm text-[var(--text-primary)] placeholder-gray-600 transition-colors"
                                 />
                                 <p className="text-xs text-[var(--text-secondary)] mt-2">
                                     Pokud je prázdné, aplikace zkusí automaticky vybrat VAE obsahující “sdxl”.
@@ -819,7 +819,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <button
                                 onClick={testA1111Connection}
                                 disabled={!String(localSettings?.a1111?.baseUrl || '').trim() || testingA1111}
-                                className="w-full px-4 py-2 bg-[var(--bg-card)] hover:bg-[var(--bg-panel)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all border border-[var(--border-color)]"
+                                className="w-full px-4 py-2 border border-[rgba(168,191,143,0.18)] bg-[rgba(32,44,24,0.55)] hover:border-[rgba(168,191,143,0.40)] hover:bg-[rgba(45,62,33,0.70)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-secondary)] hover:text-[var(--accent)] font-bold text-xs uppercase tracking-widest rounded-lg transition-all"
                             >
                                 {testingA1111 ? 'Testuji...' : 'Otestovat připojení'}
                             </button>
@@ -832,7 +832,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-800 bg-[#101210]/50">
                     <button
                         onClick={onClose}
-                        className="px-5 py-2.5 font-bold text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                        className="px-5 py-2.5 font-bold text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[rgba(168,191,143,0.14)] hover:border-[rgba(168,191,143,0.35)] bg-[rgba(28,38,22,0.50)] hover:bg-[rgba(40,55,30,0.65)] rounded-lg transition-all"
                     >
                         Zrušit
                     </button>

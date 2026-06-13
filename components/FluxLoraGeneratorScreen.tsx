@@ -1396,7 +1396,8 @@ export function FluxLoraGeneratorScreen(props: {
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
-      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
+      <aside className="w-[340px] shrink-0 h-full overflow-y-auto custom-scrollbar cairn-panel-left text-[11px]"
+        style={{backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)'}}>
         <div className="p-6 flex flex-col gap-6 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
@@ -1485,7 +1486,7 @@ export function FluxLoraGeneratorScreen(props: {
                     setSdxlScheduler('karras');
                   }
                 }}
-                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] text-[var(--text-primary)]"
               >
                 <option value="flux">flux model</option>
                 <option value="sdxl">sdxl model</option>
@@ -1498,7 +1499,7 @@ export function FluxLoraGeneratorScreen(props: {
                 <select
                   value={sdxlCheckpointId}
                   onChange={(e) => setSdxlCheckpointId(e.target.value)}
-                  className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                  className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] text-[var(--text-primary)]"
                 >
                   {SDXL_CHECKPOINT_PRESETS.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -1523,7 +1524,7 @@ export function FluxLoraGeneratorScreen(props: {
                   }
                 }}
                 disabled={modelFamily !== 'flux'}
-                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <option value="flux1">flux 1 img2img</option>
                 <option value="flux2">flux 2 lora edit</option>
@@ -1551,7 +1552,7 @@ export function FluxLoraGeneratorScreen(props: {
                   const scale = loras[0]?.scale ?? 1.0;
                   setLoras([{ id, path: preset.url, scale }]);
                 }}
-                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)]"
+                className="flex-1 w-full min-w-0 px-3 py-1.5 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] text-[var(--text-primary)]"
               >
                 <option value="">(bez LoRA)</option>
                 {activeLoraPresets.map((p) => (
@@ -1575,7 +1576,7 @@ export function FluxLoraGeneratorScreen(props: {
                 type="button"
                 onClick={() => void handleRunLoraTest('balanced')}
                 disabled={!input || !loras.length || isGenerating || isTestingGrid}
-                className="px-2.5 py-1 rounded-md border border-white/15 bg-white/5 text-[9px] font-bold uppercase tracking-wider text-white/65 hover:text-white/90 hover:border-white/25 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 rounded-md border border-white/15 bg-[rgba(32,44,24,0.55)] text-[9px] font-bold uppercase tracking-wider text-white/65 hover:text-white/90 hover:border-white/25 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
                 title={
                   modelFamily === 'sdxl'
                     ? 'Vygenerovat SDXL full test: 3 obrázky po 8 variantách (24 celkem)'
@@ -1603,7 +1604,7 @@ export function FluxLoraGeneratorScreen(props: {
               value={imageSize}
               onChange={(e) => setImageSize(e.target.value)}
               disabled={modelFamily === 'sdxl'}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] disabled:opacity-40"
+              className="w-full px-3 py-2 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] text-[var(--text-primary)] disabled:opacity-40"
             >
               <option value="auto">Auto (dle vstupu)</option>
               <option value="square_hd">Square HD (1024×1024)</option>
@@ -1651,7 +1652,7 @@ export function FluxLoraGeneratorScreen(props: {
                 onChange={(e) => setSdxlAdvancedRaw(e.target.value)}
                 placeholder={'{\n  "enable_safety_checker": false,\n  "embeddings": [],\n  "controlnets": [],\n  "ip_adapter": [],\n  "scheduler": "karras"\n}'}
                 rows={7}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] leading-5 text-[var(--text-primary)] placeholder-white/20 font-mono resize-y"
+                className="w-full px-3 py-2 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] leading-5 text-[var(--text-primary)] placeholder-white/20 font-mono resize-y"
               />
               <div className="text-[9px] text-white/35">
                 Vložené JSON klíče se pošlou přímo do <span className="text-white/55">fal-ai/lora/image-to-image</span> a mohou přepsat defaulty.
@@ -1667,7 +1668,7 @@ export function FluxLoraGeneratorScreen(props: {
               onChange={(e) => setCustomPrompt(e.target.value)}
               placeholder="Prázdné = automatický prompt podle zvolené LoRA…"
               rows={3}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20 resize-y"
+              className="w-full px-3 py-2 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] text-[var(--text-primary)] placeholder-white/20 resize-y"
             />
             <div className="text-[9px] text-white/30">Nech prázdné pro auto-prompt, nebo napiš vlastní.</div>
           </div>
@@ -1739,7 +1740,7 @@ export function FluxLoraGeneratorScreen(props: {
 
                       {isUpscaling && (
                         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm px-6 transition-all duration-200">
-                          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#a8bf8f] animate-spin" />
+                          <div className="w-8 h-8 rounded-full border-2 border-[rgba(168,191,143,0.22)] border-t-[#a8bf8f] animate-spin" />
                           <div className="mt-3 text-[10px] text-white/65 font-black uppercase tracking-widest">Upscaling</div>
                         </div>
                       )}
@@ -1748,7 +1749,7 @@ export function FluxLoraGeneratorScreen(props: {
                         <>
                           <button
                             type="button"
-                            className="absolute top-2 left-2 z-30 px-2 py-1 rounded-md bg-black/35 border border-white/10 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-[#a8bf8f]/15 hover:text-[#a9ee8f] hover:border-[#a8bf8f]/35 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="absolute top-2 left-2 z-30 px-2 py-1 rounded-md bg-black/35 border border-[rgba(168,191,143,0.18)] text-white/70 opacity-0 group-hover:opacity-100 hover:bg-[#a8bf8f]/15 hover:text-[#a9ee8f] hover:border-[#a8bf8f]/35 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Upscale 2× (fal clarity upscaler)"
                             aria-label="Upscale 2×"
                             disabled={!img.dataUrl || !!upscalingImageId}
@@ -1762,7 +1763,7 @@ export function FluxLoraGeneratorScreen(props: {
 
                           <button
                             type="button"
-                            className="absolute top-2 right-2 z-30 p-1.5 rounded-md bg-black/35 border border-white/10 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-200 hover:border-red-400/30 transition-all"
+                            className="absolute top-2 right-2 z-30 p-1.5 rounded-md bg-black/35 border border-[rgba(168,191,143,0.18)] text-white/70 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 hover:text-red-200 hover:border-red-400/30 transition-all"
                             title="Smazat"
                             aria-label="Smazat"
                             onClick={async (e) => {
@@ -1802,7 +1803,7 @@ export function FluxLoraGeneratorScreen(props: {
                   const p = presets.find((x) => x.id === id);
                   if (p) applyPreset(p);
                 }}
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] truncate"
+                className="flex-1 px-3 py-2 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] text-[var(--text-primary)] truncate"
               >
                 <option value="">{presetsLoaded ? '(žádný preset)' : 'Načítám…'}</option>
                 {presets.map((p) => (
@@ -1813,7 +1814,7 @@ export function FluxLoraGeneratorScreen(props: {
                 <button
                   type="button"
                   onClick={() => handleDeletePreset(selectedPresetId)}
-                  className="p-2 rounded-lg border border-white/10 bg-black/10 hover:bg-red-500/15 hover:border-red-400/25 text-white/50 hover:text-red-300 transition-colors"
+                  className="p-2 rounded-lg border border-[rgba(168,191,143,0.18)] bg-black/10 hover:bg-red-500/15 hover:border-red-400/25 text-white/50 hover:text-red-300 transition-colors"
                   title="Smazat preset"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -1825,7 +1826,7 @@ export function FluxLoraGeneratorScreen(props: {
                 value={presetName}
                 onChange={(e) => setPresetName(e.target.value)}
                 placeholder="Název presetu…"
-                className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[10px] text-[var(--text-primary)] placeholder-white/20"
+                className="flex-1 px-3 py-2 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] backdrop-blur-sm text-[10px] text-[var(--text-primary)] placeholder-white/20"
               />
               <button
                 type="button"
@@ -1844,10 +1845,10 @@ export function FluxLoraGeneratorScreen(props: {
         <AtelierSection title="Doladění LoRA">
           {modelFamily === 'sdxl' ? (
             <>
-              <select value={sdxlSampler} onChange={(e) => setSdxlSampler(e.target.value as SdxlSampler)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+              <select value={sdxlSampler} onChange={(e) => setSdxlSampler(e.target.value as SdxlSampler)} className="w-full rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
                 {SDXL_SAMPLER_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
               </select>
-              <select value={sdxlScheduler} onChange={(e) => setSdxlScheduler(e.target.value as SdxlScheduler)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+              <select value={sdxlScheduler} onChange={(e) => setSdxlScheduler(e.target.value as SdxlScheduler)} className="w-full rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
                 {SDXL_SCHEDULER_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
               </select>
             </>
@@ -1884,7 +1885,7 @@ export function FluxLoraGeneratorScreen(props: {
               <input type="range" min={0.01} max={1} step={0.01} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} className="range-green w-full" />
             </label>
           ) : (
-            <select value={flux2Acceleration} onChange={(e) => setFlux2Acceleration(e.target.value as Flux2Acceleration)} className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
+            <select value={flux2Acceleration} onChange={(e) => setFlux2Acceleration(e.target.value as Flux2Acceleration)} className="w-full rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)] px-3 py-2 text-[10px] text-[var(--text-primary)]">
               <option value="none">none</option>
               <option value="regular">regular</option>
               <option value="high">high</option>

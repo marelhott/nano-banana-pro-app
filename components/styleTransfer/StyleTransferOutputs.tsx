@@ -47,7 +47,7 @@ export function StyleTransferOutputs(props: {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {outputs.map((o, idx) => (
-        <div key={o.id} className="group relative aspect-square rounded-lg overflow-hidden border border-white/10 bg-[var(--bg-panel)]/60">
+        <div key={o.id} className="group relative aspect-square rounded-lg overflow-hidden border border-white/10 bg-[rgba(28,40,20,0.70)]/60">
           {o.status === 'loading' && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md px-6 transition-all duration-300">
               <div className="w-full max-w-[200px] space-y-3">

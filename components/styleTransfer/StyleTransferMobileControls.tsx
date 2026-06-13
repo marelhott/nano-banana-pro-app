@@ -365,7 +365,7 @@ export function StyleTransferMobileControls(props: {
               <select
                 value={fofrModel}
                 onChange={(e) => setFofrModel(e.target.value as any)}
-                className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)]"
+                className="w-full px-2 py-2 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] text-[11px] text-[var(--text-primary)]"
               >
                 <option value="fast">fast</option>
                 <option value="high-quality">high-quality</option>
@@ -397,7 +397,7 @@ export function StyleTransferMobileControls(props: {
                   step={64}
                   value={fofrWidth}
                   onChange={(e) => setFofrWidth(Number(e.target.value))}
-                  className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)]"
+                  className="w-full px-2 py-2 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] text-[11px] text-[var(--text-primary)]"
                 />
                 <input
                   type="number"
@@ -406,7 +406,7 @@ export function StyleTransferMobileControls(props: {
                   step={64}
                   value={fofrHeight}
                   onChange={(e) => setFofrHeight(Number(e.target.value))}
-                  className="w-full px-2 py-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] text-[var(--text-primary)]"
+                  className="w-full px-2 py-2 rounded-lg bg-[rgba(24,34,18,0.70)] border border-[rgba(168,191,143,0.18)] text-[11px] text-[var(--text-primary)]"
                 />
               </div>
             )}

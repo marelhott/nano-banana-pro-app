@@ -275,7 +275,7 @@ export function AiUpscalerScreen(props: {
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
-      <aside className="w-[360px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
+      <aside className="w-[360px] shrink-0 h-full overflow-y-auto custom-scrollbar cairn-panel-left text-[11px]" style={{backdropFilter:"blur(32px) saturate(200%)",background:"linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)",boxShadow:"4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)"}}>
         <div className="p-6 flex flex-col gap-6 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
@@ -363,7 +363,7 @@ export function AiUpscalerScreen(props: {
           </div>
 
           <button type="button" onClick={onOpenSettings}
-            className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-input)] text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors">
+            className="w-full px-3 py-2 rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(24,34,18,0.70)] backdrop-blur-sm text-[10px] font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors">
             Settings
           </button>
         </div>
@@ -377,7 +377,7 @@ export function AiUpscalerScreen(props: {
                 const isDone = output.status === 'done' && !!output.dataUrl;
                 const isRunning = output.status === 'running';
                 return (
-                  <div key={output.id} className="rounded-2xl overflow-hidden border border-white/10">
+                  <div key={output.id} className="rounded-2xl overflow-hidden border border-[rgba(168,191,143,0.18)]">
                     <button type="button" onClick={() => { if (!isDone || !output.dataUrl) return; setSelectedImage(output); }}
                       className="w-full text-left cursor-zoom-in">
                       <div className="w-full aspect-square bg-black/20">
@@ -406,7 +406,7 @@ export function AiUpscalerScreen(props: {
                         <style>{`@keyframes growWidth { 0% { width: 0%; } 10% { width: 15%; } 40% { width: 50%; } 70% { width: 80%; } 100% { width: 95%; } }`}</style>
                       </div>
                     </button>
-                    <div className="p-3 bg-[var(--bg-input)] flex items-center justify-between gap-2">
+                    <div className="p-3 bg-[rgba(24,34,18,0.70)] backdrop-blur-sm flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="text-[9px] font-bold text-white truncate">{output.inputName}</div>
                         <div className="text-[8px] text-white/40 uppercase tracking-wider">{modeLabel(output.mode)} • {modeModel(output.mode)}</div>
@@ -414,7 +414,7 @@ export function AiUpscalerScreen(props: {
                       </div>
                       {isDone && output.dataUrl ? (
                         <button type="button" onClick={e => { e.stopPropagation(); downloadDataUrl(output.dataUrl!, `${output.inputName.replace(/\.[^.]+$/, '')}-${modeLabel(output.mode).toLowerCase()}.png`); }}
-                          className="shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white" title="Stáhnout">
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-[rgba(45,62,33,0.70)] transition-colors text-white/50 hover:text-white" title="Stáhnout">
                           <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
                         </button>
                       ) : null}
@@ -445,7 +445,7 @@ export function AiUpscalerScreen(props: {
             ]}
           />
           {batchProgress ? (
-            <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
+            <div className="rounded-md border border-[rgba(168,191,143,0.18)] bg-[rgba(28,40,20,0.70)] px-3 py-2 text-[8px] font-medium leading-relaxed text-[var(--text-secondary)]">
               {batchProgress.current}/{batchProgress.total} • {batchProgress.fileName}
             </div>
           ) : null}

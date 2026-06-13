@@ -460,7 +460,7 @@ export function ReframeScreen(props: {
 
   return (
     <div className="flex-1 relative flex min-w-0 canvas-surface h-full overflow-hidden">
-      <aside className="w-[360px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/5 bg-[var(--bg-card)] text-[11px]">
+      <aside className="w-[360px] shrink-0 h-full overflow-y-auto custom-scrollbar cairn-panel-left text-[11px]" style={{backdropFilter:"blur(32px) saturate(200%)",background:"linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)",boxShadow:"4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)"}}>
         <div className="p-6 flex flex-col gap-5 min-h-full">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />
@@ -557,13 +557,13 @@ export function ReframeScreen(props: {
               {outputs.map((output) => {
                 const isDone = output.status === 'done' && !!output.dataUrl;
                 return (
-                  <article key={output.id} className="overflow-hidden rounded-lg border border-white/10 bg-[var(--bg-card)]">
+                  <article key={output.id} className="overflow-hidden rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(20,28,16,0.85)]">
                     <button
                       type="button"
                       onClick={() => { if (isDone) setSelectedOutput(output); }}
                       className="block w-full cursor-zoom-in"
                     >
-                      <div className="aspect-[4/5] bg-[var(--bg-panel)]">
+                      <div className="aspect-[4/5] bg-[rgba(28,40,20,0.70)]">
                         {isDone && output.dataUrl ? (
                           <img src={output.dataUrl} alt={output.perspectiveLabel} className="w-full h-full object-cover" />
                         ) : output.status === 'error' ? (
@@ -574,7 +574,7 @@ export function ReframeScreen(props: {
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center px-6">
                             <Sparkles className="w-5 h-5 text-[#a8bf8f] mb-4" strokeWidth={1.5} />
-                            <div className="w-full max-w-[220px] h-[2px] rounded-full bg-white/10 overflow-hidden">
+                            <div className="w-full max-w-[220px] h-[2px] rounded-full bg-[rgba(45,62,33,0.70)] overflow-hidden">
                               {output.status === 'running' ? (
                                 <div className="h-full w-1/3 rounded-full bg-[#a8bf8f] shadow-[0_0_10px_rgba(168,191,143,0.5)] animate-[reframeSlide_1.2s_ease-in-out_infinite]" />
                               ) : (
@@ -588,7 +588,7 @@ export function ReframeScreen(props: {
                         )}
                       </div>
                     </button>
-                    <div className="h-12 px-3 flex items-center justify-between gap-2 bg-[var(--bg-input)]">
+                    <div className="h-12 px-3 flex items-center justify-between gap-2 bg-[rgba(24,34,18,0.70)] backdrop-blur-sm">
                       <div className="min-w-0">
                         <div className="text-[10px] font-black text-white truncate">{output.perspectiveLabel}</div>
                         <div className="text-[8px] uppercase tracking-widest text-white/35 truncate">{output.modelId || GEMINI_PRO_IMAGE_MODEL}</div>
@@ -597,7 +597,7 @@ export function ReframeScreen(props: {
                         <button
                           type="button"
                           onClick={() => downloadDataUrl(output.dataUrl!, `reframe-${output.perspectiveId}.png`)}
-                          className="shrink-0 p-1.5 rounded-md text-white/50 hover:text-white hover:bg-white/10"
+                          className="shrink-0 p-1.5 rounded-md text-white/50 hover:text-white hover:bg-[rgba(45,62,33,0.70)]"
                           title="Download"
                         >
                           <Download className="w-3.5 h-3.5" />
@@ -605,7 +605,7 @@ export function ReframeScreen(props: {
                       ) : null}
                     </div>
                     {isDone ? (
-                      <div className="p-2 bg-[var(--bg-input)] border-t border-white/5 flex gap-2">
+                      <div className="p-2 bg-[rgba(24,34,18,0.70)] backdrop-blur-sm border-t border-white/5 flex gap-2">
                         <input
                           value={output.editPrompt || ''}
                           onChange={(event) => {
@@ -616,7 +616,7 @@ export function ReframeScreen(props: {
                             if (event.key === 'Enter') void handleEditOutput(output);
                           }}
                           placeholder="Prompt úprava..."
-                          className="min-w-0 flex-1 h-8 rounded-md border border-white/10 bg-[var(--bg-panel)] px-2 text-[10px] text-white outline-none focus:border-[#a8bf8f]/60"
+                          className="min-w-0 flex-1 h-8 rounded-md border border-[rgba(168,191,143,0.18)] bg-[rgba(28,40,20,0.70)] px-2 text-[10px] text-white outline-none focus:border-[#a8bf8f]/60"
                         />
                         <button
                           type="button"
@@ -685,7 +685,7 @@ export function ReframeScreen(props: {
             ]}
           />
           {progress ? (
-            <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
+            <div className="rounded-md border border-[rgba(168,191,143,0.18)] bg-[rgba(28,40,20,0.70)] px-3 py-2 text-[8px] font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
               Progress {progress.completed}/{progress.total}
             </div>
           ) : null}

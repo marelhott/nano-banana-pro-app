@@ -6,11 +6,12 @@ import { LoadingSpinner } from './components/LoadingSpinner';
 import { analyzeImageForJsonWithAI, enhancePromptWithAI, analyzeStyleTransferWithAI } from './services/geminiService';
 import { AppState, GeneratedImage, GenerationRecipe, SourceImage, LineageEntry } from './types';
 import { ImageComparisonModal } from './components/ImageComparisonModal';
+import { ImageDetailModal } from './components/ImageDetailModal';
 import { Header } from './components/Header';
 import { GalleryModal } from './components/GalleryModal';
 import { SavedPromptsDropdown } from './components/SavedPromptsDropdown';
 import { slugify } from './utils/stringUtils.ts';
-import { GalleryImage, saveToGallery, createThumbnail } from './utils/galleryDB';
+import { GalleryImage, saveToGallery, createThumbnail, getAllImages, deleteImage as deleteGalleryImage } from './utils/galleryDB';
 import { ImageDatabase } from './utils/imageDatabase';
 import { backfillLocalLibraryMetadataToCloud, urlToDataUrl } from './utils/supabaseStorage';
 import JSZip from 'jszip';
@@ -453,6 +454,31 @@ const App: React.FC = () => {
       localStorage.setItem('multiRefMode', state.multiRefMode);
     }
   }, [state.multiRefMode]);
+
+  // Load persistent generation history from IndexedDB on mount
+  useEffect(() => {
+    getAllImages().then(images => {
+      if (!images || images.length === 0) return;
+      const restoredImages: GeneratedImage[] = images
+        .slice(0, 40) // limit to 40 most recent
+        .map(img => ({
+          id: img.id,
+          url: img.url,
+          prompt: img.prompt,
+          timestamp: img.timestamp,
+          status: 'success' as const,
+          resolution: img.resolution,
+          aspectRatio: img.aspectRatio,
+          recipe: img.params as any,
+          runId: (img.params as any)?.runId ?? img.id,
+          lineage: img.lineage,
+        }));
+      setState(prev => ({
+        ...prev,
+        generatedImages: restoredImages,
+      }));
+    }).catch(() => { /* silently ignore load errors */ });
+  }, []);
 
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [gridCols, setGridCols] = useState<number>(3);
@@ -1442,6 +1468,7 @@ const App: React.FC = () => {
       const providerImages = await prepareServerProviderImages([...sourceImagesData, ...assetImagesData]);
 
       // 2. Generate image for each variant sequentially
+      const variantsRunId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       for (let i = 0; i < variants.length; i++) {
         const variant = variants[i];
 
@@ -1463,6 +1490,7 @@ const App: React.FC = () => {
             status: 'loading' as const,
             resolution: state.resolution,
             aspectRatio: state.aspectRatio,
+            runId: variantsRunId,
             variantInfo: {
               isVariant: true,
               variantNumber: i + 1,
@@ -1861,7 +1889,8 @@ const App: React.FC = () => {
     setGenerationProgress({ current: 0, total: countToGenerate });
     setToast({ message: `Spouštím generování ${countToGenerate} obrázků…`, type: 'info' });
 
-    // Vytvořit pole s požadovaným počtem obrázků
+    // Vytvořit pole s požadovaným počtem obrázků (všechny sdílí runId pro řádkové zobrazení)
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const imagesToGenerate = Array.from({ length: countToGenerate }, (_, index) => {
       const newId = `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
       return {
@@ -1871,6 +1900,7 @@ const App: React.FC = () => {
         status: 'loading' as const,
         resolution: state.resolution,
         aspectRatio: state.aspectRatio,
+        runId,
       };
     });
 
@@ -2030,6 +2060,7 @@ const App: React.FC = () => {
             const recipeWithModel = result.modelId ? { ...recipe, modelId: result.modelId } : recipe;
 
 
+            const imgRunId = state.generatedImages.find(img => img.id === imageData.id)?.runId;
             setState(prev => ({
               ...prev,
               generatedImages: prev.generatedImages.map(img =>
@@ -2043,12 +2074,13 @@ const App: React.FC = () => {
             try {
               const thumbnail = await createThumbnail(result.imageBase64);
               await saveToGallery({
+                id: imageData.id,
                 url: result.imageBase64,
                 prompt: basePrompt,
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
                 thumbnail,
-                params: recipeWithModel,
+                params: { ...recipeWithModel, runId: imgRunId },
               });
               console.log('[Gallery] Image saved successfully');
               // Refresh gallery to show new image
@@ -3032,21 +3064,21 @@ const App: React.FC = () => {
           <button
             onClick={handleEnhancePrompt}
             disabled={!state.prompt.trim() || isEnhancingPrompt}
-            className="h-8 rounded-lg bg-white/5 px-2.5 text-[8px] font-bold uppercase tracking-[0.18em] text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-8 rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(32,44,24,0.55)] px-2.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)] transition-all hover:border-[rgba(168,191,143,0.38)] hover:bg-[rgba(45,62,33,0.70)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isEnhancingPrompt ? 'Vylepšuji…' : 'Vylepšit'}
           </button>
 
           <button
             onClick={() => setIsTemplatesModalOpen(true)}
-            className="h-8 rounded-lg bg-white/5 px-2.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)] transition-all hover:bg-white/10 hover:text-[var(--text-primary)]"
+            className="h-8 rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(32,44,24,0.55)] px-2.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)] transition-all hover:border-[rgba(168,191,143,0.38)] hover:bg-[rgba(45,62,33,0.70)] hover:text-[var(--text-primary)]"
           >
             Šablony
           </button>
 
           <button
             onClick={() => setIsCollectionsModalOpen(true)}
-            className="h-8 rounded-lg bg-white/5 px-2.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)] transition-all hover:bg-white/10 hover:text-[var(--text-primary)]"
+            className="h-8 rounded-lg border border-[rgba(168,191,143,0.16)] bg-[rgba(32,44,24,0.55)] px-2.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)] transition-all hover:border-[rgba(168,191,143,0.38)] hover:bg-[rgba(45,62,33,0.70)] hover:text-[var(--text-primary)]"
             title="Kolekce"
           >
             Kolekce
@@ -3055,7 +3087,7 @@ const App: React.FC = () => {
           <button
             onClick={handleUndoPrompt}
             disabled={!promptHistory.canUndo()}
-            className="h-8 w-8 rounded-lg bg-white/5 text-[10px] font-bold text-white/70 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-20"
+            className="h-8 w-8 rounded-lg border border-[rgba(168,191,143,0.14)] bg-[rgba(28,38,22,0.50)] text-[10px] font-bold text-[var(--text-secondary)] transition-all hover:border-[rgba(168,191,143,0.36)] hover:bg-[rgba(40,55,30,0.65)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-20"
             title="Vrátit zpět"
           >
             ↶
@@ -3064,7 +3096,7 @@ const App: React.FC = () => {
           <button
             onClick={handleRedoPrompt}
             disabled={!promptHistory.canRedo()}
-            className="h-8 w-8 rounded-lg bg-white/5 text-[10px] font-bold text-white/70 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-20"
+            className="h-8 w-8 rounded-lg border border-[rgba(168,191,143,0.14)] bg-[rgba(28,38,22,0.50)] text-[10px] font-bold text-[var(--text-secondary)] transition-all hover:border-[rgba(168,191,143,0.36)] hover:bg-[rgba(40,55,30,0.65)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-20"
             title="Znovu"
           >
             ↷
@@ -3083,7 +3115,7 @@ const App: React.FC = () => {
                   navigator.clipboard.writeText(generationPromptPreview);
                   setToast({ message: 'Prompt zkopírován', type: 'success' });
                 }}
-                className="rounded-md bg-white/5 px-2 py-1 text-[9px] font-bold text-white/70 transition-all hover:bg-white/10 hover:text-white"
+                className="rounded-md border border-[rgba(168,191,143,0.14)] bg-[rgba(32,44,24,0.50)] px-2 py-1 text-[9px] font-bold text-[var(--text-secondary)] transition-all hover:border-[rgba(168,191,143,0.35)] hover:bg-[rgba(45,62,33,0.65)] hover:text-[var(--accent)]"
               >
                 Kopírovat
               </button>
@@ -3105,25 +3137,26 @@ const App: React.FC = () => {
           <button
             onClick={handleGenerate}
             disabled={!canGenerate}
-            className={`min-h-[54px] w-full rounded-lg px-2 py-2 text-center transition-all shadow-lg ambient-glow glow-green glow-weak ${isGenerateClicked
-              ? 'bg-blue-600 text-white shadow-blue-500/20'
-              : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[#0b0c0a] shadow-[#a8bf8f]/20 hover:shadow-[#a8bf8f]/40'
-              } disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale disabled:shadow-none`}
+            className={`min-h-[54px] w-full px-2 py-2 text-center transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale ${isGenerateClicked
+              ? 'bg-blue-600 text-white'
+              : 'text-[#0d1009]'
+              }`}
+            style={!isGenerateClicked ? {
+              borderRadius: '100px',
+              background: 'linear-gradient(135deg, #b8cfa0 0%, #a8bf8f 40%, #7d9a64 100%)',
+              boxShadow: '0 0 0 1px rgba(168,191,143,0.40), 0 4px 20px rgba(125,154,100,0.35), 0 1px 0 rgba(255,255,255,0.20) inset',
+              transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
+            } : { borderRadius: '100px' }}
           >
-            <div className="text-[9px] font-black uppercase tracking-[0.18em]">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em]">
               {isGenerating ? 'Běží…' : 'Generovat'}
-            </div>
-            <div className="mt-1 text-[8px] font-semibold opacity-75">
-              {state.sourceImages.length > 1 && state.multiRefMode === 'batch'
-                ? `${state.sourceImages.length} batch`
-                : `${Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)))} výstupů`}
             </div>
           </button>
           <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={handleGenerate3Variants}
               disabled={!canGenerate}
-              className="min-h-[54px] rounded-lg border border-white/8 bg-white/5 px-2 py-2 text-center transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+              className="min-h-[54px] rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(32,44,24,0.60)] px-2 py-2 text-center transition-all hover:border-[rgba(168,191,143,0.40)] hover:bg-[rgba(45,62,33,0.75)] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
             >
               <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
                 {isGenerating ? 'Varianty…' : '3 varianty'}
@@ -3136,7 +3169,7 @@ const App: React.FC = () => {
             <button
               onClick={handleGenerate3AI}
               disabled={!canGenerate}
-              className="min-h-[54px] rounded-lg border border-white/8 bg-gradient-to-r from-[#a8bf8f]/10 via-purple-500/10 to-blue-500/10 px-2 py-2 text-center transition-all hover:from-[#a8bf8f]/20 hover:via-purple-500/20 hover:to-blue-500/20 disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+              className="min-h-[54px] rounded-lg border border-[rgba(168,191,143,0.18)] bg-gradient-to-br from-[rgba(40,55,30,0.65)] via-[rgba(32,28,45,0.60)] to-[rgba(22,30,45,0.65)] px-2 py-2 text-center transition-all hover:border-[rgba(168,191,143,0.38)] hover:from-[rgba(55,75,40,0.75)] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
             >
               <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
                 {isGenerating ? 'Všechny…' : 'Všechny'}
@@ -3169,7 +3202,7 @@ const App: React.FC = () => {
 
       {/* 3. Prompt Section (Redesigned Header & Compact) */}
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between rounded-lg border border-[var(--border-color)] bg-[var(--bg-panel)] px-2 py-1">
+        <div className="flex items-center justify-between rounded-lg border border-[rgba(168,191,143,0.18)] bg-[linear-gradient(135deg,rgba(35,48,26,0.70)_0%,rgba(20,28,15,0.80)_100%)] px-2 py-1">
           <span className="pl-0.5 text-[9px] font-bold uppercase tracking-wider text-[var(--text-primary)]">
             Zadání (Prompt)
           </span>
@@ -3598,7 +3631,7 @@ const App: React.FC = () => {
         <div className="pt-2">
           <button
             onClick={() => setIsFreeComparisonOpen(true)}
-            className="w-full py-2 px-3 text-[9px] font-bold uppercase tracking-wider bg-white/5 hover:bg-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-md transition-all border border-[var(--border-color)]"
+            className="w-full py-2 px-3 text-[9px] font-bold uppercase tracking-wider rounded-md transition-all border border-[rgba(168,191,143,0.18)] bg-[rgba(32,44,24,0.55)] text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.40)] hover:bg-[rgba(45,62,33,0.70)] hover:text-[var(--accent)]"
           >
             Porovnat obrázky
           </button>
@@ -3660,7 +3693,7 @@ const App: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsGalleryExpanded(true)}
-          className="w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-3 text-left transition-all hover:border-[var(--accent)]/40 hover:bg-[var(--bg-input)]"
+          className="w-full rounded-lg border border-[rgba(168,191,143,0.20)] bg-[linear-gradient(135deg,rgba(30,42,22,0.65)_0%,rgba(18,26,14,0.75)_100%)] px-3 py-3 text-left transition-all hover:border-[rgba(168,191,143,0.45)] hover:bg-[linear-gradient(135deg,rgba(42,58,30,0.78)_0%,rgba(26,36,18,0.85)_100%)]"
         >
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-primary)]">
             Knihovna
@@ -3674,7 +3707,7 @@ const App: React.FC = () => {
   );
 
   const renderGroundingControl = () => (
-    <label className="flex items-center justify-between gap-3 rounded-md border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-2 transition-all hover:border-[var(--border-strong)]">
+    <label className="flex items-center justify-between gap-3 rounded-md border border-[rgba(168,191,143,0.18)] bg-[linear-gradient(135deg,rgba(28,40,20,0.65)_0%,rgba(16,24,12,0.72)_100%)] px-3 py-2 transition-all hover:border-[rgba(168,191,143,0.38)] cursor-pointer">
       <div className="flex flex-col">
         <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-primary)]">Grounding</span>
         <span className="text-[8px] leading-relaxed text-[var(--text-secondary)]">Použít Google Search pro zdroje a odkazy</span>
@@ -3738,7 +3771,7 @@ const App: React.FC = () => {
           )}
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 rounded-lg border border-white/20 hover:border-white/40 text-xs uppercase tracking-wider"
+            className="px-4 py-2 rounded-lg border border-[rgba(168,191,143,0.22)] bg-[rgba(32,44,24,0.55)] hover:border-[rgba(168,191,143,0.45)] hover:bg-[rgba(45,62,33,0.70)] text-xs uppercase tracking-wider transition-all"
           >
             Zkusit znovu
           </button>
@@ -3773,7 +3806,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen transition-colors duration-300 bg-[var(--bg-main)] text-[var(--text-primary)] font-sans flex">
+    <div className="min-h-screen transition-colors duration-300 text-[var(--text-primary)] font-sans flex" style={{background:'transparent'}}>
 
       {/* Settings Modal */}
       <SettingsModal
@@ -3886,8 +3919,8 @@ const App: React.FC = () => {
               {/* Left Sidebar - resizable Nano workflow controls (Hidden on Mobile) */}
               <div
                 ref={sidebarRef}
-                className="hidden lg:flex shrink-0 border-r border-white/5 bg-[var(--bg-card)] flex-col h-full overflow-y-auto custom-scrollbar z-20"
-                style={{ width: sidebarWidth }}
+                className="hidden lg:flex shrink-0 flex-col h-full overflow-y-auto custom-scrollbar cairn-panel-left z-20"
+                style={{ width: sidebarWidth, backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)' }}
               >
                 <div className="p-6 flex flex-col gap-6 min-h-full">
                   <div className="pt-2">
@@ -3998,62 +4031,116 @@ const App: React.FC = () => {
 
                     {/* Main Generation Grid */}
                     {state.generatedImages.length === 0 ? (
-                      <div className="py-20 md:py-40 flex flex-col items-center justify-center space-y-6">
+                      <div className="py-20 md:py-40 flex flex-col items-center justify-center space-y-6 relative">
+                        {/* Cairn ambient glow orb */}
+                        <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse 60% 50% at 50% 45%, rgba(125,154,100,0.12) 0%, transparent 65%)'}} />
                         {/* Dot Matrix Sphere SVG */}
-                        <div className="opacity-80" style={{ animation: 'spin-slow 20s linear infinite' }}>
+                        <div className="opacity-90 relative z-10" style={{ animation: 'spin-slow 20s linear infinite' }}>
                           <svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <style>{`
                         @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
                       `}</style>
                             {/* Center - Highlight */}
-                            <circle cx="50" cy="50" r="2.5" fill="currentColor" className="text-white" />
+                            <circle cx="50" cy="50" r="2.5" fill="#e8f0e0" />
 
                             {/* Inner Ring - Light Gray */}
-                            <circle cx="50" cy="40" r="2.2" fill="currentColor" className="text-gray-300" />
-                            <circle cx="58" cy="44" r="2.2" fill="currentColor" className="text-gray-300" />
-                            <circle cx="60" cy="50" r="2.2" fill="currentColor" className="text-gray-300" />
-                            <circle cx="58" cy="56" r="2.2" fill="currentColor" className="text-gray-300" />
-                            <circle cx="50" cy="60" r="2.2" fill="currentColor" className="text-gray-300" />
-                            <circle cx="42" cy="56" r="2.2" fill="currentColor" className="text-gray-300" />
-                            <circle cx="40" cy="50" r="2.2" fill="currentColor" className="text-gray-300" />
-                            <circle cx="42" cy="44" r="2.2" fill="currentColor" className="text-gray-300" />
+                            <circle cx="50" cy="40" r="2.2" fill="#a8bf8f" />
+                            <circle cx="58" cy="44" r="2.2" fill="#a8bf8f" />
+                            <circle cx="60" cy="50" r="2.2" fill="#a8bf8f" />
+                            <circle cx="58" cy="56" r="2.2" fill="#a8bf8f" />
+                            <circle cx="50" cy="60" r="2.2" fill="#a8bf8f" />
+                            <circle cx="42" cy="56" r="2.2" fill="#a8bf8f" />
+                            <circle cx="40" cy="50" r="2.2" fill="#a8bf8f" />
+                            <circle cx="42" cy="44" r="2.2" fill="#a8bf8f" />
 
                             {/* Middle Ring - Mid Gray */}
-                            <circle cx="50" cy="30" r="2" fill="currentColor" className="text-gray-500" />
-                            <circle cx="64" cy="36" r="2" fill="currentColor" className="text-gray-500" />
-                            <circle cx="70" cy="50" r="2" fill="currentColor" className="text-gray-500" />
-                            <circle cx="64" cy="64" r="2" fill="currentColor" className="text-gray-500" />
-                            <circle cx="50" cy="70" r="2" fill="currentColor" className="text-gray-500" />
-                            <circle cx="36" cy="64" r="2" fill="currentColor" className="text-gray-500" />
-                            <circle cx="30" cy="50" r="2" fill="currentColor" className="text-gray-500" />
-                            <circle cx="36" cy="36" r="2" fill="currentColor" className="text-gray-500" />
+                            <circle cx="50" cy="30" r="2" fill="#7d9a64" />
+                            <circle cx="64" cy="36" r="2" fill="#7d9a64" />
+                            <circle cx="70" cy="50" r="2" fill="#7d9a64" />
+                            <circle cx="64" cy="64" r="2" fill="#7d9a64" />
+                            <circle cx="50" cy="70" r="2" fill="#7d9a64" />
+                            <circle cx="36" cy="64" r="2" fill="#7d9a64" />
+                            <circle cx="30" cy="50" r="2" fill="#7d9a64" />
+                            <circle cx="36" cy="36" r="2" fill="#7d9a64" />
 
                             {/* Outer Ring - Dark Gray/Fading */}
-                            <circle cx="50" cy="20" r="1.5" fill="currentColor" className="text-gray-700" />
-                            <circle cx="70" cy="28" r="1.5" fill="currentColor" className="text-gray-700" />
-                            <circle cx="80" cy="50" r="1.5" fill="currentColor" className="text-gray-700" />
-                            <circle cx="70" cy="72" r="1.5" fill="currentColor" className="text-gray-700" />
-                            <circle cx="50" cy="80" r="1.5" fill="currentColor" className="text-gray-700" />
-                            <circle cx="30" cy="72" r="1.5" fill="currentColor" className="text-gray-700" />
-                            <circle cx="20" cy="50" r="1.5" fill="currentColor" className="text-gray-700" />
-                            <circle cx="30" cy="28" r="1.5" fill="currentColor" className="text-gray-700" />
+                            <circle cx="50" cy="20" r="1.5" fill="#536645" />
+                            <circle cx="70" cy="28" r="1.5" fill="#536645" />
+                            <circle cx="80" cy="50" r="1.5" fill="#536645" />
+                            <circle cx="70" cy="72" r="1.5" fill="#536645" />
+                            <circle cx="50" cy="80" r="1.5" fill="#536645" />
+                            <circle cx="30" cy="72" r="1.5" fill="#536645" />
+                            <circle cx="20" cy="50" r="1.5" fill="#536645" />
+                            <circle cx="30" cy="28" r="1.5" fill="#536645" />
                           </svg>
                         </div>
-                        <div className="text-center space-y-1.5">
-                          <span className="text-[10px] font-[900] uppercase tracking-[0.28em] text-gray-400 block">
+                        <div className="text-center space-y-1.5 relative z-10">
+                          <span className="text-[10px] font-[900] uppercase tracking-[0.28em] block" style={{color:'var(--text-3)'}}>
                             Zatím žádné vygenerované obrázky
                           </span>
-                          <p className="text-[9px] font-medium text-gray-600">
+                          <p className="text-[9px] font-medium" style={{color:'var(--text-soft)'}}>
                             Zadejte prompt v postranním panelu (vlevo) a začněte tvořit
                           </p>
                         </div>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-min">
-                        {state.generatedImages.map((image) => (
+                      <div className="space-y-6">
+                        {(() => {
+                          // Group images by runId into rows
+                          const rows: Array<{ runId: string; images: typeof state.generatedImages }> = [];
+                          const seen = new Map<string, number>();
+                          for (const img of state.generatedImages) {
+                            const key = img.runId ?? img.id;
+                            if (seen.has(key)) {
+                              rows[seen.get(key)!].images.push(img);
+                            } else {
+                              seen.set(key, rows.length);
+                              rows.push({ runId: key, images: [img] });
+                            }
+                          }
+                          return rows.map((row) => (
+                            <div key={row.runId} className="group/row space-y-2 animate-fadeIn">
+                              {/* Row header */}
+                              <div className="flex items-center justify-between px-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: 'rgba(168,191,143,0.50)' }}>
+                                    {row.images[0]?.prompt
+                                      ? row.images[0].prompt.length > 60
+                                        ? row.images[0].prompt.slice(0, 60) + '…'
+                                        : row.images[0].prompt
+                                      : 'Generování…'}
+                                  </span>
+                                  {row.images.length > 1 && (
+                                    <span className="text-[8px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(168,191,143,0.10)', color: 'rgba(168,191,143,0.55)' }}>
+                                      {row.images.length}×
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    const toDelete = row.images.map(img => img.id);
+                                    setState(prev => ({
+                                      ...prev,
+                                      generatedImages: prev.generatedImages.filter(img => (img.runId ?? img.id) !== row.runId),
+                                    }));
+                                    toDelete.forEach(id => deleteGalleryImage(id).catch(() => {}));
+                                    setToast({ message: 'Řádek smazán', type: 'success' });
+                                  }}
+                                  className="p-1 rounded transition-all opacity-30 hover:opacity-100"
+                                  style={{ color: 'rgba(168,191,143,0.35)' }}
+                                  title="Smazat celý řádek"
+                                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(239,68,68,0.80)')}
+                                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(168,191,143,0.35)')}
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
+                              {/* Images in row */}
+                              <div className={`grid gap-3 ${row.images.length === 1 ? 'grid-cols-1 max-w-sm' : row.images.length === 2 ? 'grid-cols-2' : row.images.length === 3 ? 'grid-cols-3' : row.images.length === 4 ? 'grid-cols-4' : 'grid-cols-5'}`}>
+                        {row.images.map((image) => (
                           <article
                             key={image.id}
-                            className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all animate-fadeIn"
+                            className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all"
                             onContextMenu={(e) => image.status === 'success' && handleImageContextMenu(e, image.id)}
                           >
                             <div
@@ -4112,7 +4199,7 @@ const App: React.FC = () => {
                             </div>
 
                             {/* Card Footer */}
-                            < div className="px-4 py-3 flex flex-col gap-2 border-t border-[color:var(--border-color)] bg-[var(--bg-card)]" >
+                            < div className="px-4 py-3 flex flex-col gap-2 border-t border-[rgba(168,191,143,0.12)] bg-[linear-gradient(135deg,rgba(28,38,22,0.85)_0%,rgba(16,22,12,0.90)_100%)]" >
                               {/* Prompt + Actions Row */}
                               < div className="flex items-center gap-2" >
                                 <p className="text-[9px] font-medium text-[var(--text-muted)] leading-snug line-clamp-1 flex-1" title={image.prompt}>
@@ -4162,6 +4249,7 @@ const App: React.FC = () => {
                                         ...prev,
                                         generatedImages: prev.generatedImages.filter(img => img.id !== image.id)
                                       }));
+                                      deleteGalleryImage(image.id).catch(() => {});
                                       setToast({ message: 'Obrázek smazán', type: 'success' });
                                     }}
                                     className="p-1.5 text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
@@ -4199,7 +4287,7 @@ const App: React.FC = () => {
 
                             {/* Inline Edit Section */}
                             {image.status === 'success' && image.url && (
-                              <div className="px-4 py-3 border-t border-[color:var(--border-color)] bg-[var(--bg-card)] space-y-2.5">
+                              <div className="px-4 py-3 border-t border-[rgba(168,191,143,0.12)] bg-[linear-gradient(135deg,rgba(28,38,22,0.85)_0%,rgba(16,22,12,0.90)_100%)] space-y-2.5">
                                 {/* Header Row */}
                                 <div className="flex items-center justify-between px-1">
                                   <div className="flex items-center gap-1.5">
@@ -4363,6 +4451,10 @@ const App: React.FC = () => {
                             )}
                           </article>
                         ))}
+                              </div>
+                            </div>
+                          ));
+                        })()}
                       </div>
                     )}
                   </div>
@@ -4379,8 +4471,8 @@ const App: React.FC = () => {
 
               <aside
                 ref={rightPanelRef}
-                className="hidden lg:flex shrink-0 border-l border-white/5 bg-[var(--bg-card)] flex-col h-full z-20"
-                style={{ width: rightPanelWidth }}
+                className="hidden lg:flex shrink-0 flex-col h-full z-20 cairn-panel-right"
+                style={{ width: rightPanelWidth, backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(200deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'-4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)' }}
               >
                 {renderRightNanoPanel()}
               </aside>
@@ -4394,7 +4486,8 @@ const App: React.FC = () => {
               onClick={() => setIsGalleryExpanded(false)}
             >
               <div
-                className="absolute inset-4 sm:inset-6 bg-[var(--bg-card)] rounded-xl overflow-hidden flex flex-col"
+                className="absolute inset-4 sm:inset-6 rounded-xl overflow-hidden flex flex-col"
+                style={{background:'linear-gradient(160deg,rgba(28,40,20,0.97) 0%,rgba(14,20,10,0.98) 100%)',border:'1px solid rgba(168,191,143,0.22)',boxShadow:'0 0 80px rgba(0,0,0,0.70), inset 0 0 120px rgba(125,154,100,0.06)'}}
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="px-6 py-4 border-b border-white/5 bg-transparent flex items-center justify-between">
@@ -4405,7 +4498,7 @@ const App: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsGalleryExpanded(false)}
-                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-md transition-all text-[10px] font-bold uppercase tracking-wider"
+                    className="px-3 py-1.5 border border-[rgba(168,191,143,0.16)] bg-[rgba(32,44,24,0.55)] hover:border-[rgba(168,191,143,0.38)] hover:bg-[rgba(45,62,33,0.70)] text-[var(--text-secondary)] hover:text-[var(--accent)] rounded-md transition-all text-[10px] font-bold uppercase tracking-wider"
                   >
                     Zpět
                   </button>
@@ -4424,23 +4517,22 @@ const App: React.FC = () => {
           )}
         </div >
 
-        <ImageComparisonModal
-          isOpen={!!selectedImage}
+        <ImageDetailModal
+          isOpen={!!selectedImage && !!selectedImage.url}
           onClose={() => setSelectedImage(null)}
-          generatedImage={selectedImage?.url || null}
-          originalImage={state.sourceImages[0]?.url || null}
-          prompt={selectedImage?.prompt || ''}
-          timestamp={selectedImage?.timestamp || 0}
-          resolution={selectedImage?.resolution}
-          aspectRatio={selectedImage?.aspectRatio}
-          groundingMetadata={selectedImage?.groundingMetadata}
+          image={selectedImage}
           onNext={handleNextImage}
           onPrev={handlePrevImage}
           hasNext={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) < state.generatedImages.length - 1 : false}
           hasPrev={selectedImage ? state.generatedImages.findIndex(img => img.id === selectedImage.id) > 0 : false}
-          recipe={selectedImage?.recipe}
-          lineage={selectedImage?.lineage}
-          versions={selectedImage?.versions}
+          onUseImage={(img) => {
+            if (!img.url) return;
+            handleRepopulate(img);
+          }}
+          onRegenerate={(_img, newPrompt) => {
+            setState(prev => ({ ...prev, prompt: newPrompt }));
+            setSelectedImage(null);
+          }}
         />
 
         <GalleryModal
