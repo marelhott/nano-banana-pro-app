@@ -23,8 +23,9 @@ export function StyleTransferScreen(props: {
   onBack: () => void;
   onToast: (toast: { message: string; type: ToastType }) => void;
   isHoveringGallery: boolean;
+  theme?: 'dark' | 'light';
 }) {
-  const { providerSettings, onOpenSettings, onBack, onOpenLibrary, onToast, isHoveringGallery } = props;
+  const { providerSettings, onOpenSettings, onBack, onOpenLibrary, onToast, isHoveringGallery, theme = 'dark' } = props;
 
   async function normalizeDataUrlPixels(
     dataUrl: string,
@@ -454,6 +455,7 @@ export function StyleTransferScreen(props: {
         onClearStyle={clearStyle}
         onDropToReference={dropToReference}
         onDropToStyle={dropToStyle}
+        theme={theme}
       />
 
       <div

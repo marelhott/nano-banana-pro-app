@@ -50,6 +50,7 @@ export function StyleTransferSidebar(props: {
   onClearStyle: (index: number) => void;
   onDropToReference: (e: React.DragEvent) => Promise<void>;
   onDropToStyle: (index: number, e: React.DragEvent) => Promise<void>;
+  theme?: 'dark' | 'light';
 }) {
   const {
     engine,
@@ -72,6 +73,7 @@ export function StyleTransferSidebar(props: {
     onClearStyle,
     onDropToReference,
     onDropToStyle,
+    theme = 'dark',
   } = props;
 
   const refInputId = React.useMemo(() => `st-ref-${Math.random().toString(36).slice(2)}`, []);
@@ -83,7 +85,7 @@ export function StyleTransferSidebar(props: {
 
   return (
     <div className="hidden lg:flex w-[340px] shrink-0 flex-col h-full overflow-y-auto custom-scrollbar cairn-panel-left z-20"
-      style={{backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)'}}>
+      style={theme === 'dark' ? {backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)'} : {background:'#ffffff', borderRight:'1px solid #cdd8ba'}}>
       <div className="p-6 flex flex-col gap-6 min-h-full">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-4 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(168,191,143,0.5)]" />

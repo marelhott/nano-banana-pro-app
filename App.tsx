@@ -3879,6 +3879,7 @@ const App: React.FC = () => {
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
+              theme={theme}
             />
           ) : isReframeRoute ? (
             <ReframeScreen
@@ -3886,6 +3887,7 @@ const App: React.FC = () => {
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
+              theme={theme}
             />
           ) : isStyleTransferRoute ? (
             <StyleTransferScreen
@@ -3895,24 +3897,28 @@ const App: React.FC = () => {
               onBack={() => navigate('/')}
               onToast={(t) => setToast(t)}
               isHoveringGallery={isHoveringGallery}
+              theme={theme}
             />
           ) : isModelInfluenceRoute ? (
             <ModelInfluenceScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
+              theme={theme}
             />
           ) : isAiUpscalerRoute ? (
             <AiUpscalerScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
+              theme={theme}
             />
           ) : isLoraInfluenceRoute ? (
             <FluxLoraGeneratorScreen
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
+              theme={theme}
             />
           ) : (
             <>
@@ -3920,7 +3926,7 @@ const App: React.FC = () => {
               <div
                 ref={sidebarRef}
                 className="hidden lg:flex shrink-0 flex-col h-full overflow-y-auto custom-scrollbar cairn-panel-left z-20"
-                style={{ width: sidebarWidth, backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)' }}
+                style={theme === 'dark' ? { width: sidebarWidth, backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(160deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)' } : { width: sidebarWidth, background:'#ffffff', borderRight:'1px solid #cdd8ba' }}
               >
                 <div className="p-6 flex flex-col gap-6 min-h-full">
                   <div className="pt-2">
@@ -4430,7 +4436,7 @@ const App: React.FC = () => {
               <aside
                 ref={rightPanelRef}
                 className="hidden lg:flex shrink-0 flex-col h-full z-20 cairn-panel-right"
-                style={{ width: rightPanelWidth, backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(200deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'-4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)' }}
+                style={theme === 'dark' ? { width: rightPanelWidth, backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(200deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'-4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)' } : { width: rightPanelWidth, background:'#ffffff', borderLeft:'1px solid #cdd8ba' }}
               >
                 {renderRightNanoPanel()}
               </aside>
