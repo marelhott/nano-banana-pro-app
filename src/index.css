@@ -142,69 +142,55 @@
     --glow-rose:  rgba(244,  63,  94, 0.10);
   }
 
-  /* ---- light theme — původní bílý design ---- */
+  /* ---- light theme — původní design z ab275e2 ---- */
   :root[data-theme='light'] {
-    --bg-main:              #ffffff;
-    --bg-soft:              #f9fafb;
-    --bg-card:              #ffffff;
-    --bg-card-hover:        #f0f4eb;
-    --bg-input:             #ffffff;
-    --bg-panel:             #ffffff;
-    --bg-panel-hover:       rgba(125, 154, 100, 0.08);
-    --bg-elevated:          #ffffff;
-    --bg-elevated-soft:     rgba(255, 255, 255, 0.95);
-    --bg-contrast:          rgba(19, 21, 16, 0.04);
-    --bg-contrast-strong:   rgba(19, 21, 16, 0.08);
-    --bg-canvas:            #ffffff;
-    --bg-card-2:            #ffffff;
-    --modal-stage-bg:       #f9fafb;
-    --modal-panel-bg:       #ffffff;
-
-    --text-primary:   #131510;
-    --text-secondary: #4a5240;
-    --text-muted:     rgba(19, 21, 16, 0.58);
-    --text-soft:      rgba(19, 21, 16, 0.42);
-    --text-inverse:   #ffffff;
-    --text-1:         #131510;
-    --text-2:         #4a5240;
-    --text-3:         rgba(19, 21, 16, 0.48);
-
-    --border-color:  #cdd8ba;
-    --border-strong: #b8caa0;
-    --border-soft:   #e4e9d8;
-
-    --accent:          #7d9a64;
-    --accent-deep:     #536645;
-    --accent-hover:    #677f52;
-    --accent-contrast: #ffffff;
-
-    --radius-1: 8px;
-    --radius-2: 12px;
-
-    --shadow-1: 0 1px 3px rgba(53, 63, 46, 0.10), 0 4px 12px rgba(53, 63, 46, 0.06);
-    --shadow-2: 0 4px 20px rgba(53, 63, 46, 0.12), 0 1px 3px rgba(53, 63, 46, 0.08);
-
-    --scrollbar-thumb: #cdd8ba;
-    --scrollbar-track: #f2f4ec;
-
-    --page-pattern-dot:     rgba(125, 154, 100, 0.12);
-    --page-pattern-dot-alt: rgba(19, 21, 16, 0.04);
-    --canvas-vignette:      rgba(205, 216, 186, 0.20);
-    --canvas-noise-opacity: 0.30;
-
-    --surface-highlight:        rgba(125, 154, 100, 0.08);
-    --surface-highlight-strong: rgba(125, 154, 100, 0.14);
-    --menu-gradient-top:        rgba(125, 154, 100, 0.06);
-
-    --selection-surface: rgba(125, 154, 100, 0.20);
-    --selection-border:  rgba(125, 154, 100, 0.25);
-    --selection-text:    #536645;
-    --meta-theme-color:  #ffffff;
-
-    --glow-green: rgba(125, 154, 100, 0.14);
-    --glow-blue:  rgba(59,  130, 246, 0.10);
-    --glow-amber: rgba(245, 158,  11, 0.12);
-    --glow-rose:  rgba(244,  63,  94, 0.08);
+    --font-ui: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    --bg-main: #f5f7f2;
+    --bg-card: rgba(252, 255, 250, 0.92);
+    --bg-input: rgba(255, 255, 255, 0.92);
+    --bg-panel: rgba(243, 247, 239, 0.92);
+    --bg-panel-hover: rgba(18, 34, 25, 0.06);
+    --bg-elevated: #fcfffa;
+    --bg-elevated-soft: rgba(248, 252, 246, 0.94);
+    --bg-contrast: rgba(19, 30, 24, 0.05);
+    --bg-contrast-strong: rgba(245, 247, 242, 0.92);
+    --modal-stage-bg: #ffffff;
+    --modal-panel-bg: #ffffff;
+    --text-primary: #132219;
+    --text-secondary: #536257;
+    --text-muted: rgba(19, 34, 25, 0.62);
+    --text-soft: rgba(19, 34, 25, 0.44);
+    --text-inverse: #f5f7f2;
+    --border-color: rgba(24, 45, 34, 0.12);
+    --border-strong: rgba(24, 45, 34, 0.16);
+    --accent: #2e945d;
+    --accent-hover: #22784a;
+    --accent-contrast: #f8fff8;
+    --scrollbar-thumb: #93b39f;
+    --scrollbar-track: rgba(19, 34, 25, 0.04);
+    --page-pattern-dot: rgba(46, 148, 93, 0.12);
+    --page-pattern-dot-alt: rgba(19, 34, 25, 0.05);
+    --canvas-vignette: rgba(198, 218, 204, 0.24);
+    --canvas-noise-opacity: 0.45;
+    --menu-gradient-top: rgba(46, 148, 93, 0.08);
+    --surface-highlight: rgba(19, 34, 25, 0.04);
+    --surface-highlight-strong: rgba(19, 34, 25, 0.08);
+    --selection-surface: rgba(46, 148, 93, 0.1);
+    --selection-border: rgba(46, 148, 93, 0.16);
+    --selection-text: #1e603d;
+    --meta-theme-color: #f5f7f2;
+    --bg-canvas: #ffffff;
+    --bg-card-2: rgba(252, 255, 250, 0.88);
+    --border-soft: rgba(24, 45, 34, 0.08);
+    --shadow-1: 0 18px 38px rgba(46, 77, 58, 0.08);
+    --shadow-2: 0 24px 80px rgba(46, 77, 58, 0.14);
+    --text-1: rgba(19, 34, 25, 0.94);
+    --text-2: rgba(19, 34, 25, 0.7);
+    --text-3: rgba(19, 34, 25, 0.5);
+    --glow-green: rgba(46, 148, 93, 0.16);
+    --glow-blue: rgba(59, 130, 246, 0.12);
+    --glow-amber: rgba(245, 158, 11, 0.14);
+    --glow-rose: rgba(244, 63, 94, 0.1);
   }
 
   /* ---- base HTML / body ---- */
@@ -1008,35 +994,65 @@
   :root[data-theme='light'] .shadow-\[\#a8bf8f\]\/20,
   :root[data-theme='light'] .shadow-\[\#a8bf8f\]\/40 { --tw-shadow-color: rgba(125, 154, 100, 0.18) !important; }
 
-  /* Light mode — přepsat tmavé inline styly panelů na bílé */
+  /* Light mode — grain overlay pryč */
   html[data-theme='light'] body::before { display: none; }
 
-  html[data-theme='light'] .cairn-panel-left,
-  html[data-theme='light'] .cairn-panel-right {
-    background: #ffffff !important;
-    backdrop-filter: none !important;
-    box-shadow: none !important;
-  }
-  html[data-theme='light'] .cairn-panel-left::before,
-  html[data-theme='light'] .cairn-panel-right::before {
-    background: none !important;
-    border-color: #cdd8ba !important;
-  }
-  html[data-theme='light'] .cairn-header {
-    background: #ffffff !important;
-    backdrop-filter: none !important;
-    box-shadow: 0 1px 0 #cdd8ba !important;
-  }
-  html[data-theme='light'] .cairn-header::after { background: none !important; }
+  /* Light mode — Tailwind text-white overrides */
+  :root[data-theme='light'] .text-white,
+  :root[data-theme='light'] .text-white\/90,
+  :root[data-theme='light'] .text-white\/85,
+  :root[data-theme='light'] .text-gray-200 { color: var(--text-primary) !important; }
 
-  /* Přepsat tmavé inline styly na panelech přes specifické selektory */
-  html[data-theme='light'] nav[style],
-  html[data-theme='light'] div[style*="rgba(6,18,28"],
-  html[data-theme='light'] div[style*="rgba(32,44,24"],
-  html[data-theme='light'] aside[style*="rgba(32,44,24"] {
-    background: #ffffff !important;
-    backdrop-filter: none !important;
-    box-shadow: 1px 0 0 #cdd8ba !important;
+  :root[data-theme='light'] .text-white\/80,
+  :root[data-theme='light'] .text-white\/75,
+  :root[data-theme='light'] .text-white\/70,
+  :root[data-theme='light'] .text-gray-400 { color: var(--text-2) !important; }
+
+  :root[data-theme='light'] .text-white\/55,
+  :root[data-theme='light'] .text-white\/50,
+  :root[data-theme='light'] .text-white\/45,
+  :root[data-theme='light'] .text-white\/40,
+  :root[data-theme='light'] .text-white\/35,
+  :root[data-theme='light'] .text-gray-500,
+  :root[data-theme='light'] .text-gray-600 { color: var(--text-3) !important; }
+
+  /* Light mode — dark bg overrides */
+  :root[data-theme='light'] .bg-black,
+  :root[data-theme='light'] .bg-neutral-950,
+  :root[data-theme='light'] .bg-\[\#0a0f0d\],
+  :root[data-theme='light'] .bg-\[\#0f1512\],
+  :root[data-theme='light'] .bg-gray-800 { background-color: var(--bg-elevated) !important; }
+
+  :root[data-theme='light'] .bg-black\/92,
+  :root[data-theme='light'] .bg-black\/90,
+  :root[data-theme='light'] .bg-black\/80,
+  :root[data-theme='light'] .bg-black\/70,
+  :root[data-theme='light'] .bg-black\/60,
+  :root[data-theme='light'] .bg-black\/50,
+  :root[data-theme='light'] .bg-black\/35,
+  :root[data-theme='light'] .bg-black\/30,
+  :root[data-theme='light'] .bg-black\/20,
+  :root[data-theme='light'] .bg-white\/10,
+  :root[data-theme='light'] .bg-white\/5 { background-color: var(--bg-contrast) !important; }
+
+  :root[data-theme='light'] .border-white\/10,
+  :root[data-theme='light'] .border-white\/5,
+  :root[data-theme='light'] .border-gray-800,
+  :root[data-theme='light'] .border-gray-700 { border-color: var(--border-color) !important; }
+
+  :root[data-theme='light'] .hover\:bg-white\/10:hover,
+  :root[data-theme='light'] .hover\:bg-white\/5:hover,
+  :root[data-theme='light'] .hover\:bg-gray-700:hover { background-color: var(--bg-panel-hover) !important; }
+
+  :root[data-theme='light'] .hover\:text-white:hover,
+  :root[data-theme='light'] .hover\:text-white\/70:hover,
+  :root[data-theme='light'] .hover\:text-white\/80:hover { color: var(--text-primary) !important; }
+
+  /* Light mode — gradient text overrides */
+  :root[data-theme='light'] .bg-gradient-to-t.from-black\/80,
+  :root[data-theme='light'] .bg-gradient-to-t.from-black\/60 {
+    --tw-gradient-from: rgba(245, 247, 242, 0.92) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgba(245, 247, 242, 0) var(--tw-gradient-to-position) !important;
   }
 }
 
