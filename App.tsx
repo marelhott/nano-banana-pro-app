@@ -4032,48 +4032,6 @@ const App: React.FC = () => {
                     {/* Main Generation Grid */}
                     {state.generatedImages.length === 0 ? (
                       <div className="py-20 md:py-40 flex flex-col items-center justify-center space-y-6 relative">
-                        {/* Cairn ambient glow orb */}
-                        <div className="absolute inset-0 pointer-events-none" style={{background:'radial-gradient(ellipse 60% 50% at 50% 45%, rgba(125,154,100,0.12) 0%, transparent 65%)'}} />
-                        {/* Dot Matrix Sphere SVG */}
-                        <div className="opacity-90 relative z-10" style={{ animation: 'spin-slow 20s linear infinite' }}>
-                          <svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <style>{`
-                        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-                      `}</style>
-                            {/* Center - Highlight */}
-                            <circle cx="50" cy="50" r="2.5" fill="#e8f0e0" />
-
-                            {/* Inner Ring - Light Gray */}
-                            <circle cx="50" cy="40" r="2.2" fill="#a8bf8f" />
-                            <circle cx="58" cy="44" r="2.2" fill="#a8bf8f" />
-                            <circle cx="60" cy="50" r="2.2" fill="#a8bf8f" />
-                            <circle cx="58" cy="56" r="2.2" fill="#a8bf8f" />
-                            <circle cx="50" cy="60" r="2.2" fill="#a8bf8f" />
-                            <circle cx="42" cy="56" r="2.2" fill="#a8bf8f" />
-                            <circle cx="40" cy="50" r="2.2" fill="#a8bf8f" />
-                            <circle cx="42" cy="44" r="2.2" fill="#a8bf8f" />
-
-                            {/* Middle Ring - Mid Gray */}
-                            <circle cx="50" cy="30" r="2" fill="#7d9a64" />
-                            <circle cx="64" cy="36" r="2" fill="#7d9a64" />
-                            <circle cx="70" cy="50" r="2" fill="#7d9a64" />
-                            <circle cx="64" cy="64" r="2" fill="#7d9a64" />
-                            <circle cx="50" cy="70" r="2" fill="#7d9a64" />
-                            <circle cx="36" cy="64" r="2" fill="#7d9a64" />
-                            <circle cx="30" cy="50" r="2" fill="#7d9a64" />
-                            <circle cx="36" cy="36" r="2" fill="#7d9a64" />
-
-                            {/* Outer Ring - Dark Gray/Fading */}
-                            <circle cx="50" cy="20" r="1.5" fill="#536645" />
-                            <circle cx="70" cy="28" r="1.5" fill="#536645" />
-                            <circle cx="80" cy="50" r="1.5" fill="#536645" />
-                            <circle cx="70" cy="72" r="1.5" fill="#536645" />
-                            <circle cx="50" cy="80" r="1.5" fill="#536645" />
-                            <circle cx="30" cy="72" r="1.5" fill="#536645" />
-                            <circle cx="20" cy="50" r="1.5" fill="#536645" />
-                            <circle cx="30" cy="28" r="1.5" fill="#536645" />
-                          </svg>
-                        </div>
                         <div className="text-center space-y-1.5 relative z-10">
                           <span className="text-[10px] font-[900] uppercase tracking-[0.28em] block" style={{color:'var(--text-3)'}}>
                             Zatím žádné vygenerované obrázky
