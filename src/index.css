@@ -142,66 +142,69 @@
     --glow-rose:  rgba(244,  63,  94, 0.10);
   }
 
-  /* ---- light theme ---- */
+  /* ---- light theme — původní bílý design ---- */
   :root[data-theme='light'] {
-    --bg-main:              #f2f4ec;
-    --bg-soft:              #fafbf6;
-    --bg-card:              rgba(250, 251, 246, 0.92);
-    --bg-card-hover:        rgba(244, 246, 238, 0.98);
-    --bg-input:             rgba(255, 255, 255, 0.92);
-    --bg-panel:             rgba(244, 246, 238, 0.92);
-    --bg-panel-hover:       rgba(19, 21, 16, 0.06);
-    --bg-elevated:          #fafbf6;
-    --bg-elevated-soft:     rgba(248, 250, 243, 0.94);
-    --bg-contrast:          rgba(19, 21, 16, 0.05);
-    --bg-contrast-strong:   rgba(242, 244, 236, 0.92);
-    --bg-canvas:            #fbfcf8;
-    --bg-card-2:            rgba(250, 251, 246, 0.88);
-    --modal-stage-bg:       #fbfcf8;
-    --modal-panel-bg:       #fbfcf8;
+    --bg-main:              #ffffff;
+    --bg-soft:              #f9fafb;
+    --bg-card:              #ffffff;
+    --bg-card-hover:        #f0f4eb;
+    --bg-input:             #ffffff;
+    --bg-panel:             #ffffff;
+    --bg-panel-hover:       rgba(125, 154, 100, 0.08);
+    --bg-elevated:          #ffffff;
+    --bg-elevated-soft:     rgba(255, 255, 255, 0.95);
+    --bg-contrast:          rgba(19, 21, 16, 0.04);
+    --bg-contrast-strong:   rgba(19, 21, 16, 0.08);
+    --bg-canvas:            #ffffff;
+    --bg-card-2:            #ffffff;
+    --modal-stage-bg:       #f9fafb;
+    --modal-panel-bg:       #ffffff;
 
     --text-primary:   #131510;
-    --text-secondary: #565c4b;
-    --text-muted:     rgba(19, 21, 16, 0.62);
-    --text-soft:      rgba(19, 21, 16, 0.44);
-    --text-inverse:   #f2f4ec;
-    --text-1:         rgba(19, 21, 16, 0.94);
-    --text-2:         rgba(19, 21, 16, 0.70);
-    --text-3:         rgba(19, 21, 16, 0.50);
+    --text-secondary: #4a5240;
+    --text-muted:     rgba(19, 21, 16, 0.58);
+    --text-soft:      rgba(19, 21, 16, 0.42);
+    --text-inverse:   #ffffff;
+    --text-1:         #131510;
+    --text-2:         #4a5240;
+    --text-3:         rgba(19, 21, 16, 0.48);
 
-    --border-color:  rgba(19, 21, 16, 0.10);
-    --border-strong: rgba(19, 21, 16, 0.16);
-    --border-soft:   rgba(19, 21, 16, 0.07);
+    --border-color:  #cdd8ba;
+    --border-strong: #b8caa0;
+    --border-soft:   #e4e9d8;
 
     --accent:          #7d9a64;
     --accent-deep:     #536645;
     --accent-hover:    #677f52;
-    --accent-contrast: #f2f4ec;
+    --accent-contrast: #ffffff;
 
-    --shadow-1: 0 18px 38px rgba(53, 63, 46, 0.08);
-    --shadow-2: 0 24px 80px rgba(53, 63, 46, 0.14);
+    --radius-1: 8px;
+    --radius-2: 12px;
 
-    --scrollbar-thumb: #aab5a0;
-    --scrollbar-track: rgba(19, 21, 16, 0.04);
+    --shadow-1: 0 1px 3px rgba(53, 63, 46, 0.10), 0 4px 12px rgba(53, 63, 46, 0.06);
+    --shadow-2: 0 4px 20px rgba(53, 63, 46, 0.12), 0 1px 3px rgba(53, 63, 46, 0.08);
 
-    --page-pattern-dot:     rgba(125, 154, 100, 0.14);
-    --page-pattern-dot-alt: rgba(19, 21, 16, 0.05);
-    --canvas-vignette:      rgba(205, 216, 186, 0.24);
-    --canvas-noise-opacity: 0.45;
+    --scrollbar-thumb: #cdd8ba;
+    --scrollbar-track: #f2f4ec;
 
-    --surface-highlight:        rgba(19, 21, 16, 0.04);
-    --surface-highlight-strong: rgba(19, 21, 16, 0.08);
-    --menu-gradient-top:        rgba(125, 154, 100, 0.08);
+    --page-pattern-dot:     rgba(125, 154, 100, 0.12);
+    --page-pattern-dot-alt: rgba(19, 21, 16, 0.04);
+    --canvas-vignette:      rgba(205, 216, 186, 0.20);
+    --canvas-noise-opacity: 0.30;
+
+    --surface-highlight:        rgba(125, 154, 100, 0.08);
+    --surface-highlight-strong: rgba(125, 154, 100, 0.14);
+    --menu-gradient-top:        rgba(125, 154, 100, 0.06);
 
     --selection-surface: rgba(125, 154, 100, 0.20);
-    --selection-border:  rgba(125, 154, 100, 0.22);
+    --selection-border:  rgba(125, 154, 100, 0.25);
     --selection-text:    #536645;
-    --meta-theme-color:  #f2f4ec;
+    --meta-theme-color:  #ffffff;
 
-    --glow-green: rgba(125, 154, 100, 0.16);
-    --glow-blue:  rgba(59,  130, 246, 0.12);
-    --glow-amber: rgba(245, 158,  11, 0.14);
-    --glow-rose:  rgba(244,  63,  94, 0.10);
+    --glow-green: rgba(125, 154, 100, 0.14);
+    --glow-blue:  rgba(59,  130, 246, 0.10);
+    --glow-amber: rgba(245, 158,  11, 0.12);
+    --glow-rose:  rgba(244,  63,  94, 0.08);
   }
 
   /* ---- base HTML / body ---- */
@@ -209,6 +212,12 @@
     background-color: var(--bg-main);
     font-size: 16px;
     overflow-x: hidden;
+  }
+
+  /* light mode — čisté bílé pozadí, žádný dark gradient */
+  html[data-theme='light'] {
+    background-color: #ffffff !important;
+    background-image: none !important;
   }
 
   body {
@@ -998,6 +1007,37 @@
 
   :root[data-theme='light'] .shadow-\[\#a8bf8f\]\/20,
   :root[data-theme='light'] .shadow-\[\#a8bf8f\]\/40 { --tw-shadow-color: rgba(125, 154, 100, 0.18) !important; }
+
+  /* Light mode — přepsat tmavé inline styly panelů na bílé */
+  html[data-theme='light'] body::before { display: none; }
+
+  html[data-theme='light'] .cairn-panel-left,
+  html[data-theme='light'] .cairn-panel-right {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+  html[data-theme='light'] .cairn-panel-left::before,
+  html[data-theme='light'] .cairn-panel-right::before {
+    background: none !important;
+    border-color: #cdd8ba !important;
+  }
+  html[data-theme='light'] .cairn-header {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 1px 0 #cdd8ba !important;
+  }
+  html[data-theme='light'] .cairn-header::after { background: none !important; }
+
+  /* Přepsat tmavé inline styly na panelech přes specifické selektory */
+  html[data-theme='light'] nav[style],
+  html[data-theme='light'] div[style*="rgba(6,18,28"],
+  html[data-theme='light'] div[style*="rgba(32,44,24"],
+  html[data-theme='light'] aside[style*="rgba(32,44,24"] {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    box-shadow: 1px 0 0 #cdd8ba !important;
+  }
 }
 
 /* font-size nudge for small labels */
