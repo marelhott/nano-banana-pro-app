@@ -4243,8 +4243,8 @@ const App: React.FC = () => {
                               )}
                             </div>
 
-                            {/* Inline Edit Section */}
-                            {image.status === 'success' && image.url && (
+                            {/* Inline Edit Section - removed, use ImageDetailModal instead */}
+                            {false && image.status === 'success' && image.url && (
                               <div className="px-4 py-3 border-t border-[rgba(168,191,143,0.12)] bg-[linear-gradient(135deg,rgba(28,38,22,0.85)_0%,rgba(16,22,12,0.90)_100%)] space-y-2.5">
                                 {/* Header Row */}
                                 <div className="flex items-center justify-between px-1">
