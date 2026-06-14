@@ -1054,6 +1054,36 @@
     --tw-gradient-from: rgba(245, 247, 242, 0.92) var(--tw-gradient-from-position) !important;
     --tw-gradient-to: rgba(245, 247, 242, 0) var(--tw-gradient-to-position) !important;
   }
+
+  /* Light mode — catch ALL dark green rgba backgrounds (Cairn panel classes) */
+  :root[data-theme='light'] [class*="bg-[rgba(28,"],
+  :root[data-theme='light'] [class*="bg-[rgba(32,"],
+  :root[data-theme='light'] [class*="bg-[rgba(20,"],
+  :root[data-theme='light'] [class*="bg-[rgba(45,"],
+  :root[data-theme='light'] [class*="bg-[rgba(40,"],
+  :root[data-theme='light'] [class*="bg-[rgba(35,"],
+  :root[data-theme='light'] [class*="bg-[rgba(16,"] {
+    background: var(--bg-card) !important;
+  }
+
+  /* Light mode — card footer gradient bars */
+  :root[data-theme='light'] [class*="bg-[linear-gradient(135deg,rgba(28,"],
+  :root[data-theme='light'] [class*="bg-[linear-gradient(135deg,rgba(32,"],
+  :root[data-theme='light'] [class*="bg-[linear-gradient(160deg,rgba(32,"] {
+    background: var(--bg-panel) !important;
+  }
+
+  /* Light mode — dark border overrides */
+  :root[data-theme='light'] [class*="border-[rgba(168,191,143,"] {
+    border-color: var(--border-color) !important;
+  }
+
+  /* Light mode — hover states for dark rgba buttons */
+  :root[data-theme='light'] [class*="hover:bg-[rgba(45,"],
+  :root[data-theme='light'] [class*="hover:bg-[rgba(40,"],
+  :root[data-theme='light'] [class*="hover:border-[rgba(168,"] {
+    /* handled via background reset above — no separate hover needed */
+  }
 }
 
 /* font-size nudge for small labels */
