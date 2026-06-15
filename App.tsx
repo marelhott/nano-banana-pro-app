@@ -3148,7 +3148,7 @@ const App: React.FC = () => {
             <button
               onClick={handleGenerate3Variants}
               disabled={!canGenerate}
-              className="mn-subaction"
+              className="mn-subaction mn-subaction-variants"
             >
               <div className="text-[9px] font-black uppercase tracking-[0.18em]">
                 {isGenerating ? 'Varianty…' : '3 varianty'}
@@ -3161,7 +3161,7 @@ const App: React.FC = () => {
             <button
               onClick={handleGenerate3AI}
               disabled={!canGenerate}
-              className="mn-subaction"
+              className="mn-subaction mn-subaction-models"
             >
               <div className="text-[9px] font-black uppercase tracking-[0.18em]">
                 {isGenerating ? 'Všechny…' : 'Všechny'}
