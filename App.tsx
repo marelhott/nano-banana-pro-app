@@ -3137,16 +3137,8 @@ const App: React.FC = () => {
           <button
             onClick={handleGenerate}
             disabled={!canGenerate}
-            className={`min-h-[54px] w-full px-2 py-2 text-center transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale ${isGenerateClicked
-              ? 'bg-blue-600 text-white'
-              : 'text-[#0d1009]'
-              }`}
-            style={!isGenerateClicked ? {
-              borderRadius: '100px',
-              background: 'linear-gradient(135deg, #b8cfa0 0%, #a8bf8f 40%, #7d9a64 100%)',
-              boxShadow: '0 0 0 1px rgba(168,191,143,0.40), 0 4px 20px rgba(125,154,100,0.35), 0 1px 0 rgba(255,255,255,0.20) inset',
-              transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
-            } : { borderRadius: '100px' }}
+            className={`mn-action-primary w-full ${isGenerateClicked ? 'bg-blue-600 text-white border-blue-600' : ''}`}
+            style={{ borderRadius: '100px' }}
           >
             <div className="text-[10px] font-black uppercase tracking-[0.18em]">
               {isGenerating ? 'Běží…' : 'Generovat'}
@@ -3156,12 +3148,12 @@ const App: React.FC = () => {
             <button
               onClick={handleGenerate3Variants}
               disabled={!canGenerate}
-              className="min-h-[54px] rounded-lg border border-[rgba(168,191,143,0.18)] bg-[rgba(32,44,24,0.60)] px-2 py-2 text-center transition-all hover:border-[rgba(168,191,143,0.40)] hover:bg-[rgba(45,62,33,0.75)] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+              className="mn-subaction"
             >
-              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
+              <div className="text-[9px] font-black uppercase tracking-[0.18em]">
                 {isGenerating ? 'Varianty…' : '3 varianty'}
               </div>
-              <div className="mt-1 text-[8px] font-semibold text-white/55">
+              <div className="mt-1 text-[8px] font-semibold opacity-75">
                 promptu
               </div>
             </button>
@@ -3169,12 +3161,12 @@ const App: React.FC = () => {
             <button
               onClick={handleGenerate3AI}
               disabled={!canGenerate}
-              className="min-h-[54px] rounded-lg border border-[rgba(168,191,143,0.18)] bg-gradient-to-br from-[rgba(40,55,30,0.65)] via-[rgba(32,28,45,0.60)] to-[rgba(22,30,45,0.65)] px-2 py-2 text-center transition-all hover:border-[rgba(168,191,143,0.38)] hover:from-[rgba(55,75,40,0.75)] disabled:cursor-not-allowed disabled:grayscale disabled:opacity-50"
+              className="mn-subaction"
             >
-              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/85">
+              <div className="text-[9px] font-black uppercase tracking-[0.18em]">
                 {isGenerating ? 'Všechny…' : 'Všechny'}
               </div>
-              <div className="mt-1 text-[8px] font-semibold text-white/55">
+              <div className="mt-1 text-[8px] font-semibold opacity-75">
                 modely
               </div>
             </button>
@@ -3967,7 +3959,7 @@ const App: React.FC = () => {
                               // ... download logic ...
                             }}
                             disabled={downloadingAll}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#101210] text-[#a8bf8f] font-black text-[9px] uppercase tracking-widest rounded-md border border-gray-800 hover:border-[#a8bf8f]/50 shadow-sm transition-all active:scale-95"
+                            className="mn-toolbar-button flex items-center gap-2 px-4 py-2 font-black text-[9px] uppercase tracking-widest rounded-md transition-all active:scale-95"
                           >
                             {downloadingAll ? 'Balím...' : 'Exportovat vše'}
                           </button>
