@@ -169,14 +169,12 @@ export function BatchScreen(props: {
     [outputs, selectedOutputId],
   );
 
-  const rows = React.useMemo(() => {
-    return inputs.map((input) => ({
-      input,
-      outputs: outputs
-        .filter((item) => item.inputId === input.id)
-        .sort((a, b) => a.variantIndex - b.variantIndex),
-    }));
-  }, [inputs, outputs]);
+  const orderedOutputs = React.useMemo(() => {
+    return [...outputs].sort((a, b) => {
+      if (b.createdAt !== a.createdAt) return b.createdAt - a.createdAt;
+      return a.variantIndex - b.variantIndex;
+    });
+  }, [outputs]);
 
   const handleModelPresetSelect = React.useCallback(
     (presetIdToApply: string) => {
@@ -526,103 +524,77 @@ export function BatchScreen(props: {
 
       <section className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto custom-scrollbar">
         <div className="p-6 space-y-6">
-          {rows.length > 0 ? (
-            rows.map(({ input, outputs: rowOutputs }) => (
-              <div key={input.id} className="space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-12 w-12 rounded-lg overflow-hidden border border-[var(--border-color)] shrink-0">
-                      <img src={input.dataUrl} alt={input.file.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)] truncate">{input.file.name}</div>
-                      <div className="text-[9px] text-[var(--text-soft)]">Vstup • {rowOutputs.length || numberOfImages} variant</div>
-                    </div>
-                  </div>
-                </div>
+          {orderedOutputs.length > 0 ? (
+            <div className="grid grid-cols-4 gap-3">
+              {orderedOutputs.map((output) => {
+                const isDone = output.status === 'done' && !!output.dataUrl;
+                return (
+                  <article key={output.id} className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all">
+                    <button
+                      type="button"
+                      className="relative bg-[var(--bg-panel)] cursor-zoom-in aspect-square overflow-hidden text-left"
+                      onClick={() => {
+                        if (!isDone) return;
+                        setSelectedOutputId(output.id);
+                      }}
+                    >
+                      {isDone ? (
+                        <img src={output.dataUrl} alt={`${output.inputName} ${output.variantIndex + 1}`} className="w-full h-full object-cover" />
+                      ) : output.status === 'error' ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/80 backdrop-blur-sm">
+                          <div className="w-10 h-10 bg-red-500/20 text-red-500 border border-red-500/30 rounded-md flex items-center justify-center mb-4">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </div>
+                          <p className="text-[10px] font-bold text-red-400 leading-relaxed max-w-[150px]">{output.error}</p>
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md px-6 transition-all duration-300">
+                          <div className="w-full max-w-[200px] space-y-3">
+                            <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
+                              <div
+                                className="absolute inset-y-0 left-0 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"
+                                style={{
+                                  width: '0%',
+                                  animation: 'growWidth 10s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+                                }}
+                              />
+                            </div>
+                            <div className="text-center">
+                              <span className="text-[10px] text-[#a8bf8f] font-bold tracking-widest uppercase animate-pulse">
+                                {output.status === 'running' ? 'Generuji...' : 'Čeká...'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </button>
 
-                <div className={`grid gap-3 ${Math.min(Math.max(numberOfImages, 1), 5) === 1 ? 'grid-cols-1 max-w-sm' : numberOfImages === 2 ? 'grid-cols-2' : numberOfImages === 3 ? 'grid-cols-3' : numberOfImages === 4 ? 'grid-cols-4' : 'grid-cols-5'}`}>
-                  {(rowOutputs.length > 0 ? rowOutputs : Array.from({ length: numberOfImages }).map((_, index) => ({
-                    id: `${input.id}-placeholder-${index}`,
-                    inputId: input.id,
-                    inputName: input.file.name,
-                    inputDataUrl: input.dataUrl,
-                    variantIndex: index,
-                    prompt: activePrompt,
-                    status: 'pending' as const,
-                    createdAt: 0,
-                    modelLabel: activeModelLabel,
-                  }))).map((output) => {
-                    const isDone = output.status === 'done' && !!output.dataUrl;
-                    return (
-                      <article key={output.id} className="group flex flex-col overflow-hidden card-surface card-surface-hover transition-all">
+                    <div className="px-4 py-3 flex items-center justify-between gap-2 border-t border-[rgba(168,191,143,0.12)] bg-[linear-gradient(135deg,rgba(28,38,22,0.85)_0%,rgba(16,22,12,0.90)_100%)]">
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">Varianta {output.variantIndex + 1}</div>
+                        <div className="text-[8px] text-[var(--text-soft)] truncate">{output.modelLabel}</div>
+                      </div>
+                      {isDone && output.dataUrl ? (
                         <button
                           type="button"
-                          className="relative bg-[var(--bg-panel)] cursor-zoom-in aspect-square overflow-hidden text-left"
-                          onClick={() => {
-                            if (!isDone) return;
-                            setSelectedOutputId(output.id);
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const link = document.createElement('a');
+                            link.href = output.dataUrl!;
+                            link.download = `${output.inputName.replace(/\.[^.]+$/, '')}-batch-${output.variantIndex + 1}.png`;
+                            link.click();
                           }}
+                          className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[color:var(--selection-surface)] rounded transition-colors"
+                          title="Stáhnout"
                         >
-                          {isDone ? (
-                            <img src={output.dataUrl} alt={`${output.inputName} ${output.variantIndex + 1}`} className="w-full h-full object-cover" />
-                          ) : output.status === 'error' ? (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/80 backdrop-blur-sm">
-                              <div className="w-10 h-10 bg-red-500/20 text-red-500 border border-red-500/30 rounded-md flex items-center justify-center mb-4">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                              </div>
-                              <p className="text-[10px] font-bold text-red-400 leading-relaxed max-w-[150px]">{output.error}</p>
-                            </div>
-                          ) : (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md px-6 transition-all duration-300">
-                              <div className="w-full max-w-[200px] space-y-3">
-                                <div className="relative h-[2px] bg-gray-800 rounded-full overflow-hidden">
-                                  <div
-                                    className="absolute inset-y-0 left-0 bg-[#a8bf8f] rounded-full shadow-[0_0_10px_rgba(126,217,87,0.5)]"
-                                    style={{
-                                      width: '0%',
-                                      animation: 'growWidth 10s cubic-bezier(0.4, 0, 0.2, 1) forwards',
-                                    }}
-                                  />
-                                </div>
-                                <div className="text-center">
-                                  <span className="text-[10px] text-[#a8bf8f] font-bold tracking-widest uppercase animate-pulse">
-                                    {output.status === 'running' ? 'Generuji...' : 'Čeká...'}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
                         </button>
-
-                        <div className="px-4 py-3 flex items-center justify-between gap-2 border-t border-[rgba(168,191,143,0.12)] bg-[linear-gradient(135deg,rgba(28,38,22,0.85)_0%,rgba(16,22,12,0.90)_100%)]">
-                          <div className="min-w-0">
-                            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]">Varianta {output.variantIndex + 1}</div>
-                            <div className="text-[8px] text-[var(--text-soft)] truncate">{output.modelLabel}</div>
-                          </div>
-                          {isDone && output.dataUrl ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const link = document.createElement('a');
-                                link.href = output.dataUrl!;
-                                link.download = `${output.inputName.replace(/\.[^.]+$/, '')}-batch-${output.variantIndex + 1}.png`;
-                                link.click();
-                              }}
-                              className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[color:var(--selection-surface)] rounded transition-colors"
-                              title="Stáhnout"
-                            >
-                              <Download className="w-3.5 h-3.5" strokeWidth={1.6} />
-                            </button>
-                          ) : null}
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           ) : (
             <AtelierEmptyState
               title="Zatím žádné batch výstupy"
