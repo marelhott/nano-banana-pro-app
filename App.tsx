@@ -46,6 +46,7 @@ import { upscaleImage } from './utils/upscaling';
 import { AiUpscalerScreen } from './components/AiUpscalerScreen';
 import { FaceSwapScreen } from './components/FaceSwapScreen';
 import { ReframeScreen } from './components/ReframeScreen';
+import { BatchScreen } from './components/BatchScreen';
 import { getInterRequestDelayMs, getRetryBackoffMs, type NanoBananaImageModel } from './constants/timings';
 import { useProviderSettings } from './hooks/useProviderSettings';
 import { CLOUD_SYNC_EVENT_NAME, type CloudSyncEventDetail } from './utils/cloudSyncEvents';
@@ -523,6 +524,7 @@ const App: React.FC = () => {
   const isModelInfluenceRoute = routePath === '/model-influence' || routePath.startsWith('/model-influence/');
   const isAiUpscalerRoute = routePath === '/ai-upscaler' || routePath.startsWith('/ai-upscaler/');
   const isReframeRoute = routePath === '/reframe' || routePath.startsWith('/reframe/');
+  const isBatchRoute = routePath === '/batch' || routePath.startsWith('/batch/');
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -3814,6 +3816,8 @@ const App: React.FC = () => {
               ? 'face-swap'
             : isReframeRoute
               ? 'reframe'
+            : isBatchRoute
+              ? 'batch'
             : isStyleTransferRoute
               ? 'style-transfer'
               : isModelInfluenceRoute
@@ -3843,6 +3847,10 @@ const App: React.FC = () => {
           }
           if (route === 'style-transfer') {
             navigate('/style-transfer');
+            return;
+          }
+          if (route === 'batch') {
+            navigate('/batch');
             return;
           }
           if (route === 'ai-upscaler') {
@@ -3900,6 +3908,18 @@ const App: React.FC = () => {
             />
           ) : isAiUpscalerRoute ? (
             <AiUpscalerScreen
+              onOpenSettings={() => setIsSettingsModalOpen(true)}
+              onOpenLibrary={() => setIsGalleryExpanded(true)}
+              onToast={(t) => setToast(t)}
+              theme={theme}
+            />
+          ) : isBatchRoute ? (
+            <BatchScreen
+              providerSettings={providerSettings}
+              selectedProvider={selectedProvider}
+              nanoBananaImageModel={nanoBananaImageModel}
+              onProviderChange={handleProviderChange}
+              onNanoBananaModelChange={handleNanoBananaModelChange}
               onOpenSettings={() => setIsSettingsModalOpen(true)}
               onOpenLibrary={() => setIsGalleryExpanded(true)}
               onToast={(t) => setToast(t)}
