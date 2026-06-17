@@ -644,6 +644,27 @@ export function BatchScreen(props: {
           ) : null}
         </AtelierSection>
 
+        <AtelierSection title="Aktivní Prompt">
+          <div className="rounded-md border border-[rgba(168,191,143,0.18)] bg-[rgba(28,40,20,0.70)] px-3 py-3">
+            <div className="text-[8px] font-black uppercase tracking-[0.18em] text-[var(--accent)]">
+              {BATCH_PRESETS.find((item) => item.id === presetId)?.title ?? 'Obecné vylepšení'}
+            </div>
+            <p className="mt-2 whitespace-pre-wrap text-[8px] leading-relaxed text-[var(--text-secondary)]">
+              {BATCH_PRESETS.find((item) => item.id === presetId)?.prompt ?? ''}
+            </p>
+            {customPrompt.trim() ? (
+              <div className="mt-3 border-t border-[rgba(168,191,143,0.14)] pt-3">
+                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-[var(--text-3)]">
+                  Doplnění
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-[8px] leading-relaxed text-[var(--text-secondary)]">
+                  {customPrompt.trim()}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </AtelierSection>
+
         <AtelierSection title="AI Poskytovatel">
           <ProviderSelector selectedProvider={selectedProvider} onChange={onProviderChange} settings={providerSettings} />
         </AtelierSection>
