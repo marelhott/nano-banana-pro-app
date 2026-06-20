@@ -118,10 +118,99 @@ type GenerationQueueItem = {
 async function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
   return await new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('Nepodařilo se načíst obrázek pro optimalizaci.'));
     img.src = dataUrl;
   });
+}
+
+async function getImageVisualSignature(url: string): Promise<{ hash: string; width: number; height: number } | null> {
+  try {
+    const image = await loadImageElement(url);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+
+    const size = 12;
+    canvas.width = size;
+    canvas.height = size;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image, 0, 0, size, size);
+
+    const { data } = ctx.getImageData(0, 0, size, size);
+    const grayscale: number[] = [];
+    for (let index = 0; index < data.length; index += 4) {
+      grayscale.push((data[index] * 0.299) + (data[index + 1] * 0.587) + (data[index + 2] * 0.114));
+    }
+    const average = grayscale.reduce((sum, value) => sum + value, 0) / grayscale.length;
+    const hash = grayscale.map((value) => (value >= average ? '1' : '0')).join('');
+
+    return {
+      hash,
+      width: image.naturalWidth || 0,
+      height: image.naturalHeight || 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getResolutionRank(resolution?: string): number {
+  if (resolution === '4K') return 4;
+  if (resolution === '2K') return 3;
+  if (resolution === '1K') return 2;
+  return 1;
+}
+
+function getHistoryImageQualityScore(
+  image: GalleryImage,
+  signature: { hash: string; width: number; height: number } | null,
+): number {
+  const dimensionScore = (signature?.width || 0) * (signature?.height || 0);
+  const resolutionBonus = getResolutionRank(image.resolution) * 10_000_000;
+  const remoteBonus = image.remoteStoragePath ? 500_000 : 0;
+  return dimensionScore + resolutionBonus + remoteBonus;
+}
+
+async function dedupeHistoryImages(images: GalleryImage[]): Promise<GalleryImage[]> {
+  const annotated = await Promise.all(
+    images.map(async (image) => ({
+      image,
+      signature: image.url ? await getImageVisualSignature(image.url) : null,
+    })),
+  );
+
+  const groups = new Map<string, Array<(typeof annotated)[number]>>();
+  for (const item of annotated) {
+    const key = item.signature?.hash
+      ? `hash:${item.signature.hash}`
+      : `fallback:${item.image.prompt.trim().toLowerCase()}::${Math.floor(item.image.timestamp / 10_000)}`;
+    const bucket = groups.get(key);
+    if (bucket) {
+      bucket.push(item);
+    } else {
+      groups.set(key, [item]);
+    }
+  }
+
+  const deduped: GalleryImage[] = [];
+  for (const bucket of groups.values()) {
+    if (bucket.length === 1) {
+      deduped.push(bucket[0].image);
+      continue;
+    }
+
+    bucket.sort((left, right) => {
+      const scoreDiff = getHistoryImageQualityScore(right.image, right.signature) - getHistoryImageQualityScore(left.image, left.signature);
+      if (scoreDiff !== 0) return scoreDiff;
+      return right.image.timestamp - left.image.timestamp;
+    });
+    deduped.push(bucket[0].image);
+  }
+
+  return deduped.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 async function optimizeServerImageInput(
@@ -504,10 +593,22 @@ const App: React.FC = () => {
 
   // Load persistent generation history from IndexedDB on mount
   useEffect(() => {
-    getAllImages().then(images => {
+    getAllImages().then(async images => {
       if (!images || images.length === 0) return;
-      const restoredImages: GeneratedImage[] = images
-        .slice(0, 40) // limit to 40 most recent
+
+      const limitedImages = images.slice(0, 80);
+      const dedupedImages = await dedupeHistoryImages(limitedImages);
+      const keptIds = new Set(dedupedImages.map((image) => image.id));
+      const duplicateIds = limitedImages
+        .filter((image) => !keptIds.has(image.id))
+        .map((image) => image.id);
+
+      if (duplicateIds.length > 0) {
+        void Promise.allSettled(duplicateIds.map((id) => deleteGalleryImage(id)));
+      }
+
+      const restoredImages: GeneratedImage[] = dedupedImages
+        .slice(0, 40)
         .map(img => ({
           id: img.id,
           url: img.url,
