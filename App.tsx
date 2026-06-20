@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import './src/index.css'; // ENFORCE NEW STYLES
 import { Upload, X, FileJson, ArrowLeftRight, Folder, Sparkles } from 'lucide-react'; // Added icons for design
 import { ImageUpload } from './components/ImageUpload';
@@ -14,7 +14,6 @@ import { slugify } from './utils/stringUtils.ts';
 import { GalleryImage, saveToGallery, createThumbnail, getAllImages, deleteImage as deleteGalleryImage } from './utils/galleryDB';
 import { ImageDatabase } from './utils/imageDatabase';
 import { backfillLocalLibraryMetadataToCloud, urlToDataUrl } from './utils/supabaseStorage';
-import JSZip from 'jszip';
 import { ApiUsagePanel } from './components/ApiUsagePanel';
 import { CollectionsModal } from './components/CollectionsModal';
 import { PromptTemplatesModal } from './components/PromptTemplatesModal';
@@ -34,19 +33,12 @@ import { Toast, ToastType } from './components/Toast';
 import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
 import { ensureSupabaseClient, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, ensureLocalAppUserId } from './utils/supabaseClient';
-import { StyleTransferScreen } from './components/StyleTransferScreen';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
 import { AppIconRail } from './components/AppIconRail';
-import { FluxLoraGeneratorScreen } from './components/FluxLoraGeneratorScreen';
-import { ModelInfluenceScreen } from './components/modelInfluence/ModelInfluenceScreen';
 import { MaskCanvas } from './components/MaskCanvas';
 import { FreeComparisonModal } from './components/FreeComparisonModal';
 import { mapAspectRatio, type ProviderType } from './utils/aspectRatioMapping';
 import { upscaleImage } from './utils/upscaling';
-import { AiUpscalerScreen } from './components/AiUpscalerScreen';
-import { FaceSwapScreen } from './components/FaceSwapScreen';
-import { ReframeScreen } from './components/ReframeScreen';
-import { BatchScreen } from './components/BatchScreen';
 import { getInterRequestDelayMs, getRetryBackoffMs, type NanoBananaImageModel } from './constants/timings';
 import { useProviderSettings } from './hooks/useProviderSettings';
 import { CLOUD_SYNC_EVENT_NAME, type CloudSyncEventDetail } from './utils/cloudSyncEvents';
@@ -68,6 +60,41 @@ import {
   getBatchEffectivePrompt,
   type BatchProcessImage,
 } from './utils/batchProcessing';
+
+const LazyStyleTransferScreen = lazy(async () => {
+  const module = await import('./components/StyleTransferScreen');
+  return { default: module.StyleTransferScreen };
+});
+
+const LazyFluxLoraGeneratorScreen = lazy(async () => {
+  const module = await import('./components/FluxLoraGeneratorScreen');
+  return { default: module.FluxLoraGeneratorScreen };
+});
+
+const LazyModelInfluenceScreen = lazy(async () => {
+  const module = await import('./components/modelInfluence/ModelInfluenceScreen');
+  return { default: module.ModelInfluenceScreen };
+});
+
+const LazyAiUpscalerScreen = lazy(async () => {
+  const module = await import('./components/AiUpscalerScreen');
+  return { default: module.AiUpscalerScreen };
+});
+
+const LazyFaceSwapScreen = lazy(async () => {
+  const module = await import('./components/FaceSwapScreen');
+  return { default: module.FaceSwapScreen };
+});
+
+const LazyReframeScreen = lazy(async () => {
+  const module = await import('./components/ReframeScreen');
+  return { default: module.ReframeScreen };
+});
+
+const LazyBatchScreen = lazy(async () => {
+  const module = await import('./components/BatchScreen');
+  return { default: module.BatchScreen };
+});
 
 const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 const RESOLUTIONS = [
@@ -3799,6 +3826,17 @@ const App: React.FC = () => {
     setToast({ message: 'Settings applied for current session.', type: 'success' });
   };
 
+  const routeScreenFallback = (
+    <div className="flex-1 min-w-0 flex items-center justify-center canvas-surface">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <LoadingSpinner />
+        <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--text-secondary)]">
+          Načítám sekci
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen transition-colors duration-300 text-[var(--text-primary)] font-sans flex" style={{background:'transparent'}}>
 
@@ -3874,64 +3912,78 @@ const App: React.FC = () => {
 
         <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
           {isFaceSwapRoute ? (
-            <FaceSwapScreen
-              providerSettings={providerSettings}
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onOpenLibrary={() => setIsGalleryExpanded(true)}
-              onToast={(t) => setToast(t)}
-              theme={theme}
-            />
+            <Suspense fallback={routeScreenFallback}>
+              <LazyFaceSwapScreen
+                providerSettings={providerSettings}
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
+                onOpenLibrary={() => setIsGalleryExpanded(true)}
+                onToast={(t) => setToast(t)}
+                theme={theme}
+              />
+            </Suspense>
           ) : isReframeRoute ? (
-            <ReframeScreen
-              providerSettings={providerSettings}
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onOpenLibrary={() => setIsGalleryExpanded(true)}
-              onToast={(t) => setToast(t)}
-              theme={theme}
-            />
+            <Suspense fallback={routeScreenFallback}>
+              <LazyReframeScreen
+                providerSettings={providerSettings}
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
+                onOpenLibrary={() => setIsGalleryExpanded(true)}
+                onToast={(t) => setToast(t)}
+                theme={theme}
+              />
+            </Suspense>
           ) : isStyleTransferRoute ? (
-            <StyleTransferScreen
-              providerSettings={providerSettings}
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onOpenLibrary={() => setIsGalleryExpanded(true)}
-              onBack={() => navigate('/')}
-              onToast={(t) => setToast(t)}
-              isHoveringGallery={isHoveringGallery}
-              theme={theme}
-            />
+            <Suspense fallback={routeScreenFallback}>
+              <LazyStyleTransferScreen
+                providerSettings={providerSettings}
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
+                onOpenLibrary={() => setIsGalleryExpanded(true)}
+                onBack={() => navigate('/')}
+                onToast={(t) => setToast(t)}
+                isHoveringGallery={isHoveringGallery}
+                theme={theme}
+              />
+            </Suspense>
           ) : isModelInfluenceRoute ? (
-            <ModelInfluenceScreen
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onOpenLibrary={() => setIsGalleryExpanded(true)}
-              onToast={(t) => setToast(t)}
-              theme={theme}
-            />
+            <Suspense fallback={routeScreenFallback}>
+              <LazyModelInfluenceScreen
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
+                onOpenLibrary={() => setIsGalleryExpanded(true)}
+                onToast={(t) => setToast(t)}
+                theme={theme}
+              />
+            </Suspense>
           ) : isAiUpscalerRoute ? (
-            <AiUpscalerScreen
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onOpenLibrary={() => setIsGalleryExpanded(true)}
-              onToast={(t) => setToast(t)}
-              theme={theme}
-            />
+            <Suspense fallback={routeScreenFallback}>
+              <LazyAiUpscalerScreen
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
+                onOpenLibrary={() => setIsGalleryExpanded(true)}
+                onToast={(t) => setToast(t)}
+                theme={theme}
+              />
+            </Suspense>
           ) : isBatchRoute ? (
-            <BatchScreen
-              providerSettings={providerSettings}
-              selectedProvider={selectedProvider}
-              nanoBananaImageModel={nanoBananaImageModel}
-              onProviderChange={handleProviderChange}
-              onNanoBananaModelChange={handleNanoBananaModelChange}
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onOpenLibrary={() => setIsGalleryExpanded(true)}
-              onToast={(t) => setToast(t)}
-              theme={theme}
-            />
+            <Suspense fallback={routeScreenFallback}>
+              <LazyBatchScreen
+                providerSettings={providerSettings}
+                selectedProvider={selectedProvider}
+                nanoBananaImageModel={nanoBananaImageModel}
+                onProviderChange={handleProviderChange}
+                onNanoBananaModelChange={handleNanoBananaModelChange}
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
+                onOpenLibrary={() => setIsGalleryExpanded(true)}
+                onToast={(t) => setToast(t)}
+                theme={theme}
+              />
+            </Suspense>
           ) : isLoraInfluenceRoute ? (
-            <FluxLoraGeneratorScreen
-              onOpenSettings={() => setIsSettingsModalOpen(true)}
-              onOpenLibrary={() => setIsGalleryExpanded(true)}
-              onToast={(t) => setToast(t)}
-              theme={theme}
-            />
+            <Suspense fallback={routeScreenFallback}>
+              <LazyFluxLoraGeneratorScreen
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
+                onOpenLibrary={() => setIsGalleryExpanded(true)}
+                onToast={(t) => setToast(t)}
+                theme={theme}
+              />
+            </Suspense>
           ) : (
             <>
               {/* Left Sidebar - resizable Nano workflow controls (Hidden on Mobile) */}
