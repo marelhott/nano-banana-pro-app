@@ -24,8 +24,10 @@ export function createBatchLoadingImages(params: {
   resolution: string;
   aspectRatio: string;
   createdAt?: number;
+  runId?: string;
 }): GeneratedImage[] {
   const createdAt = params.createdAt ?? Date.now();
+  const runId = params.runId ?? `batch-run-${createdAt}`;
 
   return params.images.map((_, index) => ({
     id: `batch_${createdAt}_${index}`,
@@ -34,6 +36,7 @@ export function createBatchLoadingImages(params: {
     status: 'loading',
     resolution: params.resolution,
     aspectRatio: params.aspectRatio,
+    runId,
   }));
 }
 

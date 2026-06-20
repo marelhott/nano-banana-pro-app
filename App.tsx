@@ -2370,11 +2370,13 @@ const App: React.FC = () => {
     }
 
     const chunks = chunkBatchImages(images);
+    const batchRunId = `batch-run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const loadingImages = createBatchLoadingImages({
       images,
       prompt: state.prompt,
       resolution: state.resolution,
       aspectRatio: state.aspectRatio,
+      runId: batchRunId,
     });
 
     // Add all loading images to state
@@ -2490,12 +2492,13 @@ const App: React.FC = () => {
               // Save to gallery
               const thumbnail = await createThumbnail(result.imageBase64);
               await saveToGallery({
+                id: loadingId,
                 url: result.imageBase64,
                 prompt: effectivePrompt,
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
                 thumbnail,
-                params: recipeWithModel
+                params: { ...recipeWithModel, runId: batchRunId }
               });
 
               processedCount++;
