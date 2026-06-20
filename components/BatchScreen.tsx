@@ -30,6 +30,7 @@ type BatchOutput = {
   inputId: string;
   inputName: string;
   inputDataUrl: string;
+  runId: string;
   variantIndex: number;
   prompt: string;
   status: OutputStatus;
@@ -293,12 +294,14 @@ export function BatchScreen(props: {
     setIsGenerating(true);
 
     const runCreatedAt = Date.now();
+    const batchRunId = makeId('batch-run');
     const pendingOutputs: BatchOutput[] = inputs.flatMap((input) =>
       Array.from({ length: numberOfImages }, (_, variantIndex) => ({
         id: makeId('batch-output'),
         inputId: input.id,
         inputName: input.file.name,
         inputDataUrl: input.dataUrl,
+        runId: batchRunId,
         variantIndex,
         prompt: buildVariantPrompt(activePrompt, variantIndex, numberOfImages),
         status: 'pending' as const,
@@ -396,7 +399,7 @@ export function BatchScreen(props: {
               prompt: output.prompt,
               resolution: '1K',
               aspectRatio: 'Original',
-              params: recipeWithModel,
+              params: { ...recipeWithModel, runId: output.runId },
             });
           } catch {
             // galerie nesmí shodit batch běh

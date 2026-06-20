@@ -108,6 +108,7 @@ const THEME_STORAGE_KEY = 'mulen-theme';
 const SERVER_INPUT_MAX_DIMENSION = 1440;
 const SERVER_INPUT_TARGET_BYTES = 1_200_000;
 const SERVER_INPUT_MIN_QUALITY = 0.58;
+const LEGACY_BATCH_GROUP_WINDOW_MS = 2 * 60 * 1000;
 type GenerationQueueAction = 'generate' | 'variants' | '3ai';
 type GenerationQueueItem = {
   action: GenerationQueueAction;
@@ -184,6 +185,24 @@ async function prepareServerProviderImages(
   }
 ): Promise<ImageInput[]> {
   return await Promise.all(images.map((image) => optimizeServerImageInput(image, options)));
+}
+
+function inferLegacyBatchRunId(image: GalleryImage): string | undefined {
+  const recipe = image.params as Partial<GenerationRecipe> | undefined;
+  if (recipe?.operation !== 'batch') return undefined;
+  const promptKey = (image.prompt || '').trim().toLowerCase().slice(0, 120) || 'batch';
+  const timeBucket = Math.floor(image.timestamp / LEGACY_BATCH_GROUP_WINDOW_MS);
+  return `legacy-batch-${timeBucket}-${promptKey}`;
+}
+
+function getImageRowKey(image: Pick<GeneratedImage, 'id' | 'runId' | 'prompt' | 'timestamp' | 'recipe'>): string {
+  if (image.runId) return image.runId;
+  if (image.recipe?.operation === 'batch') {
+    const promptKey = (image.prompt || '').trim().toLowerCase().slice(0, 120) || 'batch';
+    const timeBucket = Math.floor(image.timestamp / LEGACY_BATCH_GROUP_WINDOW_MS);
+    return `legacy-batch-${timeBucket}-${promptKey}`;
+  }
+  return image.id;
 }
 
 const App: React.FC = () => {
@@ -498,7 +517,7 @@ const App: React.FC = () => {
           resolution: img.resolution,
           aspectRatio: img.aspectRatio,
           recipe: img.params as any,
-          runId: (img.params as any)?.runId ?? img.id,
+          runId: (img.params as any)?.runId ?? inferLegacyBatchRunId(img) ?? img.id,
           lineage: img.lineage,
         }));
       setState(prev => ({
@@ -512,6 +531,7 @@ const App: React.FC = () => {
   const [gridCols, setGridCols] = useState<number>(3);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightPanelWidth, setRightPanelWidth] = useState(360);
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
@@ -537,6 +557,17 @@ const App: React.FC = () => {
   useEffect(() => {
     setRoutePath(window.location.pathname);
   }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('isRightPanelCollapsed');
+    if (saved === 'true') {
+      setIsRightPanelCollapsed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('isRightPanelCollapsed', isRightPanelCollapsed ? 'true' : 'false');
+  }, [isRightPanelCollapsed]);
 
   useEffect(() => {
     const onPop = () => setRoutePath(window.location.pathname);
@@ -4014,6 +4045,32 @@ const App: React.FC = () => {
               <div
                 className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
               >
+                <button
+                  type="button"
+                  onClick={() => setIsRightPanelCollapsed(prev => !prev)}
+                  className="hidden lg:flex absolute top-6 right-4 z-30 h-10 w-10 items-center justify-center rounded-xl transition-all duration-200"
+                  style={theme === 'dark'
+                    ? {
+                      background: 'rgba(18,24,14,0.92)',
+                      border: '1px solid rgba(168,191,143,0.22)',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+                      color: 'rgba(168,191,143,0.72)',
+                    }
+                    : {
+                      background: '#ffffff',
+                      border: '1px solid #cdd8ba',
+                      boxShadow: 'none',
+                      color: '#6f7f68',
+                    }}
+                  title={isRightPanelCollapsed ? 'Otevřít pravý panel' : 'Skrýt pravý panel'}
+                >
+                  <span
+                    className="block h-4 w-2 rounded-full transition-all"
+                    style={theme === 'dark'
+                      ? { background: 'rgba(168,191,143,0.72)' }
+                      : { background: '#7b8c71' }}
+                  />
+                </button>
                 <div className="p-6 lg:p-10 pb-32 w-full">
                   <div className="space-y-6 md:space-y-8 w-full">
                     <header className="hidden lg:flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
@@ -4121,7 +4178,7 @@ const App: React.FC = () => {
                           const rows: Array<{ runId: string; images: typeof state.generatedImages }> = [];
                           const seen = new Map<string, number>();
                           for (const img of state.generatedImages) {
-                            const key = img.runId ?? img.id;
+                            const key = getImageRowKey(img);
                             if (seen.has(key)) {
                               rows[seen.get(key)!].images.push(img);
                             } else {
@@ -4152,7 +4209,7 @@ const App: React.FC = () => {
                                     const toDelete = row.images.map(img => img.id);
                                     setState(prev => ({
                                       ...prev,
-                                      generatedImages: prev.generatedImages.filter(img => (img.runId ?? img.id) !== row.runId),
+                                      generatedImages: prev.generatedImages.filter(img => getImageRowKey(img) !== row.runId),
                                     }));
                                     toDelete.forEach(id => deleteGalleryImage(id).catch(() => {}));
                                     setToast({ message: 'Řádek smazán', type: 'success' });
@@ -4492,21 +4549,25 @@ const App: React.FC = () => {
                 </div>
               </div >
 
-              <div className="hidden lg:block relative w-0 shrink-0">
-                <div
-                  className="absolute inset-y-0 -right-1 w-2 cursor-col-resize bg-transparent"
-                  onMouseDown={startResizingRight}
-                  title="Změnit šířku pravého panelu"
-                />
-              </div>
+              {!isRightPanelCollapsed && (
+                <>
+                  <div className="hidden lg:block relative w-0 shrink-0">
+                    <div
+                      className="absolute inset-y-0 -right-1 w-2 cursor-col-resize bg-transparent"
+                      onMouseDown={startResizingRight}
+                      title="Změnit šířku pravého panelu"
+                    />
+                  </div>
 
-              <aside
-                ref={rightPanelRef}
-                className="hidden lg:flex shrink-0 flex-col h-full z-20 cairn-panel-right"
-                style={theme === 'dark' ? { width: rightPanelWidth, backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(200deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'-4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)' } : { width: rightPanelWidth, background:'#ffffff', borderLeft:'1px solid #cdd8ba' }}
-              >
-                {renderRightNanoPanel()}
-              </aside>
+                  <aside
+                    ref={rightPanelRef}
+                    className="hidden lg:flex shrink-0 flex-col h-full z-20 cairn-panel-right"
+                    style={theme === 'dark' ? { width: rightPanelWidth, backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(200deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'-4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)' } : { width: rightPanelWidth, background:'#ffffff', borderLeft:'1px solid #cdd8ba' }}
+                  >
+                    {renderRightNanoPanel()}
+                  </aside>
+                </>
+              )}
             </>
           )}
 
