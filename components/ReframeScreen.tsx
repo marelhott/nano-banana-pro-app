@@ -9,6 +9,8 @@ import { fileToDataUrl } from './styleTransfer/utils';
 import { ImageComparisonModal } from './ImageComparisonModal';
 import type { ToastType } from './Toast';
 import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
+import { runConcurrentTasks } from '../utils/concurrencyRunner';
+import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
 const GEMINI_PRO_IMAGE_MODEL = 'gemini-3-pro-image-preview';
 
@@ -49,12 +51,13 @@ type ReframeOutput = {
   id: string;
   perspectiveId: PerspectiveId;
   perspectiveLabel: string;
-  status: 'pending' | 'running' | 'done' | 'error';
+  status: 'pending' | 'running' | 'retrying' | 'done' | 'error';
   dataUrl?: string;
   error?: string;
   createdAt: number;
   modelId?: string;
   editPrompt?: string;
+  attempt?: number;
 };
 
 const PERSPECTIVES: Perspective[] = [
@@ -345,11 +348,21 @@ export function ReframeScreen(props: {
       const providerInput = await optimizeImageInput(input.dataUrl, input.file.type);
       const provider = new GeminiProvider(geminiKey || '', GEMINI_PRO_IMAGE_MODEL);
 
-      const jobs = selectedPerspectives.map(async (perspective, index) => {
-        const outputId = placeholders[index].id;
-        setOutputs((prev) => prev.map((item) => item.id === outputId ? { ...item, status: 'running' } : item));
-
-        try {
+      const results = await runConcurrentTasks({
+        items: selectedPerspectives,
+        concurrency: 3,
+        onTaskStateChange: ({ index, status, attempt }) => {
+          const outputId = placeholders[index]?.id;
+          if (!outputId) return;
+          setOutputs((prev) => prev.map((item) => item.id === outputId
+            ? { ...item, status: status === 'done' ? 'done' : status === 'error' ? 'error' : status, attempt }
+            : item
+          ));
+        },
+        onProgress: ({ completed: doneCount, failed: failedCount }) => {
+          setProgress({ completed: doneCount + failedCount, total: placeholders.length });
+        },
+        worker: async (perspective, context) => {
           const result = await provider.generateImage(
             [providerInput],
             buildReframePrompt(perspective, originalAspectRatio),
@@ -358,15 +371,10 @@ export function ReframeScreen(props: {
             false
           );
 
-          setOutputs((prev) => prev.map((item) => item.id === outputId
-            ? { ...item, status: 'done', dataUrl: result.imageBase64, modelId: result.modelId }
-            : item
-          ));
-
           try {
             const thumbnail = await createThumbnail(result.imageBase64, 420);
             await saveToGallery({
-              id: outputId,
+              id: placeholders[context.index].id,
               url: result.imageBase64,
               thumbnail,
               prompt: `Reframe ${perspective.label}: ${buildReframePrompt(perspective, originalAspectRatio)}`,
@@ -380,19 +388,32 @@ export function ReframeScreen(props: {
             });
           } catch { /* gallery is non-blocking */ }
 
-          completed += 1;
-        } catch (error: any) {
-          failed += 1;
-          setOutputs((prev) => prev.map((item) => item.id === outputId
-            ? { ...item, status: 'error', error: error?.message || 'Reframe selhal.' }
+          setOutputs((prev) => prev.map((item) => item.id === placeholders[context.index].id
+            ? { ...item, status: 'done', dataUrl: result.imageBase64, modelId: result.modelId, attempt: context.attempt }
             : item
           ));
-        } finally {
-          setProgress({ completed: completed + failed, total: placeholders.length });
-        }
+
+          return result;
+        },
       });
 
-      await Promise.allSettled(jobs);
+      results.forEach((entry) => {
+        const outputId = placeholders[entry.index]?.id;
+        if (!outputId) return;
+        if (entry.status === 'fulfilled') {
+          completed += 1;
+          setOutputs((prev) => prev.map((item) => item.id === outputId
+            ? { ...item, attempt: entry.attempts }
+            : item
+          ));
+          return;
+        }
+        failed += 1;
+        setOutputs((prev) => prev.map((item) => item.id === outputId
+          ? { ...item, status: 'error', error: toUserFacingAiError(entry.error, 'Reframe selhal.'), attempt: entry.attempts }
+          : item
+        ));
+      });
 
       if (completed > 0 && failed === 0) {
         onToast({ type: 'success', message: `Reframe hotový: ${completed}/${placeholders.length}.` });

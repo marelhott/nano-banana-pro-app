@@ -1,4 +1,5 @@
 import { AIProviderType, GenerateImageResult, ImageInput } from './aiProvider';
+import { defaultRetryPolicy } from '../utils/concurrencyRunner';
 
 type ServerProviderAction =
   | 'enhancePrompt'
@@ -25,29 +26,42 @@ type ServerProviderRequest = {
 };
 
 async function callServerProvider<T>(payload: ServerProviderRequest): Promise<T> {
-  const response = await fetch('/api/provider-generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  const retry = defaultRetryPolicy({ maxAttempts: 3, baseDelayMs: 800 });
 
-  const raw = await response.text();
-  const data = (() => {
+  for (let attempt = 1; attempt <= retry.maxAttempts; attempt += 1) {
     try {
-      return JSON.parse(raw);
-    } catch {
-      return {};
+      const response = await fetch('/api/provider-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const raw = await response.text();
+      const data = (() => {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return {};
+        }
+      })();
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.error ||
+          raw?.slice(0, 400) ||
+          response.statusText ||
+          'Server provider request failed.'
+        );
+      }
+      return data.result as T;
+    } catch (error) {
+      const canRetry = attempt < retry.maxAttempts && Boolean(retry.shouldRetry?.(error));
+      if (!canRetry) throw error;
+      const delayMs = (retry.baseDelayMs ?? 800) * attempt;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-  })();
-  if (!response.ok || !data?.success) {
-    throw new Error(
-      data?.error ||
-      raw?.slice(0, 400) ||
-      response.statusText ||
-      'Server provider request failed.'
-    );
   }
-  return data.result as T;
+
+  throw new Error('Server provider request failed.');
 }
 
 export const serverProviderProxy = {

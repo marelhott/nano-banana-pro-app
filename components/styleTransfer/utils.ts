@@ -8,8 +8,9 @@ export type ImageSlot = {
 export type OutputItem = {
   id: string;
   url?: string;
-  status: 'idle' | 'loading' | 'success' | 'error';
+  status: 'idle' | 'pending' | 'running' | 'retrying' | 'success' | 'error';
   error?: string;
+  attempt?: number;
 };
 
 export const STYLE_REFERENCE_LIMIT = 3;

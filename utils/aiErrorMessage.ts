@@ -22,6 +22,16 @@ export function toUserFacingAiError(error: unknown, fallback = 'Generování sel
   }
 
   if (
+    normalized.includes('failed to fetch') ||
+    normalized.includes('networkerror') ||
+    normalized.includes('network request failed') ||
+    normalized.includes('load failed') ||
+    normalized.includes('fetch failed')
+  ) {
+    return 'Spojení se serverem během generování spadlo. Aplikace to zkusila znovu, ale požadavek nakonec nedoběhl.';
+  }
+
+  if (
     normalized.includes('function_payload_too_large') ||
     normalized.includes('request entity too large') ||
     normalized.includes('payload too large') ||

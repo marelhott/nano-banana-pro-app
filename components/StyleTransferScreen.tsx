@@ -12,6 +12,8 @@ import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
 import { downloadDataUrl, fileToDataUrl, resolveDropToFile, STYLE_REFERENCE_LIMIT, composeStylePatchwork } from './styleTransfer/utils';
 import type { ImageSlot, OutputItem } from './styleTransfer/utils';
 import { AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
+import { runConcurrentTasks } from '../utils/concurrencyRunner';
+import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
 type ToastType = 'success' | 'error' | 'info';
 export type LocalStyleMethod = 'gatys' | 'adain' | 'wct';
@@ -179,7 +181,7 @@ export function StyleTransferScreen(props: {
       (_, i) => `st-${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`,
     );
     // Append new run outputs so older results remain visible.
-    setOutputs((prev) => [...prev, ...outputIds.map((id) => ({ id, status: 'loading' as const }))]);
+    setOutputs((prev) => [...prev, ...outputIds.map((id) => ({ id, status: 'pending' as const }))]);
     setIsGenerating(true);
 
     try {
@@ -210,64 +212,93 @@ export function StyleTransferScreen(props: {
         const structureUrl = getPublicUrl(refPath);
         const styleUrl = getPublicUrl(stylePath);
 
-        const results = await runFofrStyleTransfer({
-          token,
-          styleImage: styleUrl,
-          structureImage: fofrUseStructure ? structureUrl : undefined,
-          prompt: '',
-          negativePrompt: '',
-          width: fofrWidth,
-          height: fofrHeight,
-          model: fofrModel,
-          numberOfImages: count,
-          structureDepthStrength: fofrStructureDepthStrength,
-          structureDenoisingStrength: fofrStructureDenoisingStrength,
-          outputFormat: 'webp',
-          outputQuality: 90,
+        const cloudResults = await runConcurrentTasks({
+          items: outputIds,
+          concurrency: 2,
+          onTaskStateChange: ({ index, status, attempt }) => {
+            const id = outputIds[index];
+            setOutputs((prev) =>
+              prev.map((p) =>
+                p.id === id
+                  ? {
+                      ...p,
+                      status: status === 'done' ? 'success' : status === 'error' ? 'error' : status,
+                      attempt,
+                    }
+                  : p,
+              ),
+            );
+          },
+          worker: async (_id, context) => {
+            const data = await runFofrStyleTransfer({
+              token,
+              styleImage: styleUrl,
+              structureImage: fofrUseStructure ? structureUrl : undefined,
+              prompt: '',
+              negativePrompt: '',
+              width: fofrWidth,
+              height: fofrHeight,
+              model: fofrModel,
+              numberOfImages: 1,
+              structureDepthStrength: fofrStructureDepthStrength,
+              structureDenoisingStrength: fofrStructureDenoisingStrength,
+              outputFormat: 'webp',
+              outputQuality: 90,
+              seed: seedBase + context.index * 97,
+            });
+
+            const dataUrl = data[0];
+            const thumb = await createThumbnail(dataUrl, 420);
+            let finalUrl = dataUrl;
+            try {
+              const blob = await dataUrlToBlob(dataUrl);
+              const path = await uploadImage(blob, 'generated');
+              finalUrl = getPublicUrl(path);
+              await saveToGallery({
+                url: finalUrl,
+                thumbnail: thumb,
+                prompt: `Style Transfer (FOFR) | model=${fofrModel} denoise=${fofrStructureDenoisingStrength}`,
+                resolution: 'match',
+                aspectRatio: 'Original',
+                params: {
+                  mode: 'style-transfer-fofr',
+                  engine: 'replicate',
+                  model: fofrModel,
+                  number_of_images: 1,
+                  structure_depth_strength: fofrStructureDepthStrength,
+                  structure_denoising_strength: fofrStructureDenoisingStrength,
+                  output_format: 'webp',
+                  output_quality: 90,
+                  seed: seedBase + context.index * 97,
+                  prompt: null,
+                  negative_prompt: null,
+                  styleReferences: activeStyles.length,
+                  useStructure: fofrUseStructure,
+                },
+              });
+            } catch {
+              // keep local result visible
+            }
+            setOutputs((prev) =>
+              prev.map((p) => (p.id === outputIds[context.index] ? { ...p, status: 'success', url: finalUrl, attempt: context.attempt } : p)),
+            );
+            return finalUrl;
+          },
         });
 
-        for (let i = 0; i < results.length; i++) {
-          const dataUrl = results[i];
-          setOutputs((prev) =>
-            prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: dataUrl } : p)),
-          );
-
-          const thumb = await createThumbnail(dataUrl, 420);
-          try {
-            const blob = await dataUrlToBlob(dataUrl);
-            const path = await uploadImage(blob, 'generated');
-            const publicUrl = getPublicUrl(path);
-
+        cloudResults.forEach((entry) => {
+          const id = outputIds[entry.index];
+          if (entry.status === 'fulfilled') {
             setOutputs((prev) =>
-              prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: publicUrl } : p)),
+              prev.map((p) => (p.id === id ? { ...p, attempt: entry.attempts } : p)),
             );
-
-            await saveToGallery({
-              url: publicUrl,
-              thumbnail: thumb,
-              prompt: `Style Transfer (FOFR) | model=${fofrModel} denoise=${fofrStructureDenoisingStrength}`,
-              resolution: 'match',
-              aspectRatio: 'Original',
-              params: {
-                mode: 'style-transfer-fofr',
-                engine: 'replicate',
-                model: fofrModel,
-                number_of_images: count,
-                structure_depth_strength: fofrStructureDepthStrength,
-                structure_denoising_strength: fofrStructureDenoisingStrength,
-                output_format: 'webp',
-                output_quality: 90,
-                seed: null,
-                prompt: null,
-                negative_prompt: null,
-                styleReferences: activeStyles.length,
-                useStructure: fofrUseStructure,
-              },
-            });
-          } catch {
-            // keep local result visible
+            return;
           }
-        }
+
+          setOutputs((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, status: 'error', error: toUserFacingAiError(entry.error, 'Cloud styl transfer selhal.'), attempt: entry.attempts } : p)),
+          );
+        });
 
         onToast({ message: 'Hotovo.', type: 'success' });
         return;
@@ -327,7 +358,7 @@ export function StyleTransferScreen(props: {
 
           // Show instantly (local data URL), then upload+persist in background.
           setOutputs((prev) =>
-            prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: dataUrl } : p)),
+            prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: dataUrl, attempt: 1 } : p)),
           );
 
           const thumb = await createThumbnail(dataUrl, 420);
@@ -337,7 +368,7 @@ export function StyleTransferScreen(props: {
             const publicUrl = getPublicUrl(path);
 
             setOutputs((prev) =>
-              prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: publicUrl } : p)),
+              prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'success', url: publicUrl, attempt: 1 } : p)),
             );
 
             await saveToGallery({
@@ -371,7 +402,7 @@ export function StyleTransferScreen(props: {
           }
         } catch (e: any) {
           setOutputs((prev) =>
-            prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.' } : p)),
+            prev.map((p) => (p.id === outputIds[i] ? { id: outputIds[i], status: 'error', error: e?.message || 'Chyba generování.', attempt: 1 } : p)),
           );
         }
       }
@@ -381,7 +412,7 @@ export function StyleTransferScreen(props: {
       const msg = e?.message || 'Chyba generování.';
       const newIds = new Set(outputIds);
       setOutputs((prev) =>
-        prev.map((p) => (newIds.has(p.id) && p.status === 'loading' ? { ...p, status: 'error', error: msg } : p)),
+        prev.map((p) => (newIds.has(p.id) && ['pending', 'running', 'retrying'].includes(p.status) ? { ...p, status: 'error', error: msg } : p)),
       );
       onToast({ message: msg, type: 'error' });
     } finally {

@@ -8,6 +8,8 @@ import { fileToDataUrl } from './styleTransfer/utils';
 import { ImageComparisonModal } from './ImageComparisonModal';
 import type { ToastType } from './Toast';
 import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
+import { runConcurrentTasks } from '../utils/concurrencyRunner';
+import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
 type UpscaleMode = 'restore' | 'enhance';
 
@@ -30,10 +32,11 @@ type OutputItem = {
   inputName: string;
   inputDataUrl: string;
   dataUrl?: string;
-  status: 'pending' | 'running' | 'done' | 'error';
+  status: 'pending' | 'running' | 'retrying' | 'done' | 'error';
   createdAt: number;
   detailsText?: string;
   error?: string;
+  attempt?: number;
   resultWidth?: number;
   resultHeight?: number;
 };
@@ -202,21 +205,42 @@ export function AiUpscalerScreen(props: {
       return [...keep, ...newOutputs];
     });
 
-    let completed = 0;
-    let failed = 0;
-
     try {
-      for (let index = 0; index < inputsToProcess.length; index++) {
-        const input = inputsToProcess[index];
-        setBatchProgress({ current: index + 1, total: inputsToProcess.length, fileName: input.file.name });
-        setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, status: 'running' as const, error: undefined } : o));
-
-        try {
-          setPhase('running');
+      const results = await runConcurrentTasks({
+        items: inputsToProcess,
+        concurrency: 2,
+        onTaskStateChange: ({ index, status, attempt }) => {
+          const input = inputsToProcess[index];
+          if (!input) return;
           const modelName = modeModelId(mode);
           const label = modeLabel(mode);
-          setOutputs(prev => prev.map(o => o.id === buildOutputId(input.id, mode) ? { ...o, detailsText: `${label} • ${modelName} • odesílám…` } : o));
-
+          if (status === 'running' || status === 'retrying') setPhase('running');
+          setOutputs(prev => prev.map(o =>
+            o.id === buildOutputId(input.id, mode)
+              ? {
+                  ...o,
+                  status: status === 'done' ? 'done' : status === 'error' ? 'error' : status,
+                  error: status === 'error' ? o.error : undefined,
+                  attempt,
+                  detailsText:
+                    status === 'retrying'
+                      ? `${label} • ${modelName} • opakuji ${Math.min(attempt, 3)}/3…`
+                      : `${label} • ${modelName} • odesílám…`,
+                }
+              : o
+          ));
+        },
+        onProgress: ({ completed, failed, running, retrying }) => {
+          const progressIndex = Math.min(inputsToProcess.length - 1, Math.max(0, completed + failed));
+          const active = inputsToProcess[progressIndex] || inputsToProcess[0];
+          setBatchProgress({
+            current: Math.min(inputsToProcess.length, completed + failed + running + retrying),
+            total: inputsToProcess.length,
+            fileName: active?.file.name || '',
+          });
+        },
+        worker: async (input) => {
+          const modelName = modeModelId(mode);
           const provider = new GeminiProvider(geminiKey || '', modelName);
           const result = await provider.generateImage(
             [{ data: input.dataUrl, mimeType: input.file.type }],
@@ -230,7 +254,15 @@ export function AiUpscalerScreen(props: {
 
           setOutputs(prev => prev.map(o =>
             o.id === buildOutputId(input.id, mode)
-              ? { ...o, dataUrl: result.imageBase64, status: 'done' as const, detailsText: `${label} • ${modelName} • ${dims.width}×${dims.height}`, resultWidth: dims.width, resultHeight: dims.height }
+              ? {
+                  ...o,
+                  dataUrl: result.imageBase64,
+                  status: 'done',
+                  detailsText: `${modeLabel(mode)} • ${modelName} • ${dims.width}×${dims.height}`,
+                  resultWidth: dims.width,
+                  resultHeight: dims.height,
+                  attempt: 1,
+                }
               : o
           ));
 
@@ -240,21 +272,47 @@ export function AiUpscalerScreen(props: {
               id: buildOutputId(input.id, mode),
               url: result.imageBase64,
               thumbnail: thumb,
-              prompt: `${label} ${UPSCALE_PROMPT}`,
+              prompt: `${modeLabel(mode)} ${UPSCALE_PROMPT}`,
               params: { engine: modelName, mode, scale, operation: 'upscale' },
             });
           } catch { /* ok */ }
 
-          completed++;
-        } catch (error: any) {
-          failed++;
+          return { result, dims };
+        },
+      });
+
+      let completed = 0;
+      let failed = 0;
+
+      results.forEach((entry) => {
+        const input = inputsToProcess[entry.index];
+        if (!input) return;
+        const modelName = modeModelId(mode);
+        const label = modeLabel(mode);
+
+        if (entry.status === 'fulfilled') {
+          completed += 1;
           setOutputs(prev => prev.map(o =>
             o.id === buildOutputId(input.id, mode)
-              ? { ...o, status: 'error' as const, error: error?.message || 'Selhalo.', detailsText: input.file.name }
+              ? { ...o, attempt: entry.attempts }
               : o
           ));
+          return;
         }
-      }
+
+        failed += 1;
+        setOutputs(prev => prev.map(o =>
+          o.id === buildOutputId(input.id, mode)
+            ? {
+                ...o,
+                status: 'error',
+                error: toUserFacingAiError(entry.error, 'Upscaling selhal.'),
+                detailsText: input.file.name,
+                attempt: entry.attempts,
+              }
+            : o
+        ));
+      });
 
       if (completed > 0 && failed === 0) {
         onToast({ type: 'success', message: inputsToProcess.length === 1 ? `${modeLabel(mode)} hotový.` : `${modeLabel(mode)} dokončen pro ${completed} soub.` });
@@ -399,7 +457,9 @@ export function AiUpscalerScreen(props: {
                                   style={{ width: '0%', animation: 'growWidth 10s cubic-bezier(0.4, 0, 0.2, 1) forwards' }} />
                               </div>
                               <div className="text-center">
-                                <span className="text-[10px] text-[#a8bf8f] font-bold tracking-widest uppercase animate-pulse">Generuji...</span>
+                                <span className="text-[10px] text-[#a8bf8f] font-bold tracking-widest uppercase animate-pulse">
+                                  {output.status === 'retrying' ? `Opakuji ${Math.min(output.attempt || 2, 3)}/3...` : 'Generuji...'}
+                                </span>
                               </div>
                             </div>
                           </div>

@@ -10,6 +10,7 @@ import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { buildBatchRecipe } from '../utils/generationRecipe';
 import { toUserFacingAiError } from '../utils/aiErrorMessage';
+import { runConcurrentTasks } from '../utils/concurrencyRunner';
 import type { ToastType } from './Toast';
 
 type NanoBananaImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
@@ -22,7 +23,7 @@ type InputSlot = {
   dataUrl: string;
 };
 
-type OutputStatus = 'pending' | 'running' | 'done' | 'error';
+type OutputStatus = 'pending' | 'running' | 'retrying' | 'done' | 'error';
 
 type BatchOutput = {
   id: string;
@@ -34,6 +35,7 @@ type BatchOutput = {
   status: OutputStatus;
   dataUrl?: string;
   error?: string;
+  attempt?: number;
   createdAt: number;
   modelLabel: string;
 };
@@ -303,25 +305,39 @@ export function BatchScreen(props: {
     setOutputs((prev) => [...pendingOutputs, ...prev]);
     const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
 
-    let processed = 0;
-    let succeeded = 0;
-    let failed = 0;
     const total = pendingOutputs.length;
 
     try {
-      for (const output of pendingOutputs) {
-        setProgress({
-          current: processed + 1,
-          total,
-          fileName: output.inputName,
-          variant: output.variantIndex + 1,
-        });
-
-        setOutputs((prev) =>
-          prev.map((item) => (item.id === output.id ? { ...item, status: 'running' as const, error: undefined } : item)),
-        );
-
-        try {
+      const results = await runConcurrentTasks({
+        items: pendingOutputs,
+        concurrency: 4,
+        onTaskStateChange: ({ index, status, attempt }) => {
+          const output = pendingOutputs[index];
+          if (!output) return;
+          setOutputs((prev) =>
+            prev.map((item) =>
+              item.id === output.id
+                ? {
+                    ...item,
+                    status: status === 'done' ? 'done' : status === 'error' ? 'error' : status,
+                    error: status === 'error' ? item.error : undefined,
+                    attempt,
+                  }
+                : item,
+            ),
+          );
+        },
+        onProgress: ({ completed, failed, retrying, running }) => {
+          const progressIndex = Math.min(total - 1, Math.max(0, completed + failed));
+          const currentOutput = pendingOutputs[progressIndex] || pendingOutputs[0];
+          setProgress({
+            current: Math.min(total, completed + failed + running + retrying),
+            total,
+            fileName: currentOutput?.inputName || pendingOutputs[0]?.inputName || '',
+            variant: (currentOutput?.variantIndex || 0) + 1,
+          });
+        },
+        worker: async (output, context) => {
           const preparedInput = await optimizeBatchInputDataUrl(
             output.inputDataUrl,
             inputs.find((item) => item.id === output.inputId)?.file.type || 'image/jpeg',
@@ -374,25 +390,48 @@ export function BatchScreen(props: {
           } catch {
             // galerie nesmí shodit batch běh
           }
-
-          succeeded++;
-        } catch (error: any) {
-          failed++;
           setOutputs((prev) =>
             prev.map((item) =>
               item.id === output.id
                 ? {
                     ...item,
-                    status: 'error' as const,
-                    error: toUserFacingAiError(error, 'Batch úprava selhala.'),
+                    status: 'done',
+                    dataUrl: result.imageBase64,
+                    attempt: context.attempt,
                   }
                 : item,
             ),
           );
-        } finally {
-          processed++;
+          return { result, context };
+        },
+      });
+
+      let succeeded = 0;
+      let failed = 0;
+
+      results.forEach((entry) => {
+        const output = pendingOutputs[entry.index];
+        if (!output) return;
+
+        if (entry.status === 'fulfilled') {
+          succeeded += 1;
+          return;
         }
-      }
+
+        failed += 1;
+        setOutputs((prev) =>
+          prev.map((item) =>
+            item.id === output.id
+              ? {
+                  ...item,
+                  status: 'error',
+                  error: toUserFacingAiError(entry.error, 'Batch úprava selhala.'),
+                  attempt: entry.attempts,
+                }
+              : item,
+          ),
+        );
+      });
 
       if (succeeded > 0 && failed === 0) {
         onToast({ message: `Batch hotový. Vzniklo ${succeeded} výstupů.`, type: 'success' });
@@ -612,7 +651,11 @@ export function BatchScreen(props: {
                             </div>
                             <div className="text-center">
                               <span className="text-[10px] text-[#a8bf8f] font-bold tracking-widest uppercase animate-pulse">
-                                {output.status === 'running' ? 'Generuji...' : 'Čeká...'}
+                                {output.status === 'retrying'
+                                  ? `Opakuji ${Math.min(output.attempt || 2, 3)}/3...`
+                                  : output.status === 'running'
+                                    ? 'Generuji...'
+                                    : 'Čeká...'}
                               </span>
                             </div>
                           </div>
