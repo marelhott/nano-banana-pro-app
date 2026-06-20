@@ -10,7 +10,7 @@ import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { buildBatchRecipe } from '../utils/generationRecipe';
 import { toUserFacingAiError } from '../utils/aiErrorMessage';
-import { runConcurrentTasks } from '../utils/concurrencyRunner';
+import { decideAdaptiveConcurrency, estimateDataUrlBytes, runConcurrentTasks } from '../utils/concurrencyRunner';
 import type { ToastType } from './Toast';
 
 type NanoBananaImageModel = 'gemini-3.1-flash-image-preview' | 'gemini-3-pro-image-preview';
@@ -207,11 +207,16 @@ export function BatchScreen(props: {
   const [progress, setProgress] = React.useState<{ current: number; total: number; fileName: string; variant: number } | null>(null);
   const [selectedOutputId, setSelectedOutputId] = React.useState<string | null>(null);
   const fileInputId = React.useMemo(() => makeId('batch-upload'), []);
+  const [activeConcurrency, setActiveConcurrency] = React.useState(4);
+  const [concurrencyReason, setConcurrencyReason] = React.useState('lehci davka');
 
   const activePrompt = React.useMemo(() => buildBatchPrompt(presetId, customPrompt), [presetId, customPrompt]);
   const activeModelLabel = React.useMemo(() => modelLabel(selectedProvider, nanoBananaImageModel), [selectedProvider, nanoBananaImageModel]);
   const completedCount = React.useMemo(() => outputs.filter((item) => item.status === 'done').length, [outputs]);
   const errorCount = React.useMemo(() => outputs.filter((item) => item.status === 'error').length, [outputs]);
+  const runningCount = React.useMemo(() => outputs.filter((item) => item.status === 'running').length, [outputs]);
+  const retryingCount = React.useMemo(() => outputs.filter((item) => item.status === 'retrying').length, [outputs]);
+  const waitingCount = React.useMemo(() => outputs.filter((item) => item.status === 'pending').length, [outputs]);
   const selectedOutput = React.useMemo(
     () => outputs.find((item) => item.id === selectedOutputId && item.dataUrl),
     [outputs, selectedOutputId],
@@ -306,11 +311,17 @@ export function BatchScreen(props: {
     const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
 
     const total = pendingOutputs.length;
+    const inputByteSizes = inputs.map((input) => estimateDataUrlBytes(input.dataUrl));
+    const averageBytes = inputByteSizes.length > 0 ? inputByteSizes.reduce((sum, value) => sum + value, 0) / inputByteSizes.length : 0;
+    const maxBytes = inputByteSizes.length > 0 ? Math.max(...inputByteSizes) : 0;
+    const decision = decideAdaptiveConcurrency({ section: 'batch', itemCount: total, averageBytes, maxBytes });
+    setActiveConcurrency(decision.concurrency);
+    setConcurrencyReason(decision.reason);
 
     try {
       const results = await runConcurrentTasks({
         items: pendingOutputs,
-        concurrency: 4,
+        concurrency: decision.concurrency,
         onTaskStateChange: ({ index, status, attempt }) => {
           const output = pendingOutputs[index];
           if (!output) return;
@@ -727,6 +738,10 @@ export function BatchScreen(props: {
               { label: 'Model', value: activeModelLabel },
               { label: 'Vstupů', value: inputs.length },
               { label: 'Na vstup', value: numberOfImages },
+              { label: 'Souběh', value: activeConcurrency },
+              { label: 'Čeká', value: waitingCount },
+              { label: 'Běží', value: runningCount },
+              { label: 'Retry', value: retryingCount },
               { label: 'Hotovo', value: completedCount },
               { label: 'Chyby', value: errorCount },
             ]}
@@ -736,6 +751,9 @@ export function BatchScreen(props: {
               {progress.current}/{progress.total} • {progress.fileName} • varianta {progress.variant}
             </div>
           ) : null}
+          <div className="rounded-md border border-[rgba(168,191,143,0.12)] bg-[rgba(20,28,15,0.55)] px-3 py-2 text-[8px] leading-relaxed text-[var(--text-3)]">
+            Auto souběh: {activeConcurrency} • {concurrencyReason}
+          </div>
         </AtelierSection>
 
         <AtelierSection title="Aktivní Prompt">

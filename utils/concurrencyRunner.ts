@@ -27,6 +27,13 @@ export type QueueWorkerContext = {
   attempt: number;
 };
 
+export type AdaptiveSection = 'batch' | 'upscaler' | 'reframe' | 'style-transfer-fofr';
+
+export type AdaptiveConcurrencyDecision = {
+  concurrency: number;
+  reason: string;
+};
+
 export type QueueResult<T> =
   | { index: number; status: 'fulfilled'; value: T; attempts: number }
   | { index: number; status: 'rejected'; error: unknown; attempts: number };
@@ -60,6 +67,50 @@ export function defaultRetryPolicy(overrides?: Partial<RetryPolicy>): RetryPolic
     baseDelayMs: overrides?.baseDelayMs ?? 900,
     shouldRetry: overrides?.shouldRetry ?? isRetriableNetworkError,
   };
+}
+
+export function estimateDataUrlBytes(dataUrl: string): number {
+  if (!dataUrl) return 0;
+  const commaIndex = dataUrl.indexOf(',');
+  const base64 = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+function mb(bytes: number): number {
+  return bytes / (1024 * 1024);
+}
+
+export function decideAdaptiveConcurrency(params: {
+  section: AdaptiveSection;
+  itemCount: number;
+  averageBytes?: number;
+  maxBytes?: number;
+}): AdaptiveConcurrencyDecision {
+  const itemCount = Math.max(1, params.itemCount);
+  const averageBytes = Math.max(0, params.averageBytes ?? 0);
+  const maxBytes = Math.max(0, params.maxBytes ?? averageBytes);
+  const avgMb = mb(averageBytes);
+  const maxMb = mb(maxBytes);
+
+  if (params.section === 'batch') {
+    if (maxMb > 5 || avgMb > 2.8) return { concurrency: Math.min(2, itemCount), reason: 'velké vstupy' };
+    if (maxMb > 3.2 || avgMb > 1.8 || itemCount > 12) return { concurrency: Math.min(3, itemCount), reason: 'středně těžká dávka' };
+    return { concurrency: Math.min(4, itemCount), reason: 'lehčí dávka' };
+  }
+
+  if (params.section === 'upscaler') {
+    if (maxMb > 4.5 || avgMb > 3) return { concurrency: 1, reason: 'těžké podklady pro upscale' };
+    return { concurrency: Math.min(2, itemCount), reason: 'bezpečný upscale souběh' };
+  }
+
+  if (params.section === 'reframe') {
+    if (maxMb > 3.5 || avgMb > 2.2) return { concurrency: Math.min(2, itemCount), reason: 'větší zdrojový obrázek' };
+    return { concurrency: Math.min(3, itemCount), reason: 'běžný reframe' };
+  }
+
+  if (maxMb > 3 || avgMb > 2) return { concurrency: 1, reason: 'těžký cloud transfer' };
+  if (itemCount >= 4 && maxMb < 1.2 && avgMb < 1) return { concurrency: Math.min(3, itemCount), reason: 'malé cloud vstupy' };
+  return { concurrency: Math.min(2, itemCount), reason: 'opatrný cloud souběh' };
 }
 
 export async function runConcurrentTasks<TItem, TResult>(params: {

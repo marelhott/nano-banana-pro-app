@@ -8,7 +8,7 @@ import { fileToDataUrl } from './styleTransfer/utils';
 import { ImageComparisonModal } from './ImageComparisonModal';
 import type { ToastType } from './Toast';
 import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
-import { runConcurrentTasks } from '../utils/concurrencyRunner';
+import { decideAdaptiveConcurrency, estimateDataUrlBytes, runConcurrentTasks } from '../utils/concurrencyRunner';
 import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
 type UpscaleMode = 'restore' | 'enhance';
@@ -120,6 +120,8 @@ export function AiUpscalerScreen(props: {
   const [serverProviders, setServerProviders] = React.useState<ServerProviders>({ gemini: false });
   const [selectedImage, setSelectedImage] = React.useState<OutputItem | null>(null);
   const inputFileId = React.useMemo(() => `upscaler-${Math.random().toString(36).slice(2)}`, []);
+  const [activeConcurrency, setActiveConcurrency] = React.useState(2);
+  const [concurrencyReason, setConcurrencyReason] = React.useState('bezpecny upscale soubeh');
 
   const geminiKey = React.useMemo(() => readGeminiKey(), []);
 
@@ -143,6 +145,8 @@ export function AiUpscalerScreen(props: {
       return !outputs.some(o => o.id === expectedId && o.status === 'done');
     }).length;
   }, [inputs, outputs, mode]);
+  const runningCount = React.useMemo(() => outputs.filter((item) => item.status === 'running').length, [outputs]);
+  const retryingCount = React.useMemo(() => outputs.filter((item) => item.status === 'retrying').length, [outputs]);
 
   const handleImagesSelected = React.useCallback(async (files: File[]) => {
     const newSlots: ImageSlot[] = [];
@@ -204,11 +208,17 @@ export function AiUpscalerScreen(props: {
       const keep = prev.filter(p => !inputsToProcess.some(inp => p.id === buildOutputId(inp.id, mode)));
       return [...keep, ...newOutputs];
     });
+    const inputByteSizes = inputsToProcess.map((input) => estimateDataUrlBytes(input.dataUrl));
+    const averageBytes = inputByteSizes.length > 0 ? inputByteSizes.reduce((sum, value) => sum + value, 0) / inputByteSizes.length : 0;
+    const maxBytes = inputByteSizes.length > 0 ? Math.max(...inputByteSizes) : 0;
+    const decision = decideAdaptiveConcurrency({ section: 'upscaler', itemCount: inputsToProcess.length, averageBytes, maxBytes });
+    setActiveConcurrency(decision.concurrency);
+    setConcurrencyReason(decision.reason);
 
     try {
       const results = await runConcurrentTasks({
         items: inputsToProcess,
-        concurrency: 2,
+        concurrency: decision.concurrency,
         onTaskStateChange: ({ index, status, attempt }) => {
           const input = inputsToProcess[index];
           if (!input) return;
@@ -502,6 +512,9 @@ export function AiUpscalerScreen(props: {
               { label: 'Zvětšení', value: `${scale}×` },
               { label: 'Vstupů', value: inputs.length },
               { label: 'Čeká', value: pendingCount },
+              { label: 'Běží', value: runningCount },
+              { label: 'Retry', value: retryingCount },
+              { label: 'Souběh', value: activeConcurrency },
               { label: 'Hotovo', value: outputs.filter(o => o.status === 'done').length },
             ]}
           />
@@ -510,6 +523,9 @@ export function AiUpscalerScreen(props: {
               {batchProgress.current}/{batchProgress.total} • {batchProgress.fileName}
             </div>
           ) : null}
+          <div className="rounded-md border border-[rgba(168,191,143,0.12)] bg-[rgba(20,28,15,0.55)] px-3 py-2 text-[8px] leading-relaxed text-[var(--text-3)]">
+            Auto souběh: {activeConcurrency} • {concurrencyReason}
+          </div>
         </AtelierSection>
       </AtelierRightPanel>
 

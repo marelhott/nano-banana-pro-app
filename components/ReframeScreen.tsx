@@ -9,7 +9,7 @@ import { fileToDataUrl } from './styleTransfer/utils';
 import { ImageComparisonModal } from './ImageComparisonModal';
 import type { ToastType } from './Toast';
 import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
-import { runConcurrentTasks } from '../utils/concurrencyRunner';
+import { decideAdaptiveConcurrency, estimateDataUrlBytes, runConcurrentTasks } from '../utils/concurrencyRunner';
 import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
 const GEMINI_PRO_IMAGE_MODEL = 'gemini-3-pro-image-preview';
@@ -276,6 +276,8 @@ export function ReframeScreen(props: {
   const [progress, setProgress] = React.useState<{ completed: number; total: number } | null>(null);
   const [serverGeminiReady, setServerGeminiReady] = React.useState(false);
   const [selectedOutput, setSelectedOutput] = React.useState<ReframeOutput | null>(null);
+  const [activeConcurrency, setActiveConcurrency] = React.useState(3);
+  const [concurrencyReason, setConcurrencyReason] = React.useState('bezny reframe');
   const inputId = React.useMemo(() => `reframe-input-${Math.random().toString(36).slice(2)}`, []);
   const geminiKey = React.useMemo(() => providerSettings[AIProviderType.GEMINI]?.apiKey || readGeminiKey(), [providerSettings]);
 
@@ -288,6 +290,9 @@ export function ReframeScreen(props: {
     [selected]
   );
   const originalAspectRatio = input ? `${input.width}:${input.height}` : 'Original';
+  const runningCount = React.useMemo(() => outputs.filter((item) => item.status === 'running').length, [outputs]);
+  const retryingCount = React.useMemo(() => outputs.filter((item) => item.status === 'retrying').length, [outputs]);
+  const waitingCount = React.useMemo(() => outputs.filter((item) => item.status === 'pending').length, [outputs]);
 
   const handleFile = React.useCallback(async (file?: File) => {
     if (!file || !file.type.startsWith('image/')) return;
@@ -347,10 +352,19 @@ export function ReframeScreen(props: {
     try {
       const providerInput = await optimizeImageInput(input.dataUrl, input.file.type);
       const provider = new GeminiProvider(geminiKey || '', GEMINI_PRO_IMAGE_MODEL);
+      const inputBytes = estimateDataUrlBytes(providerInput.data);
+      const decision = decideAdaptiveConcurrency({
+        section: 'reframe',
+        itemCount: selectedPerspectives.length,
+        averageBytes: inputBytes,
+        maxBytes: inputBytes,
+      });
+      setActiveConcurrency(decision.concurrency);
+      setConcurrencyReason(decision.reason);
 
       const results = await runConcurrentTasks({
         items: selectedPerspectives,
-        concurrency: 3,
+        concurrency: decision.concurrency,
         onTaskStateChange: ({ index, status, attempt }) => {
           const outputId = placeholders[index]?.id;
           if (!outputId) return;
@@ -703,6 +717,10 @@ export function ReframeScreen(props: {
               { label: 'Aspect', value: originalAspectRatio },
               { label: 'Rozlišení', value: resolution },
               { label: 'Mřížka', value: gridMode },
+              { label: 'Souběh', value: activeConcurrency },
+              { label: 'Čeká', value: waitingCount },
+              { label: 'Běží', value: runningCount },
+              { label: 'Retry', value: retryingCount },
               { label: 'Výstupů', value: outputs.filter(o => o.status === 'done').length },
             ]}
           />
@@ -711,6 +729,9 @@ export function ReframeScreen(props: {
               Progress {progress.completed}/{progress.total}
             </div>
           ) : null}
+          <div className="rounded-md border border-[rgba(168,191,143,0.12)] bg-[rgba(20,28,15,0.55)] px-3 py-2 text-[8px] leading-relaxed text-[var(--text-3)]">
+            Auto souběh: {activeConcurrency} • {concurrencyReason}
+          </div>
         </AtelierSection>
       </AtelierRightPanel>
 

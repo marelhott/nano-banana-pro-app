@@ -12,7 +12,7 @@ import { StyleTransferOutputs } from './styleTransfer/StyleTransferOutputs';
 import { downloadDataUrl, fileToDataUrl, resolveDropToFile, STYLE_REFERENCE_LIMIT, composeStylePatchwork } from './styleTransfer/utils';
 import type { ImageSlot, OutputItem } from './styleTransfer/utils';
 import { AtelierInfoRows, AtelierRightPanel, AtelierSection } from './atelier/AtelierLayout';
-import { runConcurrentTasks } from '../utils/concurrencyRunner';
+import { decideAdaptiveConcurrency, estimateDataUrlBytes, runConcurrentTasks } from '../utils/concurrencyRunner';
 import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -98,6 +98,8 @@ export function StyleTransferScreen(props: {
   const [fofrHeight, setFofrHeight] = React.useState<number>(1024);
   const [fofrStructureDepthStrength, setFofrStructureDepthStrength] = React.useState<number>(1.2);
   const [fofrStructureDenoisingStrength, setFofrStructureDenoisingStrength] = React.useState<number>(0.75);
+  const [activeConcurrency, setActiveConcurrency] = React.useState(1);
+  const [concurrencyReason, setConcurrencyReason] = React.useState('lokalni beh po jednom');
   // keep outputs deterministic/random entirely on Replicate side; don't expose format/quality/seed in UI
 
   React.useEffect(() => {
@@ -211,10 +213,18 @@ export function StyleTransferScreen(props: {
         const [refPath, stylePath] = await Promise.all([uploadImage(refBlob, 'generated'), uploadImage(styleBlob, 'generated')]);
         const structureUrl = getPublicUrl(refPath);
         const styleUrl = getPublicUrl(stylePath);
+        const decision = decideAdaptiveConcurrency({
+          section: 'style-transfer-fofr',
+          itemCount: count,
+          averageBytes: (estimateDataUrlBytes(refNormalized) + estimateDataUrlBytes(stylePatch)) / 2,
+          maxBytes: Math.max(estimateDataUrlBytes(refNormalized), estimateDataUrlBytes(stylePatch)),
+        });
+        setActiveConcurrency(decision.concurrency);
+        setConcurrencyReason(decision.reason);
 
         const cloudResults = await runConcurrentTasks({
           items: outputIds,
-          concurrency: 2,
+          concurrency: decision.concurrency,
           onTaskStateChange: ({ index, status, attempt }) => {
             const id = outputIds[index];
             setOutputs((prev) =>
@@ -303,6 +313,9 @@ export function StyleTransferScreen(props: {
         onToast({ message: 'Hotovo.', type: 'success' });
         return;
       }
+
+      setActiveConcurrency(1);
+      setConcurrencyReason('lokalni beh po jednom');
 
       const strengthValue = Math.max(0, Math.min(100, Math.round(strength)));
       const mergeValue = Math.max(0, Math.min(100, Math.round(merge)));
@@ -719,8 +732,12 @@ export function StyleTransferScreen(props: {
               { label: 'Reference', value: activeStyles.length },
               { label: 'High-res', value: highRes ? 'On' : 'Off' },
               { label: 'Barvy', value: preserveColors ? 'On' : 'Off' },
+              { label: 'Souběh', value: activeConcurrency },
             ]}
           />
+          <div className="rounded-md border border-[rgba(168,191,143,0.12)] bg-[rgba(20,28,15,0.55)] px-3 py-2 text-[8px] leading-relaxed text-[var(--text-3)]">
+            Auto souběh: {activeConcurrency} • {concurrencyReason}
+          </div>
         </AtelierSection>
       </AtelierRightPanel>
     </>
