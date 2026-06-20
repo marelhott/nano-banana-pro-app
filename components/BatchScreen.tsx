@@ -112,6 +112,52 @@ function buildBatchPrompt(presetId: BatchPresetId, customPrompt: string): string
   return extra ? `${preset.prompt}\n\nDodatečné instrukce: ${extra}` : preset.prompt;
 }
 
+async function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
+  return await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Nepodařilo se načíst vstupní obrázek.'));
+    img.src = dataUrl;
+  });
+}
+
+async function optimizeBatchInputDataUrl(dataUrl: string, mimeType: string): Promise<{ data: string; mimeType: string }> {
+  const originalBytes = Math.ceil((dataUrl.length * 3) / 4);
+  const targetBytes = 1_100_000;
+  const maxDimension = 1400;
+
+  if (originalBytes <= targetBytes && !mimeType.includes('png')) {
+    return { data: dataUrl, mimeType };
+  }
+
+  const image = await loadImageElement(dataUrl);
+  const longestSide = Math.max(image.width, image.height);
+  const scale = longestSide > maxDimension ? maxDimension / longestSide : 1;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return { data: dataUrl, mimeType };
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  let quality = 0.86;
+  let output = canvas.toDataURL('image/jpeg', quality);
+
+  while (quality > 0.56 && Math.ceil((output.length * 3) / 4) > targetBytes) {
+    quality -= 0.08;
+    output = canvas.toDataURL('image/jpeg', quality);
+  }
+
+  return { data: output, mimeType: 'image/jpeg' };
+}
+
 function modelPresetId(selectedProvider: AIProviderType, nanoBananaImageModel: NanoBananaImageModel): string | null {
   if (selectedProvider === AIProviderType.GEMINI) {
     return nanoBananaImageModel === 'gemini-3-pro-image-preview' ? 'gemini-pro' : 'gemini-flash';
@@ -276,8 +322,13 @@ export function BatchScreen(props: {
         );
 
         try {
+          const preparedInput = await optimizeBatchInputDataUrl(
+            output.inputDataUrl,
+            inputs.find((item) => item.id === output.inputId)?.file.type || 'image/jpeg',
+          );
+
           const result = await provider.generateImage(
-            [{ data: output.inputDataUrl, mimeType: inputs.find((item) => item.id === output.inputId)?.file.type || 'image/jpeg' }],
+            [{ data: preparedInput.data, mimeType: preparedInput.mimeType }],
             output.prompt,
             '1K',
             'Original',
