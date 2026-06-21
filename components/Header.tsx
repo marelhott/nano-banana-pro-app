@@ -1,5 +1,5 @@
 import React from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, PanelRightClose, PanelRightOpen, Sun } from 'lucide-react';
 
 interface HeaderProps {
   onSettingsClick?: () => void;
@@ -7,6 +7,8 @@ interface HeaderProps {
   isStyleTransferActive?: boolean;
   theme: 'dark' | 'light';
   onThemeToggle: () => void;
+  isRightPanelCollapsed?: boolean;
+  onRightPanelToggle?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,6 +17,8 @@ export const Header: React.FC<HeaderProps> = ({
   isStyleTransferActive,
   theme,
   onThemeToggle,
+  isRightPanelCollapsed = false,
+  onRightPanelToggle,
 }) => {
   return (
     <div className="flex items-center justify-between gap-3 bg-[var(--bg-main)] border-b border-[var(--border-color)] px-6 py-4 w-full select-none shrink-0 transition-colors duration-300">
@@ -47,6 +51,17 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-4">
+        {onRightPanelToggle && (
+          <button
+            type="button"
+            onClick={onRightPanelToggle}
+            className="hidden lg:inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-color)] bg-[var(--bg-panel)] text-[var(--text-2)] transition-colors hover:bg-[var(--bg-panel-hover)] hover:text-[var(--text-1)]"
+            title={isRightPanelCollapsed ? 'Otevřít pravý panel' : 'Skrýt pravý panel'}
+            aria-label={isRightPanelCollapsed ? 'Otevřít pravý panel' : 'Skrýt pravý panel'}
+          >
+            {isRightPanelCollapsed ? <PanelRightOpen className="h-4 w-4" strokeWidth={1.8} /> : <PanelRightClose className="h-4 w-4" strokeWidth={1.8} />}
+          </button>
+        )}
         <button
           type="button"
           onClick={onThemeToggle}

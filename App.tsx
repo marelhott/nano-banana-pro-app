@@ -685,15 +685,6 @@ const App: React.FC = () => {
   const isAiUpscalerRoute = routePath === '/ai-upscaler' || routePath.startsWith('/ai-upscaler/');
   const isReframeRoute = routePath === '/reframe' || routePath.startsWith('/reframe/');
   const isBatchRoute = routePath === '/batch' || routePath.startsWith('/batch/');
-  const isAtelierRoute =
-    isFaceSwapRoute ||
-    isReframeRoute ||
-    isStyleTransferRoute ||
-    isModelInfluenceRoute ||
-    isAiUpscalerRoute ||
-    isBatchRoute ||
-    isLoraInfluenceRoute;
-  const visibleRightPanelWidth = isAtelierRoute ? 320 : rightPanelWidth;
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -4053,30 +4044,12 @@ const App: React.FC = () => {
           onSettingsClick={() => setIsSettingsModalOpen(true)}
           theme={theme}
           onThemeToggle={toggleTheme}
+          isRightPanelCollapsed={isRightPanelCollapsed}
+          onRightPanelToggle={() => setIsRightPanelCollapsed(prev => !prev)}
         />
 
         <AtelierRightPanelProvider isCollapsed={isRightPanelCollapsed}>
         <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
-          <button
-            type="button"
-            onClick={() => setIsRightPanelCollapsed(prev => !prev)}
-            className="hidden lg:flex absolute top-5 z-40 h-10 w-10 items-center justify-center rounded-xl transition-all duration-200"
-            style={{
-              right: isRightPanelCollapsed ? '14px' : `${visibleRightPanelWidth + 14}px`,
-              background: theme === 'dark' ? 'rgba(18,24,14,0.92)' : '#ffffff',
-              border: theme === 'dark' ? '1px solid rgba(168,191,143,0.22)' : '1px solid #cdd8ba',
-              boxShadow: theme === 'dark' ? '0 8px 24px rgba(0,0,0,0.28)' : 'none',
-              color: theme === 'dark' ? 'rgba(168,191,143,0.72)' : '#6f7f68',
-            }}
-            title={isRightPanelCollapsed ? 'Otevřít pravý panel' : 'Skrýt pravý panel'}
-          >
-            <span
-              className="block h-4 w-2 rounded-full transition-all"
-              style={theme === 'dark'
-                ? { background: 'rgba(168,191,143,0.72)' }
-                : { background: '#7b8c71' }}
-            />
-          </button>
           {isFaceSwapRoute ? (
             <Suspense fallback={routeScreenFallback}>
               <LazyFaceSwapScreen
