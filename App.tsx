@@ -60,6 +60,7 @@ import {
   getBatchEffectivePrompt,
   type BatchProcessImage,
 } from './utils/batchProcessing';
+import { AtelierRightPanelProvider } from './components/atelier/AtelierLayout';
 
 const LazyStyleTransferScreen = lazy(async () => {
   const module = await import('./components/StyleTransferScreen');
@@ -684,6 +685,15 @@ const App: React.FC = () => {
   const isAiUpscalerRoute = routePath === '/ai-upscaler' || routePath.startsWith('/ai-upscaler/');
   const isReframeRoute = routePath === '/reframe' || routePath.startsWith('/reframe/');
   const isBatchRoute = routePath === '/batch' || routePath.startsWith('/batch/');
+  const isAtelierRoute =
+    isFaceSwapRoute ||
+    isReframeRoute ||
+    isStyleTransferRoute ||
+    isModelInfluenceRoute ||
+    isAiUpscalerRoute ||
+    isBatchRoute ||
+    isLoraInfluenceRoute;
+  const visibleRightPanelWidth = isAtelierRoute ? 320 : rightPanelWidth;
   // Nové state pro featury
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -4045,7 +4055,28 @@ const App: React.FC = () => {
           onThemeToggle={toggleTheme}
         />
 
+        <AtelierRightPanelProvider isCollapsed={isRightPanelCollapsed}>
         <div className="flex h-[calc(100vh-73px)] overflow-hidden relative">
+          <button
+            type="button"
+            onClick={() => setIsRightPanelCollapsed(prev => !prev)}
+            className="hidden lg:flex absolute top-5 z-40 h-10 w-10 items-center justify-center rounded-xl transition-all duration-200"
+            style={{
+              right: isRightPanelCollapsed ? '14px' : `${visibleRightPanelWidth + 14}px`,
+              background: theme === 'dark' ? 'rgba(18,24,14,0.92)' : '#ffffff',
+              border: theme === 'dark' ? '1px solid rgba(168,191,143,0.22)' : '1px solid #cdd8ba',
+              boxShadow: theme === 'dark' ? '0 8px 24px rgba(0,0,0,0.28)' : 'none',
+              color: theme === 'dark' ? 'rgba(168,191,143,0.72)' : '#6f7f68',
+            }}
+            title={isRightPanelCollapsed ? 'Otevřít pravý panel' : 'Skrýt pravý panel'}
+          >
+            <span
+              className="block h-4 w-2 rounded-full transition-all"
+              style={theme === 'dark'
+                ? { background: 'rgba(168,191,143,0.72)' }
+                : { background: '#7b8c71' }}
+            />
+          </button>
           {isFaceSwapRoute ? (
             <Suspense fallback={routeScreenFallback}>
               <LazyFaceSwapScreen
@@ -4146,32 +4177,6 @@ const App: React.FC = () => {
               <div
                 className="flex-1 relative flex flex-col min-w-0 canvas-surface h-full overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out"
               >
-                <button
-                  type="button"
-                  onClick={() => setIsRightPanelCollapsed(prev => !prev)}
-                  className="hidden lg:flex absolute top-6 right-4 z-30 h-10 w-10 items-center justify-center rounded-xl transition-all duration-200"
-                  style={theme === 'dark'
-                    ? {
-                      background: 'rgba(18,24,14,0.92)',
-                      border: '1px solid rgba(168,191,143,0.22)',
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
-                      color: 'rgba(168,191,143,0.72)',
-                    }
-                    : {
-                      background: '#ffffff',
-                      border: '1px solid #cdd8ba',
-                      boxShadow: 'none',
-                      color: '#6f7f68',
-                    }}
-                  title={isRightPanelCollapsed ? 'Otevřít pravý panel' : 'Skrýt pravý panel'}
-                >
-                  <span
-                    className="block h-4 w-2 rounded-full transition-all"
-                    style={theme === 'dark'
-                      ? { background: 'rgba(168,191,143,0.72)' }
-                      : { background: '#7b8c71' }}
-                  />
-                </button>
                 <div className="p-6 lg:p-10 pb-32 w-full">
                   <div className="space-y-6 md:space-y-8 w-full">
                     <header className="hidden lg:flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
@@ -4709,6 +4714,7 @@ const App: React.FC = () => {
             </div>
           )}
         </div >
+        </AtelierRightPanelProvider>
 
         <ImageDetailModal
           isOpen={!!selectedImage && !!selectedImage.url}

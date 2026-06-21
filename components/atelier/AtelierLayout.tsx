@@ -1,9 +1,34 @@
 import React from 'react';
 
+type AtelierRightPanelContextValue = {
+  isCollapsed: boolean;
+};
+
+const AtelierRightPanelContext = React.createContext<AtelierRightPanelContextValue>({
+  isCollapsed: false,
+});
+
+export function AtelierRightPanelProvider(props: {
+  isCollapsed: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <AtelierRightPanelContext.Provider value={{ isCollapsed: props.isCollapsed }}>
+      {props.children}
+    </AtelierRightPanelContext.Provider>
+  );
+}
+
 export function AtelierRightPanel(props: {
   children?: React.ReactNode;
   onOpenLibrary?: () => void;
 }) {
+  const { isCollapsed } = React.useContext(AtelierRightPanelContext);
+
+  if (isCollapsed) {
+    return null;
+  }
+
   return (
     <aside className="hidden lg:flex w-[320px] shrink-0 flex-col h-full z-20 cairn-panel-right"
       style={{backdropFilter:'blur(32px) saturate(200%)', background:'linear-gradient(200deg,rgba(32,44,24,0.94) 0%,rgba(20,28,15,0.96) 100%)', boxShadow:'-4px 0 48px rgba(0,0,0,0.50), inset 0 0 120px rgba(125,154,100,0.08)'}}>
