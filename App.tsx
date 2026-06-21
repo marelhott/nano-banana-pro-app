@@ -110,6 +110,7 @@ const SERVER_INPUT_MAX_DIMENSION = 1440;
 const SERVER_INPUT_TARGET_BYTES = 1_200_000;
 const SERVER_INPUT_MIN_QUALITY = 0.58;
 const LEGACY_BATCH_GROUP_WINDOW_MS = 2 * 60 * 1000;
+const GENERATION_ROW_GROUP_WINDOW_MS = 5 * 60 * 1000;
 type GenerationQueueAction = 'generate' | 'variants' | '3ai';
 type GenerationQueueItem = {
   action: GenerationQueueAction;
@@ -287,12 +288,29 @@ function inferLegacyBatchRunId(image: GalleryImage): string | undefined {
 
 function getImageRowKey(image: Pick<GeneratedImage, 'id' | 'runId' | 'prompt' | 'timestamp' | 'recipe'>): string {
   if (image.runId) return image.runId;
-  if (image.recipe?.operation === 'batch') {
-    const promptKey = (image.prompt || '').trim().toLowerCase().slice(0, 120) || 'batch';
-    const timeBucket = Math.floor(image.timestamp / LEGACY_BATCH_GROUP_WINDOW_MS);
-    return `legacy-batch-${timeBucket}-${promptKey}`;
-  }
-  return image.id;
+
+  const operation = image.recipe?.operation || 'generate';
+  const promptKey = (image.prompt || image.recipe?.prompt || '').trim().toLowerCase().slice(0, 140) || operation;
+  const resolution = image.recipe?.resolution || '';
+  const aspectRatio = image.recipe?.aspectRatio || '';
+  const timestamp = Number(image.recipe?.createdAt || image.timestamp || Date.now());
+  const timeBucket = Math.floor(timestamp / GENERATION_ROW_GROUP_WINDOW_MS);
+
+  return `legacy-run-${operation}-${timeBucket}-${resolution}-${aspectRatio}-${promptKey}`;
+}
+
+function formatGenerationRowTimestamp(images: Array<Pick<GeneratedImage, 'timestamp' | 'recipe'>>): string {
+  const timestamps = images
+    .map((image) => Number(image.recipe?.createdAt || image.timestamp || 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  const timestamp = timestamps.length > 0 ? Math.min(...timestamps) : Date.now();
+  return new Intl.DateTimeFormat('cs-CZ', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp));
 }
 
 const App: React.FC = () => {
@@ -619,7 +637,7 @@ const App: React.FC = () => {
           resolution: img.resolution,
           aspectRatio: img.aspectRatio,
           recipe: img.params as any,
-          runId: (img.params as any)?.runId ?? inferLegacyBatchRunId(img) ?? img.id,
+          runId: (img.params as any)?.runId ?? inferLegacyBatchRunId(img),
           lineage: img.lineage,
         }));
       setState(prev => ({
@@ -1707,12 +1725,13 @@ const App: React.FC = () => {
             try {
               const thumbnail = await createThumbnail(result.imageBase64);
               await saveToGallery({
+                id: newId,
                 url: result.imageBase64,
                 prompt: variant.prompt,
                 resolution: state.resolution,
                 aspectRatio: state.aspectRatio,
                 thumbnail,
-                params: recipeWithModel
+                params: { ...recipeWithModel, runId: variantsRunId }
               });
               console.log(`[3 Variants] Variant ${i + 1} saved to gallery`);
             } catch (err) {
@@ -1857,6 +1876,7 @@ const App: React.FC = () => {
       });
 
       // Create loading entries for all model presets.
+      const allModelsRunId = `all-models-run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const ids = runTargets.map((p, i) => `${Date.now()}-all-models-${i}`);
       setState(prev => ({
         ...prev,
@@ -1868,6 +1888,7 @@ const App: React.FC = () => {
             status: 'loading' as const,
             resolution: state.resolution,
             aspectRatio: state.aspectRatio,
+            runId: allModelsRunId,
             variantInfo: {
               isVariant: true,
               variantNumber: i + 1,
@@ -1926,12 +1947,13 @@ const App: React.FC = () => {
           try {
             const thumbnail = await createThumbnail(labelledImage);
             await saveToGallery({
+              id: ids[i],
               url: labelledImage,
               prompt,
               resolution: state.resolution,
               aspectRatio: state.aspectRatio,
               thumbnail,
-              params: recipe,
+              params: { ...recipe, runId: allModelsRunId },
             });
           } catch { }
 
@@ -2222,7 +2244,7 @@ const App: React.FC = () => {
             const recipeWithModel = result.modelId ? { ...recipe, modelId: result.modelId } : recipe;
 
 
-            const imgRunId = state.generatedImages.find(img => img.id === imageData.id)?.runId;
+            const imgRunId = imageData.runId;
             setState(prev => ({
               ...prev,
               generatedImages: prev.generatedImages.map(img =>
@@ -4282,6 +4304,9 @@ const App: React.FC = () => {
                                       {row.images.length}×
                                     </span>
                                   )}
+                                  <span className="text-[8px] font-bold uppercase tracking-[0.18em]" style={{ color: 'rgba(168,191,143,0.38)' }}>
+                                    {formatGenerationRowTimestamp(row.images)}
+                                  </span>
                                 </div>
                                 <button
                                   onClick={() => {
