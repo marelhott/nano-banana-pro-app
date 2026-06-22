@@ -10,11 +10,12 @@ import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection }
 import { decideAdaptiveConcurrency, estimateDataUrlBytes, runConcurrentTasks } from '../utils/concurrencyRunner';
 import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
-type UpscaleMode = 'restore' | 'enhance' | 'denoise' | 'upscale-only';
-type UpscaleModelId = typeof FLASH_MODEL | typeof PRO_MODEL;
-
 const FLASH_MODEL = 'gemini-3.1-flash-image-preview';
 const PRO_MODEL = 'gemini-3-pro-image-preview';
+type UpscaleMode = 'detail-enhance' | 'restore' | 'enhance' | 'denoise' | 'upscale-only';
+type UpscaleModelId = typeof FLASH_MODEL | typeof PRO_MODEL;
+
+const DETAIL_ENHANCE_PROMPT = "Upscale this image and intelligently enhance real visible detail only. Improve sharpness, fine texture clarity, edge definition, material detail, and local contrast while preserving the original image faithfully. Do not redesign, repaint, stylize, beautify, relight creatively, add new objects, alter identity, change composition, change colors, or invent details that are not plausibly supported by the source. The result must look like a high-quality technical restoration and detail enhancement, not an AI reinterpretation.";
 const UPSCALE_PROMPT = "Upscale this image faithfully without any creative intent. Preserve the original photo as much as possible, only compute necessary artifacts.";
 const DENOISE_PROMPT = "Remove noise, grain, compression artifacts, and sensor noise from this image. Make it clean and crisp. Preserve all original details, colors, and subject identity. Do not add creative changes.";
 const UPSCALE_ONLY_PROMPT = "Increase the resolution of this image without any AI enhancement, artistic interpretation, or modification. Pure geometric upscaling only. Preserve exact pixel content, colors, and detail as-is.";
@@ -89,11 +90,12 @@ async function loadImageMeta(dataUrl: string): Promise<{ width: number; height: 
   });
 }
 
-function buildOutputId(inputId: string, mode: UpscaleMode): string {
-  return `${inputId}-${mode}`;
+function buildOutputId(inputId: string, mode: UpscaleMode, model: UpscaleModelId): string {
+  return `${inputId}-${mode}-${model}`;
 }
 
 function modeLabel(mode: UpscaleMode): string {
+  if (mode === 'detail-enhance') return 'Detail Enhance';
   if (mode === 'restore') return 'Restore';
   if (mode === 'enhance') return 'Enhance';
   if (mode === 'denoise') return 'Denoise';
@@ -109,12 +111,14 @@ function upscaleModelSubtitle(model: UpscaleModelId): string {
 }
 
 function modePrompt(mode: UpscaleMode): string {
+  if (mode === 'detail-enhance') return DETAIL_ENHANCE_PROMPT;
   if (mode === 'denoise') return DENOISE_PROMPT;
   if (mode === 'upscale-only') return UPSCALE_ONLY_PROMPT;
   return UPSCALE_PROMPT;
 }
 
 function modeDescription(mode: UpscaleMode): string {
+  if (mode === 'detail-enhance') return 'Upscale + detail bez kreativity';
   if (mode === 'restore') return 'Opraví artefakty, zachová detail';
   if (mode === 'enhance') return 'AI vylepšení, více kreativity';
   if (mode === 'denoise') return 'Odstraní šum a grain';
@@ -131,7 +135,7 @@ export function AiUpscalerScreen(props: {
 
   const [inputs, setInputs] = React.useState<ImageSlot[]>([]);
   const [scale, setScale] = React.useState<2 | 4>(2);
-  const [mode, setMode] = React.useState<UpscaleMode>('enhance');
+  const [mode, setMode] = React.useState<UpscaleMode>('detail-enhance');
   const [model, setModel] = React.useState<UpscaleModelId>(PRO_MODEL);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [phase, setPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
@@ -157,10 +161,10 @@ export function AiUpscalerScreen(props: {
 
   const pendingCount = React.useMemo(() => {
     return inputs.filter((input) => {
-      const expectedId = buildOutputId(input.id, mode);
+      const expectedId = buildOutputId(input.id, mode, model);
       return !outputs.some(o => o.id === expectedId && o.status === 'done');
     }).length;
-  }, [inputs, outputs, mode]);
+  }, [inputs, outputs, mode, model]);
   const runningCount = React.useMemo(() => outputs.filter((item) => item.status === 'running').length, [outputs]);
   const retryingCount = React.useMemo(() => outputs.filter((item) => item.status === 'retrying').length, [outputs]);
 
@@ -197,7 +201,7 @@ export function AiUpscalerScreen(props: {
     }
 
     const inputsToProcess = inputs.filter(input => {
-      const expectedId = buildOutputId(input.id, mode);
+      const expectedId = buildOutputId(input.id, mode, model);
       return !outputs.some(o => o.id === expectedId && o.status === 'done');
     });
 
@@ -210,7 +214,7 @@ export function AiUpscalerScreen(props: {
     setPhase('queue');
 
     const newOutputs: OutputItem[] = inputsToProcess.map(input => ({
-      id: buildOutputId(input.id, mode),
+      id: buildOutputId(input.id, mode, model),
       inputId: input.id,
       mode,
       model,
@@ -222,7 +226,7 @@ export function AiUpscalerScreen(props: {
     }));
 
     setOutputs(prev => {
-      const keep = prev.filter(p => !inputsToProcess.some(inp => p.id === buildOutputId(inp.id, mode)));
+      const keep = prev.filter(p => !inputsToProcess.some(inp => p.id === buildOutputId(inp.id, mode, model)));
       return [...keep, ...newOutputs];
     });
     const inputByteSizes = inputsToProcess.map((input) => estimateDataUrlBytes(input.dataUrl));
@@ -242,7 +246,7 @@ export function AiUpscalerScreen(props: {
           const label = modeLabel(mode);
           if (status === 'running' || status === 'retrying') setPhase('running');
           setOutputs(prev => prev.map(o =>
-            o.id === buildOutputId(input.id, mode)
+            o.id === buildOutputId(input.id, mode, model)
               ? {
                   ...o,
                   status: status === 'done' ? 'done' : status === 'error' ? 'error' : status,
@@ -279,7 +283,7 @@ export function AiUpscalerScreen(props: {
           const dims = await loadImageMeta(result.imageBase64);
 
           setOutputs(prev => prev.map(o =>
-            o.id === buildOutputId(input.id, mode)
+            o.id === buildOutputId(input.id, mode, model)
               ? {
                   ...o,
                   dataUrl: result.imageBase64,
@@ -295,7 +299,7 @@ export function AiUpscalerScreen(props: {
           try {
             const thumb = await createThumbnail(result.imageBase64, 420);
             await saveToGallery({
-              id: buildOutputId(input.id, mode),
+              id: buildOutputId(input.id, mode, model),
               url: result.imageBase64,
               thumbnail: thumb,
               prompt: `${modeLabel(mode)} — ${modePrompt(mode).slice(0, 80)}`,
@@ -318,7 +322,7 @@ export function AiUpscalerScreen(props: {
         if (entry.status === 'fulfilled') {
           completed += 1;
           setOutputs(prev => prev.map(o =>
-            o.id === buildOutputId(input.id, mode)
+            o.id === buildOutputId(input.id, mode, model)
               ? { ...o, attempt: entry.attempts }
               : o
           ));
@@ -327,7 +331,7 @@ export function AiUpscalerScreen(props: {
 
         failed += 1;
         setOutputs(prev => prev.map(o =>
-          o.id === buildOutputId(input.id, mode)
+          o.id === buildOutputId(input.id, mode, model)
             ? {
                 ...o,
                 status: 'error',
@@ -381,7 +385,7 @@ export function AiUpscalerScreen(props: {
           <div className="space-y-2">
             <div className="mn-section-label">Režim</div>
             <div className="grid grid-cols-2 gap-2">
-              {(['restore', 'enhance', 'denoise', 'upscale-only'] as const).map(m => (
+              {(['detail-enhance', 'restore', 'enhance', 'denoise', 'upscale-only'] as const).map(m => (
                 <button key={m} type="button" onClick={() => setMode(m)}
                   className={`mn-option-button text-left ${mode === m ? 'mn-option-button-active' : ''}`}>
                   <div className="text-[9px] font-bold">{modeLabel(m)}</div>
@@ -568,7 +572,7 @@ export function AiUpscalerScreen(props: {
         onClose={() => setSelectedImage(null)}
         generatedImage={selectedImage?.dataUrl || null}
         originalImage={selectedImage ? findInputForOutput(selectedImage)?.dataUrl || null : null}
-        prompt={UPSCALE_PROMPT}
+        prompt={selectedImage ? modePrompt(selectedImage.mode) : modePrompt(mode)}
         timestamp={selectedImage?.createdAt}
         resolution={selectedImage?.resultWidth && selectedImage?.resultHeight
           ? `${selectedImage.resultWidth}×${selectedImage.resultHeight}`
