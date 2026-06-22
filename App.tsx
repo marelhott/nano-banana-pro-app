@@ -279,6 +279,16 @@ function extractGalleryRunId(image: GalleryImage): string | undefined {
   return params?.runId || params?.recipe?.runId || params?.params?.runId || inferLegacyBatchRunId(image);
 }
 
+function isLikelyGeneratedHistoryImage(image: GalleryImage): boolean {
+  const params = image.params as Partial<GenerationRecipe> | undefined;
+  if (params?.operation || params?.provider || image.lineage) return true;
+  if (image.resolution || image.aspectRatio) return true;
+
+  const prompt = (image.prompt || '').trim();
+  const looksLikeFileName = /\.(png|jpe?g|webp|heic|heif)$/i.test(prompt) || /^[0-9a-f-]{8,}.*\.(png|jpe?g|webp|heic|heif)$/i.test(prompt);
+  return !looksLikeFileName;
+}
+
 function getImageRowKey(image: Pick<GeneratedImage, 'id' | 'runId' | 'prompt' | 'timestamp' | 'recipe'>): string {
   if (image.runId) return image.runId;
 
@@ -617,7 +627,7 @@ const App: React.FC = () => {
     getAllImages().then(async images => {
       if (!images || images.length === 0) return;
 
-      const limitedImages = images.slice(0, 80);
+      const limitedImages = images.filter(isLikelyGeneratedHistoryImage).slice(0, 80);
       const dedupedImages = await dedupeHistoryImages(limitedImages);
       const keptIds = new Set(dedupedImages.map((image) => image.id));
       const duplicateIds = limitedImages
