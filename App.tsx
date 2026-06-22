@@ -270,9 +270,8 @@ async function prepareServerProviderImages(
 function inferLegacyBatchRunId(image: GalleryImage): string | undefined {
   const recipe = image.params as Partial<GenerationRecipe> | undefined;
   if (recipe?.operation !== 'batch') return undefined;
-  const promptKey = (image.prompt || '').trim().toLowerCase().slice(0, 120) || 'batch';
   const timeBucket = Math.floor(image.timestamp / LEGACY_BATCH_GROUP_WINDOW_MS);
-  return `legacy-batch-${timeBucket}-${promptKey}`;
+  return `legacy-batch-${timeBucket}`;
 }
 
 function extractGalleryRunId(image: GalleryImage): string | undefined {
@@ -284,11 +283,10 @@ function getImageRowKey(image: Pick<GeneratedImage, 'id' | 'runId' | 'prompt' | 
   if (image.runId) return image.runId;
 
   const operation = image.recipe?.operation || 'generate';
-  const promptKey = (image.prompt || image.recipe?.prompt || '').trim().toLowerCase().slice(0, 140) || operation;
   const timestamp = Number(image.timestamp || image.recipe?.createdAt || Date.now());
   const timeBucket = Math.floor(timestamp / GENERATION_ROW_GROUP_WINDOW_MS);
 
-  return `legacy-run-${operation}-${timeBucket}-${promptKey}`;
+  return `legacy-run-${operation}-${timeBucket}`;
 }
 
 function formatGenerationRowTimestamp(images: Array<Pick<GeneratedImage, 'timestamp' | 'recipe'>>): string {
