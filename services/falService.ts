@@ -185,8 +185,8 @@ export async function runFalLoraImg2Img(params: {
 
   const falKey = getFalKeyFromStorage();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  // If present, we send the key to our Netlify function. That function can also
-  // fall back to server-side FAL_KEY env (more secure), but the user asked for UI entry.
+  // If present, we send the key to our serverless endpoint. That endpoint can also
+  // fall back to server-side FAL_KEY env (more secure), but the UI still supports BYOK.
   if (falKey) headers['x-fal-key'] = falKey;
 
   const res = await fetch('/api/fal/lora-img2img', {

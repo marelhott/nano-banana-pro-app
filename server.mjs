@@ -1,5 +1,7 @@
 import express from 'express'
 import { createProxyMiddleware } from 'http-proxy-middleware'
+import rateLimit from 'express-rate-limit'
+import helmet from 'helmet'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -41,6 +43,8 @@ loadLocalEnvFile('.env.development.local')
 const HOST_PORT = Number(process.env.PORT || 3000)
 const WORKFLOW_PORT = Number(process.env.WORKFLOW_PORT || 3001)
 const NODE_ENV = process.env.NODE_ENV || 'development'
+const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60_000)
+const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || (NODE_ENV === 'production' ? 120 : 400))
 
 function resolveWorkflowDir() {
   const candidates = [
@@ -113,6 +117,21 @@ async function start() {
   const workflowChild = startWorkflowApp(workflowDir)
 
   const app = express()
+  app.disable('x-powered-by')
+  app.set('trust proxy', 1)
+
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }))
+
+  app.use('/api', rateLimit({
+    windowMs: API_RATE_LIMIT_WINDOW_MS,
+    max: API_RATE_LIMIT_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Příliš mnoho požadavků. Zkus to prosím za chvíli znovu.' },
+  }))
 
   const { default: publicConfigHandler } = await import('./api/public-config.js')
   const { default: libraryListHandler } = await import('./api/library-list.js')
@@ -122,7 +141,7 @@ async function start() {
   const { default: providerKeyTestHandler } = await import('./api/provider-key-test.js')
 
   // Large payloads (e.g. image data-URLs) can exceed default limit.
-  app.use(express.json({ limit: '10mb' }))
+  app.use(express.json({ limit: '6mb' }))
 
   // Local model library (dev only): list checkpoints/loras from disk so the UI can pick them.
   // This does not perform inference; it only exposes filenames/paths for local workflows.

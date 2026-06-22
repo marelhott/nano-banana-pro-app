@@ -1,5 +1,5 @@
-export function createNetlifyAdapter(handler) {
-  return async function vercelHandler(req, res) {
+export function createServerlessAdapter(handler) {
+  return async function serverlessHandler(req, res) {
     const headers = {};
     for (const [key, value] of Object.entries(req.headers || {})) {
       headers[key] = Array.isArray(value) ? value.join(',') : String(value || '');

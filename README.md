@@ -8,15 +8,16 @@ This repository contains the main Mulen Nano SPA and a separate `workflow/` Next
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
+
    ```bash
    npm install
    ```
 
 2. Create `.env.local` from the example template:
+
    ```bash
    cp .env.local.example .env.local
    ```
@@ -30,8 +31,14 @@ This repository contains the main Mulen Nano SPA and a separate `workflow/` Next
    - local browser overrides in Settings are optional
 
 5. Run the app:
+
    ```bash
    npm run dev
+   ```
+
+6. Run quality checks:
+   ```bash
+   npm run check
    ```
 
 ## Deploy to Vercel

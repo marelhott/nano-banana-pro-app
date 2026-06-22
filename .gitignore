@@ -56,3 +56,9 @@ deno.lock
 
 # AI assistant worktrees
 .claude/
+
+# Local screenshots / one-off visual artifacts
+live-home.png
+nano-boundary-check.png
+nano-right-panel-grounding-provider.png
+src/index.css.bak

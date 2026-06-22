@@ -64,7 +64,7 @@ function applyRuntimeConfig(next: SupabaseRuntimeConfig) {
   }
 }
 
-async function fetchRuntimeConfigFromNetlify(): Promise<SupabaseRuntimeConfig | null> {
+async function fetchRuntimeConfigFromServer(): Promise<SupabaseRuntimeConfig | null> {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 6000);
@@ -85,8 +85,9 @@ export async function ensureSupabaseClient(): Promise<void> {
   if (isSupabaseConfigured) return;
   if (!initPromise) {
     initPromise = (async () => {
-      // Attempt to fetch runtime config (Netlify Functions env) so deploys without local .env keep working.
-      const fetched = await fetchRuntimeConfigFromNetlify();
+      // Attempt to fetch runtime config from the deployed API so the app can boot
+      // even when local .env values are not present in the frontend bundle.
+      const fetched = await fetchRuntimeConfigFromServer();
       if (fetched) applyRuntimeConfig(fetched);
     })();
   }
@@ -94,7 +95,7 @@ export async function ensureSupabaseClient(): Promise<void> {
 
   if (!isSupabaseConfigured) {
     throw new Error(
-      'Supabase není nakonfigurovaná. Doplňte VITE_SUPABASE_URL a VITE_SUPABASE_ANON_KEY v prostředí (nebo nastavte Netlify env pro public-config).'
+      'Supabase není nakonfigurovaná. Doplňte VITE_SUPABASE_URL a VITE_SUPABASE_ANON_KEY v prostředí nebo je vystavte přes /api/public-config.'
     );
   }
 }
@@ -317,7 +318,7 @@ async function requestPinAuth(payload: Record<string, unknown>): Promise<PinAuth
 
     return result;
   } catch (error) {
-    console.warn('[PIN auth] Netlify proxy failed, falling back to client Supabase flow:', error);
+    console.warn('[PIN auth] Server proxy failed, falling back to client Supabase flow:', error);
     return null;
   }
 }
@@ -425,7 +426,7 @@ export async function autoLogin(): Promise<string | null> {
     const storedPinHash = localStorage.getItem(PIN_HASH_STORAGE_KEY);
 
     // Without a stored PIN hash, we do not trust any cached app user id.
-    // This guarantees the PIN screen shows up on new origins (e.g. mulennano.netlify.app),
+    // This guarantees the PIN screen shows up on any new origin or preview deployment,
     // and prevents silently landing on the wrong UUID.
     if (!storedPinHash) {
       persistAppUserId(null);
