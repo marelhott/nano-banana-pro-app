@@ -275,17 +275,20 @@ function inferLegacyBatchRunId(image: GalleryImage): string | undefined {
   return `legacy-batch-${timeBucket}-${promptKey}`;
 }
 
+function extractGalleryRunId(image: GalleryImage): string | undefined {
+  const params = image.params as any;
+  return params?.runId || params?.recipe?.runId || params?.params?.runId || inferLegacyBatchRunId(image);
+}
+
 function getImageRowKey(image: Pick<GeneratedImage, 'id' | 'runId' | 'prompt' | 'timestamp' | 'recipe'>): string {
   if (image.runId) return image.runId;
 
   const operation = image.recipe?.operation || 'generate';
   const promptKey = (image.prompt || image.recipe?.prompt || '').trim().toLowerCase().slice(0, 140) || operation;
-  const resolution = image.recipe?.resolution || '';
-  const aspectRatio = image.recipe?.aspectRatio || '';
-  const timestamp = Number(image.recipe?.createdAt || image.timestamp || Date.now());
+  const timestamp = Number(image.timestamp || image.recipe?.createdAt || Date.now());
   const timeBucket = Math.floor(timestamp / GENERATION_ROW_GROUP_WINDOW_MS);
 
-  return `legacy-run-${operation}-${timeBucket}-${resolution}-${aspectRatio}-${promptKey}`;
+  return `legacy-run-${operation}-${timeBucket}-${promptKey}`;
 }
 
 function formatGenerationRowTimestamp(images: Array<Pick<GeneratedImage, 'timestamp' | 'recipe'>>): string {
@@ -638,7 +641,7 @@ const App: React.FC = () => {
           resolution: img.resolution,
           aspectRatio: img.aspectRatio,
           recipe: img.params as any,
-          runId: (img.params as any)?.runId ?? inferLegacyBatchRunId(img),
+          runId: extractGalleryRunId(img),
           lineage: img.lineage,
         }));
       setState(prev => ({
@@ -4176,7 +4179,7 @@ Edit the provided image according to the instruction above. Preserve the origina
                                 </button>
                               </div>
                               {/* Images in row */}
-                              <div className={`grid gap-3 ${row.images.length === 1 ? 'grid-cols-1 max-w-sm' : row.images.length === 2 ? 'grid-cols-2' : row.images.length === 3 ? 'grid-cols-3' : row.images.length === 4 ? 'grid-cols-4' : 'grid-cols-5'}`}>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                         {row.images.map((image) => (
                           <article
                             key={image.id}
