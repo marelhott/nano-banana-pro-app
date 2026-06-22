@@ -1,4 +1,4 @@
-import type { HeadSwapHairSource } from '../services/aiProvider';
+import type { HeadSwapGender, HeadSwapHairSource } from '../services/aiProvider';
 import type { HeadSwapMode, HeadSwapPromptProviderId } from '../services/headSwapService';
 
 export type HeadSwapPromptModel = 'gemini' | 'openai';
@@ -8,6 +8,7 @@ type HeadSwapPromptParams = {
   mode: HeadSwapMode;
   hairSource: HeadSwapHairSource;
   batchIndex: number;
+  sourceGender?: HeadSwapGender;
 };
 
 function getHairRule(hairSource: HeadSwapHairSource): string {
@@ -55,6 +56,7 @@ export function buildHeadSwapPrompt(params: HeadSwapPromptParams): string {
     '',
     'Identity lock:',
     'Preserve the source identity exactly: facial geometry, skull shape, forehead, hairline, hairstyle, eyebrows, eyes, nose, cheeks, lips, jawline, chin, ears, skin tone, texture, age cues, facial hair, and likeness.',
+    ...(params.sourceGender && params.sourceGender !== 'default' ? [`Gender context: The source person is ${params.sourceGender}. Ensure the result reads consistently as ${params.sourceGender}.`] : []),
     getHairRule(params.hairSource),
     '',
     'Blend rule:',

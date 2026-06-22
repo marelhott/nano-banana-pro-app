@@ -138,7 +138,7 @@ export const upsertSavedPromptByName = async (name: string, prompt: string): Pro
   saveStoredPrompts(prompts.sort((a, b) => b.timestamp - a.timestamp));
 };
 
-export const updateSavedPrompt = async (id: string, updates: { name?: string; prompt?: string }): Promise<void> => {
+export const updateSavedPrompt = async (id: string, updates: { name?: string; prompt?: string; useCount?: number; pinned?: boolean }): Promise<void> => {
   await ensureImported();
   const prompts = getStoredPrompts();
   const next = prompts.map((item) => {
@@ -147,6 +147,8 @@ export const updateSavedPrompt = async (id: string, updates: { name?: string; pr
       ...item,
       name: typeof updates.name === 'string' ? updates.name : item.name,
       prompt: typeof updates.prompt === 'string' ? updates.prompt : item.prompt,
+      ...(typeof updates.useCount === 'number' ? { useCount: updates.useCount } : {}),
+      ...(typeof updates.pinned === 'boolean' ? { pinned: updates.pinned } : {}),
       timestamp: Date.now(),
     };
   });

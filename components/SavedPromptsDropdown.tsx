@@ -57,9 +57,11 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
     }
   };
 
-  const handleSelect = (prompt: string) => {
-    onSelectPrompt(prompt);
+  const handleSelect = (saved: SavedPrompt) => {
+    onSelectPrompt(saved.prompt);
     setIsOpen(false);
+    // Inkrementovat useCount
+    updateSavedPrompt(saved.id, { useCount: (saved.useCount || 0) + 1 }).catch(() => {});
   };
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
@@ -196,11 +198,18 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
               </div>
             ) : (
               <div className="py-2">
-                {savedPrompts.filter(s =>
-                  !searchQuery.trim() ||
-                  s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  s.prompt.toLowerCase().includes(searchQuery.toLowerCase())
-                ).map((saved) => (
+                {savedPrompts
+                  .filter(s =>
+                    !searchQuery.trim() ||
+                    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    s.prompt.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .sort((a, b) => {
+                    if (a.pinned && !b.pinned) return -1;
+                    if (!a.pinned && b.pinned) return 1;
+                    return (b.useCount || 0) - (a.useCount || 0);
+                  })
+                  .map((saved) => (
                   <div
                     key={saved.id}
                     className="group px-4 py-3 hover:bg-[#101210]/30 transition-colors border-b border-gray-800/50 last:border-b-0"
@@ -239,11 +248,15 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                       </div>
                     ) : (
                       // Zobrazovací režim
-                      <div className="cursor-pointer" onClick={() => handleSelect(saved.prompt)}>
+                      <div className="cursor-pointer" onClick={() => handleSelect(saved)}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="text-xs font-bold text-gray-200 truncate">{saved.name}</h4>
+                              {saved.pinned && <span className="text-[#a8bf8f]" title="Připnuto">📌</span>}
+                              {(saved.useCount || 0) > 0 && (
+                                <span className="text-[8px] text-gray-600 ml-1">×{saved.useCount}</span>
+                              )}
                               {saved.category && (
                                 <span className="text-[9px] font-bold text-[#a8bf8f] bg-[#a8bf8f]/10 px-1.5 py-0.5 rounded uppercase tracking-wide border border-[#a8bf8f]/20">
                                   {saved.category}
@@ -255,6 +268,15 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                             </p>
                           </div>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); updateSavedPrompt(saved.id, { pinned: !saved.pinned }).then(loadPrompts).catch(() => {}); }}
+                              className={`p-1 rounded transition-all ${saved.pinned ? 'text-[var(--accent)]' : 'text-gray-500 hover:text-[var(--accent)]'} hover:bg-gray-800`}
+                              title={saved.pinned ? 'Odepnout' : 'Připnout nahoře'}
+                            >
+                              <svg className="w-3.5 h-3.5" fill={saved.pinned ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                              </svg>
+                            </button>
                             <button
                               onClick={(e) => startEditing(saved, e)}
                               className="p-1 hover:bg-gray-800 text-gray-500 hover:text-white rounded transition-all"

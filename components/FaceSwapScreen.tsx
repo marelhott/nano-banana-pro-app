@@ -1,6 +1,6 @@
 import React from 'react';
 import { Download, Sparkles, Upload } from 'lucide-react';
-import type { ProviderSettings } from '../services/aiProvider';
+import type { HeadSwapGender, ProviderSettings } from '../services/aiProvider';
 import type { HeadSwapMode, HeadSwapModelChoice, HeadSwapProgress } from '../services/headSwapService';
 import { runHeadSwap } from '../services/headSwapService';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
@@ -46,7 +46,8 @@ export function FaceSwapScreen(props: {
   const [source, setSource] = React.useState<ImageSlot | null>(null);
   const [target, setTarget] = React.useState<ImageSlot | null>(null);
   const [mode, setMode] = React.useState<HeadSwapMode>('head');
-  const preserveHair = providerSettings.headSwap?.hairSource || 'target';
+  const [hairSource, setHairSource] = React.useState<'user' | 'target'>(providerSettings.headSwap?.hairSource || 'target');
+  const [genderOverride, setGenderOverride] = React.useState<HeadSwapGender>('default');
   const [selectedModels, setSelectedModels] = React.useState<HeadSwapModelChoice>('both');
   const [outputCount, setOutputCount] = React.useState<1 | 2 | 3>(2);
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -138,9 +139,10 @@ export function FaceSwapScreen(props: {
           sourceImage: source.dataUrl,
           targetImage: target.dataUrl,
           mode,
-          hairSource: preserveHair,
+          hairSource: hairSource,
           selectedModels,
           outputCount,
+          sourceGender: genderOverride,
         },
         settings: providerSettings,
         onOutput: (output) => {
@@ -187,7 +189,7 @@ export function FaceSwapScreen(props: {
             params: {
               operation: 'head-swap',
               mode,
-              hairSource: preserveHair,
+              hairSource: hairSource,
               provider: item.provider,
               selectedModels,
               outputCount,
@@ -214,7 +216,7 @@ export function FaceSwapScreen(props: {
       setIsGenerating(false);
       setProgress(null);
     }
-  }, [mode, modelSummary, onToast, outputCount, preserveHair, providerSettings, selectedModels, source, target]);
+  }, [mode, modelSummary, onToast, outputCount, hairSource, providerSettings, selectedModels, source, target]);
 
   const renderDropSlot = (
     kind: 'source' | 'target',
@@ -448,6 +450,41 @@ export function FaceSwapScreen(props: {
               {progress.completedJobs}/{progress.totalJobs} • {progress.activeLabel}
             </div>
           ) : null}
+        </AtelierSection>
+
+        <AtelierSection title="Pokročilé">
+          <div className="space-y-3">
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)] mb-1.5">Pohlaví (gender override)</div>
+              <div className="grid grid-cols-2 gap-1">
+                {(['default', 'a man', 'a woman', 'nonbinary person'] as const).map(g => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGenderOverride(g)}
+                    className={`px-2 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border transition-all ${genderOverride === g ? 'border-[var(--accent)] text-[var(--accent)] bg-[rgba(168,191,143,0.10)]' : 'border-[rgba(168,191,143,0.15)] text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.35)]'}`}
+                  >
+                    {g === 'default' ? 'Automaticky' : g === 'a man' ? 'Muž' : g === 'a woman' ? 'Žena' : 'Nebinární'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)] mb-1.5">Vlasy</div>
+              <div className="grid grid-cols-2 gap-1">
+                {(['target', 'user'] as const).map(h => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setHairSource(h)}
+                    className={`px-2 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border transition-all ${hairSource === h ? 'border-[var(--accent)] text-[var(--accent)] bg-[rgba(168,191,143,0.10)]' : 'border-[rgba(168,191,143,0.15)] text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.35)]'}`}
+                  >
+                    {h === 'target' ? 'Z cíle' : 'Ze zdroje'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </AtelierSection>
       </AtelierRightPanel>
 

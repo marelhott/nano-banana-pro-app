@@ -1,4 +1,4 @@
-import type { HeadSwapHairSource, ProviderSettings } from './aiProvider';
+import type { HeadSwapGender, HeadSwapHairSource, ProviderSettings } from './aiProvider';
 import { AIProviderType } from './aiProvider';
 import { ProviderFactory } from './providerFactory';
 import { createReferenceStyleComposite } from '../utils/imagePanelComposite';
@@ -20,6 +20,7 @@ export interface HeadSwapRequest {
   hairSource?: HeadSwapHairSource;
   selectedModels?: HeadSwapModelChoice;
   outputCount?: number;
+  sourceGender?: HeadSwapGender;
 }
 
 export interface HeadSwapOutput {
@@ -69,6 +70,7 @@ async function runSinglePromptSwap(params: {
   mode: HeadSwapMode;
   hairSource: HeadSwapHairSource;
   batchIndex: number;
+  sourceGender?: HeadSwapGender;
 }): Promise<HeadSwapOutput> {
   const provider = ProviderFactory.createProvider(params.providerType, '');
   const prompt = buildHeadSwapPrompt({
@@ -76,6 +78,7 @@ async function runSinglePromptSwap(params: {
     mode: params.mode,
     hairSource: params.hairSource,
     batchIndex: params.batchIndex,
+    sourceGender: params.sourceGender,
   });
 
   const result = await provider.generateImage(
@@ -144,6 +147,7 @@ export async function runHeadSwap(params: {
         mode,
         hairSource,
         batchIndex,
+        sourceGender: params.request.sourceGender,
       }).then((output) => {
         completedJobs += 1;
         params.onOutput?.(output);

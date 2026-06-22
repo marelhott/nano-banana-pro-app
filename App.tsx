@@ -23,7 +23,7 @@ import { ImageGalleryPanel } from './components/ImageGalleryPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { ProviderSelector } from './components/ProviderSelector';
 import { GeminiProvider } from './services/geminiService';
-import { AIProviderType, ProviderSettings, type ImageInput } from './services/aiProvider';
+import { AIProviderType, PROVIDER_METADATA, ProviderSettings, type ImageInput } from './services/aiProvider';
 import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
@@ -92,7 +92,7 @@ const LazyBatchScreen = lazy(async () => {
   return { default: module.BatchScreen };
 });
 
-const MAX_GENERATED_IMAGES = 14;
+const MAX_GENERATED_IMAGES = 14; // Fallback; runtime uses PROVIDER_METADATA[provider].maxImages
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const THEME_STORAGE_KEY = 'mulen-theme';
 const SERVER_INPUT_MAX_DIMENSION = 1440;
@@ -1323,7 +1323,11 @@ const App: React.FC = () => {
   // Auto-generate effect
   useEffect(() => {
     if (state.shouldAutoGenerate) {
-      if (!state.prompt.trim()) return;
+      if (!state.prompt.trim()) {
+        setState(prev => ({ ...prev, shouldAutoGenerate: false }));
+        setToast({ message: 'Repopulate se nezdařilo: chybí prompt. Zadejte popis obrázku a zkuste znovu.', type: 'warning' });
+        return;
+      }
 
       // Reset flag immediately to prevent loop
       setState(prev => ({ ...prev, shouldAutoGenerate: false }));
@@ -1958,8 +1962,9 @@ const App: React.FC = () => {
     activeGenerationsRef.current++;
     setIsGenerating(true);
 
-    // Respect the selected output count while keeping it within the Mulen Nano UI range.
-    const countToGenerate = Math.max(1, Math.min(5, Math.round(state.numberOfImages || 1)));
+    // Respect the selected output count while keeping it within the provider's max.
+    const providerMaxImages = PROVIDER_METADATA[selectedProvider as AIProviderType]?.maxImages ?? 5;
+    const countToGenerate = Math.max(1, Math.min(providerMaxImages, Math.round(state.numberOfImages || 1)));
     setGenerationProgress({ current: 0, total: countToGenerate });
     setToast({ message: `Spouštím generování ${countToGenerate} obrázků…`, type: 'info' });
 
@@ -3060,7 +3065,7 @@ const App: React.FC = () => {
             <label
               htmlFor="json-context-upload"
               className="flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-[var(--bg-input)] text-[var(--accent)] transition-all hover:border-[var(--accent)] border border-[var(--accent)]/30"
-              title={jsonContext ? "Změnit JSON kontext" : "Připojit JSON kontext"}
+              title={jsonContext ? "Změnit JSON kontext" : "Připojit JSON kontext — nahraj .json soubor s proměnnými (např. {\"scene\": \"les\"}). Proměnné se doplní do promptu jako {{scene}}."}
             >
               <FileJson className="w-3 h-3" />
               <input

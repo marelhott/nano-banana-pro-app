@@ -104,6 +104,8 @@ export interface SavedPrompt {
   prompt: string;
   category?: string;
   timestamp: number;
+  useCount?: number;
+  pinned?: boolean;
 }
 
 export interface AppState {
