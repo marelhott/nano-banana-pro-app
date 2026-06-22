@@ -2842,8 +2842,12 @@ const App: React.FC = () => {
       const editPrompt = `${prompt}
 
 Edit the provided image according to the instruction above. Preserve the original composition, subject identity, materials, lighting logic, and photographic realism unless the instruction explicitly says otherwise. Do not create a new unrelated image.`;
-      const result = await provider.generateImage(
+      const editImages = await prepareServerProviderImages(
         [{ data: image.url, mimeType: 'image/png' }],
+        { maxDimension: 1280, targetBytes: 900_000 }
+      );
+      const result = await provider.generateImage(
+        editImages,
         editPrompt,
         image.resolution,
         image.aspectRatio,

@@ -239,8 +239,9 @@ export function BatchScreen(props: {
       const effectivePrompt = `${prompt}
 
 Edit the provided image according to the instruction above. Preserve the original composition, subject identity, materials, lighting logic, and photographic realism unless the instruction explicitly says otherwise. Do not create a new unrelated image.`;
+      const preparedInput = await optimizeBatchInputDataUrl(output.dataUrl, 'image/png');
       const result = await provider.generateImage(
-        [{ data: output.dataUrl, mimeType: 'image/png' }],
+        [{ data: preparedInput.data, mimeType: preparedInput.mimeType }],
         effectivePrompt,
         '1K',
         'Original',
