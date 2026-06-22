@@ -11,6 +11,7 @@ import { decideAdaptiveConcurrency, estimateDataUrlBytes, runConcurrentTasks } f
 import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
 type UpscaleMode = 'restore' | 'enhance' | 'denoise' | 'upscale-only';
+type UpscaleModelId = typeof FLASH_MODEL | typeof PRO_MODEL;
 
 const FLASH_MODEL = 'gemini-3.1-flash-image-preview';
 const PRO_MODEL = 'gemini-3-pro-image-preview';
@@ -30,6 +31,7 @@ type OutputItem = {
   id: string;
   inputId: string;
   mode: UpscaleMode;
+  model: UpscaleModelId;
   inputName: string;
   inputDataUrl: string;
   dataUrl?: string;
@@ -98,15 +100,12 @@ function modeLabel(mode: UpscaleMode): string {
   return 'Upscale Only';
 }
 
-function modeModel(mode: UpscaleMode): string {
-  if (mode === 'restore') return 'Flash';
-  if (mode === 'enhance') return 'Pro';
-  if (mode === 'denoise') return 'Flash';
-  return 'Flash';
+function upscaleModelLabel(model: UpscaleModelId): string {
+  return model === PRO_MODEL ? 'Nano Pro' : 'Nano 2';
 }
 
-function modeModelId(mode: UpscaleMode): string {
-  return mode === 'enhance' ? PRO_MODEL : FLASH_MODEL;
+function upscaleModelSubtitle(model: UpscaleModelId): string {
+  return model === PRO_MODEL ? 'Gemini 3 Pro' : 'Gemini 3.1 Flash';
 }
 
 function modePrompt(mode: UpscaleMode): string {
@@ -133,6 +132,7 @@ export function AiUpscalerScreen(props: {
   const [inputs, setInputs] = React.useState<ImageSlot[]>([]);
   const [scale, setScale] = React.useState<2 | 4>(2);
   const [mode, setMode] = React.useState<UpscaleMode>('enhance');
+  const [model, setModel] = React.useState<UpscaleModelId>(PRO_MODEL);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [phase, setPhase] = React.useState<'' | 'queue' | 'running' | 'finalizing'>('');
   const [batchProgress, setBatchProgress] = React.useState<{ current: number; total: number; fileName: string } | null>(null);
@@ -213,6 +213,7 @@ export function AiUpscalerScreen(props: {
       id: buildOutputId(input.id, mode),
       inputId: input.id,
       mode,
+      model,
       inputName: input.file.name,
       inputDataUrl: input.dataUrl,
       status: 'pending' as const,
@@ -238,7 +239,6 @@ export function AiUpscalerScreen(props: {
         onTaskStateChange: ({ index, status, attempt }) => {
           const input = inputsToProcess[index];
           if (!input) return;
-          const modelName = modeModelId(mode);
           const label = modeLabel(mode);
           if (status === 'running' || status === 'retrying') setPhase('running');
           setOutputs(prev => prev.map(o =>
@@ -250,8 +250,8 @@ export function AiUpscalerScreen(props: {
                   attempt,
                   detailsText:
                     status === 'retrying'
-                      ? `${label} • ${modelName} • opakuji ${Math.min(attempt, 3)}/3…`
-                      : `${label} • ${modelName} • odesílám…`,
+                      ? `${label} • ${upscaleModelLabel(model)} • opakuji ${Math.min(attempt, 3)}/3…`
+                      : `${label} • ${upscaleModelLabel(model)} • odesílám…`,
                 }
               : o
           ));
@@ -266,7 +266,7 @@ export function AiUpscalerScreen(props: {
           });
         },
         worker: async (input) => {
-          const modelName = modeModelId(mode);
+          const modelName = model;
           const provider = new GeminiProvider(geminiKey || '', modelName);
           const result = await provider.generateImage(
             [{ data: input.dataUrl, mimeType: input.file.type }],
@@ -284,7 +284,7 @@ export function AiUpscalerScreen(props: {
                   ...o,
                   dataUrl: result.imageBase64,
                   status: 'done',
-                  detailsText: `${modeLabel(mode)} • ${modelName} • ${dims.width}×${dims.height}`,
+                  detailsText: `${modeLabel(mode)} • ${upscaleModelLabel(model)} • ${dims.width}×${dims.height}`,
                   resultWidth: dims.width,
                   resultHeight: dims.height,
                   attempt: 1,
@@ -299,7 +299,7 @@ export function AiUpscalerScreen(props: {
               url: result.imageBase64,
               thumbnail: thumb,
               prompt: `${modeLabel(mode)} — ${modePrompt(mode).slice(0, 80)}`,
-              params: { engine: modelName, mode, scale, operation: 'upscale' },
+              params: { engine: modelName, modelLabel: upscaleModelLabel(model), mode, scale, operation: 'upscale' },
             });
           } catch {
             // ignored: gallery save is best-effort for upscale outputs
@@ -351,7 +351,7 @@ export function AiUpscalerScreen(props: {
       setPhase('');
       setBatchProgress(null);
     }
-  }, [inputs, mode, onToast, outputs, scale, geminiKey, serverProviders]);
+  }, [inputs, mode, model, onToast, outputs, scale, geminiKey, serverProviders]);
 
   const findInputForOutput = (output: OutputItem): ImageSlot | undefined => {
     return inputs.find(i => i.id === output.inputId);
@@ -386,6 +386,26 @@ export function AiUpscalerScreen(props: {
                   className={`mn-option-button text-left ${mode === m ? 'mn-option-button-active' : ''}`}>
                   <div className="text-[9px] font-bold">{modeLabel(m)}</div>
                   <div className="mt-0.5 text-[8px] text-white/40 leading-tight">{modeDescription(m)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="mn-section-label">Model</div>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { id: PRO_MODEL, label: 'Nano Pro', subtitle: 'Gemini 3 Pro' },
+                { id: FLASH_MODEL, label: 'Nano 2', subtitle: 'Gemini 3.1 Flash' },
+              ] as const).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setModel(item.id)}
+                  className={`mn-option-button text-left ${model === item.id ? 'mn-option-button-active' : ''}`}
+                >
+                  <div className="text-[9px] font-bold">{item.label}</div>
+                  <div className="mt-0.5 text-[8px] text-white/40 leading-tight">{item.subtitle}</div>
                 </button>
               ))}
             </div>
@@ -494,7 +514,7 @@ export function AiUpscalerScreen(props: {
                     <div className="p-3 bg-[rgba(24,34,18,0.70)] backdrop-blur-sm flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="text-[9px] font-bold text-white truncate">{output.inputName}</div>
-                        <div className="text-[8px] text-white/40 uppercase tracking-wider">{modeLabel(output.mode)} • {modeModel(output.mode)}</div>
+                        <div className="text-[8px] text-white/40 uppercase tracking-wider">{modeLabel(output.mode)} • {upscaleModelLabel(output.model)}</div>
                         <div className="text-[8px] text-white/30 truncate">{output.detailsText || ''}</div>
                       </div>
                       {isDone && output.dataUrl ? (
@@ -522,7 +542,7 @@ export function AiUpscalerScreen(props: {
           <AtelierInfoRows
             rows={[
               { label: 'Režim', value: modeLabel(mode) },
-              { label: 'Model', value: modeModel(mode) },
+              { label: 'Model', value: upscaleModelSubtitle(model) },
               { label: 'Zvětšení', value: `${scale}×` },
               { label: 'Vstupů', value: inputs.length },
               { label: 'Čeká', value: pendingCount },
