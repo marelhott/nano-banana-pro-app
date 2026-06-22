@@ -1,90 +1,75 @@
 /**
- * Prompt History - sledování historie promptů pro undo/redo
+ * Prompt History — in-session undo/redo + persistent kontextový log (localStorage)
  */
 
+const CONTEXT_LOG_KEY = 'nanoBanana_promptContextLog';
+const MAX_CONTEXT_ENTRIES = 50;
+
+export interface PromptContextEntry {
+  id: string;
+  prompt: string;
+  provider?: string;
+  resolution?: string;
+  timestamp: number;
+  imageUrls?: string[];
+}
+
+// Přidat záznam do kontextového logu (uložen do localStorage)
+export function addPromptContextEntry(entry: Omit<PromptContextEntry, 'id'>): void {
+  try {
+    const raw = localStorage.getItem(CONTEXT_LOG_KEY);
+    const log: PromptContextEntry[] = raw ? JSON.parse(raw) : [];
+    const newEntry: PromptContextEntry = { ...entry, id: `phx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` };
+    const updated = [newEntry, ...log].slice(0, MAX_CONTEXT_ENTRIES);
+    localStorage.setItem(CONTEXT_LOG_KEY, JSON.stringify(updated));
+  } catch {
+    // ignore
+  }
+}
+
+export function getPromptContextLog(): PromptContextEntry[] {
+  try {
+    const raw = localStorage.getItem(CONTEXT_LOG_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function clearPromptContextLog(): void {
+  localStorage.removeItem(CONTEXT_LOG_KEY);
+}
+
+// In-session undo/redo
 export class PromptHistory {
   private history: string[] = [];
   private currentIndex: number = -1;
   private maxHistory: number = 20;
 
-  /**
-   * Přidat nový prompt do historie
-   */
   add(prompt: string): void {
-    // Pokud jsme uprostřed historie a přidáváme nový prompt,
-    // smažeme všechno za aktuální pozicí
     if (this.currentIndex < this.history.length - 1) {
       this.history = this.history.slice(0, this.currentIndex + 1);
     }
-
-    // Přidat nový prompt pouze pokud se liší od posledního
     if (this.history[this.history.length - 1] !== prompt) {
       this.history.push(prompt);
-
-      // Omezit velikost historie
-      if (this.history.length > this.maxHistory) {
-        this.history.shift();
-      }
-
+      if (this.history.length > this.maxHistory) this.history.shift();
       this.currentIndex = this.history.length - 1;
     }
   }
 
-  /**
-   * Undo - vrátit se na předchozí prompt
-   */
   undo(): string | null {
-    if (this.canUndo()) {
-      this.currentIndex--;
-      return this.history[this.currentIndex];
-    }
+    if (this.canUndo()) { this.currentIndex--; return this.history[this.currentIndex]; }
     return null;
   }
 
-  /**
-   * Redo - vrátit se na následující prompt
-   */
   redo(): string | null {
-    if (this.canRedo()) {
-      this.currentIndex++;
-      return this.history[this.currentIndex];
-    }
+    if (this.canRedo()) { this.currentIndex++; return this.history[this.currentIndex]; }
     return null;
   }
 
-  /**
-   * Zjistit, zda je možné použít undo
-   */
-  canUndo(): boolean {
-    return this.currentIndex > 0;
-  }
-
-  /**
-   * Zjistit, zda je možné použít redo
-   */
-  canRedo(): boolean {
-    return this.currentIndex < this.history.length - 1;
-  }
-
-  /**
-   * Získat aktuální prompt
-   */
-  getCurrent(): string | null {
-    return this.history[this.currentIndex] || null;
-  }
-
-  /**
-   * Vymazat historii
-   */
-  clear(): void {
-    this.history = [];
-    this.currentIndex = -1;
-  }
-
-  /**
-   * Získat celou historii (pro debug)
-   */
-  getAll(): string[] {
-    return [...this.history];
-  }
+  canUndo(): boolean { return this.currentIndex > 0; }
+  canRedo(): boolean { return this.currentIndex < this.history.length - 1; }
+  getCurrent(): string | null { return this.history[this.currentIndex] || null; }
+  clear(): void { this.history = []; this.currentIndex = -1; }
+  getAll(): string[] { return [...this.history]; }
 }

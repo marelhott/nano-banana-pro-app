@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CollectionsDB, Collection } from '../utils/collectionsDB';
+import { CollectionsDB, Collection, syncCollectionsFromCloud } from '../utils/collectionsDB';
 
 interface CollectionsModalProps {
   isOpen: boolean;
@@ -36,6 +36,7 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       loadCollections();
+      syncCollectionsFromCloud().then(loadCollections).catch(() => {});
     }
   }, [isOpen]);
 
@@ -52,6 +53,15 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
     setNewCollectionDescription('');
     setSelectedColor(PRESET_COLORS[0]);
     setIsCreating(false);
+    loadCollections();
+  };
+
+  const handleTogglePublic = async (id: string, currentIsPublic: boolean) => {
+    const url = await CollectionsDB.setPublic(id, !currentIsPublic);
+    if (!currentIsPublic && url) {
+      await navigator.clipboard.writeText(url).catch(() => {});
+      alert(`Kolekce je nyní veřejná. URL zkopírována do schránky:\n${url}`);
+    }
     loadCollections();
   };
 
@@ -255,6 +265,15 @@ export const CollectionsModal: React.FC<CollectionsModalProps> = ({
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleTogglePublic(collection.id, !!collection.isPublic)}
+                            className={`p-1.5 rounded-md transition-all ${collection.isPublic ? 'text-[#a8bf8f] hover:text-red-400' : 'text-gray-500 hover:text-[#a8bf8f] hover:bg-[#a8bf8f]/10'}`}
+                            title={collection.isPublic ? 'Zrušit sdílení' : 'Sdílet kolekci'}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                             </svg>
                           </button>
                           <button

@@ -25,8 +25,9 @@ export async function runReplicatePrediction(params: {
   input: Record<string, unknown>;
   timeoutMs?: number;
 }): Promise<ReplicatePrediction> {
-  const { token, model, input, timeoutMs = 120_000 } = params;
+  const { token, model, input, timeoutMs = 300_000 } = params;
   const start = Date.now();
+  let pollInterval = 1200;
 
   const createRes = await fetch('/api/replicate/predictions', {
     method: 'POST',
@@ -45,7 +46,8 @@ export async function runReplicatePrediction(params: {
         'Model je ve frontě nebo generuje příliš dlouho. Zkuste snížit High-res, počet variant, nebo to spustit znovu později.'
       );
     }
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, pollInterval));
+    pollInterval = Math.min(pollInterval * 1.4, 8000);
     const pollRes = await fetch(`/api/replicate/predictions/${prediction.id}`, {
       headers: { 'x-replicate-token': token },
     });

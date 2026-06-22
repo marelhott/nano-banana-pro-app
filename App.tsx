@@ -17,7 +17,7 @@ import { PromptTemplatesModal } from './components/PromptTemplatesModal';
 import { PromptRemixModal } from './components/PromptRemixModal';
 import { QuickActionsMenu, QuickAction } from './components/QuickActionsMenu';
 import { ApiUsageTracker } from './utils/apiUsageTracking';
-import { PromptHistory } from './utils/promptHistory';
+import { PromptHistory, addPromptContextEntry } from './utils/promptHistory';
 import { formatJsonPromptForImage } from './utils/jsonPrompting';
 import { ImageGalleryPanel } from './components/ImageGalleryPanel';
 import { SettingsModal } from './components/SettingsModal';
@@ -1946,6 +1946,12 @@ const App: React.FC = () => {
 
     // Přidat prompt do historie
     promptHistory.add(state.prompt);
+    addPromptContextEntry({
+      prompt: state.prompt,
+      provider: selectedProvider,
+      resolution: state.resolution,
+      timestamp: Date.now(),
+    });
 
     // Detekce jazyka a quality enhancement
 

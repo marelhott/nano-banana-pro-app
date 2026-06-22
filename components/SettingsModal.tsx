@@ -40,6 +40,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [a1111TestResult, setA1111TestResult] = useState<'success' | 'error' | null>(null);
     const [backupStatus, setBackupStatus] = useState<string | null>(null);
     const importFileRef = useRef<HTMLInputElement>(null);
+    const [activeTab, setActiveTab] = useState<'providers' | 'identity' | 'advanced' | 'backup'>('providers');
     const [storageStats, setStorageStats] = useState<{
         savedCount: number;
         generatedCount: number;
@@ -345,10 +346,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                 </div>
 
+                {/* Tab bar */}
+                <div className="flex border-b border-[rgba(168,191,143,0.12)] px-6 gap-1">
+                    {(['providers', 'identity', 'advanced', 'backup'] as const).map(tab => {
+                        const labels: Record<string, string> = { providers: 'Poskytovatelé', identity: 'Identita', advanced: 'Pokročilé', backup: 'Záloha' };
+                        return (
+                            <button
+                                key={tab}
+                                type="button"
+                                onClick={() => setActiveTab(tab)}
+                                className={`px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] border-b-2 transition-colors ${activeTab === tab ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                            >
+                                {labels[tab]}
+                            </button>
+                        );
+                    })}
+                </div>
+
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
 
-                    {providers.map(provider => {
+                    {activeTab === 'providers' && providers.map(provider => {
                         const metadata = PROVIDER_METADATA[provider];
                         const config = localSettings[provider];
                         const testResult = testResults[provider];
@@ -698,7 +716,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
+                    {activeTab === 'providers' && <div className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-8 h-8 bg-[rgba(24,34,18,0.70)] rounded flex items-center justify-center">
                                 <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -764,9 +782,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 {testingFal ? 'Testuji...' : serverProviders.fal ? 'Otestovat server / override' : 'Otestovat připojení'}
                             </button>
                         </div>
-                    </div>
+                    </div>}
 
-                    <div className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
+                    {activeTab === 'advanced' && <div className="border border-[rgba(168,191,143,0.20)] rounded-xl p-5 bg-[linear-gradient(135deg,rgba(30,42,22,0.72)_0%,rgba(18,26,14,0.80)_100%)] hover:border-[rgba(168,191,143,0.42)] transition-all">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-8 h-8 bg-[rgba(24,34,18,0.70)] rounded flex items-center justify-center">
                                 <svg className="w-5 h-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -827,61 +845,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 {testingA1111 ? 'Testuji...' : 'Otestovat připojení'}
                             </button>
                         </div>
-                    </div>
+                    </div>}
                     <div className="h-4" />
-                </div>
 
-                {/* Záloha dat */}
-                <div className="border-t border-gray-800 px-6 py-5 space-y-3">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-secondary)]">Záloha dat</div>
-                    <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">Exportuj nebo importuj prompty a galerii jako JSON zálohu.</p>
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                try {
-                                    setBackupStatus('Exportuji…');
-                                    await exportAllData();
-                                    setBackupStatus('Export hotový ✓');
-                                    setTimeout(() => setBackupStatus(null), 3000);
-                                } catch {
-                                    setBackupStatus('Export selhal');
-                                }
-                            }}
-                            className="flex-1 px-3 py-2 rounded-lg border border-[rgba(168,191,143,0.20)] bg-[rgba(32,44,24,0.55)] text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.45)] hover:text-[var(--accent)] transition-all"
-                        >
-                            Exportovat zálohu
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => importFileRef.current?.click()}
-                            className="flex-1 px-3 py-2 rounded-lg border border-[rgba(168,191,143,0.20)] bg-[rgba(32,44,24,0.55)] text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.45)] hover:text-[var(--accent)] transition-all"
-                        >
-                            Importovat zálohu
-                        </button>
-                    </div>
-                    {backupStatus && (
-                        <div className="text-[9px] text-[var(--accent)] font-bold">{backupStatus}</div>
+                    {/* Záloha dat tab */}
+                    {activeTab === 'backup' && (
+                        <div className="space-y-4 pt-2">
+                            <div>
+                                <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-secondary)] mb-1">Záloha dat</div>
+                                <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">Exportuj nebo importuj prompty a galerii jako JSON zálohu.</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            setBackupStatus('Exportuji…');
+                                            await exportAllData();
+                                            setBackupStatus('Export hotový ✓');
+                                            setTimeout(() => setBackupStatus(null), 3000);
+                                        } catch {
+                                            setBackupStatus('Export selhal');
+                                        }
+                                    }}
+                                    className="flex-1 px-3 py-2 rounded-lg border border-[rgba(168,191,143,0.20)] bg-[rgba(32,44,24,0.55)] text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.45)] hover:text-[var(--accent)] transition-all"
+                                >
+                                    Exportovat zálohu
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => importFileRef.current?.click()}
+                                    className="flex-1 px-3 py-2 rounded-lg border border-[rgba(168,191,143,0.20)] bg-[rgba(32,44,24,0.55)] text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.45)] hover:text-[var(--accent)] transition-all"
+                                >
+                                    Importovat zálohu
+                                </button>
+                            </div>
+                            {backupStatus && (
+                                <div className="text-[9px] text-[var(--accent)] font-bold">{backupStatus}</div>
+                            )}
+                            <input
+                                ref={importFileRef}
+                                type="file"
+                                accept=".json"
+                                className="hidden"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    try {
+                                        setBackupStatus('Importuji…');
+                                        const result = await importData(file);
+                                        setBackupStatus(`Import hotový ✓ — ${result.prompts} promptů, ${result.images} obrázků`);
+                                        setTimeout(() => setBackupStatus(null), 5000);
+                                    } catch {
+                                        setBackupStatus('Import selhal — neplatný soubor');
+                                    }
+                                    e.target.value = '';
+                                }}
+                            />
+                        </div>
                     )}
-                    <input
-                        ref={importFileRef}
-                        type="file"
-                        accept=".json"
-                        className="hidden"
-                        onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            try {
-                                setBackupStatus('Importuji…');
-                                const result = await importData(file);
-                                setBackupStatus(`Import hotový ✓ — ${result.prompts} promptů, ${result.images} obrázků`);
-                                setTimeout(() => setBackupStatus(null), 5000);
-                            } catch {
-                                setBackupStatus('Import selhal — neplatný soubor');
-                            }
-                            e.target.value = '';
-                        }}
-                    />
                 </div>
 
                 {/* Footer */}
