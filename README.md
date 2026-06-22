@@ -2,11 +2,9 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Run and deploy Mulen Nano
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmRGmco9vsZ1r
+This repository contains the main Mulen Nano SPA and a separate `workflow/` Next.js subproject.
 
 ## Run Locally
 
@@ -27,22 +25,23 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 
-4. Configure provider API keys in app Settings (gear icon):
-   - Gemini, OpenAI, Grok, Replicate
-   - Keys are stored only in browser localStorage (not in Supabase)
+4. Configure provider access:
+   - server-side provider keys can be configured in Vercel environment variables
+   - local browser overrides in Settings are optional
 
 5. Run the app:
    ```bash
    npm run dev
    ```
 
-## Deploy to Netlify
+## Deploy to Vercel
 
 1. Push your code to GitHub
-2. Connect your repository to Netlify
-3. Set environment variables in Netlify dashboard:
+2. Connect your repository to Vercel
+3. Set environment variables in the Vercel dashboard:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
+   - provider server keys as needed (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `REPLICATE_API_KEY`, `FAL_KEY`)
 4. Deploy!
 
 ### Supabase requirements
@@ -63,6 +62,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1OT7FMsEc7GhhcZllu6QWmR
   - `/api/fal/lora-img2img`
   - `/api/replicate/predictions`
 
+### Notes
 
-## Deployment Status
-Last update: 2025-12-31 06:33:37 UTC
+- `supabase/migrations/` is the only supported source of truth for database changes.
+- `workflow/` has its own package.json, tests, and deployment/runtime assumptions.
