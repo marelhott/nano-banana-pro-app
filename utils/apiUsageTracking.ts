@@ -1,130 +1,137 @@
 /**
- * API Usage Tracking - sledování využití API a odhadované náklady
+ * API Usage Tracking — per-provider sledování využití API a odhadované náklady
  */
 
-const STORAGE_KEY = 'nanoBanana_apiUsage';
+const STORAGE_KEY = 'nanoBanana_apiUsage_v2';
+const MONTHLY_LIMIT_KEY = 'nanoBanana_apiUsageLimit';
+const DEFAULT_MONTHLY_LIMIT_CZK = 500;
+
+export type TrackedProvider = 'gemini' | 'grok' | 'openai' | 'replicate' | 'fal' | 'a1111' | 'unknown';
+
+export interface ProviderUsage {
+  images: number;
+  estimatedCostCZK: number;
+}
 
 export interface ApiUsageData {
-  month: string; // Format: YYYY-MM
+  month: string;
   totalImages: number;
   estimatedCostCZK: number;
+  byProvider: Record<TrackedProvider, ProviderUsage>;
   history: {
     timestamp: number;
     imagesGenerated: number;
     resolution: string;
+    provider: TrackedProvider;
+    costCZK: number;
   }[];
 }
 
-// Odhad ceny za 1 obrázek v Kč (může se lišit podle skutečných cen Gemini API)
-const PRICE_PER_IMAGE_CZK: Record<string, number> = {
-  '1K': 0.5,
-  '2K': 1.5,
-  '4K': 3.0,
+// Ceny za 1 obrázek v Kč podle providera a rozlišení
+const PRICE_TABLE: Record<TrackedProvider, Record<string, number>> = {
+  gemini:    { '1K': 0.4, '2K': 1.2, '4K': 2.5 },
+  grok:      { '1K': 0.6, '2K': 1.8, '4K': 3.5 },
+  openai:    { '1K': 1.0, '2K': 2.5, '4K': 5.0 },
+  replicate: { '1K': 0.8, '2K': 2.0, '4K': 4.0 },
+  fal:       { '1K': 0.5, '2K': 1.5, '4K': 3.0 },
+  a1111:     { '1K': 0.1, '2K': 0.2, '4K': 0.4 },
+  unknown:   { '1K': 0.5, '2K': 1.5, '4K': 3.0 },
 };
 
 export class ApiUsageTracker {
-  /**
-   * Získat aktuální měsíc ve formátu YYYY-MM
-   */
   private static getCurrentMonth(): string {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  /**
-   * Načíst usage data pro aktuální měsíc
-   */
   static getUsageData(): ApiUsageData {
     const currentMonth = this.getCurrentMonth();
     const stored = localStorage.getItem(STORAGE_KEY);
-
     if (stored) {
       try {
         const data: ApiUsageData = JSON.parse(stored);
-
-        // Pokud je to jiný měsíc, resetuj data
-        if (data.month !== currentMonth) {
-          return this.createNewMonthData();
-        }
-
+        if (data.month !== currentMonth) return this.createNewMonthData();
+        if (!data.byProvider) data.byProvider = this.emptyByProvider();
         return data;
-      } catch (error) {
-        console.error('Failed to parse API usage data:', error);
+      } catch {
         return this.createNewMonthData();
       }
     }
-
     return this.createNewMonthData();
   }
 
-  /**
-   * Vytvořit nová data pro nový měsíc
-   */
+  private static emptyByProvider(): Record<TrackedProvider, ProviderUsage> {
+    return {
+      gemini: { images: 0, estimatedCostCZK: 0 },
+      grok: { images: 0, estimatedCostCZK: 0 },
+      openai: { images: 0, estimatedCostCZK: 0 },
+      replicate: { images: 0, estimatedCostCZK: 0 },
+      fal: { images: 0, estimatedCostCZK: 0 },
+      a1111: { images: 0, estimatedCostCZK: 0 },
+      unknown: { images: 0, estimatedCostCZK: 0 },
+    };
+  }
+
   private static createNewMonthData(): ApiUsageData {
     return {
       month: this.getCurrentMonth(),
       totalImages: 0,
       estimatedCostCZK: 0,
+      byProvider: this.emptyByProvider(),
       history: [],
     };
   }
 
-  /**
-   * Zaznamenat vygenerování obrázku
-   */
-  static trackImageGeneration(resolution: string = '2K', count: number = 1): void {
+  static trackImageGeneration(resolution: string = '2K', count: number = 1, provider: TrackedProvider = 'unknown'): void {
     const data = this.getUsageData();
-
-    const cost = (PRICE_PER_IMAGE_CZK[resolution] || 1.5) * count;
+    const pricePerImage = PRICE_TABLE[provider]?.[resolution] ?? PRICE_TABLE.unknown[resolution] ?? 1.5;
+    const cost = pricePerImage * count;
 
     data.totalImages += count;
     data.estimatedCostCZK += cost;
-    data.history.push({
-      timestamp: Date.now(),
-      imagesGenerated: count,
-      resolution,
-    });
+    if (!data.byProvider[provider]) data.byProvider[provider] = { images: 0, estimatedCostCZK: 0 };
+    data.byProvider[provider].images += count;
+    data.byProvider[provider].estimatedCostCZK += cost;
+    data.history.push({ timestamp: Date.now(), imagesGenerated: count, resolution, provider, costCZK: cost });
 
-    // Uložit zpět
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    // Alert při překročení 80 % limitu
+    const limit = this.getMonthlyLimit();
+    if (limit > 0 && data.estimatedCostCZK >= limit * 0.8 && data.estimatedCostCZK - cost < limit * 0.8) {
+      console.warn(`[ApiUsage] Překročeno 80 % měsíčního limitu (${limit} Kč).`);
+    }
   }
 
-  /**
-   * Získat statistiky pro zobrazení
-   */
-  static getStats(): {
-    totalImages: number;
-    estimatedCostCZK: number;
-    averageCostPerImage: number;
-    mostUsedResolution: string;
-  } {
+  static getMonthlyLimit(): number {
+    const stored = localStorage.getItem(MONTHLY_LIMIT_KEY);
+    return stored ? Number(stored) : DEFAULT_MONTHLY_LIMIT_CZK;
+  }
+
+  static setMonthlyLimit(limitCZK: number): void {
+    localStorage.setItem(MONTHLY_LIMIT_KEY, String(limitCZK));
+  }
+
+  static getStats() {
     const data = this.getUsageData();
-
-    const averageCostPerImage = data.totalImages > 0
-      ? data.estimatedCostCZK / data.totalImages
-      : 0;
-
-    // Najít nejpoužívanější rozlišení
+    const limit = this.getMonthlyLimit();
     const resolutionCounts: Record<string, number> = {};
-    data.history.forEach(entry => {
-      resolutionCounts[entry.resolution] = (resolutionCounts[entry.resolution] || 0) + entry.imagesGenerated;
+    data.history.forEach(e => {
+      resolutionCounts[e.resolution] = (resolutionCounts[e.resolution] || 0) + e.imagesGenerated;
     });
-
     const mostUsedResolution = Object.entries(resolutionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
-
     return {
       totalImages: data.totalImages,
       estimatedCostCZK: Math.round(data.estimatedCostCZK * 100) / 100,
-      averageCostPerImage: Math.round(averageCostPerImage * 100) / 100,
+      averageCostPerImage: data.totalImages > 0 ? Math.round((data.estimatedCostCZK / data.totalImages) * 100) / 100 : 0,
       mostUsedResolution,
+      byProvider: data.byProvider,
+      monthlyLimit: limit,
+      limitUsedPercent: limit > 0 ? Math.round((data.estimatedCostCZK / limit) * 100) : 0,
     };
   }
 
-  /**
-   * Resetovat statistiky (pro nový měsíc nebo na žádost uživatele)
-   */
   static reset(): void {
-    const newData = this.createNewMonthData();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.createNewMonthData()));
   }
 }

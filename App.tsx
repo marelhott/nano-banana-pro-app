@@ -334,6 +334,18 @@ const App: React.FC = () => {
   } = useProviderSettings();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [notificationLog, setNotificationLog] = useState<Array<{ id: number; message: string; type: ToastType; ts: number }>>([]);
+  const [isNotificationLogOpen, setIsNotificationLogOpen] = useState(false);
+  const notifIdRef = useRef(0);
+  const setToastWithLog = useCallback((t: { message: string; type: ToastType } | null) => {
+    setToast(t);
+    if (t) {
+      setNotificationLog(prev => [
+        { id: ++notifIdRef.current, message: t.message, type: t.type, ts: Date.now() },
+        ...prev.slice(0, 49),
+      ]);
+    }
+  }, []);
   const [promptMode, setPromptMode] = useState<'simple' | 'advanced'>('simple');
   const [advancedVariant, setAdvancedVariant] = useState<'A' | 'B' | 'C'>('C'); // Default: Balanced
   const [faceIdentityMode, setFaceIdentityMode] = useState(false);
@@ -746,7 +758,7 @@ const App: React.FC = () => {
     dequeueGenerationSnapshot,
   } = useGenerationQueue<GenerationQueueSnapshot, GenerationQueueAction>({
     createSnapshot: createGenerationSnapshot,
-    onToast: setToast,
+    onToast: setToastWithLog,
   });
   const {
     handleProviderChange,
@@ -1342,21 +1354,27 @@ const App: React.FC = () => {
     return () => window.removeEventListener('paste', handlePaste);
   }, [handleImagesSelected]);
 
-  // #1: Auto-analýza stylu, když jsou k dispozici referenční + stylový obrázek
+  // #1: Auto-analýza stylu, debounced 800ms, s cache podle [sourceId, styleId]
+  const styleAnalysisCacheKey = useRef<string | null>(null);
   useEffect(() => {
     if (state.sourceImages.length === 0 || state.styleImages.length === 0) {
       setStyleAnalysisCache(null);
+      styleAnalysisCacheKey.current = null;
       return;
     }
-    const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
+    const refUrl = state.sourceImages[0].url;
+    const styleUrl = state.styleImages[0].url;
+    const cacheKey = `${refUrl}::${styleUrl}`;
+    if (styleAnalysisCacheKey.current === cacheKey) return;
 
+    const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
     let cancelled = false;
-    const analyze = async () => {
+    const timer = setTimeout(async () => {
+      if (cancelled) return;
       try {
-        const refUrl = state.sourceImages[0].url;
-        const styleUrl = state.styleImages[0].url;
         const result = await analyzeStyleTransferWithAI(refUrl, styleUrl, geminiKey);
         if (!cancelled) {
+          styleAnalysisCacheKey.current = cacheKey;
           setStyleAnalysisCache({
             description: result.styleDescription,
             strength: result.recommendedStrength,
@@ -1366,10 +1384,9 @@ const App: React.FC = () => {
       } catch (error) {
         console.warn('[Style Analysis] Auto-analysis failed:', error);
       }
-    };
-    analyze();
-    return () => { cancelled = true; };
-  }, [state.sourceImages.length, state.styleImages.length]);
+    }, 800);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [state.sourceImages, state.styleImages]);
 
   const handleEnhancePrompt = async () => {
     if (!state.prompt.trim() || isEnhancingPrompt) return;
@@ -1612,7 +1629,7 @@ const App: React.FC = () => {
             }
 
             // Track API usage
-            ApiUsageTracker.trackImageGeneration(state.resolution, 1);
+            ApiUsageTracker.trackImageGeneration(state.resolution, 1, selectedProvider as any);
 
             setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
             success = true;
@@ -1830,7 +1847,7 @@ const App: React.FC = () => {
             // ignored: gallery save is best-effort in all-models mode
           }
 
-          ApiUsageTracker.trackImageGeneration(state.resolution, 1);
+          ApiUsageTracker.trackImageGeneration(state.resolution, 1, selectedProvider as any);
           setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
           return { success: true };
         } catch (err: any) {
@@ -2128,7 +2145,7 @@ const App: React.FC = () => {
             }
 
             // Trackovat API usage
-            ApiUsageTracker.trackImageGeneration(state.resolution, 1);
+            ApiUsageTracker.trackImageGeneration(state.resolution, 1, selectedProvider as any);
 
             // Aktualizovat progress
             setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
@@ -3779,7 +3796,7 @@ const App: React.FC = () => {
                 providerSettings={providerSettings}
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onOpenLibrary={() => setIsGalleryExpanded(true)}
-                onToast={(t) => setToast(t)}
+                onToast={(t) => setToastWithLog(t)}
                 theme={theme}
               />
             </Suspense>
@@ -3789,7 +3806,7 @@ const App: React.FC = () => {
                 providerSettings={providerSettings}
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onOpenLibrary={() => setIsGalleryExpanded(true)}
-                onToast={(t) => setToast(t)}
+                onToast={(t) => setToastWithLog(t)}
                 theme={theme}
               />
             </Suspense>
@@ -3800,7 +3817,7 @@ const App: React.FC = () => {
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onOpenLibrary={() => setIsGalleryExpanded(true)}
                 onBack={() => navigate('/')}
-                onToast={(t) => setToast(t)}
+                onToast={(t) => setToastWithLog(t)}
                 isHoveringGallery={false}
                 theme={theme}
               />
@@ -3810,7 +3827,7 @@ const App: React.FC = () => {
               <LazyModelInfluenceScreen
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onOpenLibrary={() => setIsGalleryExpanded(true)}
-                onToast={(t) => setToast(t)}
+                onToast={(t) => setToastWithLog(t)}
                 theme={theme}
               />
             </Suspense>
@@ -3819,7 +3836,7 @@ const App: React.FC = () => {
               <LazyAiUpscalerScreen
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onOpenLibrary={() => setIsGalleryExpanded(true)}
-                onToast={(t) => setToast(t)}
+                onToast={(t) => setToastWithLog(t)}
                 theme={theme}
               />
             </Suspense>
@@ -3833,7 +3850,7 @@ const App: React.FC = () => {
                 onNanoBananaModelChange={handleNanoBananaModelChange}
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onOpenLibrary={() => setIsGalleryExpanded(true)}
-                onToast={(t) => setToast(t)}
+                onToast={(t) => setToastWithLog(t)}
                 theme={theme}
               />
             </Suspense>
@@ -3842,7 +3859,7 @@ const App: React.FC = () => {
               <LazyFluxLoraGeneratorScreen
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onOpenLibrary={() => setIsGalleryExpanded(true)}
-                onToast={(t) => setToast(t)}
+                onToast={(t) => setToastWithLog(t)}
                 theme={theme}
               />
             </Suspense>
@@ -4357,15 +4374,59 @@ const App: React.FC = () => {
         )}
 
         {/* Toast Notification */}
-        {
-          toast && (
-            <Toast
-              message={toast.message}
-              type={toast.type}
-              onClose={() => setToast(null)}
-            />
-          )
-        }
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+
+        {/* Notifikační log panel */}
+        {isNotificationLogOpen && (
+          <div className="fixed bottom-16 right-6 z-[9990] w-80 max-h-96 flex flex-col rounded-xl border border-[rgba(168,191,143,0.25)] bg-[rgba(16,22,12,0.97)] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[rgba(168,191,143,0.15)]">
+              <span className="text-[9px] font-black uppercase tracking-[0.22em] text-[var(--text-secondary)]">Notifikace</span>
+              <div className="flex gap-2">
+                <button onClick={() => setNotificationLog([])} className="text-[8px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-red-400 transition-colors">Smazat</button>
+                <button onClick={() => setIsNotificationLogOpen(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+            <div className="overflow-y-auto custom-scrollbar flex-1">
+              {notificationLog.length === 0 ? (
+                <div className="px-4 py-6 text-center text-[9px] text-[var(--text-secondary)]">Žádné notifikace</div>
+              ) : notificationLog.map(n => (
+                <div key={n.id} className={`flex items-start gap-2.5 px-4 py-2.5 border-b border-[rgba(168,191,143,0.08)] last:border-0 ${n.type === 'error' ? 'bg-red-500/5' : n.type === 'success' ? 'bg-green-500/5' : ''}`}>
+                  <span className={`text-[10px] mt-0.5 ${n.type === 'error' ? 'text-red-400' : n.type === 'success' ? 'text-green-400' : n.type === 'warning' ? 'text-amber-400' : 'text-blue-400'}`}>
+                    {n.type === 'error' ? '✗' : n.type === 'success' ? '✓' : n.type === 'warning' ? '⚠' : 'ℹ'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] text-[var(--text-primary)] leading-relaxed">{n.message}</p>
+                    <p className="text-[8px] text-[var(--text-secondary)] mt-0.5">{new Date(n.ts).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Notifikační log tlačítko */}
+        <button
+          onClick={() => setIsNotificationLogOpen(prev => !prev)}
+          className="fixed bottom-6 right-6 z-[9989] w-9 h-9 rounded-full border border-[rgba(168,191,143,0.25)] bg-[rgba(20,28,15,0.90)] hover:bg-[rgba(32,44,24,0.95)] transition-all flex items-center justify-center shadow-lg"
+          title="Notifikace"
+        >
+          <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          {notificationLog.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#a8bf8f] text-[7px] font-black text-[#0b0c0a] flex items-center justify-center">
+              {Math.min(notificationLog.length, 99)}
+            </span>
+          )}
+        </button>
       </div>
     </div >
   );
