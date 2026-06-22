@@ -2820,6 +2820,121 @@ const App: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!selectedImage) return;
+    const fresh = state.generatedImages.find(img => img.id === selectedImage.id);
+    if (fresh && fresh !== selectedImage) setSelectedImage(fresh);
+  }, [selectedImage, state.generatedImages]);
+
+  const handleDetailPromptEdit = async (image: GeneratedImage, newPrompt: string) => {
+    const prompt = newPrompt.trim();
+    if (!image.url || !prompt) return;
+
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img =>
+        img.id === image.id ? { ...img, isEditing: true } : img
+      ),
+    }));
+
+    try {
+      const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
+      const editPrompt = `${prompt}
+
+Edit the provided image according to the instruction above. Preserve the original composition, subject identity, materials, lighting logic, and photographic realism unless the instruction explicitly says otherwise. Do not create a new unrelated image.`;
+      const result = await provider.generateImage(
+        [{ data: image.url, mimeType: 'image/png' }],
+        editPrompt,
+        image.resolution,
+        image.aspectRatio,
+        false
+      );
+
+      const recipe: GenerationRecipe = {
+        provider: AIProviderType.GEMINI,
+        operation: 'edit',
+        prompt,
+        effectivePrompt: editPrompt,
+        useGrounding: false,
+        promptMode,
+        resolution: image.resolution,
+        aspectRatio: image.aspectRatio,
+        sourceImageCount: 1,
+        styleImageCount: 0,
+        createdAt: Date.now(),
+      };
+
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img => {
+          if (img.id !== image.id) return img;
+          const previousUrl = img.url || image.url;
+          const newVersions = previousUrl
+            ? [...(img.versions || []), { url: previousUrl, prompt: img.prompt, timestamp: img.timestamp, recipe: img.recipe }]
+            : img.versions || [];
+          return {
+            ...img,
+            url: result.imageBase64,
+            prompt,
+            timestamp: Date.now(),
+            versions: newVersions,
+            currentVersionIndex: newVersions.length,
+            isEditing: false,
+            recipe,
+          };
+        }),
+      }));
+
+      try {
+        const thumbnail = await createThumbnail(result.imageBase64);
+        await saveToGallery({
+          url: result.imageBase64,
+          prompt,
+          resolution: image.resolution,
+          aspectRatio: image.aspectRatio,
+          thumbnail,
+          params: recipe,
+        });
+      } catch (err) {
+        console.warn('Failed to save edited image to gallery:', err);
+      }
+
+      setToast({ message: 'Obrázek upraven.', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: toUserFacingAiError(err, 'Úprava obrázku selhala.'), type: 'error' });
+      setState(prev => ({
+        ...prev,
+        generatedImages: prev.generatedImages.map(img =>
+          img.id === image.id ? { ...img, isEditing: false } : img
+        ),
+      }));
+    }
+  };
+
+  const handleDetailUndo = (image: GeneratedImage) => {
+    const versions = image.versions || [];
+    const previous = versions[versions.length - 1];
+    if (!previous) return;
+
+    setState(prev => ({
+      ...prev,
+      generatedImages: prev.generatedImages.map(img => {
+        if (img.id !== image.id) return img;
+        const nextVersions = (img.versions || []).slice(0, -1);
+        return {
+          ...img,
+          url: previous.url,
+          prompt: previous.prompt,
+          timestamp: previous.timestamp,
+          recipe: previous.recipe,
+          versions: nextVersions,
+          currentVersionIndex: Math.max(0, nextVersions.length - 1),
+          isEditing: false,
+        };
+      }),
+    }));
+  };
+
 
   const imageModelPresets: Array<{
     id: string;
@@ -4320,10 +4435,9 @@ const App: React.FC = () => {
             if (!img.url) return;
             handleRepopulate(img);
           }}
-          onRegenerate={(_img, newPrompt) => {
-            setState(prev => ({ ...prev, prompt: newPrompt }));
-            setSelectedImage(null);
-          }}
+          onRegenerate={handleDetailPromptEdit}
+          onUndo={handleDetailUndo}
+          canUndo={Boolean(selectedImage?.versions?.length)}
         />
 
         <GalleryModal

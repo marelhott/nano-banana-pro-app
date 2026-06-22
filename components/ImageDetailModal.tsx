@@ -11,7 +11,9 @@ interface ImageDetailModalProps {
   hasNext?: boolean;
   hasPrev?: boolean;
   onUseImage?: (image: GeneratedImage) => void;
-  onRegenerate?: (image: GeneratedImage, newPrompt: string) => void;
+  onRegenerate?: (image: GeneratedImage, newPrompt: string) => void | Promise<void>;
+  onUndo?: (image: GeneratedImage) => void;
+  canUndo?: boolean;
 }
 
 function formatTimestamp(ts: number): string {
@@ -36,7 +38,7 @@ function buildSettingsTags(image: GeneratedImage): string[] {
 }
 
 export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
-  isOpen, onClose, image, onNext, onPrev, hasNext, hasPrev, onUseImage, onRegenerate,
+  isOpen, onClose, image, onNext, onPrev, hasNext, hasPrev, onUseImage, onRegenerate, onUndo, canUndo = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'compare'>('details');
   const [editPrompt, setEditPrompt] = useState('');
@@ -86,6 +88,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const settingsTags = buildSettingsTags(image);
   const sourceCount = image.lineage?.sourceImageIds?.length ?? 0;
   const styleCount = image.lineage?.styleImageIds?.length ?? 0;
+  const isEditing = Boolean(image.isEditing);
 
   const handleDownload = () => {
     if (!image.url) return;
@@ -153,9 +156,17 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           ) : (
             <img
               src={image.url}
-              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+              className={`max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl transition-all duration-500 ${isEditing ? 'blur-md scale-[0.99] opacity-70' : ''}`}
               style={{ border: '1px solid rgba(168,191,143,0.12)' }}
             />
+          )}
+          {isEditing && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="rounded-xl border px-5 py-3 text-[10px] font-black uppercase tracking-[0.22em]"
+                style={{ background: 'rgba(14,20,10,0.78)', borderColor: 'rgba(168,191,143,0.28)', color: '#a8bf8f' }}>
+                Upravují se detaily…
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -306,12 +317,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               }}
             />
             <button
-              onClick={() => onRegenerate?.(image, editPrompt)}
+              onClick={() => void onRegenerate?.(image, editPrompt)}
+              disabled={isEditing || !editPrompt.trim()}
               className="w-full py-2.5 rounded-lg text-[10px] font-black uppercase tracking-[0.18em] transition-all"
               style={{
                 background: 'rgba(32,44,24,0.70)',
                 border: '1px solid rgba(168,191,143,0.25)',
-                color: 'rgba(168,191,143,0.85)',
+                color: isEditing || !editPrompt.trim() ? 'rgba(168,191,143,0.35)' : 'rgba(168,191,143,0.85)',
               }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLElement).style.background = 'rgba(42,58,30,0.85)';
@@ -322,7 +334,19 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 (e.currentTarget as HTMLElement).style.borderColor = 'rgba(168,191,143,0.25)';
               }}
             >
-              Regenerovat obrázek
+              {isEditing ? 'Upravuji…' : 'Upravit obrázek'}
+            </button>
+            <button
+              onClick={() => onUndo?.(image)}
+              disabled={!canUndo || isEditing}
+              className="w-full py-2 rounded-lg text-[9px] font-black uppercase tracking-[0.18em] transition-all"
+              style={{
+                background: 'rgba(18,26,13,0.70)',
+                border: '1px solid rgba(168,191,143,0.14)',
+                color: canUndo && !isEditing ? 'rgba(168,191,143,0.65)' : 'rgba(168,191,143,0.25)',
+              }}
+            >
+              Undo
             </button>
           </div>
         </div>

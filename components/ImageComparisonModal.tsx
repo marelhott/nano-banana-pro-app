@@ -21,6 +21,10 @@ interface ImageComparisonModalProps {
   recipe?: any;
   lineage?: { sourceImageIds: string[]; styleImageIds: string[]; sourceImageUrls: string[]; styleImageUrls: string[] };
   versions?: Array<{ url: string; prompt: string; timestamp: number; recipe?: any }>;
+  onEdit?: (prompt: string) => void | Promise<void>;
+  isEditing?: boolean;
+  onUndo?: () => void;
+  canUndo?: boolean;
 }
 
 export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
@@ -29,12 +33,14 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
   resolution, aspectRatio, styleCode, groundingMetadata,
   onNext, onPrev, hasNext, hasPrev,
   recipe, lineage, versions,
+  onEdit, isEditing = false, onUndo, canUndo = false,
 }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [isCompareMode, setIsCompareMode] = useState(false);
   const [showFullPrompt, setShowFullPrompt] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editPrompt, setEditPrompt] = useState(prompt);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -75,8 +81,9 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
   // Reset state when image changes
   useEffect(() => {
     setShowFullPrompt(false);
+    setEditPrompt(prompt);
     // Don't auto-close drawer when navigating between images on mobile to keep flow smooth
-  }, [generatedImage]);
+  }, [generatedImage, prompt]);
 
   const displayedPrompt = useMemo(() => {
     if (showFullPrompt && styleCode !== undefined && styleCode !== null) {
@@ -185,9 +192,17 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
             ) : (
               <img
                 src={generatedImage}
-                className="max-w-full max-h-full object-contain shadow-2xl rounded-lg border"
+                className={`max-w-full max-h-full object-contain shadow-2xl rounded-lg border transition-all duration-500 ${isEditing ? 'blur-md scale-[0.99] opacity-70' : ''}`}
                 style={{ borderColor: 'var(--border-color)' }}
               />
+            )}
+            {isEditing && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="rounded-xl border px-5 py-3 text-[10px] font-black uppercase tracking-[0.22em]"
+                  style={{ background: 'rgba(14,20,10,0.78)', borderColor: 'rgba(168,191,143,0.28)', color: '#a8bf8f' }}>
+                  Upravují se detaily…
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -378,6 +393,48 @@ export const ImageComparisonModal: React.FC<ImageComparisonModalProps> = ({
           >
             Download Image
           </button>
+          {onEdit && (
+            <div className="space-y-2 pt-1">
+              <textarea
+                value={editPrompt}
+                onChange={(event) => setEditPrompt(event.target.value)}
+                rows={3}
+                className="w-full rounded-lg px-3 py-2 text-[11px] leading-relaxed resize-none custom-scrollbar"
+                style={{
+                  background: 'rgba(18,26,13,0.80)',
+                  border: '1px solid rgba(168,191,143,0.18)',
+                  color: 'rgba(255,255,255,0.80)',
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => void onEdit(editPrompt)}
+                disabled={isEditing || !editPrompt.trim()}
+                className="w-full py-2.5 rounded-lg text-[10px] font-black uppercase tracking-[0.18em] transition-all"
+                style={{
+                  background: 'rgba(32,44,24,0.70)',
+                  border: '1px solid rgba(168,191,143,0.25)',
+                  color: isEditing || !editPrompt.trim() ? 'rgba(168,191,143,0.35)' : 'rgba(168,191,143,0.85)',
+                }}
+              >
+                {isEditing ? 'Upravuji…' : 'Upravit obrázek'}
+              </button>
+              <button
+                type="button"
+                onClick={onUndo}
+                disabled={!canUndo || isEditing}
+                className="w-full py-2 rounded-lg text-[9px] font-black uppercase tracking-[0.18em] transition-all"
+                style={{
+                  background: 'rgba(18,26,13,0.70)',
+                  border: '1px solid rgba(168,191,143,0.14)',
+                  color: canUndo && !isEditing ? 'rgba(168,191,143,0.65)' : 'rgba(168,191,143,0.25)',
+                }}
+              >
+                Undo
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

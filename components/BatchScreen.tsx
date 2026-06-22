@@ -39,6 +39,8 @@ type BatchOutput = {
   attempt?: number;
   createdAt: number;
   modelLabel: string;
+  versions?: Array<{ dataUrl: string; prompt: string; createdAt: number }>;
+  isEditing?: boolean;
 };
 
 const BATCH_PRESETS: Array<{ id: BatchPresetId; label: string; title: string; prompt: string }> = [
@@ -222,6 +224,101 @@ export function BatchScreen(props: {
     () => outputs.find((item) => item.id === selectedOutputId && item.dataUrl),
     [outputs, selectedOutputId],
   );
+
+  const handleEditSelectedOutput = React.useCallback(async (editPrompt: string) => {
+    const output = outputs.find((item) => item.id === selectedOutputId && item.dataUrl);
+    const prompt = editPrompt.trim();
+    if (!output?.dataUrl || !prompt) return;
+
+    setOutputs((prev) =>
+      prev.map((item) => item.id === output.id ? { ...item, isEditing: true } : item),
+    );
+
+    try {
+      const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
+      const effectivePrompt = `${prompt}
+
+Edit the provided image according to the instruction above. Preserve the original composition, subject identity, materials, lighting logic, and photographic realism unless the instruction explicitly says otherwise. Do not create a new unrelated image.`;
+      const result = await provider.generateImage(
+        [{ data: output.dataUrl, mimeType: 'image/png' }],
+        effectivePrompt,
+        '1K',
+        'Original',
+        false,
+      );
+
+      setOutputs((prev) =>
+        prev.map((item) => {
+          if (item.id !== output.id) return item;
+          const previousUrl = item.dataUrl || output.dataUrl;
+          return {
+            ...item,
+            dataUrl: result.imageBase64,
+            prompt,
+            isEditing: false,
+            createdAt: Date.now(),
+            versions: previousUrl
+              ? [...(item.versions || []), { dataUrl: previousUrl, prompt: item.prompt, createdAt: item.createdAt }]
+              : item.versions,
+          };
+        }),
+      );
+
+      try {
+        const thumbnail = await createThumbnail(result.imageBase64);
+        await saveToGallery({
+          id: `${output.id}-edit-${Date.now()}`,
+          url: result.imageBase64,
+          thumbnail,
+          prompt,
+          resolution: '1K',
+          aspectRatio: 'Original',
+          params: {
+            operation: 'edit',
+            prompt,
+            effectivePrompt,
+            provider: AIProviderType.GEMINI,
+            promptMode: 'simple',
+            resolution: '1K',
+            aspectRatio: 'Original',
+            sourceImageCount: 1,
+            styleImageCount: 0,
+            createdAt: Date.now(),
+          },
+        });
+      } catch {
+        // uložení do galerie je best-effort
+      }
+
+      onToast({ message: 'Batch obrázek upraven.', type: 'success' });
+    } catch (error) {
+      setOutputs((prev) =>
+        prev.map((item) => item.id === output.id ? { ...item, isEditing: false } : item),
+      );
+      onToast({ message: toUserFacingAiError(error, 'Úprava batch obrázku selhala.'), type: 'error' });
+    }
+  }, [onToast, outputs, providerSettings, selectedOutputId]);
+
+  const handleUndoSelectedOutput = React.useCallback(() => {
+    const output = outputs.find((item) => item.id === selectedOutputId);
+    const previous = output?.versions?.[output.versions.length - 1];
+    if (!output || !previous) return;
+
+    setOutputs((prev) =>
+      prev.map((item) => {
+        if (item.id !== output.id) return item;
+        const nextVersions = (item.versions || []).slice(0, -1);
+        return {
+          ...item,
+          dataUrl: previous.dataUrl,
+          prompt: previous.prompt,
+          createdAt: previous.createdAt,
+          versions: nextVersions,
+          isEditing: false,
+        };
+      }),
+    );
+  }, [outputs, selectedOutputId]);
 
   const orderedOutputs = React.useMemo(() => {
     return [...outputs].sort((a, b) => {
@@ -856,6 +953,10 @@ export function BatchScreen(props: {
         timestamp={selectedOutput?.createdAt}
         resolution="1K"
         aspectRatio="Original"
+        onEdit={handleEditSelectedOutput}
+        isEditing={Boolean(selectedOutput?.isEditing)}
+        onUndo={handleUndoSelectedOutput}
+        canUndo={Boolean(selectedOutput?.versions?.length)}
       />
     </div>
   );
