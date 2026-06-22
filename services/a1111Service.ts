@@ -58,7 +58,9 @@ async function pickSdxlVaeName(baseUrl: string): Promise<string | ''> {
     if (preferred) {
       try {
         localStorage.setItem(cacheKey, JSON.stringify({ value: preferred, ts: Date.now() }));
-      } catch { }
+      } catch {
+        // ignore localStorage write failure
+      }
       return preferred;
     }
   } catch {

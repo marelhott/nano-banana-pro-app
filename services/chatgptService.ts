@@ -84,9 +84,6 @@ Enhanced prompt:`
             const data = await response.json();
             const enhancedPrompt = data.choices?.[0]?.message?.content?.trim() || shortPrompt;
 
-            console.log('[ChatGPT] Original prompt:', shortPrompt);
-            console.log('[ChatGPT] Enhanced prompt:', enhancedPrompt);
-
             return enhancedPrompt;
         } catch (error: any) {
             console.error('[ChatGPT] Prompt enhancement error:', error);
@@ -127,8 +124,6 @@ Enhanced prompt:`
             for (let index = 0; index < ChatGPTProvider.IMAGE_MODELS.length; index++) {
                 const imageModel = ChatGPTProvider.IMAGE_MODELS[index];
                 const isLastModel = index === ChatGPTProvider.IMAGE_MODELS.length - 1;
-
-                console.log('[ChatGPT] Generating image with OpenAI image model...', imageModel);
 
                 const response = await fetch(url, hasInputImage
                     ? {
@@ -186,8 +181,6 @@ Enhanced prompt:`
                     throw new Error('No image data returned from OpenAI image API');
                 }
 
-                console.log('[ChatGPT] Image generated successfully with model:', imageModel);
-
                 return {
                     imageBase64: `data:image/png;base64,${imageB64}`,
                     groundingMetadata: undefined,
@@ -198,9 +191,9 @@ Enhanced prompt:`
         } catch (error: any) {
             console.error('[ChatGPT] API Error:', error);
             if (error instanceof Error) {
-                throw new Error(`Failed to generate image with OpenAI: ${error.message}`);
+                throw new Error(`Failed to generate image with OpenAI: ${error.message}`, { cause: error });
             }
-            throw new Error('An unexpected error occurred while communicating with OpenAI.');
+            throw new Error('An unexpected error occurred while communicating with OpenAI.', { cause: error });
         }
     }
 }

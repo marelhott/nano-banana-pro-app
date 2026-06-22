@@ -6,7 +6,7 @@ type QueueToast = {
   type: ToastType;
 };
 
-type UseGenerationQueueParams<TSnapshot, TAction extends string> = {
+type UseGenerationQueueParams<TSnapshot> = {
   createSnapshot: () => TSnapshot;
   onToast: (toast: QueueToast) => void;
 };
@@ -17,7 +17,7 @@ export type QueuedGenerationItem<TSnapshot, TAction extends string> = {
 };
 
 export function useGenerationQueue<TSnapshot, TAction extends string>(
-  params: UseGenerationQueueParams<TSnapshot, TAction>
+  params: UseGenerationQueueParams<TSnapshot>
 ) {
   const generationQueueRef = useRef<Array<QueuedGenerationItem<TSnapshot, TAction>>>([]);
   const generationLockRef = useRef(false);

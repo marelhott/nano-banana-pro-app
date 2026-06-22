@@ -27,7 +27,7 @@ export function StyleTransferScreen(props: {
   isHoveringGallery: boolean;
   theme?: 'dark' | 'light';
 }) {
-  const { providerSettings, onOpenSettings, onBack, onOpenLibrary, onToast, isHoveringGallery, theme = 'dark' } = props;
+  const { providerSettings, onBack, onOpenLibrary, onToast, isHoveringGallery, theme = 'dark' } = props;
 
   async function normalizeDataUrlPixels(
     dataUrl: string,
@@ -124,6 +124,7 @@ export function StyleTransferScreen(props: {
     try {
       await ImageDatabase.add(file, dataUrl, 'reference');
     } catch {
+      // ignored: local reference persistence is best-effort
     }
   }, []);
 
@@ -137,6 +138,7 @@ export function StyleTransferScreen(props: {
     try {
       await ImageDatabase.add(file, dataUrl, 'style');
     } catch {
+      // ignored: local style persistence is best-effort
     }
   }, []);
 

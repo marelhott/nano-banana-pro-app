@@ -16,6 +16,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
   const [editName, setEditName] = useState('');
   const [editPromptText, setEditPromptText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -161,7 +162,7 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
         >
           {/* Header */}
           <div className="px-4 py-3 bg-transparent border-b border-white/5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-200">Uložené prompty</h3>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-gray-500">{savedPrompts.length}</span>
@@ -176,6 +177,13 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
                 </button>
               </div>
             </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Hledat prompt…"
+              className="w-full text-[10px] bg-black/40 border border-white/10 rounded px-2.5 py-1.5 outline-none focus:border-[#a8bf8f] text-gray-300 placeholder-gray-600"
+            />
           </div>
 
           {/* Seznam promptů */}
@@ -188,7 +196,11 @@ export const SavedPromptsDropdown: React.FC<SavedPromptsDropdownProps> = ({ onSe
               </div>
             ) : (
               <div className="py-2">
-                {savedPrompts.map((saved) => (
+                {savedPrompts.filter(s =>
+                  !searchQuery.trim() ||
+                  s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  s.prompt.toLowerCase().includes(searchQuery.toLowerCase())
+                ).map((saved) => (
                   <div
                     key={saved.id}
                     className="group px-4 py-3 hover:bg-[#101210]/30 transition-colors border-b border-gray-800/50 last:border-b-0"

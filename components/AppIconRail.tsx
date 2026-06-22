@@ -48,7 +48,21 @@ export function AppIconRail(props: {
           </button>
         );
       })}
-      {bottomItems.length > 0 ? <div className="mt-auto flex w-full flex-col items-center gap-2.5 pt-4" /> : null}
+      {/* Workflow external link */}
+      <div className="mt-auto flex w-full flex-col items-center gap-2.5 pt-4">
+        <a
+          href="/workflow"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Workflow Editor (Node Editor)"
+          className="relative w-14 min-h-[48px] transition-colors flex flex-col items-center justify-center gap-1 text-zinc-500 hover:text-zinc-200"
+        >
+          <svg className="w-[13px] h-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+          <span className="max-w-full truncate text-[7px] font-bold uppercase tracking-[0.12em] leading-none">Workflow</span>
+        </a>
+      </div>
       {bottomItems.map((item) => {
         const isActive = item.id === active;
         return (

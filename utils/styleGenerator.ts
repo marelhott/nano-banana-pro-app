@@ -20,20 +20,11 @@ const pickOneWithWeight = (arr: string[], rand: () => number): string => {
     // Generate Weight (0.0 to 1.0)
     const weight = rand();
     
-    let prefix = "";
-    if (weight < 0.2) {
-        prefix = "Faint hint of ";
-    } else if (weight < 0.4) {
-        prefix = "Subtle ";
-    } else if (weight < 0.6) {
-        prefix = ""; // Standard application
-    } else if (weight < 0.8) {
-        prefix = "Strong ";
-    } else {
-        prefix = "Intense ";
-    }
-    
-    return `${prefix}${item}`;
+    if (weight < 0.2) return `Faint hint of ${item}`;
+    if (weight < 0.4) return `Subtle ${item}`;
+    if (weight < 0.6) return item; // Standard application
+    if (weight < 0.8) return `Strong ${item}`;
+    return `Intense ${item}`;
 };
 
 // Abstracted aesthetics and artistic movements (no literal locations or diagram-triggering words)

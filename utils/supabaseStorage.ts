@@ -292,7 +292,7 @@ export async function urlToDataUrl(url: string): Promise<string> {
     });
   } catch (error) {
     console.error('Error converting URL to data URL:', error);
-    throw new Error(`Nepodařilo se převést URL na data URL: ${error}`);
+    throw new Error(`Nepodařilo se převést URL na data URL: ${error}`, { cause: error });
   }
 }
 

@@ -6,10 +6,6 @@ type R2PresignResponse = {
   expires: number;
 };
 
-function assertOk(res: Response, message: string) {
-  if (!res.ok) throw new Error(`${message} (HTTP ${res.status})`);
-}
-
 export async function presignR2(params: {
   op: 'get' | 'put';
   bucket?: string;
@@ -35,7 +31,7 @@ export async function presignR2(params: {
     throw new Error(`R2 presign selhal (HTTP ${res.status}): ${String(detail).slice(0, 500)}`);
   }
 
-  let payload: any = null;
+  let payload: any;
   try {
     payload = JSON.parse(text);
   } catch {

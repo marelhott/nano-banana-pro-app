@@ -178,7 +178,7 @@ async function start() {
       res.status(upstream.status)
       res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
       return res.send(text)
-    } catch (err) {
+    } catch {
       return res.status(500).json({ error: 'Replicate proxy failed' })
     }
   })
@@ -351,8 +351,6 @@ async function start() {
   }
 
   const server = app.listen(HOST_PORT, () => {
-    console.log(`> Host ready on http://localhost:${HOST_PORT}`)
-    console.log(`> Nodes mounted at http://localhost:${HOST_PORT}/nodes`)
   })
 
   const shutdown = () => {

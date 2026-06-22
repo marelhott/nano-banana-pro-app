@@ -65,9 +65,6 @@ Vylepšený prompt:`;
 
       const enhancedPrompt = response.text?.trim() || shortPrompt;
 
-      console.log('[Gemini] Original prompt:', shortPrompt);
-      console.log('[Gemini] Enhanced prompt:', enhancedPrompt);
-
       return enhancedPrompt;
     } catch (error: any) {
       console.error('[Gemini] Prompt enhancement error:', error);
@@ -114,8 +111,6 @@ Uživatelův prompt: "${simplePrompt}"
 
 VYPIŠ POUZE JSON POLE:`;
 
-      console.log('[Gemini 3 Variants] Generating variants for:', simplePrompt);
-
       const response = await this.ai.models.generateContent({
         model: GeminiProvider.TEXT_MODEL,
         contents: {
@@ -132,8 +127,6 @@ VYPIŠ POUZE JSON POLE:`;
       // Clean markdown if present
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
-      console.log('[Gemini 3 Variants] Raw response:', jsonText.substring(0, 200) + '...');
-
       // Parse JSON
       const variants = JSON.parse(jsonText);
 
@@ -148,14 +141,11 @@ VYPIŠ POUZE JSON POLE:`;
         }
       }
 
-      console.log('[Gemini 3 Variants] Successfully generated variants:', variants.map(v => v.variant).join(', '));
-
       return variants;
     } catch (error: any) {
       console.error('[Gemini 3 Variants] Error:', error);
 
       // Fallback: return simple variants in Czech
-      console.log('[Gemini 3 Variants] Using fallback variants (Czech)');
       return [
         {
           variant: 'Fotorealistický',
@@ -286,8 +276,6 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
 
       // Validate JSON
       JSON.parse(jsonText);
-
-      console.log('[Gemini Vision] Analysis complete:', jsonText);
       return jsonText;
     } catch (error: any) {
       console.error('[Gemini Vision] Analysis error:', error);
@@ -315,7 +303,6 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
     }
 
     try {
-      console.log('[Gemini] Generating image with prompt:', prompt);
 
       const parts: any[] = [];
 
@@ -398,15 +385,12 @@ Be specific and detailed. Output ONLY valid JSON, no markdown code blocks, no ad
         const modelName = modelCandidates[i];
         const isLast = i === modelCandidates.length - 1;
         try {
-          console.log('[Gemini] Requesting model:', modelName);
 
           const response = await this.ai.models.generateContent({
             model: modelName,
             contents: parts,
             config: config,
           });
-
-          console.log('[Gemini] Response received from model:', modelName);
 
           const candidate = response.candidates?.[0];
           const finishReason = candidate?.finishReason;
@@ -482,7 +466,7 @@ const getStoredApiKey = () => {
       const parsed = JSON.parse(settings);
       return parsed.GEMINI?.apiKey || '';
     }
-  } catch (e) {
+  } catch {
     return '';
   }
   return '';

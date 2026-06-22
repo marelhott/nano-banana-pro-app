@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { parsePromptToCategories, categoriesToPrompt, semanticRemix, CATEGORY_LABELS, type PromptCategories } from '../utils/semanticPromptRemix';
+import { parsePromptToCategories, semanticRemix, CATEGORY_LABELS, type PromptCategories } from '../utils/semanticPromptRemix';
 
 interface PromptPart {
   id: string;

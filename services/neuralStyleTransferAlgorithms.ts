@@ -180,7 +180,6 @@ async function getVggContext(): Promise<VggContext> {
         const extractor = tf.model({ inputs: base.inputs, outputs });
         const inputShape = base.inputs?.[0]?.shape || [];
         const inputSize = typeof inputShape?.[1] === 'number' && Number.isFinite(inputShape[1]) ? Number(inputShape[1]) : null;
-        console.info(`[StyleTransfer] Backbone loaded: ${candidate.id}`);
         return { tf, extractor, styleLayerCount: styleNames.length, preprocessMode: candidate.preprocessMode, inputSize };
       } catch (err: any) {
         errors.push(`${candidate.id}: ${String(err?.message || err)}`);

@@ -222,7 +222,6 @@ export async function runArbitraryStyleTransferTfjs(opts: ArbitraryStyleTransfer
   } finally {
     for (const t of tensorsToDispose) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if (t && typeof (t as any).dispose === 'function') (t as any).dispose();
       } catch {
         // ignore

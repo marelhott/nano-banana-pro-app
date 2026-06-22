@@ -141,11 +141,6 @@ function parseJsonObject(raw: string): Record<string, any> {
   return parsed as Record<string, any>;
 }
 
-function buildPromptlessAutoPrompt(): string {
-  // "No prompt in UI" means we keep it automatic and non-invasive.
-  return 'image-to-image transformation, preserve subject identity and composition, high quality, detailed';
-}
-
 function buildModelInfluenceDetailsText(opts: {
   backend: 'fal' | 'a1111';
   modelName: string;
@@ -314,7 +309,8 @@ export function ModelInfluenceScreen(props: {
       return;
     }
     let cleanModel = '';
-    let modelDisplay = '';
+    const modelDisplayDefault = String(modelName || '').trim();
+    let modelDisplay: string;
     let a1111CheckpointName = '';
     if (backend === 'fal') {
       try {
@@ -337,7 +333,9 @@ export function ModelInfluenceScreen(props: {
             const parts = u.pathname.split('/').filter(Boolean);
             return parts[parts.length - 1] || '';
           }
-        } catch { }
+        } catch {
+          // ignored: invalid remote URL falls back to raw model name
+        }
         return '';
       })();
       const fromR2 = (() => {
@@ -347,7 +345,9 @@ export function ModelInfluenceScreen(props: {
             const parts = String(key || '').split('/').filter(Boolean);
             return parts[parts.length - 1] || '';
           }
-        } catch { }
+        } catch {
+          // ignored: invalid R2 reference falls back to raw model name
+        }
         return '';
       })();
       a1111CheckpointName = fromUrl || fromR2 || raw;
@@ -479,7 +479,7 @@ export function ModelInfluenceScreen(props: {
 
       const detailsText = buildModelInfluenceDetailsText({
         backend,
-        modelName: modelDisplay || String(modelName || '').trim(),
+        modelName: modelDisplay || modelDisplayDefault,
         styleWeight,
         cfg,
         denoise: effectiveDenoise,
@@ -515,7 +515,7 @@ export function ModelInfluenceScreen(props: {
             prompt: 'img2img',
             params: {
               engine: backend === 'fal' ? 'fal_sdxl_img2img' : 'a1111_sdxl_img2img',
-              modelName: modelDisplay || String(modelName || '').trim(),
+              modelName: modelDisplay || modelDisplayDefault,
               cfg,
               strength: effectiveDenoise,
               steps,
@@ -762,7 +762,9 @@ export function ModelInfluenceScreen(props: {
                             setGenerated((prev) => prev.filter((it) => it.id !== img.id));
                             try {
                               await deleteGeneratedImage(img.id);
-                            } catch { }
+                            } catch {
+                              // ignored: remote delete is best-effort
+                            }
                           }}
                         >
                           <X size={14} strokeWidth={3} />

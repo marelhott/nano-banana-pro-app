@@ -34,9 +34,6 @@ export class GrokProvider implements AIProvider {
         try {
             const enhancedPrompt = await this.callEnhancePromptWithFallback(shortPrompt);
 
-            console.log('[Grok] Original prompt:', shortPrompt);
-            console.log('[Grok] Enhanced prompt:', enhancedPrompt);
-
             return enhancedPrompt;
         } catch (error: any) {
             console.error('[Grok] Prompt enhancement error:', error);
@@ -94,7 +91,6 @@ export class GrokProvider implements AIProvider {
         }
 
         try {
-            console.log('[Grok] Generating image with grok-imagine-image...');
 
             // Grok uses a text-to-image endpoint
             const response = await fetch(`${this.baseUrl}/images/generations`, {
@@ -124,17 +120,15 @@ export class GrokProvider implements AIProvider {
                 throw new Error('No image data returned from Grok API');
             }
 
-            console.log('[Grok] Image generated successfully');
-
             return {
                 imageBase64: imageB64 ? `data:image/png;base64,${imageB64}` : await this.fetchImageAsDataUrl(imageUrl)
             };
         } catch (error: any) {
             console.error('[Grok] API Error:', error);
             if (error instanceof Error) {
-                throw new Error(`Failed to generate image with Grok: ${error.message}`);
+                throw new Error(`Failed to generate image with Grok: ${error.message}`, { cause: error });
             }
-            throw new Error('An unexpected error occurred while communicating with Grok AI.');
+            throw new Error('An unexpected error occurred while communicating with Grok AI.', { cause: error });
         }
     }
 

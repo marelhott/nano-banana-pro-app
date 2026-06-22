@@ -4,7 +4,12 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  let { token, version, input } = (req.body || {}) as {
+  let { token } = (req.body || {}) as {
+    token?: string;
+    version?: string;
+    input?: unknown;
+  };
+  const { version, input } = (req.body || {}) as {
     token?: string;
     version?: string;
     input?: unknown;

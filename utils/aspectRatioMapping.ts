@@ -14,16 +14,6 @@ export interface AspectRatioMapping {
 // Gemini podporuje aspect ratio přímo jako string
 const GEMINI_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
 
-// ChatGPT/DALL-E podporuje jen 3 pevné velikosti
-const CHATGPT_SIZES: Record<string, { width: number; height: number }> = {
-  '1024x1024': { width: 1024, height: 1024 },
-  '1024x1536': { width: 1024, height: 1536 },
-  '1536x1024': { width: 1536, height: 1024 },
-};
-
-// Grok nemá aspect ratio parametr, jen generuje čtverce
-const GROK_SIZE = { width: 1024, height: 1024 };
-
 // Replicate (FLUX) podporuje aspect ratio jako string
 const REPLICATE_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '9:21', '21:9'];
 
@@ -36,7 +26,7 @@ function ratioToFloat(ratio: string): number {
 function findClosestRatio(target: number, available: string[]): { ratio: string; exact: boolean } {
   let closest = available[0];
   let minDiff = Infinity;
-  let exact = false;
+  const exact = false;
 
   for (const r of available) {
     const val = ratioToFloat(r);

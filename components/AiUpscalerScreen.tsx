@@ -1,7 +1,6 @@
 import React from 'react';
-import { Download, Sparkles, X } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import { GeminiProvider } from '../services/geminiService';
-import { AIProviderType, ImageInput } from '../services/aiProvider';
 import { createThumbnail, saveToGallery } from '../utils/galleryDB';
 import { ImageDatabase } from '../utils/imageDatabase';
 import { fileToDataUrl } from './styleTransfer/utils';
@@ -11,11 +10,13 @@ import { AtelierEmptyState, AtelierInfoRows, AtelierRightPanel, AtelierSection }
 import { decideAdaptiveConcurrency, estimateDataUrlBytes, runConcurrentTasks } from '../utils/concurrencyRunner';
 import { toUserFacingAiError } from '../utils/aiErrorMessage';
 
-type UpscaleMode = 'restore' | 'enhance';
+type UpscaleMode = 'restore' | 'enhance' | 'denoise' | 'upscale-only';
 
 const FLASH_MODEL = 'gemini-3.1-flash-image-preview';
 const PRO_MODEL = 'gemini-3-pro-image-preview';
 const UPSCALE_PROMPT = "Upscale this image faithfully without any creative intent. Preserve the original photo as much as possible, only compute necessary artifacts.";
+const DENOISE_PROMPT = "Remove noise, grain, compression artifacts, and sensor noise from this image. Make it clean and crisp. Preserve all original details, colors, and subject identity. Do not add creative changes.";
+const UPSCALE_ONLY_PROMPT = "Increase the resolution of this image without any AI enhancement, artistic interpretation, or modification. Pure geometric upscaling only. Preserve exact pixel content, colors, and detail as-is.";
 
 type ImageSlot = {
   id: string;
@@ -91,15 +92,34 @@ function buildOutputId(inputId: string, mode: UpscaleMode): string {
 }
 
 function modeLabel(mode: UpscaleMode): string {
-  return mode === 'restore' ? 'Restore' : 'Enhance';
+  if (mode === 'restore') return 'Restore';
+  if (mode === 'enhance') return 'Enhance';
+  if (mode === 'denoise') return 'Denoise';
+  return 'Upscale Only';
 }
 
 function modeModel(mode: UpscaleMode): string {
-  return mode === 'restore' ? 'Gemini 3.1 Flash' : 'Gemini 3 Pro';
+  if (mode === 'restore') return 'Flash';
+  if (mode === 'enhance') return 'Pro';
+  if (mode === 'denoise') return 'Flash';
+  return 'Flash';
 }
 
 function modeModelId(mode: UpscaleMode): string {
-  return mode === 'restore' ? FLASH_MODEL : PRO_MODEL;
+  return mode === 'enhance' ? PRO_MODEL : FLASH_MODEL;
+}
+
+function modePrompt(mode: UpscaleMode): string {
+  if (mode === 'denoise') return DENOISE_PROMPT;
+  if (mode === 'upscale-only') return UPSCALE_ONLY_PROMPT;
+  return UPSCALE_PROMPT;
+}
+
+function modeDescription(mode: UpscaleMode): string {
+  if (mode === 'restore') return 'Opraví artefakty, zachová detail';
+  if (mode === 'enhance') return 'AI vylepšení, více kreativity';
+  if (mode === 'denoise') return 'Odstraní šum a grain';
+  return 'Čisté zvětšení bez AI zásahu';
 }
 
 export function AiUpscalerScreen(props: {
@@ -108,7 +128,7 @@ export function AiUpscalerScreen(props: {
   onToast: (toast: { message: string; type: ToastType }) => void;
   theme?: 'dark' | 'light';
 }) {
-  const { onOpenSettings, onOpenLibrary, onToast, theme = 'dark' } = props;
+  const { onOpenLibrary, onOpenSettings, onToast, theme = 'dark' } = props;
 
   const [inputs, setInputs] = React.useState<ImageSlot[]>([]);
   const [scale, setScale] = React.useState<2 | 4>(2);
@@ -131,10 +151,6 @@ export function AiUpscalerScreen(props: {
 
   const phaseLabel =
     phase === 'queue' ? 'Ve frontě' : phase === 'running' ? 'Zpracovávám' : phase === 'finalizing' ? 'Dokončuji' : '';
-  const phaseProgress = batchProgress
-    ? Math.round(((batchProgress.current - (phase === 'finalizing' ? 0 : 1)) / Math.max(1, batchProgress.total)) * 100)
-    : phase === 'queue' ? 16 : phase === 'running' ? 68 : phase === 'finalizing' ? 94 : 0;
-
   const visibleOutputs = React.useMemo(() => {
     return [...outputs].sort((a, b) => b.createdAt - a.createdAt);
   }, [outputs]);
@@ -254,7 +270,7 @@ export function AiUpscalerScreen(props: {
           const provider = new GeminiProvider(geminiKey || '', modelName);
           const result = await provider.generateImage(
             [{ data: input.dataUrl, mimeType: input.file.type }],
-            UPSCALE_PROMPT,
+            modePrompt(mode),
             scale === 4 ? '2K' : '1K',
             undefined,
             false
@@ -282,10 +298,12 @@ export function AiUpscalerScreen(props: {
               id: buildOutputId(input.id, mode),
               url: result.imageBase64,
               thumbnail: thumb,
-              prompt: `${modeLabel(mode)} ${UPSCALE_PROMPT}`,
+              prompt: `${modeLabel(mode)} — ${modePrompt(mode).slice(0, 80)}`,
               params: { engine: modelName, mode, scale, operation: 'upscale' },
             });
-          } catch { /* ok */ }
+          } catch {
+            // ignored: gallery save is best-effort for upscale outputs
+          }
 
           return { result, dims };
         },
@@ -297,9 +315,6 @@ export function AiUpscalerScreen(props: {
       results.forEach((entry) => {
         const input = inputsToProcess[entry.index];
         if (!input) return;
-        const modelName = modeModelId(mode);
-        const label = modeLabel(mode);
-
         if (entry.status === 'fulfilled') {
           completed += 1;
           setOutputs(prev => prev.map(o =>
@@ -359,18 +374,18 @@ export function AiUpscalerScreen(props: {
           >
             {isGenerating
               ? `${modeLabel(mode)} • ${phaseLabel || '…'}`
-              : `${modeLabel(mode)} ${mode === 'restore' ? 'Flash' : 'Pro'} ${scale}× • ${Math.max(1, pendingCount || inputs.length)} zbývá`
+              : `${modeLabel(mode)} ${scale}× • ${Math.max(1, pendingCount || inputs.length)} zbývá`
             }
           </button>
 
           <div className="space-y-2">
             <div className="mn-section-label">Režim</div>
             <div className="grid grid-cols-2 gap-2">
-              {(['restore', 'enhance'] as const).map(m => (
+              {(['restore', 'enhance', 'denoise', 'upscale-only'] as const).map(m => (
                 <button key={m} type="button" onClick={() => setMode(m)}
-                  className={`mn-option-button ${mode === m ? 'mn-option-button-active' : ''}`}>
-                  <div>{modeLabel(m)}</div>
-                  <div className="mt-1 text-[9px] text-white/45">{modeModel(m)}</div>
+                  className={`mn-option-button text-left ${mode === m ? 'mn-option-button-active' : ''}`}>
+                  <div className="text-[9px] font-bold">{modeLabel(m)}</div>
+                  <div className="mt-0.5 text-[8px] text-white/40 leading-tight">{modeDescription(m)}</div>
                 </button>
               ))}
             </div>
@@ -444,7 +459,6 @@ export function AiUpscalerScreen(props: {
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
               {visibleOutputs.map(output => {
                 const isDone = output.status === 'done' && !!output.dataUrl;
-                const isRunning = output.status === 'running';
                 return (
                   <div key={output.id} className="rounded-2xl overflow-hidden border border-[rgba(168,191,143,0.18)]">
                     <button type="button" onClick={() => { if (!isDone || !output.dataUrl) return; setSelectedImage(output); }}

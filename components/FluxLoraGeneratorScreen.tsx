@@ -766,7 +766,6 @@ export function FluxLoraGeneratorScreen(props: {
     [onToast]
   );
 
-  const canGenerate = Boolean(input?.dataUrl) && !isTestingGrid;
   const fluxEndpointId =
     fluxEndpoint === 'flux2' ? 'fal-ai/flux-2/lora/edit' : 'fal-ai/flux-lora/image-to-image';
   const showDenoise = !(modelFamily === 'flux' && fluxEndpoint === 'flux2');
@@ -1772,7 +1771,9 @@ export function FluxLoraGeneratorScreen(props: {
                               setGenerated((prev) => prev.filter((it) => it.id !== img.id));
                               try {
                                 await deleteGeneratedImage(img.id);
-                              } catch { }
+                              } catch {
+                                // ignored: delete is best-effort
+                              }
                             }}
                           >
                             <X size={14} strokeWidth={3} />

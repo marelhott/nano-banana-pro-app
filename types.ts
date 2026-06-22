@@ -111,6 +111,7 @@ export interface AppState {
   styleImages: SourceImage[];
   assetImages: SourceImage[];
   generatedImages: GeneratedImage[];
+  trashedImages: GeneratedImage[];
   prompt: string;
   aspectRatio: string;
   resolution: string;
@@ -118,8 +119,8 @@ export interface AppState {
   numberOfImages: number;
   multiRefMode?: 'batch' | 'together';
   shouldAutoGenerate?: boolean;
-  styleStrength?: number; // 0-100 síla stylu
-  styleWeights?: Record<string, number>; // váhy pro individuální stylové obrázky
+  styleStrength?: number;
+  styleWeights?: Record<string, number>;
 }
 
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/heic' | 'image/heif';

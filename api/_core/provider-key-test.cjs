@@ -81,7 +81,7 @@ exports.handler = async (event) => {
     return json(405, { success: false, error: "Method not allowed" });
   }
 
-  let body = {};
+  let body;
   try {
     body = JSON.parse(event.body || "{}");
   } catch {

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AIProviderType, ProviderSettings, PROVIDER_METADATA, type HeadSwapGender, type HeadSwapHairSource } from '../services/aiProvider';
 import { ProviderFactory } from '../services/providerFactory';
 import { ImageDatabase, SettingsDatabase } from '../utils/imageDatabase';
+import { exportAllData, importData } from '../utils/dataBackup';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -37,6 +38,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
     const [falTestResult, setFalTestResult] = useState<'success' | 'error' | null>(null);
     const [a1111TestResult, setA1111TestResult] = useState<'success' | 'error' | null>(null);
+    const [backupStatus, setBackupStatus] = useState<string | null>(null);
+    const importFileRef = useRef<HTMLInputElement>(null);
     const [storageStats, setStorageStats] = useState<{
         savedCount: number;
         generatedCount: number;
@@ -547,7 +550,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2 uppercase tracking-wider">Primární engine</label>
                                     <select
                                         value={headSwapSettings.preferredPrimary}
-                                        onChange={(e) => setLocalSettings({
+                                        onChange={() => setLocalSettings({
                                             ...localSettings,
                                             headSwap: {
                                                 ...headSwapSettings,
@@ -826,6 +829,59 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </div>
                     <div className="h-4" />
+                </div>
+
+                {/* Záloha dat */}
+                <div className="border-t border-gray-800 px-6 py-5 space-y-3">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-secondary)]">Záloha dat</div>
+                    <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">Exportuj nebo importuj prompty a galerii jako JSON zálohu.</p>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                try {
+                                    setBackupStatus('Exportuji…');
+                                    await exportAllData();
+                                    setBackupStatus('Export hotový ✓');
+                                    setTimeout(() => setBackupStatus(null), 3000);
+                                } catch {
+                                    setBackupStatus('Export selhal');
+                                }
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-[rgba(168,191,143,0.20)] bg-[rgba(32,44,24,0.55)] text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.45)] hover:text-[var(--accent)] transition-all"
+                        >
+                            Exportovat zálohu
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => importFileRef.current?.click()}
+                            className="flex-1 px-3 py-2 rounded-lg border border-[rgba(168,191,143,0.20)] bg-[rgba(32,44,24,0.55)] text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:border-[rgba(168,191,143,0.45)] hover:text-[var(--accent)] transition-all"
+                        >
+                            Importovat zálohu
+                        </button>
+                    </div>
+                    {backupStatus && (
+                        <div className="text-[9px] text-[var(--accent)] font-bold">{backupStatus}</div>
+                    )}
+                    <input
+                        ref={importFileRef}
+                        type="file"
+                        accept=".json"
+                        className="hidden"
+                        onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                                setBackupStatus('Importuji…');
+                                const result = await importData(file);
+                                setBackupStatus(`Import hotový ✓ — ${result.prompts} promptů, ${result.images} obrázků`);
+                                setTimeout(() => setBackupStatus(null), 5000);
+                            } catch {
+                                setBackupStatus('Import selhal — neplatný soubor');
+                            }
+                            e.target.value = '';
+                        }}
+                    />
                 </div>
 
                 {/* Footer */}

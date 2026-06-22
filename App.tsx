@@ -1,11 +1,9 @@
 import React, { Suspense, lazy, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import './src/index.css'; // ENFORCE NEW STYLES
-import { Upload, X, FileJson, ArrowLeftRight, Folder, Sparkles } from 'lucide-react'; // Added icons for design
-import { ImageUpload } from './components/ImageUpload';
+import { X, FileJson, ArrowLeftRight, Sparkles } from 'lucide-react'; // Added icons for design
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { analyzeImageForJsonWithAI, enhancePromptWithAI, analyzeStyleTransferWithAI } from './services/geminiService';
-import { AppState, GeneratedImage, GenerationRecipe, SourceImage, LineageEntry } from './types';
-import { ImageComparisonModal } from './components/ImageComparisonModal';
+import { AppState, GeneratedImage, GenerationRecipe, SourceImage } from './types';
 import { ImageDetailModal } from './components/ImageDetailModal';
 import { Header } from './components/Header';
 import { GalleryModal } from './components/GalleryModal';
@@ -14,14 +12,12 @@ import { slugify } from './utils/stringUtils.ts';
 import { GalleryImage, saveToGallery, createThumbnail, getAllImages, deleteImage as deleteGalleryImage } from './utils/galleryDB';
 import { ImageDatabase } from './utils/imageDatabase';
 import { backfillLocalLibraryMetadataToCloud, urlToDataUrl } from './utils/supabaseStorage';
-import { ApiUsagePanel } from './components/ApiUsagePanel';
 import { CollectionsModal } from './components/CollectionsModal';
 import { PromptTemplatesModal } from './components/PromptTemplatesModal';
 import { PromptRemixModal } from './components/PromptRemixModal';
 import { QuickActionsMenu, QuickAction } from './components/QuickActionsMenu';
 import { ApiUsageTracker } from './utils/apiUsageTracking';
 import { PromptHistory } from './utils/promptHistory';
-import { detectLanguage, enhancePromptQuality, getPromptSuggestion } from './utils/languageSupport';
 import { formatJsonPromptForImage } from './utils/jsonPrompting';
 import { ImageGalleryPanel } from './components/ImageGalleryPanel';
 import { SettingsModal } from './components/SettingsModal';
@@ -30,7 +26,6 @@ import { GeminiProvider } from './services/geminiService';
 import { AIProviderType, ProviderSettings, type ImageInput } from './services/aiProvider';
 import { ProviderFactory } from './services/providerFactory';
 import { Toast, ToastType } from './components/Toast';
-import { applyAdvancedInterpretation } from './utils/promptInterpretation';
 import { runSupabaseSmokeTests } from './utils/smokeTests';
 import { ensureSupabaseClient, SUPABASE_ANON_DISABLED_ERROR_MESSAGE, ensureLocalAppUserId } from './utils/supabaseClient';
 import { createReferenceStyleComposite } from './utils/imagePanelComposite';
@@ -43,15 +38,15 @@ import { getInterRequestDelayMs, getRetryBackoffMs, type NanoBananaImageModel } 
 import { useProviderSettings } from './hooks/useProviderSettings';
 import { CLOUD_SYNC_EVENT_NAME, type CloudSyncEventDetail } from './utils/cloudSyncEvents';
 import { toUserFacingAiError } from './utils/aiErrorMessage';
-import { useGenerationQueue, type QueuedGenerationItem } from './hooks/useGenerationQueue';
+import { useGenerationQueue } from './hooks/useGenerationQueue';
 import { useGenerationSnapshot, type GenerationQueueSnapshot } from './hooks/useGenerationSnapshot';
 import { useGenerationSettingsGuard } from './hooks/useGenerationSettingsGuard';
 import { getGenerationResultSummary } from './utils/generationFeedback';
 import { useRepopulateActions } from './hooks/useRepopulateActions';
 import { usePromptHistoryActions } from './hooks/usePromptHistoryActions';
-import { buildSimpleLinkPrompt, composeGenerationPrompt } from './utils/promptComposition';
+import { composeGenerationPrompt } from './utils/promptComposition';
 import { buildGenerationLineage } from './utils/generationLineage';
-import { buildBatchRecipe, buildEditRecipe, buildGenerateRecipe, buildThreeAiRecipe, buildVariantRecipe } from './utils/generationRecipe';
+import { buildBatchRecipe, buildGenerateRecipe, buildThreeAiRecipe, buildVariantRecipe } from './utils/generationRecipe';
 import {
   BATCH_PARALLEL_SIZE,
   chunkBatchImages,
@@ -97,12 +92,6 @@ const LazyBatchScreen = lazy(async () => {
   return { default: module.BatchScreen };
 });
 
-const ASPECT_RATIOS = ['Original', '1:1', '2:3', '3:2', '3:4', '4:3', '5:4', '4:5', '9:16', '16:9', '21:9'];
-const RESOLUTIONS = [
-  { value: '1K', label: '1K (~1024px)' },
-  { value: '2K', label: '2K (~2048px)' },
-  { value: '4K', label: '4K (~4096px)' }
-];
 const MAX_GENERATED_IMAGES = 14;
 const PROVIDER_SETTINGS_STORAGE_KEY = 'providerSettings';
 const THEME_STORAGE_KEY = 'mulen-theme';
@@ -318,7 +307,7 @@ const App: React.FC = () => {
   const [isSupabaseReady, setIsSupabaseReady] = useState(false);
   const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(true);
   const [authFailureMessage, setAuthFailureMessage] = useState<string | null>(null);
-  const [appUserId, setAppUserId] = useState<string | null>(null);
+  const [, setAppUserId] = useState<string | null>(null);
   const [isAppUserBootstrapping, setIsAppUserBootstrapping] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof document !== 'undefined') {
@@ -352,7 +341,7 @@ const App: React.FC = () => {
   const [useGrounding, setUseGrounding] = useState(false);
   const [jsonContext, setJsonContext] = useState<{ fileName: string; content: any } | null>(null);
   const [generationPromptPreview, setGenerationPromptPreview] = useState<string | null>(null);
-  const [batchProgress, setBatchProgress] = useState<{
+  const [, setBatchProgress] = useState<{
     current: number;
     total: number;
     currentChunk: number;
@@ -361,7 +350,6 @@ const App: React.FC = () => {
 
   const [selectedGeneratedImages, setSelectedGeneratedImages] = useState<Set<string>>(new Set());
   const [downloadingAll, setDownloadingAll] = useState(false);
-  const [isHoveringGallery, setIsHoveringGallery] = useState(false);
 
   // Nové umělecké funkce
   const [styleStrength, setStyleStrength] = useState(50);
@@ -452,9 +440,9 @@ const App: React.FC = () => {
 
       const result = await runSupabaseSmokeTests((message, data) => {
         if (data !== undefined) {
-          console.log(`[Smoke] ${message}`, data);
+          console.warn(`[Smoke] ${message}`, data);
         } else {
-          console.log(`[Smoke] ${message}`);
+          console.warn(`[Smoke] ${message}`);
         }
       });
       if (cancelled) return;
@@ -587,6 +575,7 @@ const App: React.FC = () => {
     styleImages: [],
     assetImages: [],
     generatedImages: [],
+    trashedImages: [],
     prompt: '',
     aspectRatio: 'Original',
     resolution: '1K',
@@ -648,22 +637,16 @@ const App: React.FC = () => {
   }, []);
 
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
-  const [gridCols, setGridCols] = useState<number>(3);
+  const [refineImage, setRefineImage] = useState<GeneratedImage | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [rightPanelWidth, setRightPanelWidth] = useState(360);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [editPrompts, setEditPrompts] = useState<Record<string, string>>({});
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isGalleryExpanded, setIsGalleryExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const activeGenerationsRef = useRef(0);
-  const [inlineEditStates, setInlineEditStates] = useState<Record<string, { prompt: string; referenceImages: SourceImage[] }>>({});
-  const [showReferenceUpload, setShowReferenceUpload] = useState<Record<string, boolean>>({});
-  const [isGenerateClicked, setIsGenerateClicked] = useState(false);
-  const [referenceImageSource, setReferenceImageSource] = useState<'computer' | 'database'>('computer');
-  const [styleImageSource, setStyleImageSource] = useState<'computer' | 'database'>('computer');
   const [dragOverTarget, setDragOverTarget] = useState<'reference' | 'style' | 'asset' | null>(null);
 
   const [routePath, setRoutePath] = useState('/');
@@ -722,7 +705,7 @@ const App: React.FC = () => {
     position: { x: number; y: number };
     imageId: string | null;
   }>({ isOpen: false, position: { x: 0, y: 0 }, imageId: null });
-  const [generationProgress, setGenerationProgress] = useState<{
+  const [, setGenerationProgress] = useState<{
     current: number;
     total: number;
   } | null>(null);
@@ -802,14 +785,6 @@ const App: React.FC = () => {
       const width = window.innerWidth;
       const mobile = width < 1024;
       setIsMobile(mobile);
-
-      if (width < 640) {
-        setGridCols(1);
-      } else if (width < 1024) {
-        setGridCols(2);
-      } else {
-        setGridCols(prev => prev < 3 ? 3 : prev);
-      }
 
       // Zajistit že pravý panel se vejde do viewportu
       // Layout: [levý panel 320px] [resize 1px] [main flex-1] [resize 1px] [pravý panel]
@@ -915,13 +890,6 @@ const App: React.FC = () => {
     };
   }, [resize, stopResizing]);
 
-  const getLoadingAspectRatio = useCallback((ratio: string | undefined): React.CSSProperties => {
-    if (!ratio || ratio === 'Original') return { aspectRatio: '1 / 1' };
-    const [w, h] = ratio.split(':');
-    if (!w || !h) return { aspectRatio: '1 / 1' };
-    return { aspectRatio: `${w} / ${h}` };
-  }, []);
-
   const handleImagesSelected = useCallback((files: File[]) => {
     files.forEach(file => {
       const reader = new FileReader();
@@ -949,7 +917,7 @@ const App: React.FC = () => {
       };
       reader.readAsDataURL(file);
     });
-  }, [state.sourceImages]);
+  }, []);
 
   const handleStyleImagesSelected = useCallback((files: File[]) => {
     files.forEach(file => {
@@ -978,7 +946,7 @@ const App: React.FC = () => {
       };
       reader.readAsDataURL(file);
     });
-  }, [state.styleImages]);
+  }, []);
 
   const handleAssetImagesSelected = useCallback((files: File[]) => {
     files.forEach(file => {
@@ -1005,68 +973,6 @@ const App: React.FC = () => {
         }
       };
       reader.readAsDataURL(file);
-    });
-  }, [state.assetImages]);
-
-  const handleDatabaseImagesSelected = useCallback((images: { url: string; fileName: string; fileType: string }[]) => {
-    images.forEach(async ({ url, fileName, fileType }) => {
-      // Konvertuj data URL na File objekt
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const file = new File([blob], fileName, { type: fileType });
-
-      const newImage: SourceImage = {
-        id: Math.random().toString(36).substr(2, 9),
-        url: url,
-        file: file
-      };
-
-      setState(prev => ({
-        ...prev,
-        sourceImages: [...prev.sourceImages, newImage],
-        error: null,
-      }));
-    });
-  }, []);
-
-  const handleDatabaseStyleImagesSelected = useCallback((images: { url: string; fileName: string; fileType: string }[]) => {
-    images.forEach(async ({ url, fileName, fileType }) => {
-      // Konvertuj data URL na File objekt
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const file = new File([blob], fileName, { type: fileType });
-
-      const newImage: SourceImage = {
-        id: Math.random().toString(36).substr(2, 9),
-        url: url,
-        file: file
-      };
-
-      setState(prev => ({
-        ...prev,
-        styleImages: [...prev.styleImages, newImage],
-        error: null,
-      }));
-    });
-  }, []);
-
-  const handleDatabaseAssetImagesSelected = useCallback((images: { url: string; fileName: string; fileType: string }[]) => {
-    images.forEach(async ({ url, fileName, fileType }) => {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const file = new File([blob], fileName, { type: fileType });
-
-      const newImage: SourceImage = {
-        id: Math.random().toString(36).substr(2, 9),
-        url: url,
-        file: file
-      };
-
-      setState(prev => ({
-        ...prev,
-        assetImages: [...prev.assetImages, newImage],
-        error: null,
-      }));
     });
   }, []);
 
@@ -1113,8 +1019,6 @@ const App: React.FC = () => {
     e.stopPropagation();
     setDragOverTarget(null);
 
-    console.log('[Drop Reference] Drop event received');
-
     try {
       // Try JSON first
       let imageData = null;
@@ -1122,20 +1026,16 @@ const App: React.FC = () => {
       const jsonData = e.dataTransfer.getData('application/json');
 
       if (internalData) {
-        console.log('[Drop Reference] Got internal data');
         imageData = JSON.parse(internalData);
       } else if (jsonData) {
-        console.log('[Drop Reference] Got JSON data payload');
         imageData = JSON.parse(jsonData);
       } else {
         const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
         if (files.length > 0) {
           const file = files[0];
-          console.log('[Drop Reference] Got file drop:', file.name);
           imageData = { file, fileName: file.name, fileType: file.type };
         } else {
           const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-          console.log('[Drop Reference] Got text url', { hasUrl: Boolean(url) });
           if (url) {
             imageData = {
               url: url,
@@ -1173,7 +1073,6 @@ const App: React.FC = () => {
 
       // Kontrola jestli už není v seznamu
       if (state.sourceImages.some(img => img.url === url)) {
-        console.log('[Drop Reference] Image already in list');
         return;
       }
 
@@ -1197,8 +1096,6 @@ const App: React.FC = () => {
           sourceImages: [...prev.sourceImages, newImage],
           error: null,
         }));
-
-        console.log('[Drop Reference] Image added successfully', { hasPrompt: Boolean(prompt) });
       } catch (fetchError) {
         console.error('[Drop Reference] Failed to fetch image, using URL directly:', fetchError);
         // Fallback - použij URL přímo bez File objektu
@@ -1225,8 +1122,6 @@ const App: React.FC = () => {
     e.stopPropagation();
     setDragOverTarget(null);
 
-    console.log('[Drop Style] Drop event received');
-
     try {
       // Try JSON first
       let imageData = null;
@@ -1234,20 +1129,16 @@ const App: React.FC = () => {
       const jsonData = e.dataTransfer.getData('application/json');
 
       if (internalData) {
-        console.log('[Drop Style] Got internal data');
         imageData = JSON.parse(internalData);
       } else if (jsonData) {
-        console.log('[Drop Style] Got JSON data payload');
         imageData = JSON.parse(jsonData);
       } else {
         const files = Array.from(e.dataTransfer.files as FileList).filter((f) => f.type.startsWith('image/'));
         if (files.length > 0) {
           const file = files[0];
-          console.log('[Drop Style] Got file drop:', file.name);
           imageData = { file, fileName: file.name, fileType: file.type };
         } else {
           const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-          console.log('[Drop Style] Got text url', { hasUrl: Boolean(url) });
           if (url) {
             imageData = {
               url: url,
@@ -1284,7 +1175,6 @@ const App: React.FC = () => {
 
       // Kontrola jestli už není v seznamu
       if (state.styleImages.some(img => img.url === url)) {
-        console.log('[Drop Style] Image already in list');
         return;
       }
 
@@ -1307,8 +1197,6 @@ const App: React.FC = () => {
           styleImages: [...prev.styleImages, newImage],
           error: null,
         }));
-
-        console.log('[Drop Style] Image added successfully');
       } catch (fetchError) {
         console.error('[Drop Style] Failed to fetch image, using URL directly:', fetchError);
         // Fallback - použij URL přímo bez File objektu
@@ -1429,7 +1317,6 @@ const App: React.FC = () => {
       setState(prev => ({ ...prev, shouldAutoGenerate: false }));
 
       // Trigger generation
-      console.log('[AutoGenerate] Triggered by Repopulate');
       handleGenerate();
     }
   }, [state.shouldAutoGenerate, state.prompt]); // Dep needs prompt to be updated first
@@ -1489,7 +1376,6 @@ const App: React.FC = () => {
 
     setIsEnhancingPrompt(true);
     try {
-      console.log('[Enhance Prompt] Starting enhancement...');
       const geminiKey = providerSettings[AIProviderType.GEMINI]?.apiKey;
       const enhanced = await enhancePromptWithAI(state.prompt, geminiKey);
 
@@ -1497,7 +1383,6 @@ const App: React.FC = () => {
         console.warn('[Enhance Prompt] No enhancement received or same as original');
         setToast({ message: 'Nepodařilo se vylepšit prompt', type: 'error' });
       } else {
-        console.log('[Enhance Prompt] Success:', enhanced);
         setPrompt(enhanced);
         setToast({ message: '✨ Prompt vylepšen', type: 'success' });
       }
@@ -1529,7 +1414,6 @@ const App: React.FC = () => {
   };
 
   const {
-    applyRecipe,
     handleRepopulate,
     handleRepopulateFromGallery,
   } = useRepopulateActions({
@@ -1570,19 +1454,14 @@ const App: React.FC = () => {
   const handleGenerateVariations = async (baseImage: GeneratedImage) => {
     if (!baseImage.url) return;
 
-    // Generovat 3 variace se stejným promptem ale jiným style seedem
-    const numberOfVariations = 3;
-
     setState(prev => ({
       ...prev,
       prompt: baseImage.prompt,
       resolution: baseImage.resolution || '2K',
       aspectRatio: baseImage.aspectRatio || 'Original',
-      numberOfImages: numberOfVariations,
+      numberOfImages: 3,
+      shouldAutoGenerate: true,
     }));
-
-    // Automaticky spustit generování
-    setTimeout(() => handleGenerate(), 100);
   };
 
   /**
@@ -1624,13 +1503,9 @@ const App: React.FC = () => {
     try {
       // 1. Generate 3 prompt variants using AI
       const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
-
-      console.log('[3 Variants] Generating variants', { promptLength: state.prompt.length });
       setToast({ message: '🎨 Generating 3 sophisticated variants...', type: 'info' });
 
       const variants = await (provider as any).generate3PromptVariants(state.prompt);
-
-      console.log('[3 Variants] Received variants:', variants.map((v: any) => v.variant).join(', '));
 
       // Prepare source images data if any
       const sourceImagesData = await Promise.all(
@@ -1651,8 +1526,6 @@ const App: React.FC = () => {
       const variantsRunId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       for (let i = 0; i < variants.length; i++) {
         const variant = variants[i];
-
-        console.log(`[3 Variants] Processing variant ${i + 1}/3: ${variant.variant}`);
 
         // Add delay between requests (except first one)
         if (i > 0) {
@@ -1733,7 +1606,6 @@ const App: React.FC = () => {
                 thumbnail,
                 params: { ...recipeWithModel, runId: variantsRunId }
               });
-              console.log(`[3 Variants] Variant ${i + 1} saved to gallery`);
             } catch (err) {
               console.error(`[3 Variants] Failed to save variant ${i + 1} to gallery:`, err);
               setToast({ message: `⚠️ Varianta ${i + 1} se nepodařila uložit do galerie`, type: 'warning' });
@@ -1749,7 +1621,6 @@ const App: React.FC = () => {
             if (isRetriable && retryCount < maxRetries) {
               retryCount++;
               const waitTime = 6000 * Math.pow(2, retryCount - 1);
-              console.log(`[3 Variants] Provider overload for variant ${i + 1}, waiting ${waitTime / 1000}s (retry ${retryCount}/${maxRetries})`);
               await new Promise(resolve => setTimeout(resolve, waitTime));
             } else {
               console.error(`[3 Variants] Failed to generate variant ${i + 1}:`, err);
@@ -1955,7 +1826,9 @@ const App: React.FC = () => {
               thumbnail,
               params: { ...recipe, runId: allModelsRunId },
             });
-          } catch { }
+          } catch {
+            // ignored: gallery save is best-effort in all-models mode
+          }
 
           ApiUsageTracker.trackImageGeneration(state.resolution, 1);
           setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
@@ -2034,14 +1907,12 @@ const App: React.FC = () => {
 
     // Multiple reference images: batch only when explicitly enabled
     if (state.sourceImages.length > 1 && state.multiRefMode === 'batch') {
-      console.log(`[Multi-Ref] Batch mode ON (${state.sourceImages.length} reference images)`);
       await handleBatchProcess(state.sourceImages);
       return;
     }
 
     // Single image generation (original logic)
     const hasReferencePrompt = state.sourceImages.some(img => img.prompt);
-    const hasAnyReference = state.sourceImages.length > 0;
 
     // Validate prompt based on mode
     if (promptMode === 'simple') {
@@ -2060,10 +1931,6 @@ const App: React.FC = () => {
     promptHistory.add(state.prompt);
 
     // Detekce jazyka a quality enhancement
-    const language = detectLanguage(state.prompt);
-    if (language) {
-      console.log(language);
-    }
 
     activeGenerationsRef.current++;
     setIsGenerating(true);
@@ -2137,9 +2004,6 @@ const App: React.FC = () => {
           while (retryCount <= maxRetries && !success) {
             try {
             const sourcePrompt = state.sourceImages.find(img => img.prompt)?.prompt;
-            if (!state.prompt.trim() && sourcePrompt) {
-              console.log('[Generation] Using prompt from reference image', { promptLength: sourcePrompt.length });
-            }
 
             const { basePrompt, enhancedPrompt } = composeGenerationPrompt({
               prompt: state.prompt,
@@ -2162,20 +2026,10 @@ const App: React.FC = () => {
               setGenerationPromptPreview(basePrompt);
             }
 
-            if (jsonContext) {
-              console.log('[Generation] Appended JSON context to prompt');
-            }
-            if (promptMode === 'advanced') {
-              console.log('[Interpretive Mode] Applied variant:', advancedVariant);
-            } else if (faceIdentityMode) {
-              console.log('[Face Identity Mode] Applied identity preservation with variation requirement');
-            }
-
             // #2: Aspect ratio normalizace pro provider
             const providerTypeKey = selectedProvider as unknown as ProviderType;
             const mappedRatio = mapAspectRatio(state.aspectRatio, providerTypeKey);
             if (mappedRatio.warning) {
-              console.log(`[Aspect Ratio] ${mappedRatio.warning}`);
               setToast({ message: mappedRatio.warning, type: 'info' });
             }
 
@@ -2266,7 +2120,6 @@ const App: React.FC = () => {
                 thumbnail,
                 params: { ...recipeWithModel, runId: imgRunId },
               });
-              console.log('[Gallery] Image saved successfully');
               // Refresh gallery to show new image
               galleryPanelRef.current?.refresh();
             } catch (err) {
@@ -2288,7 +2141,6 @@ const App: React.FC = () => {
               if (isRetriable && retryCount < maxRetries) {
                 retryCount++;
                 const waitTime = getRetryBackoffMs(selectedProvider, retryCount);
-                console.log(`Provider overload hit for image ${i + 1}, waiting ${waitTime / 1000}s before retry ${retryCount}/${maxRetries}`);
                 await new Promise(resolve => setTimeout(resolve, waitTime));
               } else {
                 // Finální chyba - buď příliš mnoho pokusů nebo jiný typ chyby
@@ -2366,152 +2218,8 @@ const App: React.FC = () => {
     void processGenerationSnapshot(snapshot);
   };
 
-  const handleEditImage = async (imageId: string) => {
-    const editPrompt = editPrompts[imageId];
-    if (!editPrompt || !editPrompt.trim()) return;
-
-    const image = state.generatedImages.find(img => img.id === imageId);
-    if (!image || !image.url) {
-      setToast({ message: 'Chyba: Obrázek nebyl nalezen', type: 'error' });
-      return;
-    }
-
-    // Nastavit loading stav
-    setState(prev => ({
-      ...prev,
-      generatedImages: prev.generatedImages.map(img =>
-        img.id === imageId ? { ...img, isEditing: true } : img
-      ),
-    }));
-
-    // Zavřít reference upload po zahájení editace
-    setShowReferenceUpload(prev => ({ ...prev, [imageId]: false }));
-
-    // User feedback
-    setToast({ message: 'Zahajuji úpravu obrázku...', type: 'info' });
-
-    try {
-      // DŮLEŽITÉ: První obrázek = obrázek k editaci, další obrázky = reference pro inspiraci
-      const editState = inlineEditStates[imageId];
-
-      // Konvertovat všechny URL na base64 data URL pro Gemini API
-      console.log('[Edit] Converting images to base64...');
-      let baseImageData: string;
-      try {
-        baseImageData = await urlToDataUrl(image.url);
-      } catch (err) {
-        console.error('[Edit] Failed to convert base image:', err);
-        throw new Error('Nepodařilo se načíst původní obrázek. Zkuste to prosím znovu.');
-      }
-
-      const referenceImagesData = await Promise.all(
-        (editState?.referenceImages || []).map(async i => {
-          try {
-            return {
-              data: await urlToDataUrl(i.url),
-              mimeType: i.file.type
-            };
-          } catch (e) {
-            console.warn('[Edit] Failed to load reference image, skipping:', i.url);
-            return null;
-          }
-        })
-      );
-
-      // Filter out failed reference images
-      const validReferenceImages = referenceImagesData.filter(img => img !== null) as { data: string; mimeType: string }[];
-
-      const sourceImages = [
-        // Původní vygenerovaný obrázek - VŽDY první (je to obrázek, který má být editován)
-        { data: baseImageData, mimeType: 'image/jpeg' },
-        // Referenční obrázky - jako kontext/inspirace pro úpravu
-        ...validReferenceImages
-      ];
-
-      console.log('[Edit] Sending request to Gemini...', { promptLength: editPrompt.length, imageCount: sourceImages.length });
-
-      const provider = ProviderFactory.getProvider(AIProviderType.GEMINI, providerSettings);
-      const recipe = buildEditRecipe({
-        prompt: editPrompt,
-        useGrounding,
-        promptMode,
-        advancedVariant,
-        faceIdentityMode,
-        resolution: image.resolution,
-        aspectRatio: image.aspectRatio,
-        sourceImageCount: sourceImages.length,
-        styleImageCount: 0,
-        createdAt: Date.now(),
-      });
-      const result = await provider.generateImage(sourceImages, editPrompt, image.resolution, image.aspectRatio, useGrounding);
-
-      console.log('[Edit] Success! updating gallery...');
-
-      // Uložit starou verzi a aktualizovat obrázek
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img => {
-          if (img.id === imageId) {
-            // #11: Save current version to history with full recipe
-            const newVersions = [
-              ...(img.versions || []),
-              { url: img.url!, prompt: img.prompt, timestamp: img.timestamp, recipe: img.recipe }
-            ];
-
-            return {
-              ...img,
-              url: result.imageBase64,
-              prompt: editPrompt,
-              timestamp: Date.now(),
-              versions: newVersions,
-              currentVersionIndex: newVersions.length,
-              isEditing: false,
-              recipe,
-            };
-          }
-          return img;
-        }),
-      }));
-
-      // Vymazat edit prompt
-      setEditPrompts(prev => {
-        const newPrompts = { ...prev };
-        delete newPrompts[imageId];
-        return newPrompts;
-      });
-
-      setToast({ message: 'Obrázek byl úspěšně upraven!', type: 'success' });
-
-      // Uložit upravenou verzi do galerie
-      try {
-        const thumbnail = await createThumbnail(result.imageBase64);
-        await saveToGallery({
-          url: result.imageBase64,
-          prompt: editPrompt,
-          resolution: image.resolution,
-          aspectRatio: image.aspectRatio,
-          thumbnail,
-          params: recipe,
-        });
-      } catch (err) {
-        console.error('Failed to save edited image to gallery:', err);
-      }
-    } catch (err: any) {
-      console.error('Edit error:', err);
-      setToast({ message: toUserFacingAiError(err, 'Úprava obrázku selhala.'), type: 'error' });
-
-      setState(prev => ({
-        ...prev,
-        generatedImages: prev.generatedImages.map(img =>
-          img.id === imageId ? { ...img, isEditing: false, error: err instanceof Error ? err.message : 'Edit failed' } : img
-        ),
-      }));
-    }
-  };
   // Batch processing handler
   const handleBatchProcess = async (images: BatchProcessImage[]) => {
-    console.log('[Batch] Starting batch process with', images.length, 'images');
-    console.log('[Batch] Prompt metadata', { promptLength: state.prompt.length });
 
     const canRunFixedSimpleBatch =
       promptMode === 'simple' &&
@@ -2575,7 +2283,7 @@ const App: React.FC = () => {
         } : null);
 
         // Generate chunk in parallel
-        const results = await Promise.all(
+        await Promise.all(
           chunk.map(async (image, indexInChunk) => {
             const globalIndex = chunkIndex * BATCH_PARALLEL_SIZE + indexInChunk;
             const loadingId = loadingImages[globalIndex].id;
@@ -2703,76 +2411,65 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUndoImageEdit = (imageId: string) => {
-    setState(prev => ({
-      ...prev,
-      generatedImages: prev.generatedImages.map(img => {
-        if (img.id === imageId && img.versions && img.versions.length > 0) {
-          const currentIndex = img.currentVersionIndex ?? img.versions.length;
-
-          // Can only undo if we're not at the beginning
-          if (currentIndex > 0) {
-            const previousVersion = img.versions[currentIndex - 1];
-            return {
-              ...img,
-              url: previousVersion.url,
-              prompt: previousVersion.prompt,
-              timestamp: previousVersion.timestamp,
-              currentVersionIndex: currentIndex - 1,
-            };
-          }
-        }
-        return img;
-      }),
-    }));
-  };
-
-  // Redo to next version (step forward in history)
-  const handleRedoImageEdit = (imageId: string) => {
-    setState(prev => ({
-      ...prev,
-      generatedImages: prev.generatedImages.map(img => {
-        if (img.id === imageId && img.versions && img.versions.length > 0) {
-          const currentIndex = img.currentVersionIndex ?? img.versions.length;
-
-          // Can only redo if we're not at the end
-          if (currentIndex < img.versions.length) {
-            const nextVersion = img.versions[currentIndex];
-            return {
-              ...img,
-              url: nextVersion.url,
-              prompt: nextVersion.prompt,
-              timestamp: nextVersion.timestamp,
-              currentVersionIndex: currentIndex + 1,
-            };
-          }
-        }
-        return img;
-      }),
-    }));
-  };
-
-  // OLD handleUndoEdit - keeping for backward compatibility with existing UI
-  const handleUndoEdit = (imageId: string) => {
-    handleUndoImageEdit(imageId);
-  };
-
   const handleDeleteImage = (imageId: string) => {
+    setState(prev => {
+      const img = prev.generatedImages.find(i => i.id === imageId);
+      return {
+        ...prev,
+        generatedImages: prev.generatedImages.filter(i => i.id !== imageId),
+        trashedImages: img
+          ? [{ ...img, trashedAt: Date.now() }, ...prev.trashedImages]
+          : prev.trashedImages,
+      };
+    });
+  };
+
+  const handleRestoreFromTrash = (imageId: string) => {
+    setState(prev => {
+      const img = prev.trashedImages.find(i => i.id === imageId);
+      return {
+        ...prev,
+        trashedImages: prev.trashedImages.filter(i => i.id !== imageId),
+        generatedImages: img ? [img, ...prev.generatedImages] : prev.generatedImages,
+      };
+    });
+  };
+
+  const handleEmptyTrash = () => {
+    setState(prev => ({ ...prev, trashedImages: [] }));
+  };
+
+  const handleRestoreAllFromTrash = () => {
     setState(prev => ({
       ...prev,
-      generatedImages: prev.generatedImages.filter(img => img.id !== imageId),
+      generatedImages: [...prev.trashedImages, ...prev.generatedImages],
+      trashedImages: [],
     }));
-    // Clean up edit states
-    setInlineEditStates(prev => {
-      const newState = { ...prev };
-      delete newState[imageId];
-      return newState;
-    });
-    setShowReferenceUpload(prev => {
-      const newState = { ...prev };
-      delete newState[imageId];
-      return newState;
-    });
+  };
+
+  const REFINE_PRESETS = [
+    { label: '+teplejší', suffix: ', warm golden lighting, amber tones' },
+    { label: '+chladnější', suffix: ', cool blue tones, cinematic cold light' },
+    { label: '+detaily', suffix: ', highly detailed, intricate textures, 8K detail' },
+    { label: '+kontrast', suffix: ', high contrast, dramatic shadows and highlights' },
+    { label: '+ostrost', suffix: ', ultra sharp, crisp edges, maximum sharpness' },
+    { label: '-artefakty', suffix: ', clean image, no artifacts, no distortion, photorealistic' },
+    { label: '+cinematický', suffix: ', cinematic film look, anamorphic lens, movie still' },
+    { label: '+pastelový', suffix: ', soft pastel colors, dreamy, gentle hues' },
+  ];
+
+  const handleRefineWithPreset = (image: GeneratedImage, suffix: string) => {
+    if (!image.url) return;
+    const newPrompt = (image.prompt || state.prompt) + suffix;
+    setState(prev => ({
+      ...prev,
+      prompt: newPrompt,
+      resolution: image.resolution || prev.resolution,
+      aspectRatio: image.aspectRatio || prev.aspectRatio,
+      numberOfImages: 1,
+      shouldAutoGenerate: true,
+    }));
+    setRefineImage(null);
   };
 
   // #5: Upscaling
@@ -3034,12 +2731,17 @@ const App: React.FC = () => {
         },
       },
       {
+        label: 'Upřesnit (Refine)',
+        icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>,
+        onClick: () => setRefineImage(image),
+      },
+      {
         label: 'Regenerovat',
         icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
         onClick: () => handleRepopulate(image),
       },
       {
-        label: 'Generovat variace',
+        label: 'Variace (seed × 3)',
         icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
         onClick: () => handleGenerateVariations(image),
       },
@@ -3067,39 +2769,6 @@ const App: React.FC = () => {
     ];
   };
 
-  const addInlineReferenceImages = (imageId: string, files: File[]) => {
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result && typeof e.target.result === 'string') {
-          const newImage: SourceImage = {
-            id: Math.random().toString(36).substr(2, 9),
-            url: e.target.result,
-            file: file
-          };
-          setInlineEditStates(prev => ({
-            ...prev,
-            [imageId]: {
-              ...prev[imageId],
-              referenceImages: [...(prev[imageId]?.referenceImages || []), newImage]
-            }
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removeInlineReferenceImage = (imageId: string, refImageId: string) => {
-    setInlineEditStates(prev => ({
-      ...prev,
-      [imageId]: {
-        ...prev[imageId],
-        referenceImages: prev[imageId].referenceImages.filter(img => img.id !== refImageId)
-      }
-    }));
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -3123,30 +2792,6 @@ const App: React.FC = () => {
     }
   };
 
-  const getDomainFromUrl = (url: string, title?: string) => {
-    try {
-      const parsedUrl = new URL(url);
-
-      // Attempt to extract from Vertex AI Search proxy if it's there
-      if (parsedUrl.hostname.includes('vertexaisearch.cloud.google.com')) {
-        const urlParam = parsedUrl.searchParams.get('url');
-        if (urlParam) {
-          return new URL(urlParam).hostname.replace(/^www\./, '');
-        }
-      }
-
-      // If title looks like a domain or is a short brand name, use it
-      if (title && title.length > 0 && title.length < 25) {
-        if (title.includes('.')) return title.toLowerCase();
-        // If it's a short title without spaces, it's often the site name
-        if (!title.includes(' ')) return title;
-      }
-
-      return parsedUrl.hostname.replace(/^www\./, '');
-    } catch {
-      return title || 'Link';
-    }
-  };
 
   const imageModelPresets: Array<{
     id: string;
@@ -3324,7 +2969,7 @@ const App: React.FC = () => {
           <button
             onClick={handleGenerate}
             disabled={!canGenerate}
-            className={`mn-action-primary w-full ${isGenerateClicked ? 'bg-blue-600 text-white border-blue-600' : ''}`}
+            className="mn-action-primary w-full"
             style={{ borderRadius: '100px' }}
           >
             <div className="text-[10px] font-black uppercase tracking-[0.18em]">
@@ -3336,12 +2981,13 @@ const App: React.FC = () => {
               onClick={handleGenerate3Variants}
               disabled={!canGenerate}
               className="mn-subaction mn-subaction-variants"
+              title="Variace seedu — 3 obrázky ze stejného promptu s různým náhodným seedem"
             >
               <div className="text-[9px] font-black uppercase tracking-[0.18em]">
-                {isGenerating ? 'Varianty…' : '3 varianty'}
+                {isGenerating ? 'Variace…' : 'Variace'}
               </div>
               <div className="mt-1 text-[8px] font-semibold opacity-75">
-                promptu
+                seed × 3
               </div>
             </button>
 
@@ -3349,12 +2995,13 @@ const App: React.FC = () => {
               onClick={handleGenerate3AI}
               disabled={!canGenerate}
               className="mn-subaction mn-subaction-models"
+              title="Interpretace AI — AI vygeneruje 3 různé verze promptu a vytvoří obrázek pro každou"
             >
               <div className="text-[9px] font-black uppercase tracking-[0.18em]">
-                {isGenerating ? 'Všechny…' : 'Všechny'}
+                {isGenerating ? 'Interp…' : 'Interpretace'}
               </div>
               <div className="mt-1 text-[8px] font-semibold opacity-75">
-                modely
+                AI × 3
               </div>
             </button>
           </div>
@@ -3721,7 +3368,7 @@ const App: React.FC = () => {
             <label className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
               Mix stylů
             </label>
-            {state.styleImages.map((img, idx) => (
+            {state.styleImages.map((img) => (
               <div key={img.id} className="flex items-center gap-2">
                 <img src={img.url} className="w-6 h-6 rounded object-cover border border-[var(--border-color)]" alt="" />
                 <input
@@ -3868,7 +3515,37 @@ const App: React.FC = () => {
         </section>
       </div>
 
-      <div className="mt-auto pt-6">
+      <div className="mt-auto pt-6 space-y-3">
+        {state.trashedImages.length > 0 && (
+          <details className="group rounded-lg border border-[rgba(168,191,143,0.16)] overflow-hidden">
+            <summary className="flex items-center justify-between px-3 py-2 cursor-pointer bg-[rgba(32,44,24,0.45)] hover:bg-[rgba(45,62,33,0.55)] transition-all list-none">
+              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                Koš ({state.trashedImages.length})
+              </span>
+              <div className="flex gap-2">
+                <button type="button" onClick={(e) => { e.preventDefault(); handleRestoreAllFromTrash(); }}
+                  className="text-[8px] font-bold uppercase tracking-wider text-[var(--accent)] hover:text-[var(--text-primary)] transition-colors">
+                  Obnovit vše
+                </button>
+                <button type="button" onClick={(e) => { e.preventDefault(); handleEmptyTrash(); }}
+                  className="text-[8px] font-bold uppercase tracking-wider text-red-400 hover:text-red-300 transition-colors">
+                  Vysypat
+                </button>
+              </div>
+            </summary>
+            <div className="grid grid-cols-3 gap-1 p-2 bg-[rgba(16,22,12,0.60)]">
+              {state.trashedImages.slice(0, 9).map(img => (
+                <div key={img.id} className="relative aspect-square rounded overflow-hidden group/thumb cursor-pointer"
+                  onClick={() => handleRestoreFromTrash(img.id)}>
+                  {img.url && <img src={img.url} className="w-full h-full object-cover opacity-50 group-hover/thumb:opacity-80 transition-opacity" alt="" />}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity bg-black/40">
+                    <span className="text-[7px] font-bold uppercase tracking-wider text-white">Obnovit</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
         <button
           type="button"
           onClick={() => setIsGalleryExpanded(true)}
@@ -3963,6 +3640,30 @@ const App: React.FC = () => {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0c0a]">
         <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0b0c0a] text-center px-8 gap-6">
+        <div className="w-12 h-12 rounded-2xl bg-[rgba(168,191,143,0.15)] flex items-center justify-center mb-2">
+          <svg className="w-6 h-6 text-[#a8bf8f]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <h2 className="text-base font-black uppercase tracking-[0.2em] text-white mb-2">Otevři na desktopu</h2>
+          <p className="text-sm text-white/50 leading-relaxed">
+            Mulen Nano je navržen pro desktopové prohlížeče. Pro nejlepší zkušenost ho otevři na počítači.
+          </p>
+        </div>
+        <button
+          onClick={() => setIsMobile(false)}
+          className="mt-2 px-5 py-2.5 rounded-lg border border-[rgba(168,191,143,0.25)] text-[10px] font-bold uppercase tracking-wider text-[#a8bf8f] hover:bg-[rgba(168,191,143,0.1)] transition-all"
+        >
+          Přesto pokračovat
+        </button>
       </div>
     );
   }
@@ -4100,7 +3801,7 @@ const App: React.FC = () => {
                 onOpenLibrary={() => setIsGalleryExpanded(true)}
                 onBack={() => navigate('/')}
                 onToast={(t) => setToast(t)}
-                isHoveringGallery={isHoveringGallery}
+                isHoveringGallery={false}
                 theme={theme}
               />
             </Suspense>
@@ -4537,8 +4238,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex-1 min-h-0">
                   <ImageGalleryPanel
-                    onDragStart={(imageData, type) => {
-                      console.log('[Drag] Started from gallery', { type });
+                    onDragStart={(_imageData, _type) => {
                     }}
                     onBatchProcess={handleBatchProcess}
                     view="expanded"
@@ -4549,6 +4249,36 @@ const App: React.FC = () => {
           )}
         </div >
         </AtelierRightPanelProvider>
+
+        {/* Refine dialog */}
+        {refineImage && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setRefineImage(null)}>
+            <div className="w-full max-w-sm mx-4 rounded-2xl border border-[rgba(168,191,143,0.25)] bg-[linear-gradient(160deg,rgba(28,40,22,0.98)_0%,rgba(16,24,12,0.99)_100%)] p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-[var(--text-primary)]">Upřesnit obrázek</h3>
+                <button onClick={() => setRefineImage(null)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              {refineImage.url && (
+                <img src={refineImage.url} className="w-full h-32 object-cover rounded-lg mb-4 opacity-70" alt="" />
+              )}
+              <p className="text-[9px] text-[var(--text-secondary)] mb-3 leading-relaxed">Vyber upřesnění — přidá se k promptu a vygeneruje nový obrázek:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {REFINE_PRESETS.map(preset => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => handleRefineWithPreset(refineImage, preset.suffix)}
+                    className="rounded-lg border border-[rgba(168,191,143,0.20)] bg-[rgba(32,44,24,0.55)] px-3 py-2 text-left text-[9px] font-bold uppercase tracking-wider text-[var(--text-secondary)] transition-all hover:border-[rgba(168,191,143,0.45)] hover:bg-[rgba(45,62,33,0.70)] hover:text-[var(--accent)]"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <ImageDetailModal
           isOpen={!!selectedImage && !!selectedImage.url}

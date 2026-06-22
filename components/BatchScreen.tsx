@@ -285,6 +285,58 @@ export function BatchScreen(props: {
     setOutputs((prev) => prev.filter((item) => item.inputId !== inputId));
   }, []);
 
+  const handleRetryFailed = React.useCallback(async () => {
+    const failedOutputs = outputs.filter(o => o.status === 'error');
+    if (failedOutputs.length === 0) return;
+
+    setIsGenerating(true);
+    setOutputs(prev => prev.map(o =>
+      o.status === 'error' ? { ...o, status: 'pending' as const, error: undefined, attempt: undefined } : o
+    ));
+
+    const provider = ProviderFactory.getProvider(selectedProvider, providerSettings);
+    const retryItems = failedOutputs.map(o => ({ ...o, status: 'pending' as const }));
+    const decision = decideAdaptiveConcurrency({ section: 'batch', itemCount: retryItems.length, averageBytes: 300_000, maxBytes: 600_000 });
+    setActiveConcurrency(decision.concurrency);
+
+    try {
+      const results = await runConcurrentTasks({
+        items: retryItems,
+        concurrency: decision.concurrency,
+        onTaskStateChange: ({ index, status, attempt }) => {
+          const output = retryItems[index];
+          if (!output) return;
+          setOutputs(prev => prev.map(item =>
+            item.id === output.id ? { ...item, status: status === 'done' ? 'done' : status === 'error' ? 'error' : status, attempt } : item
+          ));
+        },
+        worker: async (output) => {
+          const result = await provider.generateImage(
+            [{ data: output.inputDataUrl, mimeType: 'image/jpeg' }],
+            output.prompt,
+            '1K',
+          );
+          setOutputs(prev => prev.map(item =>
+            item.id === output.id ? { ...item, status: 'done' as const, dataUrl: result.imageBase64, attempt: 1 } : item
+          ));
+          return result;
+        },
+      });
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      results.filter(r => r.status === 'rejected').forEach((entry: any) => {
+        const output = retryItems[entry.index];
+        if (!output) return;
+        setOutputs(prev => prev.map(item =>
+          item.id === output.id ? { ...item, status: 'error' as const, error: String(entry.error), attempt: entry.attempts } : item
+        ));
+      });
+      onToast({ message: `Retry: ${succeeded} hotovo, ${failed} selhalo.`, type: failed === 0 ? 'success' : 'warning' });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [outputs, providerSettings, selectedProvider, onToast]);
+
   const handleGenerate = React.useCallback(async () => {
     if (inputs.length === 0) {
       onToast({ message: 'Nejdřív přidej aspoň jeden vstupní obrázek.', type: 'error' });
@@ -491,6 +543,16 @@ export function BatchScreen(props: {
           >
             {isGenerating ? 'Běží…' : 'Generovat'}
           </button>
+
+          {errorCount > 0 && !isGenerating && (
+            <button
+              type="button"
+              onClick={handleRetryFailed}
+              className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-amber-400 transition-all hover:border-amber-500/60 hover:bg-amber-500/20"
+            >
+              Retry {errorCount} selhalo
+            </button>
+          )}
 
           <div className="space-y-1">
             <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Počet obrázků</h3>

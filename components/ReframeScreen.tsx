@@ -161,6 +161,13 @@ const PERSPECTIVES: Perspective[] = [
 
 const DEFAULT_SELECTED = new Set(PERSPECTIVES.filter((item) => item.defaultSelected).map((item) => item.id));
 
+const REFRAME_PRESETS: Array<{ label: string; ids: PerspectiveId[] }> = [
+  { label: 'Mobilní', ids: ['closeup', 'medium-closeup', 'extreme-closeup', 'medium-long'] },
+  { label: 'Filmové', ids: ['wide', 'ext-long-shot', 'low-angle', 'high-angle', 'aerial'] },
+  { label: 'Detaily', ids: ['extreme-closeup', 'closeup', 'profile', 'three-quarter'] },
+  { label: 'Vybrat vše', ids: PERSPECTIVES.map(p => p.id) as PerspectiveId[] },
+];
+
 function readGeminiKey(): string {
   try {
     const raw = localStorage.getItem('providerSettings');
@@ -685,6 +692,25 @@ export function ReframeScreen(props: {
 
       <AtelierRightPanel onOpenLibrary={onOpenLibrary}>
         <AtelierSection title="Perspektivy">
+          <div className="flex flex-wrap gap-1 mb-3">
+            {REFRAME_PRESETS.map(preset => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setSelected(new Set(preset.ids))}
+                className="rounded-md border border-[rgba(168,191,143,0.20)] bg-[rgba(32,44,24,0.50)] px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-[var(--text-secondary)] transition-all hover:border-[rgba(168,191,143,0.45)] hover:text-[var(--accent)]"
+              >
+                {preset.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="rounded-md border border-[rgba(168,191,143,0.12)] bg-transparent px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-[var(--text-secondary)] transition-all hover:border-red-500/40 hover:text-red-400"
+            >
+              Odebrat vše
+            </button>
+          </div>
           <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
             <span>Vybráno</span>
             <span>{selectedPerspectives.length}/{PERSPECTIVES.length}</span>

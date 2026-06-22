@@ -144,7 +144,7 @@ async function withRetry<T>(label: string, operation: () => Promise<T>): Promise
       return await operation();
     } catch (error) {
       if (isAnonymousSignInDisabledError(error)) {
-        throw new Error(SUPABASE_ANON_DISABLED_ERROR_MESSAGE);
+        throw new Error(SUPABASE_ANON_DISABLED_ERROR_MESSAGE, { cause: error });
       }
 
       lastError = error;

@@ -50,7 +50,7 @@ export function buildStyleWeightsInstruction(
   const totalWeight = entries.reduce((sum, [, w]) => sum + w, 0);
   if (totalWeight === 0) return '';
 
-  const normalized = entries.map(([id, w], idx) => ({
+  const normalized = entries.map(([, w], idx) => ({
     index: idx + 1,
     weight: Math.round((w / totalWeight) * 100),
   }));

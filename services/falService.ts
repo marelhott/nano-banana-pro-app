@@ -210,7 +210,7 @@ export async function runFalLoraImg2Img(params: {
     throw new Error(`fal.ai request selhal (HTTP ${res.status})${suffix}`);
   }
 
-  let payload: FalLoraImg2ImgResponse = {};
+  let payload: FalLoraImg2ImgResponse;
   try {
     payload = JSON.parse(rawText) as FalLoraImg2ImgResponse;
   } catch {
@@ -243,10 +243,12 @@ async function submitFalJob(
       const j = JSON.parse(rawText);
       detail = j?.detail || j?.error || j?.message || rawText;
       if (typeof detail !== 'string') detail = JSON.stringify(detail);
-    } catch { }
+    } catch {
+      // keep raw text
+    }
     throw new Error(`fal.ai submit selhal (HTTP ${res.status}): ${String(detail).slice(0, 500)}`);
   }
-  let payload: any = {};
+  let payload: any;
   try {
     payload = JSON.parse(rawText);
   } catch {
@@ -271,7 +273,9 @@ async function pollFalJob(headers: Record<string, string>, statusUrl: string, en
       const j = JSON.parse(rawText);
       detail = j?.detail || j?.error || j?.message || rawText;
       if (typeof detail !== 'string') detail = JSON.stringify(detail);
-    } catch { }
+    } catch {
+      // keep raw text
+    }
     throw new Error(`fal.ai status selhal (HTTP ${res.status}): ${String(detail).slice(0, 500)}`);
   }
   try {
@@ -634,7 +638,9 @@ export async function runFalFluxLoraImg2ImgQueued(params: {
     lastPhase = p;
     try {
       params.onPhase?.(p);
-    } catch { }
+    } catch {
+      // ignore consumer callback failure
+    }
   };
   setPhase('queue');
 
